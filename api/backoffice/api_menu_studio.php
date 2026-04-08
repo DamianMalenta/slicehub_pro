@@ -134,11 +134,20 @@ try {
             $itemId = intval($input['itemId'] ?? 0);
             if ($itemId <= 0) throw new Exception("Nieprawidłowe ID elementu.");
 
-            $stmt = $pdo->prepare("SELECT id, category_id, name, ascii_key, is_active, vat_rate_dine_in as vat_rate, kds_station_id, is_locked_by_hq, publication_status, valid_from, valid_to, description, image_url, marketing_tags FROM sh_menu_items WHERE id = ? AND tenant_id = ? AND is_deleted = 0");
-            $stmt->execute([$itemId, $tenantId]);
-            $item = $stmt->fetch(PDO::FETCH_ASSOC);
+            $stmtItem = $pdo->prepare("SELECT id, category_id, name, ascii_key, is_active, vat_rate_dine_in as vat_rate, kds_station_id, is_locked_by_hq, publication_status, valid_from, valid_to, description, image_url, marketing_tags, barcode_ean, parent_sku, allergens_json FROM sh_menu_items WHERE id = ? AND tenant_id = ? AND is_deleted = 0");
+            $stmtItem->execute([$itemId, $tenantId]);
+            $item = $stmtItem->fetch(PDO::FETCH_ASSOC);
 
             if (!$item) throw new Exception("Nie znaleziono dania.");
+
+            $itemData = $item;
+            $item['barcodeEan'] = $itemData['barcode_ean'] ?? '';
+            $item['parentSku'] = $itemData['parent_sku'] ?? '';
+            $allergensRaw = $itemData['allergens_json'] ?? '[]';
+            $item['allergens'] = is_string($allergensRaw) ? json_decode($allergensRaw, true) : [];
+            if (!is_array($item['allergens'])) {
+                $item['allergens'] = [];
+            }
 
             // Pobieranie cen z Macierzy dla tego konkretnego dania
             $stmtPrice = $pdo->prepare("SELECT channel, price FROM sh_price_tiers WHERE target_type = 'ITEM' AND target_sku = ?");
@@ -175,6 +184,9 @@ try {
                 'imageUrl' => $item['image_url'],
                 'marketingTags' => $item['marketing_tags'],
                 'modifierGroupIds' => $item['modifierGroupIds'],
+                'barcodeEan' => $item['barcodeEan'],
+                'parentSku' => $item['parentSku'],
+                'allergens' => $item['allergens'],
                 'priceMatrix' => $priceMatrix, // Kompatybilność z formularzem
                 'priceTiers' => $priceTiers // Czysta architektura
             ];
@@ -202,6 +214,15 @@ try {
             $description = trim($input['description'] ?? '');
             $imageUrl = trim($input['imageUrl'] ?? '');
             $marketingTags = trim($input['marketingTags'] ?? '');
+
+            $barcodeEan = trim($input['barcodeEan'] ?? '');
+            $barcodeEan = $barcodeEan === '' ? null : $barcodeEan;
+
+            $parentSku = trim($input['parentSku'] ?? '');
+            $parentSku = $parentSku === '' ? null : $parentSku;
+
+            $allergensRaw = $input['allergens'] ?? [];
+            $allergensJson = is_array($allergensRaw) ? json_encode($allergensRaw) : '[]';
             
             $priceTiers = $input['priceTiers'] ?? [];
 
@@ -213,12 +234,12 @@ try {
 
             try {
                 if ($action === 'add_item') {
-                    $stmt = $pdo->prepare("INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, is_active, vat_rate_dine_in, vat_rate_takeaway, kds_station_id, publication_status, valid_from, valid_to, description, image_url, marketing_tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                    $stmt->execute([$tenantId, $categoryId, $name, $asciiKey, $isActive, $vatRate, $vatRate, $kdsStationId, $pubStatus, $validFrom, $validTo, $description, $imageUrl, $marketingTags]);
+                    $stmt = $pdo->prepare("INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, is_active, vat_rate_dine_in, vat_rate_takeaway, kds_station_id, publication_status, valid_from, valid_to, description, image_url, marketing_tags, barcode_ean, parent_sku, allergens_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    $stmt->execute([$tenantId, $categoryId, $name, $asciiKey, $isActive, $vatRate, $vatRate, $kdsStationId, $pubStatus, $validFrom, $validTo, $description, $imageUrl, $marketingTags, $barcodeEan, $parentSku, $allergensJson]);
                     $itemId = $pdo->lastInsertId();
                 } else {
-                    $stmt = $pdo->prepare("UPDATE sh_menu_items SET name = ?, ascii_key = ?, category_id = ?, is_active = ?, vat_rate_dine_in = ?, vat_rate_takeaway = ?, kds_station_id = ?, publication_status = ?, valid_from = ?, valid_to = ?, description = ?, image_url = ?, marketing_tags = ?, updated_at = NOW() WHERE id = ? AND tenant_id = ? AND is_deleted = 0");
-                    $stmt->execute([$name, $asciiKey, $categoryId, $isActive, $vatRate, $vatRate, $kdsStationId, $pubStatus, $validFrom, $validTo, $description, $imageUrl, $marketingTags, $itemId, $tenantId]);
+                    $stmt = $pdo->prepare("UPDATE sh_menu_items SET name = ?, ascii_key = ?, category_id = ?, is_active = ?, vat_rate_dine_in = ?, vat_rate_takeaway = ?, kds_station_id = ?, publication_status = ?, valid_from = ?, valid_to = ?, description = ?, image_url = ?, marketing_tags = ?, barcode_ean = ?, parent_sku = ?, allergens_json = ?, updated_at = NOW() WHERE id = ? AND tenant_id = ? AND is_deleted = 0");
+                    $stmt->execute([$name, $asciiKey, $categoryId, $isActive, $vatRate, $vatRate, $kdsStationId, $pubStatus, $validFrom, $validTo, $description, $imageUrl, $marketingTags, $barcodeEan, $parentSku, $allergensJson, $itemId, $tenantId]);
                 }
 
                 // Bezpieczny Upsert do Macierzy Cenowej (sh_price_tiers)

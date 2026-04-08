@@ -122,23 +122,61 @@ window.ItemEditor = {
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 gap-2 border border-white/10 bg-black/30 rounded-xl p-4 mt-4">
-                <label class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Alergeny (Auto-Traceability)</label>
-                <div class="flex flex-wrap gap-2 pointer-events-none opacity-50">
-                    <span class="px-2 py-1 text-[10px] border border-white/20 rounded-lg bg-black/40 text-slate-300">Gluten</span>
-                    <span class="px-2 py-1 text-[10px] border border-white/20 rounded-lg bg-black/40 text-slate-300">Laktoza</span>
-                    <span class="px-2 py-1 text-[10px] border border-white/20 rounded-lg bg-black/40 text-slate-300">Jaja</span>
-                    <span class="px-2 py-1 text-[10px] border border-white/20 rounded-lg bg-black/40 text-slate-300">Orzechy</span>
-                </div>
-                <p class="text-[10px] text-slate-500">Alergeny wyliczane automatycznie z receptury</p>
-            </div>
-
             <div class="pt-5 mt-4 border-t border-white/5">
                 <button type="button" onclick="window.ItemEditor.saveItem()" class="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-black text-xs uppercase tracking-widest py-3 px-4 rounded transition shadow-[0_0_15px_rgba(37,99,235,0.3)] hover:shadow-[0_0_25px_rgba(37,99,235,0.5)]">
                     <i class="fa-solid fa-floppy-disk mr-2"></i> Zapisz Danie
                 </button>
             </div>
         `;
+
+        const enterprisePanel = `
+<div class="bg-[#0a0a0f]/80 border border-emerald-500/30 p-6 rounded-2xl mt-4 mb-6 shadow-[0_0_20px_rgba(16,185,129,0.05)] relative overflow-hidden group hover:border-emerald-500/50 transition-all">
+    <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-cyan-500"></div>
+    <h5 class="text-[10px] text-emerald-400 font-bold uppercase tracking-wider mb-4 flex items-center gap-2">
+        <i class="fa-solid fa-bolt"></i> Enterprise Settings (Retail & Warianty)
+    </h5>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div class="flex flex-col gap-1.5">
+            <label class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Kod Kreskowy (EAN)</label>
+            <div class="relative">
+                <i class="fa-solid fa-barcode absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
+                <input type="text" id="item-barcode-ean" class="w-full bg-black/60 border border-white/10 text-emerald-300 rounded p-3 pl-10 text-sm focus:border-emerald-500 focus:outline-none transition" placeholder="np. 590123456789">
+            </div>
+        </div>
+        
+        <div class="flex flex-col gap-1.5">
+            <label class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Parent SKU (Danie Główne)</label>
+            <div class="relative">
+                <i class="fa-solid fa-link absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
+                <input type="text" id="item-parent-sku" class="w-full bg-black/60 border border-white/10 text-cyan-300 rounded p-3 pl-10 text-sm focus:border-cyan-500 focus:outline-none transition" placeholder="np. PIZZA_MARGHERITA_MASTER">
+            </div>
+            <span class="text-[9px] text-slate-500">Zostaw puste dla standardowych dań.</span>
+        </div>
+    </div>
+
+    <div class="flex flex-col gap-2">
+         <label class="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center justify-between">
+            <span>Alergeny Prawne (UE)</span>
+            <span class="text-[8px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded">Etykieta Informacyjna</span>
+         </label>
+         <div class="flex flex-wrap gap-2" id="allergens-container">
+            ${['Gluten', 'Laktoza', 'Orzechy', 'Skorupiaki', 'Jaja', 'Ryby', 'Soja', 'Seler', 'Gorczyca', 'Sezam', 'Mięczaki'].map(alg => `
+                <label class="cursor-pointer group relative">
+                    <input type="checkbox" class="peer sr-only allergen-checkbox" value="${alg}">
+                    <div class="bg-black/50 border border-white/10 text-slate-400 text-xs px-3 py-1.5 rounded-lg peer-checked:bg-emerald-900/40 peer-checked:border-emerald-500/50 peer-checked:text-emerald-300 transition-all hover:border-white/30">
+                        ${alg}
+                    </div>
+                </label>
+            `).join('')}
+         </div>
+    </div>
+</div>
+`;
+        const marketingTagsWrapper = document.getElementById('lock-item-tags-wrapper');
+        if (marketingTagsWrapper) {
+            marketingTagsWrapper.insertAdjacentHTML('beforebegin', enterprisePanel);
+        }
 
         let modifierGroupsHtml = `
 <div class="bg-[#0a0a0f]/60 border border-purple-500/20 p-6 rounded-2xl mb-6 shadow-[0_0_15px_rgba(168,85,247,0.05)]">
@@ -264,6 +302,18 @@ window.ItemEditor = {
         if (marketingTagsField) marketingTagsField.value = itemData.marketingTags || '';
         if (qrLinkField) qrLinkField.value = `https://menu.slicehub.app/item/${itemData.asciiKey || ''}`;
 
+        const barcodeEanField = document.getElementById('item-barcode-ean');
+        const parentSkuField = document.getElementById('item-parent-sku');
+        if (barcodeEanField) barcodeEanField.value = itemData.barcodeEan || '';
+        if (parentSkuField) parentSkuField.value = itemData.parentSku || '';
+        document.querySelectorAll('.allergen-checkbox').forEach(cb => { cb.checked = false; });
+        if (Array.isArray(itemData.allergens)) {
+            itemData.allergens.forEach(alg => {
+                const checkbox = document.querySelector(`.allergen-checkbox[value="${alg}"]`);
+                if (checkbox) checkbox.checked = true;
+            });
+        }
+
         document.querySelectorAll('.modifier-group-checkbox').forEach(cb => { cb.checked = false; });
         if (itemData.modifierGroupIds && Array.isArray(itemData.modifierGroupIds)) {
             itemData.modifierGroupIds.forEach(groupId => {
@@ -354,6 +404,10 @@ window.ItemEditor = {
                 .map(cb => parseInt(cb.value, 10))
                 .filter(Number.isInteger)
         };
+
+        payload.barcodeEan = document.getElementById('item-barcode-ean').value.trim();
+        payload.parentSku = document.getElementById('item-parent-sku').value.trim();
+        payload.allergens = Array.from(document.querySelectorAll('.allergen-checkbox:checked')).map(cb => cb.value);
 
         const authToken = 'mock_jwt_token_123';
 
