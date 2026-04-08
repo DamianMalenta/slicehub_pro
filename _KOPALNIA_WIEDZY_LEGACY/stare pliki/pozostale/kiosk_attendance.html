@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SliceHub - Obecność</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Montserrat', sans-serif; background-color: #050505; color: white; overflow: hidden; }
+        .glass { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); }
+        .btn-action { transition: all 0.2s; border: 1px solid rgba(255,255,255,0.05); }
+        .btn-action:active { transform: scale(0.95); }
+    </style>
+</head>
+<body class="h-screen flex flex-col items-center justify-center p-6">
+
+    <div class="text-center mb-12">
+        <div class="w-20 h-20 bg-red-600/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/30">
+            <i class="fa-solid fa-user-check text-red-500 text-3xl"></i>
+        </div>
+        <h2 id="user-display" class="text-3xl font-black uppercase italic tracking-tighter">Ładowanie...</h2>
+        <p id="time-display" class="text-slate-500 font-mono text-xl mt-2">00:00:00</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl">
+        <button onclick="clockAction('clock_in')" class="btn-action glass p-10 rounded-3xl group hover:bg-green-500/10 hover:border-green-500/30 transition">
+            <i class="fa-solid fa-play text-4xl text-green-500 mb-4 block"></i>
+            <span class="font-black uppercase tracking-widest text-sm">Rozpocznij Pracę</span>
+        </button>
+
+        <button onclick="clockAction('clock_out')" class="btn-action glass p-10 rounded-3xl group hover:bg-orange-500/10 hover:border-orange-500/30 transition">
+            <i class="fa-solid fa-stop text-4xl text-orange-500 mb-4 block"></i>
+            <span class="font-black uppercase tracking-widest text-sm">Zakończ Pracę</span>
+        </button>
+    </div>
+
+    <button onclick="logout()" class="mt-16 text-slate-600 hover:text-white transition uppercase font-black text-[10px] tracking-[0.3em]">
+        <i class="fa-solid fa-power-off mr-2"></i> Wyloguj i zamknij
+    </button>
+
+    <div id="toast" class="fixed bottom-10 left-1/2 transform -translate-x-1/2 bg-black/95 border border-white/10 text-white px-8 py-4 rounded-2xl font-bold text-sm hidden z-50 shadow-2xl"></div>
+
+    <script>
+        // Zegar czasu rzeczywistego
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('time-display').innerText = now.toLocaleTimeString('pl-PL');
+        }, 1000);
+
+        // 1. Sprawdzenie sesji KIOSKU na wejściu (izolacja od POS)
+        async function checkSession() {
+            try {
+                const res = await fetch('api_auth.php?action=check_kiosk_session').then(r => r.json());
+                if (res.success) {
+                    document.getElementById('user-display').innerText = res.user_name || "Zalogowano";
+                } else {
+                    window.location.href = 'kiosk.html';
+                }
+            } catch (e) {
+                window.location.href = 'kiosk.html';
+            }
+        }
+
+        // 2. Obsługa Start/Stop
+        async function clockAction(type) {
+            try {
+                const res = await fetch('api_auth.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'clock_action', type: type })
+                }).then(r => r.json());
+
+                if (res.success) {
+                    showToast(type === 'clock_in' ? "PRACA ROZPOCZĘTA!" : "PRACA ZAKOŃCZONA!");
+                    setTimeout(logout, 2000); // Automatyczne wylogowanie po akcji dla bezpieczeństwa
+                } else {
+                    showToast(res.error, true);
+                }
+            } catch (e) {
+                showToast("Błąd komunikacji z bazą.", true);
+            }
+        }
+
+        // 3. Bezpieczne wylogowanie tylko z Kiosku
+        async function logout() {
+            await fetch('api_auth.php?action=logout_kiosk');
+            window.location.href = 'kiosk.html';
+        }
+
+        function showToast(msg, isError = false) {
+            const t = document.getElementById('toast');
+            t.innerHTML = msg;
+            t.className = `fixed bottom-10 left-1/2 transform -translate-x-1/2 bg-black/95 border ${isError ? 'border-red-500' : 'border-green-500'} text-white px-8 py-4 rounded-2xl font-bold text-sm z-50 shadow-2xl`;
+            t.classList.remove('hidden');
+            setTimeout(() => t.classList.add('hidden'), 3000);
+        }
+
+        checkSession();
+    </script>
+</body>
+</html>

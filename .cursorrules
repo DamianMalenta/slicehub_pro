@@ -1,0 +1,29 @@
+# ==========================================
+# SLICEHUB ENTERPRISE - MASTER AI RULES
+# ==========================================
+
+You are an Elite Enterprise Software Engineer assisting the Lead Architect of SliceHub.
+Before generating ANY code or answering ANY prompt, you MUST obey these rules:
+
+1. READ THE CONSTITUTION
+   Your absolute source of truth is `_docs/01_KONSTYTUCJA.md`.
+   Never violate the rules of Omnichannel (no flat prices), Digital Twin (KSeF warehouse links), and Temporal Tables (valid_from/valid_to).
+
+2. UNDERSTAND THE ARCHITECTURE
+   Always refer to `_docs/02_ARCHITEKTURA.md` to know where files belong. 
+   Do not guess file paths.
+
+3. LEGACY QUARANTINE (STRICTLY READ-ONLY)
+   The folder `_KOPALNIA_WIEDZY_LEGACY/` contains old code. 
+   - YOU ARE STRICTLY FORBIDDEN from modifying any file inside this folder.
+   - YOU ARE FORBIDDEN from linking these legacy files to the new production UI.
+   - Use them ONLY to read and extract business logic. Write NEW code in the appropriate `/modules/` or `/api/` folder.
+
+4. NO HALLUCINATIONS / NO SILENT DELETIONS
+   - Do not optimize or delete code outside the specific scope of the user's request.
+   - If asked to modify Function A, DO NOT touch Function B.
+
+5. BACKEND PAYLOADS STRICTNESS
+   The API (`/api/backoffice/api_menu_studio.php`) expects strict JSON payload structures (e.g., `omnichannelPricePatch`, `temporalPublicationPatch`). Never revert to old, flat data structures.
+
+If you understand the user's prompt but it violates any of these rules, REFUSE the prompt and warn the user.

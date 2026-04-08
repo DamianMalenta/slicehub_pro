@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Magazyn ERP - SliceHub Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Montserrat', sans-serif; background-color: #050505; color: white; -webkit-tap-highlight-color: transparent; }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        select { background-color: #18181b; color: white; outline: none; border: 1px solid rgba(255,255,255,0.1); }
+    </style>
+</head>
+<body class="flex flex-col md:flex-row h-screen overflow-hidden">
+
+    <aside class="w-full md:w-64 glass flex flex-col shrink-0 z-20 border-r border-white/5">
+        <div class="p-6 border-b border-white/5">
+            <h1 class="text-2xl font-black italic text-red-600 tracking-tighter uppercase">SLICEHUB <span class="text-white">ERP</span></h1>
+            <p class="text-[9px] text-slate-500 font-black uppercase tracking-widest mt-1">Multi-Warehouse System</p>
+        </div>
+        <nav class="flex md:flex-col p-4 space-x-2 md:space-x-0 md:space-y-2 overflow-x-auto shrink-0">
+            <a href="dashboard.html" class="p-3 text-gray-400 hover:text-white flex items-center gap-3 transition-colors rounded-xl font-bold text-xs uppercase tracking-widest"><i class="fa-solid fa-house"></i> Pulpit</a>
+            <a href="magazyn.html" class="p-3 bg-red-600 text-white flex items-center gap-3 rounded-xl font-bold text-xs uppercase tracking-widest shadow-[0_0_15px_rgba(220,38,38,0.4)]"><i class="fa-solid fa-cubes"></i> Magazyn PRO</a>
+        </nav>
+    </aside>
+
+    <main class="flex-1 p-4 md:p-8 overflow-y-auto hide-scrollbar relative">
+        <div class="max-w-7xl mx-auto">
+            
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                <div>
+                    <h2 class="text-3xl font-black uppercase tracking-tighter">Matryca Magazynowa</h2>
+                    <p class="text-xs text-slate-400 font-bold tracking-widest uppercase mt-1">Stan towarów we wszystkich lokalizacjach</p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="initStock()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-3 rounded-xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg"><i class="fa-solid fa-download mr-2"></i> Zatowarowanie Startowe</button>
+                    <button onclick="loadERP()" class="glass hover:bg-white/10 text-white px-4 py-3 rounded-xl font-bold text-xs uppercase tracking-widest transition-all"><i class="fa-solid fa-rotate-right"></i></button>
+                </div>
+            </div>
+
+            <div class="glass rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs whitespace-nowrap">
+                        <thead id="matrix-head" class="bg-white/5 text-slate-400 uppercase tracking-widest text-[10px]">
+                            </thead>
+                        <tbody id="matrix-body" class="divide-y divide-white/5">
+                            <tr><td colspan="10" class="p-8 text-center text-slate-500 font-bold italic">Ładowanie potwora...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <div id="mm-modal" class="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-[#0a0a0c] border border-white/10 rounded-3xl p-8 w-full max-w-md shadow-2xl relative">
+            <button onclick="closeMM()" class="absolute top-6 right-6 text-gray-500 hover:text-white transition-colors"><i class="fa-solid fa-xmark text-xl"></i></button>
+            <h3 class="text-2xl font-black uppercase tracking-tighter text-blue-500 mb-1"><i class="fa-solid fa-truck-fast mr-2"></i> Przesunięcie MM</h3>
+            <p id="mm-product-name" class="text-xs text-slate-400 font-bold uppercase tracking-widest mb-6">Nazwa towaru</p>
+            
+            <input type="hidden" id="mm-product-id">
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1 block">Z Magazynu (Źródło)</label>
+                    <select id="mm-source" class="w-full p-4 rounded-xl text-sm font-bold uppercase"></select>
+                </div>
+                <div class="flex justify-center text-slate-600"><i class="fa-solid fa-arrow-down"></i></div>
+                <div>
+                    <label class="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1 block">Na Magazyn (Cel)</label>
+                    <select id="mm-target" class="w-full p-4 rounded-xl text-sm font-bold uppercase"></select>
+                </div>
+                <div>
+                    <label class="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1 block">Ilość do przesunięcia</label>
+                    <input type="number" id="mm-qty" step="0.01" class="w-full p-4 bg-white/5 border border-white/10 rounded-xl text-white font-black text-lg text-center outline-none focus:border-blue-500 transition-colors" placeholder="0.00">
+                </div>
+                <button onclick="submitMM()" class="w-full bg-blue-600 text-white p-4 rounded-xl font-black uppercase tracking-widest mt-4 hover:bg-blue-500 transition-colors shadow-lg active:scale-95">Zatwierdź Dokument MM</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let erp = { warehouses: [], stocks: [], products: [] };
+
+       // 1. GŁÓWNY POBÓR DANYCH ERP
+        async function loadERP() {
+            try {
+                const res = await fetch('api_magazyn_pro.php?action=get_erp_data&_t=' + Date.now());
+                const data = await res.json();
+                if(data.success) {
+                    erp = data;
+                    renderMatrix();
+                    updateSelects();
+                } else { 
+                    // Jeśli API mówi, że nie jesteśmy zalogowani - płynny powrót do logowania
+                    if (data.error === 'Zaloguj się!') {
+                        window.location.href = 'admin_login.html';
+                        return;
+                    }
+                    
+                    alert("KRYTYCZNY BŁĄD ERP:\n" + data.error); 
+                    document.getElementById('matrix-body').innerHTML = `<tr><td colspan="10" class="p-8 text-center text-red-500 font-bold uppercase">BŁĄD: ${data.error}</td></tr>`;
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        // 2. RYSOWANIE MATRYCY (Kolumny = Magazyny, Wiersze = Produkty)
+        function renderMatrix() {
+            const head = document.getElementById('matrix-head');
+            const body = document.getElementById('matrix-body');
+            
+            // Generowanie nagłówków
+            let hHTML = `<tr>
+                            <th class="p-4 w-1/3">Produkt (UTF-8) <span class="block text-[8px] text-blue-500">Klucz ASCII</span></th>`;
+            erp.warehouses.forEach(w => {
+                hHTML += `<th class="p-4 text-center border-l border-white/5">${w.name_utf8}</th>`;
+            });
+            hHTML += `<th class="p-4 text-right">Akcje</th></tr>`;
+            head.innerHTML = hHTML;
+
+            // Generowanie wierszy z produktami
+            let bHTML = '';
+            erp.products.forEach(p => {
+                bHTML += `<tr class="hover:bg-white/5 transition-colors">
+                            <td class="p-4 font-bold text-white text-sm">${p.name} <span class="block text-[9px] font-mono text-blue-400 mt-1">${p.external_key || 'BRAK'}</span></td>`;
+                
+                // Generowanie komórek ze stanami dla każdego magazynu
+                erp.warehouses.forEach(w => {
+                    const stock = erp.stocks.find(s => s.product_id === p.id && s.warehouse_id === w.id);
+                    const qty = stock ? parseFloat(stock.quantity).toFixed(2) : '0.00';
+                    const colorClass = qty > 0 ? 'text-green-400' : 'text-slate-600';
+                    bHTML += `<td class="p-4 text-center border-l border-white/5 font-black ${colorClass} text-lg">${qty}</td>`;
+                });
+
+                // Przycisk przesunięcia
+                bHTML += `<td class="p-4 text-right">
+                            <button onclick="openMM(${p.id}, '${p.name}')" class="bg-white/10 hover:bg-blue-600 text-white px-3 py-2 rounded-lg font-bold text-[10px] uppercase tracking-widest transition-colors"><i class="fa-solid fa-shuffle mr-1"></i> MM</button>
+                          </td>
+                        </tr>`;
+            });
+            body.innerHTML = bHTML;
+        }
+
+        // 3. WYPEŁNIANIE LIST ROZWIJANYCH W MODALU
+        function updateSelects() {
+            const src = document.getElementById('mm-source');
+            const tgt = document.getElementById('mm-target');
+            let opts = '';
+            erp.warehouses.forEach(w => { opts += `<option value="${w.id}">${w.name_utf8}</option>`; });
+            src.innerHTML = opts; tgt.innerHTML = opts;
+        }
+
+        // 4. OBSŁUGA MODALA MM
+        function openMM(productId, productName) {
+            document.getElementById('mm-product-id').value = productId;
+            document.getElementById('mm-product-name').innerText = productName;
+            document.getElementById('mm-qty').value = '';
+            document.getElementById('mm-modal').classList.remove('hidden');
+        }
+        function closeMM() { document.getElementById('mm-modal').classList.add('hidden'); }
+
+        // 5. WYSYŁKA DOKUMENTU MM DO SERWERA
+        async function submitMM() {
+            const fd = new URLSearchParams();
+            fd.append('product_id', document.getElementById('mm-product-id').value);
+            fd.append('source_warehouse_id', document.getElementById('mm-source').value);
+            fd.append('target_warehouse_id', document.getElementById('mm-target').value);
+            fd.append('quantity', document.getElementById('mm-qty').value);
+
+            try {
+                const res = await fetch('api_magazyn_pro.php?action=erp_transfer_mm', { method: 'POST', body: fd });
+                const data = await res.json();
+                if(data.success) {
+                    alert(`✅ Wygenerowano dokument: ${data.doc_number}`);
+                    closeMM();
+                    loadERP(); // Przeładowanie po sukcesie
+                } else { alert("❌ Błąd: " + data.error); }
+            } catch(e) { alert("Błąd krytyczny połączenia."); }
+        }
+
+        // 6. KLONOWANIE STARYCH STANÓW (Uruchom tylko raz!)
+        async function initStock() {
+            if(!confirm("UWAGA! Ta funkcja skopiuje wszystkie Twoje obecne stany towarów na Magazyn Główny. Użyć?")) return;
+            try {
+                const res = await fetch('api_magazyn_pro.php?action=erp_init_stock');
+                const data = await res.json();
+                if(data.success) { alert(data.msg); loadERP(); }
+            } catch(e) { alert("Błąd."); }
+        }
+
+        // START APLIKACJI
+        loadERP();
+    </script>
+</body>
+</html>

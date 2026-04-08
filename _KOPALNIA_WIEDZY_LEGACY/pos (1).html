@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SliceHub POS v6.5 ULTIMATE</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body { font-family: 'Montserrat', sans-serif; background-color: #050505; color: white; user-select: none; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
+        .glass { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        
+        /* CZYSTE PŁASKIE BONY */
+        .compact-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 0.5rem 0.75rem; transition: transform 0.1s, border-color 0.2s; position: relative; overflow: hidden; }
+        .compact-card:hover { background: rgba(255,255,255,0.04); }
+        .compact-card.selected { border-color: #3b82f6 !important; background: rgba(59,130,246,0.1); box-shadow: 0 0 15px rgba(59,130,246,0.3); }
+        
+        /* ALERTY I STATUSY */
+        .blink-red { animation: pulse-text-red 1.5s infinite; transform: translateZ(0); }
+        .blink-border-red { animation: pulse-border-red 2s infinite; transform: translateZ(0); }
+        @keyframes pulse-text-red { 0%, 100% { color: #ef4444; } 50% { color: #7f1d1d; } }
+        @keyframes pulse-border-red { 0%, 100% { border-color: #ef4444; } 50% { border-color: rgba(255,255,255,0.05); } }
+        
+        .status-badge { display: inline-flex; align-items: center; font-size: 0.5rem; font-weight: 900; text-transform: uppercase; padding: 0.15rem 0.3rem; border-radius: 3px; letter-spacing: 0.05em; color: #22c55e; border: 1px solid rgba(34,197,94,0.3); background: rgba(34,197,94,0.1); }
+        .status-badge.alert { color: #eab308; border-color: rgba(234,179,8,0.5); background: rgba(234,179,8,0.1); animation: pulse-yellow 1s infinite; }
+        @keyframes pulse-yellow { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        /* NAKŁADKI */
+        .full-overlay { position: fixed; inset: 0; background: #050505; z-index: 400; display: none; flex-direction: row; }
+        .full-overlay.active { display: flex; }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 500; display: none; align-items: center; justify-content: center; backdrop-blur: 15px; }
+        .modal-overlay.active { display: flex; }
+
+        .pay-option { border: 2px solid transparent; transition: 0.1s; }
+        .pay-option.active { border-color: #22c55e; background: rgba(34,197,94,0.1); }
+        .pay-option.active-park { border-color: #ef4444; background: rgba(239,68,68,0.1); }
+        
+        /* CZYSTE KOLUMNY KANBAN (Brak neonów) */
+        .kanban-col { background: rgba(10, 15, 28, 0.4); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+        .filter-highlight { box-shadow: 0 0 10px rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); }
+    </style>
+</head>
+<body>
+    <script>
+    async function checkAuth() {
+        const res = await fetch('api_session_check.php').then(r => r.json());
+        if (!res.success) {
+            window.location.href = 'login.html'; 
+        }
+    }
+    checkAuth();
+    </script>
+
+    <audio id="alert-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+    <div id="toast-container" class="fixed top-5 right-5 z-[9999] flex flex-col gap-3 pointer-events-none"></div>
+
+    <nav class="w-full h-14 bg-[#0a0f1c] border-b border-white/5 flex items-center px-4 shrink-0 z-[400] relative shadow-md">
+        <div class="flex items-center gap-3 w-1/4">
+            <div class="w-8 h-8 bg-red-600 rounded flex items-center justify-center font-black text-xs shadow-lg cursor-pointer">SH</div>
+            <button onclick="openOrderTypeSelector()" class="bg-green-600 hover:bg-green-500 text-white h-8 px-4 rounded font-black uppercase text-[9px] tracking-widest flex items-center gap-1.5 shadow-lg active:scale-95 transition">
+                <i class="fa-solid fa-plus"></i> NOWE
+            </button>
+            <button class="bg-white/10 text-white h-8 px-4 rounded font-black uppercase text-[9px] tracking-widest flex items-center gap-1.5 border border-white/10 hover:bg-white/20 transition">
+                <i class="fa-solid fa-satellite-dish"></i> PULPIT
+            </button>
+        </div>
+
+        <div class="flex-1 flex justify-center items-center gap-4">
+            <button onclick="triggerPanic()" class="h-8 px-3 bg-red-900/20 text-red-500 rounded font-black uppercase text-[8px] border border-red-500/30 hover:bg-red-600 hover:text-white transition shadow-[0_0_10px_rgba(239,68,68,0.2)]">
+                <i class="fa-solid fa-triangle-exclamation mr-1"></i> PANIC (+20M)
+            </button>
+            
+            <div class="flex bg-black/50 p-1 rounded-lg border border-white/5 items-center">
+                <button onclick="setFilter('all')" id="flt-all" class="px-5 py-1.5 rounded text-[10px] font-black uppercase transition bg-white/10 text-white filter-highlight mr-1">WSZYSTKIE (0)</button>
+                <button onclick="setFilter('routes')" id="flt-routes" class="px-5 py-1.5 rounded text-[10px] font-black uppercase transition text-blue-400 hover:text-white mr-2 border border-blue-500/30 bg-blue-900/20 shadow-[0_0_10px_rgba(59,130,246,0.1)]">🚗 KURSY (0)</button>
+                <div class="w-px h-5 bg-white/10 mx-2"></div>
+                <button onclick="setFilter('delivery')" id="flt-dev" class="px-4 py-1.5 text-[9px] font-black uppercase text-slate-400 hover:text-white transition">🛵 DOWÓZ (0)</button>
+                <button onclick="setFilter('sala')" id="flt-sala" class="px-4 py-1.5 text-[9px] font-black uppercase text-slate-400 hover:text-white transition">🍽️ SALA (0)</button>
+                <button onclick="setFilter('wynos')" id="flt-wynos" class="px-4 py-1.5 text-[9px] font-black uppercase text-slate-400 hover:text-white transition">🥡 WYNOS (0)</button>
+                <div class="w-px h-5 bg-white/10 mx-2"></div>
+                <button onclick="setFilter('future')" id="flt-future" class="px-4 py-1.5 text-[9px] font-black uppercase text-slate-400 hover:text-white transition">📅 PRZYSZŁE (0)</button>
+            </div>
+        </div>
+
+        <div class="w-1/4 flex justify-end">
+            <button class="text-slate-500 hover:text-white h-8 px-3 rounded font-black uppercase text-[10px] transition">
+                <i class="fa-solid fa-gears text-sm"></i>
+            </button>
+        </div>
+    </nav>
+
+    <main id="view-mission-control" class="flex-1 flex w-full relative overflow-hidden">
+        
+        <div class="w-[280px] bg-[#070b14] border-r border-white/5 flex flex-col shrink-0 z-40 relative shadow-[5px_0_15px_rgba(0,0,0,0.5)]">
+            <div class="p-3 border-b border-white/5 flex justify-between items-center bg-black/40">
+                <h3 class="font-black text-[10px] uppercase tracking-widest text-blue-400"><i class="fa-solid fa-globe mr-2"></i> NOWE ONLINE</h3>
+                <span id="pulse-counter" class="bg-blue-600 text-white px-2 py-0.5 rounded text-[8px] font-black hidden">0</span>
+            </div>
+            <div class="flex-1 overflow-y-auto p-2 space-y-3 hide-scrollbar">
+                <section>
+                    <h4 class="text-[8px] font-black uppercase text-slate-400 mb-1 px-1">🛵 Dowóz</h4>
+                    <div id="pulse-list-delivery" class="space-y-1.5"></div>
+                </section>
+                <section>
+                    <h4 class="text-[8px] font-black uppercase text-slate-400 mb-1 px-1">🥡 Wynos</h4>
+                    <div id="pulse-list-takeaway" class="space-y-1.5"></div>
+                </section>
+                <section>
+                    <h4 class="text-[8px] font-black uppercase text-slate-400 mb-1 px-1">🍽️ Sala</h4>
+                    <div id="pulse-list-dinein" class="space-y-1.5"></div>
+                </section>
+            </div>
+        </div>
+
+        <div class="flex-1 flex flex-col relative bg-[#050505] z-10 overflow-hidden">
+            <div id="bf-grid" class="flex-1 p-3 overflow-y-auto hide-scrollbar z-10 w-full content-start"></div>
+        </div>
+
+        <div class="w-[260px] bg-[#070b14] border-l border-white/5 flex flex-col shrink-0 z-10 shadow-[-5px_0_15px_rgba(0,0,0,0.5)]">
+            <div class="flex flex-col h-[45%] border-b border-white/5">
+                <div class="p-3 border-b border-white/5 bg-black/40 shrink-0 flex justify-between items-center">
+                    <h3 class="font-black text-[10px] uppercase tracking-widest text-slate-300"><i class="fa-solid fa-motorcycle mr-1"></i> Flota</h3>
+                    <button id="btn-send-route" onclick="sendRoute()" class="hidden bg-green-600 text-white text-[8px] font-black px-2 py-1 rounded uppercase shadow-lg hover:bg-green-500 transition">Wyślij Kurs</button>
+                </div>
+                <div id="drivers-list" class="flex-1 overflow-y-auto p-2 space-y-1 hide-scrollbar"></div>
+            </div>
+            <div class="flex flex-col flex-1 border-b border-white/5">
+                <div class="p-3 border-b border-white/5 bg-black/40 shrink-0">
+                    <h3 class="font-black text-[10px] uppercase tracking-widest text-slate-300"><i class="fa-solid fa-users mr-1"></i> Kelnerzy</h3>
+                </div>
+                <div id="waiters-list" class="flex-1 overflow-y-auto p-2 space-y-1 hide-scrollbar"></div>
+            </div>
+            <div class="shrink-0 p-3 bg-black/40 flex items-center justify-between border-t border-white/5">
+                <div>
+                    <p class="text-[7px] font-black uppercase text-slate-500 tracking-widest mb-0.5">Helpdesk</p>
+                    <a href="mailto:pomoc@slicehub.pl" class="text-[9px] font-bold text-slate-300 hover:text-blue-400 transition">pomoc@slicehub.pl</a>
+                </div>
+                <button class="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center hover:bg-blue-500 transition shadow-lg">
+                    <i class="fa-solid fa-headset text-xs"></i>
+                </button>
+            </div>
+        </div>
+    </main>
+	<div id="order-type-modal" class="modal-overlay">
+        <div class="w-full max-w-lg bg-[#0a0f1c] rounded-[32px] p-8 border border-white/10 shadow-2xl relative text-center">
+            <button onclick="document.getElementById('order-type-modal').classList.remove('active')" class="absolute top-6 right-6 w-8 h-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-red-600 transition"><i class="fa-solid fa-xmark text-xs text-white"></i></button>
+            <h3 class="text-xl font-black uppercase italic tracking-tighter mb-6 text-white">Wybierz Typ Zamówienia</h3>
+            <div class="grid grid-cols-3 gap-3 mb-4">
+                <button onclick="selectInitialOrderType('dine_in')" class="py-8 bg-blue-900/20 border border-blue-500/30 hover:bg-blue-600 rounded-xl font-black uppercase text-[10px] transition flex flex-col items-center gap-2 text-white">
+                    <i class="fa-solid fa-utensils text-2xl"></i> Na Miejscu
+                </button>
+                <button onclick="selectInitialOrderType('takeaway')" class="py-8 bg-blue-900/20 border border-blue-500/30 hover:bg-blue-600 rounded-xl font-black uppercase text-[10px] transition flex flex-col items-center gap-2 text-white">
+                    <i class="fa-solid fa-bag-shopping text-2xl"></i> Na Wynos
+                </button>
+                <button onclick="selectInitialOrderType('delivery')" class="py-8 bg-blue-900/20 border border-blue-500/30 hover:bg-blue-600 rounded-xl font-black uppercase text-[10px] transition flex flex-col items-center gap-2 text-white">
+                    <i class="fa-solid fa-motorcycle text-2xl"></i> Dostawa
+                </button>
+            </div>
+            <div id="table-selection-div" class="hidden text-left mt-6 border-t border-white/10 pt-4">
+                <p class="text-[9px] font-bold text-slate-500 uppercase mb-2">Wybierz numer stolika:</p>
+                <div class="flex gap-2">
+                    <select id="initial-table-select" class="flex-1 bg-black border border-white/10 rounded-lg p-3 text-xs font-bold outline-none focus:border-blue-500 text-white">
+                        <option value="">Wybierz z listy...</option>
+                    </select>
+                    <button onclick="confirmInitialTable()" class="px-6 bg-blue-600 rounded-lg font-black uppercase text-[10px] hover:bg-blue-500 transition text-white">Dalej</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="order-overlay" class="full-overlay z-[400]">
+        <div class="flex-1 flex flex-col p-4 overflow-hidden">
+            <header class="flex justify-between items-center mb-4">
+                <button onclick="closeNewOrder()" class="text-slate-500 hover:text-white font-black uppercase text-[9px] tracking-widest transition">
+                    <i class="fa-solid fa-chevron-left mr-2"></i> Wróć do Pulpitu
+                </button>
+                <div class="flex items-center gap-3">
+                    <span id="edit-mode-badge" class="hidden bg-blue-600 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase text-white animate-pulse"><i class="fa-solid fa-pen mr-2"></i> Tryb Edycji</span>
+                </div>
+            </header>
+            <div id="cat-list" class="flex gap-2 overflow-x-auto hide-scrollbar mb-4 pb-1"></div>
+            <div id="item-grid" class="grid grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 overflow-y-auto hide-scrollbar pb-32 content-start"></div>
+        </div>
+        
+        <div class="w-[380px] bg-[#0a0f1c] border-l border-white/5 flex flex-col shadow-2xl shrink-0">
+            <div class="p-4 border-b border-white/5 flex justify-between items-center bg-red-600">
+                <h3 class="font-black text-xs uppercase tracking-widest text-white">Koszyk</h3>
+            </div>
+            <div class="p-3 grid grid-cols-3 gap-2 border-b border-white/5">
+                <button onclick="setOrderType('dine_in', this)" class="type-btn type-dine_in p-2.5 rounded-lg border border-white/5 bg-blue-600 font-black text-[8px] uppercase transition text-white">Sala</button>
+                <button onclick="setOrderType('takeaway', this)" class="type-btn type-takeaway p-2.5 rounded-lg border border-white/5 bg-white/5 font-black text-[8px] uppercase transition text-white">Wynos</button>
+                <button onclick="setOrderType('delivery', this)" class="type-btn type-delivery p-2.5 rounded-lg border border-white/5 bg-white/5 font-black text-[8px] uppercase transition text-white">Dostawa</button>
+            </div>
+            <div id="delivery-fields" class="hidden p-3 space-y-2 bg-black/40 border-b border-white/5">
+                <input type="text" id="cust-addr" placeholder="Adres dostawy / Stolik" class="w-full bg-black border border-white/10 rounded-lg p-2.5 text-[10px] font-bold outline-none focus:border-blue-500 text-white">
+                <input type="text" id="cust-phone" placeholder="Telefon" class="w-full bg-black border border-white/10 rounded-lg p-2.5 text-[10px] font-bold outline-none focus:border-blue-500 text-white">
+            </div>
+            <div id="cart-items" class="flex-1 overflow-y-auto p-3 space-y-2 hide-scrollbar"></div>
+            <div class="p-4 bg-black/40 border-t border-white/5 space-y-3">
+                <input type="text" id="cust-nip" placeholder="NIP (Opcjonalnie)" class="w-full bg-white/5 rounded-lg p-2.5 text-[9px] font-bold border border-white/10 outline-none focus:border-blue-500 text-white">
+                <div class="flex justify-between items-end mb-4">
+                    <span class="text-[9px] font-black uppercase text-slate-500">Suma</span>
+                    <span id="cart-total" class="text-3xl font-black italic text-green-500">0.00 <span class="text-xs">zł</span></span>
+                </div>
+                <button id="btn-cart-checkout" onclick="openCartCheckoutModal()" class="w-full py-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black uppercase text-xs shadow-lg transition active:scale-95">ZATWIERDŹ <i class="fa-solid fa-arrow-right ml-2"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div id="cart-checkout-modal" class="modal-overlay">
+        <div class="w-full max-w-sm bg-[#0a0f1c] rounded-[32px] p-6 border border-white/10 shadow-2xl relative flex flex-col max-h-[95vh] overflow-y-auto hide-scrollbar">
+            <button onclick="document.getElementById('cart-checkout-modal').classList.remove('active')" class="absolute top-5 right-5 w-8 h-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-red-600 transition"><i class="fa-solid fa-xmark text-xs text-white"></i></button>
+            <h3 class="text-xl font-black uppercase italic tracking-tighter mb-4 text-center text-white">FINALIZACJA</h3>
+            
+            <div class="mb-4 bg-black/30 p-2.5 rounded-xl border border-white/5">
+                <div class="flex gap-2 mb-2">
+                    <button onclick="switchTimeTab('asap')" id="tab-asap" class="flex-1 py-2.5 rounded-lg bg-blue-600 font-black text-[9px] uppercase text-white shadow-md transition">Jak najszybciej</button>
+                    <button onclick="switchTimeTab('scheduled')" id="tab-scheduled" class="flex-1 py-2.5 rounded-lg bg-white/10 font-black text-[9px] uppercase text-slate-400 hover:text-white transition">Na Godzinę</button>
+                </div>
+                <div id="time-asap-view" class="space-y-2">
+                    <div id="quick-time-btns" class="flex gap-2 overflow-x-auto hide-scrollbar pb-1"></div>
+                    <div class="flex gap-2 items-center">
+                        <input type="number" id="custom-minutes" placeholder="Własne min." class="flex-1 bg-black border border-white/10 rounded-lg p-2.5 text-xs font-bold text-white outline-none">
+                        <button onclick="applyCustomMinutes()" class="px-5 py-2.5 bg-white/10 rounded-lg text-[9px] font-black uppercase text-white hover:bg-white/20 transition">Ustaw</button>
+                    </div>
+                    <label class="block w-full bg-blue-900/20 border border-blue-500/50 rounded-lg py-3 text-center cursor-pointer hover:bg-blue-600 transition relative">
+                        <span class="text-[9px] font-black uppercase text-blue-400 hover:text-white"><i class="fa-regular fa-calendar-days mr-2"></i> Wybierz z kalendarza</span>
+                        <input type="datetime-local" id="checkout-calendar-input" onchange="calendarTimeChanged(this.value)" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
+                    </label>
+                </div>
+                <div id="time-scheduled-view" class="hidden flex-col items-center justify-center p-4 bg-black/50 rounded-lg border border-white/5">
+                    <p class="text-[8px] uppercase font-black text-slate-500 mb-1 tracking-widest">Wybrany Czas</p>
+                    <h4 id="scheduled-time-display" class="text-2xl font-black text-white mb-1">--:--</h4>
+                    <p id="scheduled-countdown" class="text-[10px] font-bold text-blue-400 mb-3">Za -- min</p>
+                    <label class="px-4 py-1.5 bg-white/10 rounded border border-white/10 text-[9px] font-black uppercase cursor-pointer relative hover:bg-white/20 transition text-white">
+                        <i class="fa-solid fa-pen mr-1"></i> Zmień kalendarzem
+                        <input type="datetime-local" id="checkout-calendar-input-2" onchange="calendarTimeChanged(this.value)" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
+                    </label>
+                </div>
+            </div>
+            
+            <p class="text-[9px] font-bold text-slate-500 uppercase tracking-widest text-center mb-2">Status Płatności</p>
+            <div class="space-y-2 mb-4">
+                <button onclick="selectCartPayment('unpaid', 'unpaid', this, true)" id="btn-pay-park" class="pay-option active-park w-full py-3 bg-[#111827] rounded-lg font-black uppercase text-[10px] text-white flex justify-center items-center gap-2 border border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.2)]"><i class="fa-solid fa-clock text-red-500"></i> DO ZAPŁATY (ZAPARKUJ)</button>
+                <div class="grid grid-cols-2 gap-2 mt-2">
+                    <button onclick="selectCartPayment('cash', 'paid', this)" class="pay-option py-3 bg-[#111827] rounded-lg font-black uppercase text-[9px] text-white flex justify-center items-center gap-2 hover:bg-white/5 transition">Gotówka</button>
+                    <button onclick="selectCartPayment('card', 'paid', this)" class="pay-option py-3 bg-[#111827] rounded-lg font-black uppercase text-[9px] text-white flex justify-center items-center gap-2 hover:bg-white/5 transition">Karta</button>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-2 mb-5 bg-black/40 p-3 rounded-lg border border-white/5">
+                <div class="flex items-center gap-3"><input type="checkbox" id="cart-print-kitchen" class="w-4 h-4 accent-blue-600 rounded cursor-pointer" checked><label for="cart-print-kitchen" class="text-[9px] font-black uppercase text-blue-300 cursor-pointer">Drukuj BON (Kuchnia)</label></div>
+                <div class="flex items-center gap-3"><input type="checkbox" id="cart-print-receipt" class="w-4 h-4 accent-red-600 rounded cursor-pointer"><label for="cart-print-receipt" class="text-[9px] font-black uppercase text-slate-300 cursor-pointer flex flex-col">Drukuj PARAGON <span id="receipt-req-info" class="text-red-500 text-[7px] hidden leading-none mt-1">(Wymagane dla kart!)</span></label></div>
+            </div>
+            <button onclick="submitFinalOrder()" class="w-full py-4 bg-green-600 rounded-xl font-black uppercase text-[11px] text-white shadow-lg hover:bg-green-500 transition">Wyślij na Battlefield</button>
+        </div>
+    </div>
+
+    <div id="payment-modal" class="modal-overlay">
+        <div class="w-full max-w-xs bg-[#0a0f1c] rounded-[24px] p-6 border border-white/10 shadow-2xl text-center relative">
+            <h3 class="text-xl font-black uppercase italic mb-1 text-green-500">ROZLICZ / PARAGON</h3>
+            <p class="text-[9px] font-bold text-slate-400 uppercase mb-4 text-white">Zamówienie <span id="pay-acc-id" class="text-white"></span></p>
+            <div class="mb-4 text-left">
+                <p class="text-[8px] font-black uppercase text-slate-500 mb-2">Potwierdź płatność:</p>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="settle-btn-card" onclick="selectSettleMethod('card')" class="settle-opt py-3 rounded-lg font-black uppercase text-[9px] border border-white/10 bg-[#111827] text-white transition hover:bg-white/5"><i class="fa-solid fa-credit-card mr-1 text-blue-500"></i>Karta</button>
+                    <button id="settle-btn-cash" onclick="selectSettleMethod('cash')" class="settle-opt py-3 rounded-lg font-black uppercase text-[9px] border border-white/10 bg-[#111827] text-white transition hover:bg-white/5"><i class="fa-solid fa-money-bill-wave mr-1 text-green-500"></i>Gotówka</button>
+                    <button id="settle-btn-online" onclick="selectSettleMethod('online')" class="settle-opt col-span-2 hidden py-3 rounded-lg font-black uppercase text-[9px] border border-white/10 bg-[#111827] text-white transition hover:bg-white/5"><i class="fa-solid fa-globe mr-1 text-purple-500"></i>Online</button>
+                </div>
+            </div>
+            <div class="flex items-center justify-center gap-2 mb-5 bg-black/30 p-3 rounded-lg border border-white/5">
+                <input type="checkbox" id="settle-print-receipt" class="w-4 h-4 accent-red-600 rounded cursor-pointer">
+                <label for="settle-print-receipt" class="text-[9px] font-black uppercase text-white cursor-pointer flex flex-col">Drukuj Paragon <span id="settle-req-info" class="text-red-500 text-[7px] hidden leading-none mt-1">(Wymagane)</span></label>
+            </div>
+            <button id="btn-settle-close" onclick="confirmPaymentAndClose()" class="w-full py-3 bg-green-600 rounded-lg font-black uppercase text-[10px] shadow-lg text-white hover:bg-green-500 transition mb-2">Zakończ i zamknij</button>
+            <button id="btn-settle-print" onclick="confirmPrintReceiptOnly()" class="w-full py-3 bg-white/10 border border-white/20 rounded-lg font-black uppercase text-[10px] shadow-lg text-white hover:bg-white/20 transition hidden">Tylko Drukuj Paragon</button>
+            <button onclick="document.getElementById('payment-modal').classList.remove('active')" class="text-[9px] font-black uppercase text-slate-500 mt-2 block mx-auto hover:text-white transition">Anuluj</button>
+        </div>
+    </div>
+
+    <div id="cancel-modal" class="modal-overlay">
+        <div class="w-full max-w-xs bg-[#0a0f1c] rounded-[24px] p-6 border border-red-500/50 shadow-2xl text-center relative">
+            <h3 class="text-xl font-black uppercase italic mb-1 text-red-500">ANULUJ ZAMÓWIENIE</h3>
+            <p class="text-[9px] font-bold text-slate-400 uppercase mb-4 text-white">Dla bonu <span id="cancel-acc-id" class="text-white"></span></p>
+            <div class="grid gap-2 mb-4">
+                <button onclick="confirmCancel(1)" class="py-3 bg-orange-600 rounded-lg font-black uppercase text-[9px] shadow-lg text-white hover:bg-orange-500 transition"><i class="fa-solid fa-rotate-left mr-1"></i>Zwróć na magazyn</button>
+                <button onclick="confirmCancel(0)" class="py-3 bg-red-800 rounded-lg font-black uppercase text-[9px] shadow-lg text-white hover:bg-red-700 transition"><i class="fa-solid fa-fire mr-1"></i>Odpisz jako stratę</button>
+            </div>
+            <button onclick="document.getElementById('cancel-modal').classList.remove('active')" class="text-[9px] font-black uppercase text-slate-500 hover:text-white transition">Wróć</button>
+        </div>
+    </div>
+
+    <div id="dish-card" class="modal-overlay">
+        <div class="w-full max-w-3xl bg-[#0a0f1c] rounded-[32px] p-8 border border-white/10 shadow-2xl relative">
+            <button onclick="closeDishCard()" class="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-red-600 transition"><i class="fa-solid fa-xmark text-sm text-white"></i></button>
+            <div class="mb-6"><h3 id="dc-name" class="text-2xl font-black uppercase italic tracking-tighter text-white">Nazwa</h3><p id="dc-price" class="text-green-500 font-black text-lg mt-1"></p></div>
+            <div class="grid grid-cols-2 gap-8">
+                <div>
+                    <p class="text-[8px] font-black uppercase text-slate-500 mb-2 tracking-widest">Składniki (Kliknij by usunąć)</p>
+                    <div id="dc-ingredients" class="flex flex-wrap gap-2 mb-4 min-h-[40px]"></div>
+                    <textarea id="dc-comment" placeholder="Komentarz..." class="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-[10px] font-bold h-20 outline-none focus:border-red-500 text-white"></textarea>
+                </div>
+                <div class="flex flex-col justify-between">
+                    <div>
+                        <p class="text-[8px] font-black uppercase text-slate-500 mb-2 tracking-widest">Dodatki</p>
+                        <div id="dc-modifiers" class="space-y-2 max-h-[25vh] overflow-y-auto hide-scrollbar"></div>
+                    </div>
+                    <div class="flex items-center justify-between mt-6">
+                        <div class="flex items-center gap-3 bg-white/5 rounded-xl p-1.5">
+                            <button onclick="changeDcQty(-1)" class="w-8 h-8 rounded-lg bg-black flex items-center justify-center font-black text-white hover:bg-white/10 transition">-</button>
+                            <span id="dc-qty" class="text-lg font-black w-6 text-center text-white">1</span>
+                            <button onclick="changeDcQty(1)" class="w-8 h-8 rounded-lg bg-black flex items-center justify-center font-black text-white hover:bg-white/10 transition">+</button>
+                        </div>
+                        <button onclick="addDishToCart()" class="bg-red-600 px-6 py-3 rounded-xl font-black uppercase text-[9px] shadow-lg active:scale-95 transition text-white hover:bg-red-500">Zapisz</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="unified-order-modal" class="modal-overlay">
+        <div class="w-full max-w-5xl bg-[#0a0f1c] rounded-[32px] flex overflow-hidden border border-white/10 shadow-2xl relative h-[85vh]">
+            <button onclick="closeUnifiedModal()" class="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-red-600 transition z-50"><i class="fa-solid fa-xmark text-white"></i></button>
+            <div class="flex-1 p-8 flex flex-col border-r border-white/5 overflow-y-auto hide-scrollbar relative">
+                <div class="flex justify-between items-start mb-6">
+                    <div>
+                        <h2 id="uo-number" class="text-4xl font-black uppercase italic tracking-tighter text-blue-500 mb-1">#0000</h2>
+                        <div class="flex flex-wrap items-center gap-2 mt-2" id="uo-badges"></div>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1">Czas Realizacji</p>
+                        <div id="uo-time" class="flex flex-col items-end text-white"></div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3 mb-6">
+                    <div class="bg-black/40 p-4 rounded-xl border border-white/5 text-white"><p class="text-[8px] font-black uppercase tracking-widest text-slate-500 mb-2"><i class="fa-solid fa-user mr-1"></i> Klient / Adres</p><p id="uo-customer" class="font-bold text-xs mb-1"></p><p id="uo-address" class="text-[10px] font-bold text-slate-400"></p></div>
+                    <div class="bg-black/40 p-4 rounded-xl border border-white/5 text-white"><p class="text-[8px] font-black uppercase tracking-widest text-slate-500 mb-2"><i class="fa-solid fa-phone mr-1"></i> Kontakt</p><p id="uo-phone" class="font-black text-base tracking-widest"></p></div>
+                </div>
+                <div id="uo-kitchen-alert" class="hidden mb-4 bg-yellow-900/20 border border-yellow-500/50 p-3 rounded-lg"><p class="text-[9px] font-black uppercase text-yellow-500 mb-1"><i class="fa-solid fa-triangle-exclamation mr-2"></i>Wykryto Zmiany!</p><p id="uo-kitchen-diff" class="text-[10px] text-white font-bold"></p></div>
+                <div class="flex-1 flex flex-col">
+                    <p class="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2 border-b border-white/5 pb-2">Pozycje Zamówienia</p>
+                    <div id="uo-cart-items" class="space-y-2 flex-1 overflow-y-auto hide-scrollbar pb-4 text-white"></div>
+                </div>
+                <div class="pt-4 border-t border-white/5 flex justify-between items-end mt-auto">
+                    <span class="text-[10px] font-black uppercase tracking-widest text-slate-500">Wartość:</span><span id="uo-total" class="text-4xl font-black italic text-green-500"></span>
+                </div>
+            </div>
+            <div class="w-72 bg-[#070b14] p-6 flex flex-col shrink-0 relative">
+                <h3 class="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-4 pb-2 border-b border-white/5">Akcje Zamówienia</h3>
+                <div id="uo-actions" class="space-y-2 flex-1 flex flex-col"></div>
+            </div>
+        </div>
+    </div>
+
+    <iframe id="print-frame" style="display:none;"></iframe>
+	<script>
+    // 🚀 SYSTEM POWIADOMIEŃ TOAST
+    function showToast(msg, type='info') {
+        const toast = document.createElement('div');
+        const color = type === 'error' ? 'bg-red-600' : (type === 'success' ? 'bg-green-600' : 'bg-blue-600');
+        toast.className = `${color} text-white px-4 py-2 rounded shadow-2xl font-black text-[10px] uppercase tracking-widest transform transition-all duration-300 translate-x-full border border-white/10 z-[9999]`;
+        toast.innerHTML = type === 'error' ? `<i class="fa-solid fa-triangle-exclamation mr-1"></i> ${msg}` : `<i class="fa-solid fa-check mr-1"></i> ${msg}`;
+        document.getElementById('toast-container').appendChild(toast);
+        setTimeout(()=>toast.classList.remove('translate-x-full'), 10);
+        setTimeout(()=> { toast.classList.add('translate-x-full'); setTimeout(()=>toast.remove(), 300); }, 3500);
+    }
+
+    // 🚀 STAN APLIKACJI (Bez routeDriverId i routeOrders, bo są w pos_fleet)
+    let state = { 
+        items: [], categories: [], orders: [], drivers: [], waiters: [], tables: [], cart: [], ingredients: [],
+        type: 'dine_in', activeItem: null, isHalfMode: false, halfA: null,
+        lastPlayedId: null, activeUnifiedId: null, panicMode: false, 
+        filterType: 'all', cartPayMethod: 'unpaid', cartPayStatus: 'unpaid', checkoutTimeMode: 'asap', checkoutTargetTime: new Date(),
+        editOrderId: null, isCartLocked: false, expandedOrderId: null, expandedOnlineId: null, settleOrderId: null, settleMethod: null
+    };
+
+    // 🚀 API I INIT
+    async function apiPost(action, payload = {}) {
+        payload.action = action;
+        try {
+            const r = await fetch('api_pos.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            return await r.json();
+        } catch(e) { return { status: 'error', error: 'Błąd połączenia z serwerem.' }; }
+    }
+
+    async function init() {
+        const d = await apiPost('get_init_data');
+        if (d.status === 'success') { 
+            const p = d.payload;
+            state.items = p.items; state.categories = p.categories; 
+            state.drivers = p.drivers; state.waiters = p.waiters || []; 
+            state.ingredients = p.ingredients; state.tables = p.tables;
+            const ts = document.getElementById('initial-table-select');
+            if(ts) state.tables.forEach(tbl => { ts.innerHTML += `<option value="Stolik: ${tbl.table_number}">Stolik ${tbl.table_number}</option>`; });
+            if(typeof renderDrivers === 'function') renderDrivers(); 
+            if(typeof renderWaiters === 'function') renderWaiters(); 
+            fetchOrders(); 
+        }
+    }
+
+    async function triggerPanic() {
+        if(!confirm("Dodać +20 minut do wszystkich zamówień w toku?")) return;
+        const d = await apiPost('panic_mode');
+        if(d.status === 'success') { showToast(d.payload.message, "success"); fetchOrders(); }
+    }
+
+    // 🚀 POMOCNIKI CZASU I FORMATOWANIA
+    function formatOrderTime(dateStr, type) {
+        if (!dateStr) return { diffText: "ASAP", colorClass: "border-white/10", textClass: "text-white" };
+        const promised = new Date(dateStr); const now = new Date();
+        const diffM = Math.ceil((promised - now) / 60000); 
+        const diffText = `${diffM} MIN`;
+        let colorClass = "border-white/10"; let textClass = "text-white";
+
+        if (type === 'delivery') {
+            if (diffM > 59) { textClass = "text-green-500"; }
+            else if (diffM >= 15) { textClass = "text-yellow-500"; }
+            else { textClass = "text-red-500 blink-red"; colorClass = "border-red-500 blink-border-red"; }
+        } else {
+            if (diffM > 14) { textClass = "text-green-500"; }
+            else if (diffM >= 6) { textClass = "text-yellow-500"; }
+            else { textClass = "text-red-500 blink-red"; colorClass = "border-red-500 blink-border-red"; }
+        }
+        return { diffText, colorClass, textClass };
+    }
+
+    function formatOrderNumber(orderNum, dateStr) {
+        const num = orderNum.split('/').pop() || orderNum;
+        const dDate = new Date(dateStr || new Date()); const now = new Date();
+        const isToday = dDate.getDate() === now.getDate() && dDate.getMonth() === now.getMonth() && dDate.getFullYear() === now.getFullYear();
+        if (isToday) return `#${num}`;
+        return `${String(dDate.getDate()).padStart(2, '0')}.${String(dDate.getMonth() + 1).padStart(2, '0')} #${num}`;
+    }
+
+    function setFilter(type) { 
+        state.filterType = type; 
+        document.querySelectorAll('#flt-all, #flt-dev, #flt-sala, #flt-wynos, #flt-routes, #flt-future').forEach(el => { 
+            el.classList.remove('bg-white/10', 'text-white', 'filter-highlight', 'border-blue-500/30', 'bg-blue-900/20', 'shadow-[0_0_10px_rgba(59,130,246,0.1)]'); 
+            el.classList.add('text-slate-400'); 
+            if(el.id === 'flt-routes') el.classList.add('text-blue-400');
+        });
+        const activeBtn = document.getElementById(`flt-${type === 'all' ? 'all' : type === 'delivery' ? 'dev' : type}`);
+        if(activeBtn) { 
+            activeBtn.classList.remove('text-slate-400', 'text-blue-400');
+            activeBtn.classList.add('text-white'); 
+            if(type === 'all') { activeBtn.classList.add('filter-highlight'); } 
+            else if(type === 'routes') { activeBtn.classList.add('border-blue-500/30', 'bg-blue-900/20', 'shadow-[0_0_10px_rgba(59,130,246,0.1)]'); }
+            else { activeBtn.classList.add('bg-white/10'); }
+        }
+        renderOrders(); 
+    }
+
+    async function fetchOrders() {
+        const d = await apiPost('get_orders');
+        if(d.status === 'success') { 
+            state.orders = d.payload.orders; 
+            renderOrders(); 
+            if(typeof renderDrivers === 'function') renderDrivers();
+            if(state.activeUnifiedId && typeof openUnifiedModal === 'function') openUnifiedModal(state.activeUnifiedId, false);
+        }
+    }
+
+    function toggleExpandOrder(id, ev) { if(ev) ev.stopPropagation(); state.expandedOrderId = state.expandedOrderId === id ? null : id; renderOrders(); }
+    function toggleOnlineExpand(id, ev) { if(ev) ev.stopPropagation(); state.expandedOnlineId = state.expandedOnlineId === id ? null : id; renderOrders(); }
+
+    async function submitPulseAccept(id, mins, event) {
+        if(event) event.stopPropagation();
+        let targetTime = new Date();
+        targetTime.setMinutes(targetTime.getMinutes() + mins);
+        const iso = new Date(targetTime.getTime() - (targetTime.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+        await apiPost('accept_order', {order_id: id, custom_time: iso});
+        state.expandedOnlineId = null;
+        fetchOrders();
+    }
+    
+    async function submitPulseAcceptDate(id, dateStr, event) {
+        if(event) event.stopPropagation();
+        if(!dateStr) return;
+        await apiPost('accept_order', {order_id: id, custom_time: dateStr});
+        state.expandedOnlineId = null;
+        fetchOrders();
+    }
+
+    // 🚀 GŁÓWNY RENDERER BONÓW
+    function renderOrders() {
+        const grid = document.getElementById('bf-grid');
+        let htmlsPulse = { delivery: '', takeaway: '', dinein: '' }; 
+        let kanban = { delivery: '', takeaway: '', dinein: '' }; 
+        let routeGroups = {}; 
+        
+        let pCount = 0; let counts = { all: 0, dev: 0, sala: 0, wynos: 0, routes: 0, future: 0 };
+        const now = new Date();
+
+        state.orders.forEach(o => {
+            const promised = new Date(o.promised_time || now);
+            const isFuture = (promised - now) > (24 * 60 * 60 * 1000); 
+            const isInRoute = (o.status === 'in_delivery');
+            const isDelivered = (o.status === 'delivered');
+
+            if (isDelivered) return; 
+
+            if(!(o.source !== 'local' && o.status === 'new')) {
+                if(isInRoute) {
+                    counts.routes++; 
+                    let key = o.course_id || 'K?';
+                    if (!routeGroups[key]) routeGroups[key] = { driver: o.driver_id, items: [], totalCash: 0, time: o.created_at };
+                    routeGroups[key].items.push(o);
+                    if (o.payment_method === 'cash' || o.payment_status !== 'paid') { routeGroups[key].totalCash += parseFloat(o.total_price); }
+                } else if(isFuture) { counts.future++; } 
+                else { 
+                    counts.all++; 
+                    if(o.type==='delivery') counts.dev++; 
+                    if(o.type==='dine_in') counts.sala++; 
+                    if(o.type==='takeaway') counts.wynos++; 
+                }
+            }
+
+            // PANEL ONLINE
+            if(o.source !== 'local' && o.status === 'new') {
+                pCount++;
+                if(state.lastPlayedId !== o.id) { document.getElementById('alert-sound').play().catch(()=>{}); state.lastPlayedId = o.id; }
+                const reqTime = o.promised_time ? o.promised_time.substring(11, 16) : 'ASAP';
+                let sourceBadge = o.source === 'qr' ? `<i class="fa-solid fa-qrcode text-slate-400 mr-1"></i>` : `<i class="fa-solid fa-globe text-slate-400 mr-1"></i>`;
+                
+                let isOnlineExpanded = state.expandedOnlineId === o.id;
+                let elapsedM = Math.floor((now - new Date(o.created_at)) / 60000);
+                let borderClass = elapsedM > 3 ? 'border-red-500 blink-border-red' : 'border-slate-500/50';
+
+                let expandHtml = '';
+                if (isOnlineExpanded) {
+                    let cartDetails = '';
+                    try { let c = JSON.parse(o.cart_json || '[]'); cartDetails = c.map(item => `<div class="flex justify-between text-[8px] text-slate-300"><span>${item.qty}x ${item.name}</span><span>${(item.price*item.qty).toFixed(2)}zł</span></div>`).join(''); } catch(e) {}
+                    
+                    expandHtml = `
+                    <div class="mt-2 pt-2 border-t border-white/10" onclick="event.stopPropagation()">
+                        <div class="mb-2 bg-black/50 p-1.5 rounded border border-white/5">${cartDetails}</div>
+                        <p class="text-[7px] text-slate-400 uppercase mb-1 font-bold">Wybierz czas dla klienta:</p>
+                        <div class="grid grid-cols-3 gap-1 mb-1.5">
+                            <button onclick="submitPulseAccept(${o.id}, 15, event)" class="bg-white/10 hover:bg-blue-600 rounded py-1.5 text-[9px] font-black transition text-white">+15m</button>
+                            <button onclick="submitPulseAccept(${o.id}, 30, event)" class="bg-white/10 hover:bg-blue-600 rounded py-1.5 text-[9px] font-black transition text-white">+30m</button>
+                            <button onclick="submitPulseAccept(${o.id}, 45, event)" class="bg-white/10 hover:bg-blue-600 rounded py-1.5 text-[9px] font-black transition text-white">+45m</button>
+                        </div>
+                        <label class="flex w-full bg-black border border-white/10 rounded py-1.5 mb-2 justify-center cursor-pointer hover:border-blue-500 transition relative">
+                            <span class="text-[8px] font-black uppercase text-blue-400"><i class="fa-regular fa-calendar-days mr-1"></i> Własna Godzina</span>
+                            <input type="datetime-local" onchange="submitPulseAcceptDate(${o.id}, this.value, event)" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
+                        </label>
+                        <button onclick="submitPulseAccept(${o.id}, 0, event)" class="w-full bg-green-600 hover:bg-green-500 rounded py-2 text-[9px] font-black uppercase shadow-lg transition text-white"><i class="fa-solid fa-check mr-1"></i> ZAAKCEPTUJ: ${reqTime}</button>
+                    </div>`;
+                }
+
+                const card = `
+                <div class="glass rounded border border-l-[3px] ${borderClass} flex flex-col transition-all bg-black/40 cursor-pointer hover:bg-white/5" onclick="toggleOnlineExpand(${o.id}, event)">
+                    <div class="p-2">
+                        <div class="flex justify-between items-start mb-0.5">
+                            <h4 class="font-black text-white text-[11px] leading-none">${formatOrderNumber(o.order_number, o.created_at)}</h4>
+                            <span class="text-green-500 font-black text-[9px]">${o.total_price}zł</span>
+                        </div>
+                        <div class="flex justify-between items-end mt-1">
+                            <div class="text-[8px] text-slate-400 font-bold truncate pr-2">${sourceBadge} ${o.customer_name || 'Nowe Zamówienie'}</div>
+                            <span class="text-[8px] text-white font-bold bg-black/50 px-1.5 py-0.5 rounded border border-white/10 shrink-0"><i class="fa-solid fa-clock text-slate-500 mr-0.5"></i>${reqTime}</span>
+                        </div>
+                        ${expandHtml}
+                    </div>
+                </div>`;
+                if(o.type==='delivery') htmlsPulse.delivery += card; else if(o.type==='takeaway') htmlsPulse.takeaway += card; else htmlsPulse.dinein += card;
+                return;
+            }
+
+            // SUROWE KARTY KANBAN
+            if(isInRoute) return; 
+            if(state.filterType === 'routes') return; 
+            if(state.filterType === 'future' && !isFuture) return; 
+            if(state.filterType !== 'future' && state.filterType !== 'all' && isFuture) return;
+            if(state.filterType === 'delivery' && o.type !== 'delivery') return; 
+            if(state.filterType === 'sala' && o.type !== 'dine_in') return; 
+            if(state.filterType === 'wynos' && o.type !== 'takeaway') return;
+
+            const timeInfo = formatOrderTime(o.promised_time || o.created_at, o.type);
+            let sourceText = o.source === 'waiter' ? `<i class="fa-solid fa-user-tie"></i> KELNER` : (o.source === 'qr' ? `<i class="fa-solid fa-qrcode"></i> QR` : `<i class="fa-solid fa-desktop"></i> POS`);
+            
+            let payStatusText = o.payment_status === 'paid' ? `ZAPŁACONE (${o.payment_method.toUpperCase()})` : `DO ZAPŁATY`;
+            let payStatusClass = o.payment_status === 'paid' ? "text-green-500" : "text-red-500 blink-red";
+
+            let smallIcons = '';
+            if(o.receipt_printed == 1) smallIcons += '<span class="status-badge mr-1">PARAGON</span>';
+            if(o.kitchen_ticket_printed == 1) smallIcons += `<span class="status-badge ${o.edited_since_print == 1 ? 'alert' : ''} mr-1">BON</span>`;
+
+            let cartSnippet = ''; 
+            let fullCartDetails = '';
+            try { 
+                let c = JSON.parse(o.cart_json || '[]'); 
+                cartSnippet = c.map(item => `${item.qty}x ${item.name}`).join(', ');
+                fullCartDetails = c.map(item => {
+                    let comment = item.comment ? `<span class="text-yellow-500 text-[8px] italic ml-2">(${item.comment})</span>` : '';
+                    return `<div class="flex justify-between border-b border-white/5 py-1 text-[10px] text-white"><span><span class="font-black text-slate-400">${item.qty}x</span> ${item.name} ${comment}</span><span class="font-black text-green-500">${(item.price*item.qty).toFixed(2)}zł</span></div>`;
+                }).join('');
+            } catch(e) {}
+
+            let isExpanded = state.expandedOrderId === o.id;
+            
+            // UWAGA: Logika odczytująca stan z pos_fleet.js, używamy state.routeDriverId (który istnieje w global scope)
+            let isRouteMode = (typeof state.routeDriverId !== 'undefined' && state.routeDriverId !== null) && o.type === 'delivery';
+            let clickAction = isRouteMode ? `toggleOrderToRoute(${o.id}, event)` : `toggleExpandOrder(${o.id}, event)`;
+
+            let expandedHtml = '';
+            if (isExpanded && !isRouteMode) {
+                let pColor = (o.kitchen_ticket_printed == 0 || o.edited_since_print == 1) ? 'bg-yellow-600 text-white shadow-[0_0_10px_rgba(202,138,4,0.4)]' : 'bg-white/10 text-slate-300';
+                let bTxt = (o.edited_since_print == 1 && o.kitchen_ticket_printed == 1) ? "Drukuj Zmiany" : "Drukuj Kuchnia";
+                
+                expandedHtml = `
+                <div class="mt-3 pt-3 border-t border-white/10" onclick="event.stopPropagation()">
+                    <div class="mb-3 bg-black/50 p-2 rounded-lg border border-white/5">${fullCartDetails || '<span class="text-[9px] text-slate-500 italic">Pusty koszyk</span>'}</div>
+                    <div class="grid grid-cols-3 gap-2 mb-2">
+                        <button onclick="printKitchenTicket(${o.id}, event)" class="${pColor} py-2 rounded text-[8px] font-black uppercase transition hover:opacity-80"><i class="fa-solid fa-print block mb-1 text-[10px]"></i> ${bTxt}</button>
+                        <button onclick="openPaymentModal(${o.id}, 'print', event)" class="bg-white/10 text-slate-300 border border-white/5 py-2 rounded text-[8px] font-black uppercase transition hover:bg-white/20 hover:text-white"><i class="fa-solid fa-receipt block mb-1 text-[10px]"></i> Paragon</button>
+                        <button onclick="openEditInCart(${o.id})" class="bg-white/10 text-slate-300 border border-white/5 py-2 rounded text-[8px] font-black uppercase transition hover:bg-white/20 hover:text-white"><i class="fa-solid fa-pen block mb-1 text-[10px]"></i> Edytuj</button>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="openPaymentModal(${o.id}, 'settle', event)" class="flex-1 bg-red-600 hover:bg-red-500 text-white py-3 rounded font-black uppercase text-[11px] shadow-lg transition active:scale-95"><i class="fa-solid fa-cash-register mr-1"></i> ZAMKNIJ ZAMÓWIENIE</button>
+                        <button onclick="openCancelModal(${o.id})" class="w-12 bg-black/40 border border-white/10 text-slate-500 hover:text-red-500 hover:border-red-500/50 transition rounded-lg flex items-center justify-center text-sm" title="Anuluj Bon"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                </div>`;
+            }
+
+            let clientLine = o.type === 'delivery' ? `<i class="fa-solid fa-location-dot mr-1 text-[9px]"></i> ${o.address}` : `<i class="fa-solid fa-user mr-1 text-[9px]"></i> ${o.customer_name || 'Gość'}`;
+            if (o.type === 'takeaway') clientLine += ` <span class="text-[7px] text-slate-400 border border-white/10 bg-black/40 px-1 py-0.5 rounded ml-2">ŚR: 85zł</span>`;
+            
+            let lBadge = ''; 
+            const numId = Number(o.id);
+            if (typeof state.routeOrders !== 'undefined' && state.routeOrders.includes(numId)) { 
+                let lIndex = state.routeOrders.indexOf(numId) + 1; 
+                lBadge = `<div class="absolute -top-1.5 -left-1.5 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center font-black text-white border-[2px] border-[#0a0f1c] shadow-lg z-20 text-[10px]">L${lIndex}</div>`; 
+            }
+
+            let isSelectedClass = (typeof state.routeOrders !== 'undefined' && state.routeOrders.includes(numId)) ? 'selected' : '';
+
+            const card = `
+            <div class="compact-card border-t-[3px] border-l-0 border-r-0 border-b-0 ${timeInfo.colorClass} mb-2.5 group cursor-pointer ${isSelectedClass}" onclick="${clickAction}">
+                ${lBadge}
+                <div class="flex justify-between items-start">
+                    <div class="flex-1 overflow-hidden pr-2">
+                        <div class="flex items-center gap-2 mb-1.5">
+                            <h4 class="text-[16px] font-black text-white leading-none tracking-tight">${formatOrderNumber(o.order_number, o.created_at)}</h4>
+                            <div class="flex gap-1 items-center ml-1">${smallIcons}</div>
+                        </div>
+                        <div class="text-[11px] font-bold text-white truncate mb-0.5">${clientLine}</div>
+                        <div class="text-[9px] text-slate-500 truncate max-w-[90%]"><i class="fa-solid fa-basket-shopping text-slate-600 mr-1"></i> ${cartSnippet}</div>
+                    </div>
+                    <div class="text-right shrink-0 flex flex-col items-end min-h-[50px] justify-between">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-[7px] font-black uppercase text-slate-500">${sourceText}</span>
+                            <span class="text-[18px] font-black leading-none ${timeInfo.textClass}">${timeInfo.diffText}</span>
+                        </div>
+                        <span class="text-[20px] font-black text-white italic leading-none my-1">${o.total_price} <span class="text-[10px] not-italic text-slate-500 normal-case">zł</span></span>
+                        <span class="text-[7px] font-black uppercase ${payStatusClass} bg-black/40 px-1.5 py-0.5 rounded border border-white/5 mt-auto">${payStatusText}</span>
+                    </div>
+                </div>
+                ${expandedHtml}
+            </div>`;
+            
+            if (o.type === 'delivery') kanban.delivery += card; 
+            else if (o.type === 'takeaway') kanban.takeaway += card; 
+            else kanban.dinein += card;
+        });
+
+        // Wrzucanie na ekran (bez kolorów)
+        document.getElementById('pulse-list-delivery').innerHTML = htmlsPulse.delivery || '<p class="text-center py-2 text-slate-700 text-[8px] font-bold uppercase">Brak</p>';
+        document.getElementById('pulse-list-takeaway').innerHTML = htmlsPulse.takeaway || '<p class="text-center py-2 text-slate-700 text-[8px] font-bold uppercase">Brak</p>';
+        document.getElementById('pulse-list-dinein').innerHTML = htmlsPulse.dinein || '<p class="text-center py-2 text-slate-700 text-[8px] font-bold uppercase">Brak</p>';
+
+        if (state.filterType === 'routes') {
+            // Bezpieczne wpięcie zewnętrznego modułu Battlefield
+            if (typeof renderActiveRoutes === 'function') {
+                renderActiveRoutes();
+            } else {
+                grid.innerHTML = '<div class="text-center mt-12 text-slate-500 font-black uppercase text-xs">Ładowanie modułu Battlefield...</div>';
+            }
+        } else if (state.filterType === 'all' || state.filterType === 'future') {
+            grid.innerHTML = `
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 h-full items-start min-w-[700px]">
+                <div class="kanban-col"><div class="p-3 border-b border-white/5 bg-black/40 flex justify-between items-center"><h3 class="font-black text-[10px] tracking-widest text-slate-400 uppercase"><i class="fa-solid fa-motorcycle mr-1.5"></i> Dowóz</h3><span class="bg-white/10 text-white px-2.5 py-0.5 rounded text-[9px] font-black">${counts.dev}</span></div><div class="flex-1 overflow-y-auto p-2.5 space-y-2.5 hide-scrollbar">${kanban.delivery || '<p class="text-center mt-5 text-slate-600 text-[9px] font-black uppercase">Brak</p>'}</div></div>
+                <div class="kanban-col"><div class="p-3 border-b border-white/5 bg-black/40 flex justify-between items-center"><h3 class="font-black text-[10px] tracking-widest text-slate-400 uppercase"><i class="fa-solid fa-bag-shopping mr-1.5"></i> Wynos</h3><span class="bg-white/10 text-white px-2.5 py-0.5 rounded text-[9px] font-black">${counts.wynos}</span></div><div class="flex-1 overflow-y-auto p-2.5 space-y-2.5 hide-scrollbar">${kanban.takeaway || '<p class="text-center mt-5 text-slate-600 text-[9px] font-black uppercase">Brak</p>'}</div></div>
+                <div class="kanban-col"><div class="p-3 border-b border-white/5 bg-black/40 flex justify-between items-center"><h3 class="font-black text-[10px] tracking-widest text-slate-400 uppercase"><i class="fa-solid fa-utensils mr-1.5"></i> Sala</h3><span class="bg-white/10 text-white px-2.5 py-0.5 rounded text-[9px] font-black">${counts.sala}</span></div><div class="flex-1 overflow-y-auto p-2.5 space-y-2.5 hide-scrollbar">${kanban.dinein || '<p class="text-center mt-5 text-slate-600 text-[9px] font-black uppercase">Brak</p>'}</div></div>
+            </div>`;
+        } else {
+            let singleHtml = (state.filterType === 'delivery') ? kanban.delivery : (state.filterType === 'wynos') ? kanban.takeaway : kanban.dinein;
+            grid.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-start">${singleHtml || '<div class="col-span-full text-center mt-12 text-slate-600 text-[11px] font-black uppercase">Brak Zamówień</div>'}</div>`;
+        }
+
+        document.getElementById('pulse-counter').innerText = pCount; document.getElementById('pulse-counter').classList.toggle('hidden', pCount === 0);
+        document.getElementById('flt-all').innerText = `WSZYSTKIE (${counts.all})`; document.getElementById('flt-dev').innerText = `🛵 DOWÓZ (${counts.dev})`; document.getElementById('flt-sala').innerText = `🍽️ SALA (${counts.sala})`; document.getElementById('flt-wynos').innerText = `🥡 WYNOS (${counts.wynos})`; document.getElementById('flt-routes').innerText = `🚗 KURSY (${counts.routes})`; document.getElementById('flt-future').innerText = `📅 PRZYSZŁE (${counts.future})`;
+    }
+		// 🚀 UNIFIED MODAL (PEŁNA KARTA ZAMÓWIENIA)
+    function openUnifiedModal(id, forceOpen = true) {
+        const o = state.orders.find(x => x.id == id); 
+        if(!o) return; 
+        state.activeUnifiedId = id;
+
+        document.getElementById('uo-number').innerText = "#" + o.order_number.split('/').pop();
+        document.getElementById('uo-customer').innerText = o.customer_name || 'Gość';
+        document.getElementById('uo-address').innerText = o.address || 'Brak Adresu';
+        document.getElementById('uo-phone').innerText = o.customer_phone || 'Brak Telefonu';
+        document.getElementById('uo-total').innerHTML = `${o.total_price} <span class="text-sm">zł</span>`;
+        
+        let actions = document.getElementById('uo-actions');
+        let btns = `<button onclick="printKitchenTicket(${o.id}, null)" class="w-full py-4 bg-white/10 hover:bg-white/20 transition rounded-xl font-black text-[10px] uppercase text-white mb-3 shadow-md"><i class="fa-solid fa-print mr-2"></i> Drukuj Bon na Kuchnię</button>`;
+        btns += `<button onclick="openEditInCart(${o.id})" class="w-full py-4 bg-blue-900/40 text-blue-400 hover:bg-blue-600 hover:text-white transition rounded-xl font-black text-[10px] uppercase mb-3 shadow-md border border-blue-500/30"><i class="fa-solid fa-pen mr-2"></i> Edytuj Zamówienie</button>`;
+        btns += `<div class="flex-1"></div>`;
+        btns += `<button onclick="openPaymentModal(${o.id}, 'settle', null)" class="w-full py-6 bg-red-600 hover:bg-red-500 transition rounded-2xl font-black uppercase text-[12px] text-white mb-3 shadow-[0_0_20px_rgba(239,68,68,0.3)] active:scale-95"><i class="fa-solid fa-cash-register mr-2"></i> ZAMKNIJ BON / KASA</button>`;
+        btns += `<button onclick="openCancelModal(${o.id})" class="w-full py-3 text-slate-500 hover:text-red-500 transition text-[9px] font-black uppercase border border-transparent hover:border-red-500/30 rounded-xl bg-black/30">Anuluj Zamówienie</button>`;
+        actions.innerHTML = btns;
+
+        if(forceOpen) document.getElementById('unified-order-modal').classList.add('active');
+    }
+
+    function closeUnifiedModal() { 
+        document.getElementById('unified-order-modal').classList.remove('active'); 
+        state.activeUnifiedId = null; 
+    }
+
+    // 🚀 KREATOR I KOSZYK
+    function openOrderTypeSelector() { 
+        document.getElementById('initial-table-select').value = ""; 
+        document.getElementById('table-selection-div').classList.add('hidden'); 
+        document.getElementById('order-type-modal').classList.add('active'); 
+    }
+
+    function selectInitialOrderType(type) { 
+        if(type === 'dine_in') {
+            document.getElementById('table-selection-div').classList.remove('hidden'); 
+        } else { 
+            document.getElementById('order-type-modal').classList.remove('active'); 
+            openNewOrder(type, ""); 
+        } 
+    }
+
+    function confirmInitialTable() { 
+        const tbl = document.getElementById('initial-table-select').value; 
+        if(!tbl) return showToast("Wybierz stolik z listy!", "error"); 
+        document.getElementById('order-type-modal').classList.remove('active'); 
+        openNewOrder('dine_in', tbl); 
+    }
+    
+    function openNewOrder(type = 'takeaway', tableStr = '') { 
+        state.cart = []; state.editOrderId = null; state.isCartLocked = false;
+        document.getElementById('edit-mode-badge').classList.add('hidden');
+        document.getElementById('cust-addr').value = tableStr; 
+        document.getElementById('cust-phone').value = ""; 
+        document.getElementById('cust-nip').value = "";
+        setOrderType(type, document.querySelector(`.type-${type}`)); 
+        document.getElementById('order-overlay').classList.add('active'); 
+        renderCats(); updateCartUI(); 
+    }
+
+    function closeNewOrder() { document.getElementById('order-overlay').classList.remove('active'); }
+
+    function setOrderType(t, btn) { 
+        state.type = t; 
+        document.querySelectorAll('.type-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-white/5')); 
+        btn.classList.replace('bg-white/5', 'bg-blue-600'); 
+        document.getElementById('delivery-fields').classList.toggle('hidden', t !== 'delivery'); 
+    }
+
+    function renderCats() { 
+        document.getElementById('cat-list').innerHTML = state.categories.map(c => 
+            `<button onclick="renderItems(${c.id})" class="px-5 py-3 bg-white/5 rounded-xl text-[10px] font-black uppercase shrink-0 hover:bg-red-600 transition text-white border border-white/5 shadow-sm">${c.name_utf8}</button>`
+        ).join(''); 
+        if(state.categories.length) renderItems(state.categories[0].id); 
+    }
+
+    function renderItems(cid) { 
+        document.getElementById('item-grid').innerHTML = state.items.filter(i => i.category_id == cid).map(i => 
+            `<div onclick="clickItem(${i.id})" class="glass p-4 rounded-2xl h-28 flex flex-col justify-between cursor-pointer active:scale-95 transition hover:border-red-500 shadow-sm border border-white/5 bg-black/30">
+                <h5 class="text-[10px] font-black uppercase leading-tight text-white">${i.name}</h5>
+                <span class="text-green-500 font-black text-xs italic">${i.price} zł</span>
+            </div>`
+        ).join(''); 
+    }
+
+    function toggleHalfMode() { 
+        state.isHalfMode = !state.isHalfMode; state.halfA = null; 
+        
+        // Ponieważ przycisk zniknął, dodajemy powiadomienie Toast, żeby kelner wiedział, co się dzieje
+        if(state.isHalfMode) {
+            showToast("Tryb połówek włączony. Wybierz pierwszą część.", "info");
+        } else {
+            showToast("Tryb połówek wyłączony.", "info");
+        }
+    }
+
+    function clickItem(id) { 
+    const item = state.items.find(i => i.id == id);
+    
+    // 🚨 Jeśli kliknięto produkt typu 'half_half', a tryb nie jest jeszcze aktywny
+    if (item.type === 'half_half' && !state.isHalfMode) {
+        toggleHalfMode();
+        return;
+    }
+
+    if(state.isHalfMode) { 
+        if(!state.halfA) { 
+            state.halfA = item; 
+            showToast(`Wybrano: ½ ${item.name}. Kliknij drugą połowę.`, "info"); 
+        } else { 
+            openHalfDishCard(state.halfA, item); 
+            state.halfA = null; 
+            state.isHalfMode = false; 
+            const btn = document.getElementById('btn-half');
+            if(btn) btn.classList.remove('bg-orange-500/20', 'text-white', 'border-orange-500'); 
+        } 
+    } else { 
+        openDishCard(id); 
+    } 
+}
+
+    async function openHalfDishCard(itemA, itemB) { 
+        const price = Math.max(parseFloat(itemA.price), parseFloat(itemB.price)) + 2.00; 
+        state.activeItem = { id: null, name: `½ ${itemA.name} + ½ ${itemB.name}`, price: price.toFixed(2), qty: 1, removed: [], added: [], comment: "", is_half: true, half_a: itemA.id, half_b: itemB.id, cart_id: Date.now() }; 
+        document.getElementById('dc-name').innerText = state.activeItem.name; document.getElementById('dc-price').innerText = state.activeItem.price + " zł"; 
+        document.getElementById('dc-qty').innerText = "1"; document.getElementById('dc-comment').value = ""; document.getElementById('dish-card').classList.add('active'); 
+        try { 
+            const d = await apiPost('get_item_details', {item_id: itemA.id, half_b_id: itemB.id}); 
+            if (d.status === 'success') { 
+                document.getElementById('dc-ingredients').innerHTML = d.payload.ingredients.map(ing => { 
+                    const prefix = ing.half === 'A' ? `[½ ${itemA.name}] ` : `[½ ${itemB.name}] `; 
+                    return `<div class="ing-chip bg-white/10 px-3 py-2 rounded-lg text-[9px] font-black uppercase flex items-center gap-1.5 cursor-pointer border border-white/5 text-slate-300 hover:text-white" onclick="this.classList.toggle('opacity-30'); this.classList.toggle('line-through'); this.classList.toggle('text-red-500'); toggleRem(${ing.product_id})">${prefix}${ing.name_utf8}</div>`; 
+                }).join(''); 
+                document.getElementById('dc-modifiers').innerHTML = renderModifiers(); 
+            } 
+        } catch(e) {} 
+    }
+
+    async function openDishCard(id) { 
+        const item = state.items.find(i => i.id == id); 
+        state.activeItem = { ...item, qty: 1, removed: [], added: [], comment: "", cart_id: Date.now() }; 
+        document.getElementById('dc-name').innerText = item.name; document.getElementById('dc-price').innerText = item.price + " zł"; 
+        document.getElementById('dc-qty').innerText = "1"; document.getElementById('dc-comment').value = ""; document.getElementById('dish-card').classList.add('active'); 
+        try { 
+            const d = await apiPost('get_item_details', {item_id: id}); 
+            if (d.status === 'success') { 
+                document.getElementById('dc-ingredients').innerHTML = d.payload.ingredients.map(ing => 
+                    `<div class="ing-chip bg-white/10 px-3 py-2 rounded-lg text-[9px] font-black uppercase flex items-center gap-1.5 cursor-pointer border border-white/5 text-slate-300 hover:text-white transition" onclick="this.classList.toggle('opacity-30'); this.classList.toggle('line-through'); this.classList.toggle('text-red-500'); toggleRem(${ing.product_id})">${ing.name_utf8}</div>`
+                ).join(''); 
+                document.getElementById('dc-modifiers').innerHTML = renderModifiers(); 
+            } 
+        } catch(e) {} 
+    }
+
+    function renderModifiers() { 
+        return state.ingredients.map(ing => `<label class="flex items-center gap-3 bg-black/50 p-3 rounded-xl cursor-pointer border border-white/5 hover:bg-white/5 transition"><input type="checkbox" value="${ing.id}" onchange="toggleAddMod(this)" class="w-4 h-4 accent-red-500"><span class="text-[9px] font-bold uppercase truncate text-white">${ing.name} <span class="text-green-500 ml-1">(+4zł)</span></span></label>`).join(''); 
+    }
+
+    function toggleAddMod(cb) { 
+        const id = parseInt(cb.value); 
+        if(cb.checked) { state.activeItem.added.push(id); state.activeItem.price = (parseFloat(state.activeItem.price) + 4.00).toFixed(2); } 
+        else { state.activeItem.added = state.activeItem.added.filter(x => x !== id); state.activeItem.price = (parseFloat(state.activeItem.price) - 4.00).toFixed(2); } 
+        document.getElementById('dc-price').innerText = state.activeItem.price + " zł"; 
+    }
+
+    function toggleRem(id) { 
+        if(state.activeItem.removed.includes(id)) { state.activeItem.removed = state.activeItem.removed.filter(x=>x!==id); } else { state.activeItem.removed.push(id); }
+    }
+
+    function changeDcQty(v) { state.activeItem.qty = Math.max(1, state.activeItem.qty + v); document.getElementById('dc-qty').innerText = state.activeItem.qty; }
+
+    function addDishToCart() { 
+        state.activeItem.comment = document.getElementById('dc-comment').value; 
+        const existingIndex = state.cart.findIndex(c => c.cart_id === state.activeItem.cart_id); 
+        if(existingIndex >= 0) { state.cart[existingIndex] = state.activeItem; } else { state.cart.push(state.activeItem); }
+        updateCartUI(); closeDishCard(); 
+    }
+
+    function closeDishCard() { document.getElementById('dish-card').classList.remove('active'); }
+
+    function updateCartUI() { 
+        const list = document.getElementById('cart-items'); let total = 0; 
+        list.innerHTML = state.cart.map(i => { 
+            total += (parseFloat(i.price) * i.qty); 
+            const addedNames = i.added.map(addId => { const ing = state.ingredients.find(x => x.id == addId); return ing ? ing.name : ''; }).filter(x=>x); 
+            return `
+            <div class="bg-black/40 p-3 rounded-xl flex justify-between items-start border-l-[3px] border-red-500 border border-white/5 shadow-sm ${state.isCartLocked ? 'opacity-50' : 'cursor-pointer hover:bg-white/5'}" ${state.isCartLocked ? '' : `onclick="editCartItem(${i.cart_id})"`}>
+                <div class="w-3/4">
+                    <p class="text-[10px] font-black uppercase text-white"><span class="text-blue-400 mr-1">${i.qty}x</span> ${i.name}</p>
+                    ${i.removed && i.removed.length ? `<p class="text-[8px] text-red-500 font-bold uppercase mt-1">- Bez ${i.removed.length} składników</p>` : ''}
+                    ${addedNames.length ? `<p class="text-[8px] text-green-500 font-bold uppercase mt-1">+ Dodatki: ${addedNames.join(', ')}</p>` : ''}
+                    ${i.comment ? `<p class="text-[8px] text-yellow-500 font-bold uppercase mt-1">Uwagi: ${i.comment}</p>` : ''}
+                </div>
+                <div class="text-right flex flex-col items-end justify-between">
+                    <p class="text-[12px] font-black text-white">${(i.price*i.qty).toFixed(2)} zł</p>
+                    ${state.isCartLocked ? '' : `<button onclick="state.cart = state.cart.filter(c=>c.cart_id!==${i.cart_id}); updateCartUI(); event.stopPropagation();" class="text-slate-600 hover:text-red-500 mt-2 text-sm bg-black/50 w-6 h-6 rounded flex items-center justify-center transition"><i class="fa-solid fa-trash"></i></button>`}
+                </div>
+            </div>`; 
+        }).join(''); 
+        document.getElementById('cart-total').innerText = total.toFixed(2) + " zł"; 
+    }
+
+    function openEditInCart(orderId) {
+        closeUnifiedModal(); 
+        const o = state.orders.find(x => x.id == orderId); if (!o) return;
+        try { state.cart = JSON.parse(o.cart_json || '[]'); } catch(e) { state.cart = []; }
+        state.editOrderId = orderId; state.isCartLocked = (o.receipt_printed == 1); 
+        
+        setOrderType(o.type, document.querySelector(`.type-${o.type}`));
+        document.getElementById('cust-addr').value = o.address || ''; document.getElementById('cust-phone').value = o.customer_phone || ''; document.getElementById('cust-nip').value = o.nip || '';
+        document.getElementById('edit-mode-badge').classList.remove('hidden'); 
+        
+        if (state.isCartLocked) {
+            document.getElementById('cat-list').innerHTML = '';
+            document.getElementById('item-grid').innerHTML = `
+                <div class="col-span-full p-10 bg-red-900/10 border border-red-500/30 rounded-3xl text-center flex flex-col items-center justify-center mt-10">
+                    <i class="fa-solid fa-lock text-6xl text-red-500 mb-6 drop-shadow-lg"></i>
+                    <h3 class="text-red-500 font-black uppercase tracking-widest text-xl mb-2">Edycja Dań Zablokowana</h3>
+                    <p class="text-xs text-slate-300 max-w-md font-bold leading-relaxed">Paragon wydrukowany. Możesz zaktualizować tylko adres dostawy i numer klienta.</p>
+                </div>`;
+        } else { renderCats(); }
+        updateCartUI(); document.getElementById('order-overlay').classList.add('active');
+    }
+
+    function editCartItem(cartId) {
+        if(state.isCartLocked) return showToast("Zablokowane - Wydrukowano Paragon", "error");
+        const itemIndex = state.cart.findIndex(i => i.cart_id === cartId); if(itemIndex < 0) return;
+        state.activeItem = JSON.parse(JSON.stringify(state.cart[itemIndex])); 
+        document.getElementById('dc-name').innerText = state.activeItem.name; document.getElementById('dc-price').innerText = state.activeItem.price + " zł"; 
+        document.getElementById('dc-qty').innerText = state.activeItem.qty; document.getElementById('dc-comment').value = state.activeItem.comment || ""; 
+        document.getElementById('dish-card').classList.add('active'); 
+        
+        fetch(`api_pos.php?action=get_item_details&item_id=${state.activeItem.id || state.activeItem.half_a}&half_b_id=${state.activeItem.half_b || 0}`)
+        .then(r => r.json()).then(d => {
+            if (d.status === 'success') { 
+                document.getElementById('dc-ingredients').innerHTML = d.payload.ingredients.map(ing => { 
+                    const isRemoved = state.activeItem.removed.includes(ing.product_id) ? 'opacity-30 line-through text-red-500' : ''; 
+                    const prefix = ing.half ? `[½] ` : ''; 
+                    return `<div class="ing-chip bg-white/10 border border-white/5 px-3 py-2 rounded-lg text-[9px] font-black uppercase flex items-center gap-1.5 ${isRemoved} cursor-pointer text-slate-300 hover:text-white transition" onclick="this.classList.toggle('opacity-30'); this.classList.toggle('line-through'); this.classList.toggle('text-red-500'); toggleRem(${ing.product_id})">${prefix}${ing.name_utf8}</div>`; 
+                }).join(''); 
+                document.getElementById('dc-modifiers').innerHTML = state.ingredients.map(ing => { 
+                    const isAdded = state.activeItem.added.includes(ing.id) ? 'checked' : ''; 
+                    return `<label class="flex items-center gap-3 bg-black/50 border border-white/5 p-3 rounded-xl cursor-pointer hover:bg-white/5 transition"><input type="checkbox" value="${ing.id}" onchange="toggleAddMod(this)" class="w-4 h-4 accent-red-500" ${isAdded}><span class="text-[9px] font-bold uppercase truncate text-white">${ing.name} <span class="text-green-500 ml-1">(+4zł)</span></span></label>`; 
+                }).join('');
+            }
+        });
+    }
+		// 🚀 CZAS I FINALIZACJA KOSZYKA (KASA)
+    function openCartCheckoutModal() {
+        if(state.cart.length === 0) return showToast("Koszyk jest pusty!", "error");
+        if(state.type === 'delivery' && !document.getElementById('cust-addr').value) return showToast("Wymagany adres dla dostawy!", "error");
+        
+        state.cartPayMethod = 'unpaid'; state.cartPayStatus = 'unpaid';
+        document.querySelectorAll('.pay-option').forEach(el => el.classList.remove('active', 'active-park'));
+        const parkBtn = document.getElementById('btn-pay-park'); if (parkBtn) parkBtn.classList.add('active-park');
+
+        let chkR = document.getElementById('cart-print-receipt'); chkR.checked = false; chkR.disabled = true;
+        document.getElementById('receipt-req-info').classList.add('hidden');
+        document.getElementById('cart-print-kitchen').checked = (state.editOrderId === null); 
+
+        state.checkoutTargetTime = new Date(); 
+        state.checkoutTargetTime.setMinutes(state.checkoutTargetTime.getMinutes() + (state.type === 'delivery' ? 60 : 30));
+        switchTimeTab('asap'); document.getElementById('cart-checkout-modal').classList.add('active');
+    }
+
+    function switchTimeTab(mode) {
+        state.checkoutTimeMode = mode;
+        const btnAsap = document.getElementById('tab-asap'); const btnSched = document.getElementById('tab-scheduled');
+        const viewAsap = document.getElementById('time-asap-view'); const viewSched = document.getElementById('time-scheduled-view');
+
+        if (mode === 'asap') {
+            btnAsap.classList.replace('bg-white/10', 'bg-blue-600'); btnAsap.classList.replace('text-slate-400', 'text-white');
+            btnSched.classList.replace('bg-blue-600', 'bg-white/10'); btnSched.classList.replace('text-white', 'text-slate-400');
+            viewAsap.classList.remove('hidden'); viewSched.classList.add('hidden'); viewSched.classList.remove('flex');
+            
+            const quick = document.getElementById('quick-time-btns');
+            let b = state.type === 'delivery' ? [45, 60, 90, 120] : [15, 30, 45, 60];
+            quick.innerHTML = b.map(v => `<button onclick="applyQuickMinutes(${v})" class="px-5 py-3 rounded-xl bg-white/10 border border-white/5 text-[10px] font-black hover:bg-blue-600 transition shrink-0 shadow-sm text-white">+${v}m</button>`).join('');
+        } else {
+            btnSched.classList.replace('bg-white/10', 'bg-blue-600'); btnSched.classList.replace('text-slate-400', 'text-white');
+            btnAsap.classList.replace('bg-blue-600', 'bg-white/10'); btnAsap.classList.replace('text-white', 'text-slate-400');
+            viewAsap.classList.add('hidden'); viewSched.classList.remove('hidden'); viewSched.classList.add('flex');
+            updateScheduledDisplay();
+        }
+    }
+
+    function applyQuickMinutes(m) { state.checkoutTargetTime = new Date(); state.checkoutTargetTime.setMinutes(state.checkoutTargetTime.getMinutes() + m); showToast(`Za ${m} minut`, 'success'); switchTimeTab('scheduled'); }
+    function applyCustomMinutes() { const v = parseInt(document.getElementById('custom-minutes').value); if(!v || v <= 0) return; state.checkoutTargetTime = new Date(); state.checkoutTargetTime.setMinutes(state.checkoutTargetTime.getMinutes() + v); showToast(`Za ${v} minut`, 'success'); switchTimeTab('scheduled'); }
+    function calendarTimeChanged(val) { if(!val) return; state.checkoutTargetTime = new Date(val); showToast(`Nowa data!`, 'success'); switchTimeTab('scheduled'); }
+    function updateScheduledDisplay() {
+        const t = state.checkoutTargetTime; const now = new Date(); const diffM = Math.ceil((t - now) / 60000);
+        const isToday = t.getDate() === now.getDate() && t.getMonth() === now.getMonth() && t.getFullYear() === now.getFullYear();
+        const h = String(t.getHours()).padStart(2, '0'); const m = String(t.getMinutes()).padStart(2, '0');
+        document.getElementById('scheduled-time-display').innerText = isToday ? `Dziś ${h}:${m}` : `${String(t.getDate()).padStart(2,'0')}.${String(t.getMonth()+1).padStart(2,'0')} ${h}:${m}`;
+        document.getElementById('scheduled-countdown').innerText = diffM >= 0 ? `Za ${diffM} min` : `Spóźnione ${Math.abs(diffM)} min`;
+        document.getElementById('scheduled-countdown').className = diffM >= 0 ? 'text-[11px] font-black text-blue-400 mb-3 tracking-widest uppercase' : 'text-[11px] font-black text-red-500 mb-3 tracking-widest uppercase animate-pulse';
+    }
+
+    function selectCartPayment(method, status, btn, isPark = false) {
+        state.cartPayMethod = method; state.cartPayStatus = status;
+        document.querySelectorAll('.pay-option').forEach(el => el.classList.remove('active', 'active-park'));
+        let chkR = document.getElementById('cart-print-receipt'); let reqInfo = document.getElementById('receipt-req-info');
+        if(isPark) { 
+            btn.classList.add('active-park'); chkR.checked = false; chkR.disabled = true; reqInfo.classList.add('hidden');
+        } else { 
+            btn.classList.add('active'); 
+            if (method === 'card' || method === 'online') { chkR.checked = true; chkR.disabled = true; reqInfo.classList.remove('hidden'); } 
+            else { chkR.disabled = false; chkR.checked = false; reqInfo.classList.add('hidden'); } 
+        }
+    }
+
+    async function submitFinalOrder() {
+        if(!state.cartPayStatus) return showToast("Wybierz płatność lub zaparkuj!", "error");
+        let isCardOrOnline = (state.cartPayMethod === 'card' || state.cartPayMethod === 'online');
+        let printCheck = document.getElementById('cart-print-receipt').checked;
+        if (state.cartPayStatus === 'paid' && isCardOrOnline && !printCheck) return showToast("Dla karty paragon obowiązkowy!", "error");
+
+        const iso = new Date(state.checkoutTargetTime.getTime() - (state.checkoutTargetTime.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+        const payload = { 
+            edit_order_id: state.editOrderId, action_type: state.cartPayStatus === 'paid' ? 'close' : 'park', 
+            payment_method: state.cartPayMethod, payment_status: state.cartPayStatus, 
+            print_receipt: printCheck ? 1 : 0, print_kitchen: document.getElementById('cart-print-kitchen').checked ? 1 : 0, 
+            custom_datetime: iso, order_type: state.type, customer_phone: document.getElementById('cust-phone').value, 
+            address: document.getElementById('cust-addr').value, nip: document.getElementById('cust-nip').value, 
+            total_price: parseFloat(document.getElementById('cart-total').innerText), cart: state.cart, source: 'local', status: 'pending' 
+        }; 
+        
+        const d = await apiPost('process_order', payload);
+        if(d.status === 'success') { showToast("Zapisano!", "success"); state.editOrderId = null; document.getElementById('cart-checkout-modal').classList.remove('active'); closeNewOrder(); fetchOrders(); } 
+        else { showToast(d.error, "error"); }
+    }
+
+    // 🚀 SZYBKIE PŁATNOŚCI Z BATTLEFIELDA
+    function openPaymentModal(orderId, mode, ev) { 
+        if(ev) ev.stopPropagation(); closeUnifiedModal();
+        const o = state.orders.find(x => x.id == orderId); if(!o) return;
+        state.settleOrderId = orderId; state.paymentModalMode = mode; 
+        document.getElementById('pay-acc-id').innerText = "#" + (o.order_number.split('/').pop() || o.order_number); 
+        
+        let title = document.querySelector('#payment-modal h3'); let btnSettle = document.getElementById('btn-settle-close'); let btnPrint = document.getElementById('btn-settle-print');
+        document.getElementById('settle-btn-card').style.display = 'block'; document.getElementById('settle-btn-cash').style.display = 'block'; document.getElementById('settle-btn-online').style.display = 'none';
+        let chkR = document.getElementById('settle-print-receipt'); let reqInfo = document.getElementById('settle-req-info');
+        
+        if (mode === 'print') { 
+            title.innerText = 'DRUKUJ PARAGON'; btnSettle.classList.add('hidden'); btnPrint.classList.remove('hidden'); 
+            chkR.checked = true; chkR.disabled = true; reqInfo.classList.remove('hidden'); 
+        } else { 
+            title.innerText = 'ROZLICZ I ZAMKNIJ'; btnSettle.classList.remove('hidden'); btnPrint.classList.add('hidden'); 
+            if (o.receipt_printed == 1) { chkR.checked = true; chkR.disabled = true; reqInfo.classList.add('hidden'); } 
+            else { chkR.disabled = false; chkR.checked = false; reqInfo.classList.add('hidden'); } 
+        }
+
+        if (o.source === 'online' || o.payment_method === 'online') { 
+            state.settleMethod = 'online'; document.getElementById('settle-btn-card').style.display = 'none'; document.getElementById('settle-btn-cash').style.display = 'none'; document.getElementById('settle-btn-online').style.display = 'block'; selectSettleMethod('online'); 
+        } else if (o.payment_method !== 'unpaid' && o.payment_method) { 
+            state.settleMethod = o.payment_method; 
+            if(o.payment_method === 'card') document.getElementById('settle-btn-cash').style.display = 'none'; 
+            if(o.payment_method === 'cash') document.getElementById('settle-btn-card').style.display = 'none'; 
+            selectSettleMethod(state.settleMethod); 
+            if (o.receipt_printed == 1) document.querySelectorAll('.settle-opt').forEach(btn => { btn.disabled = true; btn.classList.add('opacity-50', 'cursor-not-allowed'); }); 
+            else document.querySelectorAll('.settle-opt').forEach(btn => { btn.disabled = false; btn.classList.remove('opacity-50', 'cursor-not-allowed'); }); 
+        } else { 
+            state.settleMethod = null; document.querySelectorAll('.settle-opt').forEach(el => { el.classList.remove('border-blue-500', 'border-green-500', 'border-purple-500', 'bg-white/10', 'opacity-50', 'cursor-not-allowed'); el.disabled = false; }); 
+        }
+        document.getElementById('payment-modal').classList.add('active'); 
+    }
+
+    function selectSettleMethod(m) { 
+        state.settleMethod = m; document.querySelectorAll('.settle-opt').forEach(el => el.classList.remove('border-blue-500', 'border-green-500', 'border-purple-500', 'bg-white/10'));
+        let chk = document.getElementById('settle-print-receipt'); let reqInfo = document.getElementById('settle-req-info');
+        if(m === 'card' || m === 'online') { document.getElementById('settle-btn-' + m).classList.add('border-' + (m==='card'?'blue':'purple') + '-500', 'bg-white/10'); chk.checked = true; chk.disabled = true; reqInfo.classList.remove('hidden'); }
+        if(m === 'cash') { 
+            document.getElementById('settle-btn-cash').classList.add('border-green-500', 'bg-white/10'); 
+            const o = state.orders.find(x => x.id == state.settleOrderId); 
+            if (state.paymentModalMode === 'print') { chk.checked = true; chk.disabled = true; reqInfo.classList.remove('hidden'); } 
+            else if (o && o.receipt_printed == 1) { chk.disabled = true; chk.checked = true; reqInfo.classList.add('hidden'); } 
+            else { chk.disabled = false; chk.checked = false; reqInfo.classList.add('hidden'); } 
+        }
+    }
+
+    function openCancelModal(id) { closeUnifiedModal(); state.acceptId = id; document.getElementById('cancel-acc-id').innerText = "#" + id; document.getElementById('cancel-modal').classList.add('active'); }
+    async function confirmCancel(ret) { const d = await apiPost('cancel_order', {order_id: state.acceptId, return_stock: ret}); if(d.status === 'success') { showToast("Anulowano.", "success"); document.getElementById('cancel-modal').classList.remove('active'); fetchOrders(); } else { showToast(d.error,"error"); } }
+
+    // 🚀 CICHY WYDRUK LOKALNY
+    function printLokalnie(htmlContent) {
+        let iframe = document.getElementById('print-frame');
+        let doc = iframe.contentWindow.document; doc.open(); doc.write(htmlContent); doc.close();
+        setTimeout(() => { iframe.contentWindow.focus(); iframe.contentWindow.print(); }, 250);
+    }
+
+    function generujSzablonBonu(order, isKitchen = false) {
+        let cart = []; try { cart = JSON.parse(order.cart_json || '[]'); } catch(e) {}
+        let itemsHtml = cart.map(item => {
+            const added = item.added && item.added.length ? `<br><span style="font-size: 10px;">+ dodatki/zmiany</span>` : '';
+            const comment = item.comment ? `<br><span style="font-size: 10px; border: 1px solid #000; padding: 2px;">UWAGA: ${item.comment}</span>` : '';
+            return `<tr><td style="padding: 5px 0; font-weight: bold; vertical-align: top; width: 15%;">${item.qty}x</td><td style="padding: 5px 0; vertical-align: top; width: 60%;">${item.name} ${added} ${comment}</td>${!isKitchen ? `<td style="text-align: right; padding: 5px 0; vertical-align: top;">${(item.price * item.qty).toFixed(2)}</td>` : ''}</tr>`;
+        }).join('');
+        const dDate = new Date(order.created_at || new Date()); const timeStr = `${String(dDate.getHours()).padStart(2, '0')}:${String(dDate.getMinutes()).padStart(2, '0')}`;
+        let title = isKitchen ? "BON NA KUCHNIĘ" : "RACHUNEK / PARAGON NIEFISKALNY";
+        let typeStr = order.type === 'delivery' ? 'DOSTAWA' : (order.type === 'takeaway' ? 'WYNOS' : 'SALA');
+        let clientHtml = ''; if (order.type === 'delivery') clientHtml = `<div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; margin: 10px 0; padding: 10px 0;"><b style="font-size: 16px;">${order.address || 'Brak adresu'}</b><br>Tel: ${order.customer_phone || 'Brak'}<br>Klient: ${order.customer_name || 'Gość'}</div>`;
+        return `<html><head><style>body { font-family: 'Courier New', monospace; width: 300px; margin: 0; padding: 0; color: #000; background: #fff; font-size: 12px; } .center { text-align: center; } .divider { border-top: 2px dashed #000; margin: 10px 0; } table { width: 100%; border-collapse: collapse; } h2 { margin: 5px 0; font-size: 18px; text-align: center; } h3 { margin: 5px 0; font-size: 14px; text-align: center; }</style></head><body><h2>SLICEHUB POS</h2><h3>${title}</h3><div class="divider"></div><div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 14px;"><span>#${order.order_number.split('/').pop()}</span><span>${timeStr}</span></div><div class="center" style="font-size: 18px; font-weight: bold; margin: 5px 0; border: 2px solid #000; padding: 5px;">${typeStr}</div>${clientHtml}<table>${itemsHtml}</table><div class="divider"></div>${!isKitchen ? `<h2 style="text-align: right; font-size: 20px;">SUMA: ${order.total_price} PLN</h2>` : ''}<div class="center" style="margin-top: 20px; font-size: 10px;">Wygenerowano: ${new Date().toLocaleString()}</div></body></html>`;
+    }
+
+    async function printKitchenTicket(id, ev) { 
+        if(ev) ev.stopPropagation(); 
+        const o = state.orders.find(x => x.id == id);
+        if(o) printLokalnie(generujSzablonBonu(o, true));
+        await apiPost('print_kitchen', {order_id: id}); 
+        showToast("Wysłano żądanie druku na kuchnię...", "success"); fetchOrders(); 
+    }
+
+    async function confirmPrintReceiptOnly() { 
+        if(!state.settleMethod) return showToast("Zaznacz płatność przypisaną do paragonu!", "error"); 
+        const o = state.orders.find(x => x.id == state.settleOrderId);
+        if(o) printLokalnie(generujSzablonBonu(o, false));
+        const d = await apiPost('print_receipt', {order_id: state.settleOrderId, payment_method: state.settleMethod}); 
+        if(d.status === 'success') { showToast("Wydrukowano Paragon", "success"); document.getElementById('payment-modal').classList.remove('active'); fetchOrders(); } 
+        else { showToast(d.error, "error"); } 
+    }
+
+    async function confirmPaymentAndClose() { 
+        if(!state.settleMethod) return showToast("Zaznacz metodę płatności!", "error"); 
+        let isCardOrOnline = (state.settleMethod === 'card' || state.settleMethod === 'online');
+        let printCheck = document.getElementById('settle-print-receipt').checked;
+        if (isCardOrOnline && !printCheck) { return showToast("Wydruk paragonu jest OBOWIĄZKOWY!", "error"); }
+
+        if (printCheck) {
+            const o = state.orders.find(x => x.id == state.settleOrderId);
+            if(o) printLokalnie(generujSzablonBonu(o, false));
+        }
+
+        const d = await apiPost('settle_and_close', {order_id: state.settleOrderId, payment_method: state.settleMethod, print_receipt: printCheck ? 1 : 0}); 
+        if(d.status === 'success') { showToast("Zamknięto pomyślnie!", "success"); document.getElementById('payment-modal').classList.remove('active'); closeUnifiedModal(); fetchOrders(); } 
+        else { showToast(d.error, "error"); } 
+    }
+</script>
+
+<script src="pos_fleet.js"></script>
+<script src="pos_active_routes.js"></script>
+
+<script>
+    window.addEventListener('DOMContentLoaded', (event) => {
+        init();
+        setInterval(fetchOrders, 8000);
+    });
+</script>
+</body>
+</html>

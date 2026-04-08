@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SliceHub Delivery Tower v1.0</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        body { font-family: 'Montserrat', sans-serif; background-color: #050505; color: white; overflow: hidden; }
+        .glass { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .leaflet-container { background: #050505; font-family: 'Montserrat', sans-serif; z-index: 10; }
+        .order-card { transition: all 0.2s; border: 2px solid transparent; }
+        .order-card.selected { border-color: #3b82f6; background: rgba(59, 130, 246, 0.1); transform: scale(0.98); }
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 999; display: none; align-items: center; justify-content: center; backdrop-blur: 10px; }
+        .modal.active { display: flex; }
+    </style>
+</head>
+<body class="flex flex-col h-screen w-screen bg-[#050505]">
+
+    <div id="toast-container" class="fixed top-5 right-5 z-[9999] flex flex-col gap-3 pointer-events-none"></div>
+
+    <header class="p-4 flex justify-between items-center bg-[#0a0f1c] border-b border-white/5 shrink-0 z-20">
+        <div class="flex items-center gap-4">
+            <div class="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center font-black text-lg shadow-lg shadow-red-500/30">SH</div>
+            <div>
+                <h1 class="text-xl font-black uppercase italic tracking-tighter text-blue-500">Control Tower</h1>
+                <p class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Moduł Logistyki i Floty</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            <button onclick="window.location.href='pos.html'" class="px-6 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-black uppercase transition border border-white/10 text-white"><i class="fa-solid fa-satellite-dish mr-2"></i> Powrót do POS</button>
+        </div>
+    </header>
+
+    <main class="flex-1 flex overflow-hidden">
+        
+        <div class="w-72 bg-[#070b14] border-r border-white/5 flex flex-col shrink-0">
+            <div class="p-4 border-b border-white/5 bg-yellow-900/10 flex justify-between items-center">
+                <h3 class="font-black text-xs uppercase tracking-widest text-yellow-500"><i class="fa-solid fa-fire mr-2"></i> W Piecu</h3>
+                <span id="c-pending" class="text-[10px] font-black text-yellow-500 bg-yellow-500/20 px-2 py-0.5 rounded">0</span>
+            </div>
+            <div id="list-pending" class="flex-1 overflow-y-auto p-4 space-y-3 hide-scrollbar"></div>
+        </div>
+
+        <div class="flex-1 flex flex-col bg-[#050505] relative">
+            <div class="h-1/2 p-4 border-b border-white/5 flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-black text-xs uppercase tracking-widest text-green-500"><i class="fa-solid fa-box mr-2"></i> Gotowe do wyjazdu (Kliknij by zaznaczyć)</h3>
+                    <span id="c-ready" class="text-[10px] font-black text-green-500 bg-green-500/20 px-2 py-0.5 rounded">0</span>
+                </div>
+                <div id="list-ready" class="flex-1 overflow-y-auto grid grid-cols-2 lg:grid-cols-3 gap-3 hide-scrollbar content-start"></div>
+            </div>
+            
+            <div class="h-1/2 relative p-4">
+                <div id="leaflet-map" class="w-full h-full rounded-[24px] border border-white/5 shadow-inner overflow-hidden"></div>
+            </div>
+        </div>
+
+        <div class="w-80 bg-[#070b14] border-l border-white/5 flex flex-col shrink-0">
+            <div class="p-4 border-b border-white/5 bg-blue-900/10">
+                <h3 class="font-black text-xs uppercase tracking-widest text-blue-500"><i class="fa-solid fa-motorcycle mr-2"></i> Flota Kierowców</h3>
+            </div>
+            <div id="list-drivers" class="flex-1 overflow-y-auto p-4 space-y-3 hide-scrollbar"></div>
+        </div>
+
+    </main>
+
+    <div id="cash-modal" class="modal">
+        <div class="w-full max-w-sm bg-[#0a0f1c] rounded-[32px] p-8 border border-blue-500/50 shadow-2xl text-center relative">
+            <button onclick="document.getElementById('cash-modal').classList.remove('active')" class="absolute top-6 right-6 w-8 h-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-red-600 transition"><i class="fa-solid fa-xmark"></i></button>
+            <h3 class="text-xl font-black uppercase italic mb-1 text-blue-500">Wydaj Pogotowie</h3>
+            <p class="text-[10px] font-bold text-slate-400 uppercase mb-6">Kasa startowa na wydawkę</p>
+            <input type="number" id="cash-input" placeholder="np. 100.00" class="w-full bg-black border border-white/10 rounded-xl p-4 text-center text-2xl font-black outline-none focus:border-blue-500 text-white mb-6">
+            <button onclick="saveCash()" class="w-full py-4 bg-blue-600 rounded-xl font-black uppercase text-xs shadow-lg text-white hover:bg-blue-500 transition">Zatwierdź kwotę</button>
+        </div>
+    </div>
+
+    <script>
+        function showToast(msg, type='info') {
+            const toast = document.createElement('div');
+            const color = type === 'error' ? 'bg-red-600' : (type === 'success' ? 'bg-green-600' : 'bg-blue-600');
+            toast.className = `${color} text-white px-6 py-3 rounded-xl shadow-2xl font-black text-xs uppercase tracking-widest transform transition-all duration-300 translate-x-full border border-white/10`;
+            toast.innerHTML = type === 'error' ? `<i class="fa-solid fa-triangle-exclamation mr-2"></i> ${msg}` : `<i class="fa-solid fa-check mr-2"></i> ${msg}`;
+            document.getElementById('toast-container').appendChild(toast);
+            setTimeout(()=>toast.classList.remove('translate-x-full'), 10);
+            setTimeout(()=> { toast.classList.add('translate-x-full'); setTimeout(()=>toast.remove(), 300); }, 3500);
+        }
+
+        let state = { orders: [], drivers: [], selectedOrders: [], activeDriverId: null };
+        let leafletMap = null; let mapMarkersLayer = null;
+
+        async function apiPost(action, payload = {}) {
+            payload.action = action;
+            try {
+                const r = await fetch('api_delivery.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                return await r.json();
+            } catch(e) { return { status: 'error', error: 'Błąd połączenia z serwerem.' }; }
+        }
+
+        async function fetchDashboard() {
+            const d = await apiPost('get_dashboard');
+            if(d.status === 'success') {
+                state.orders = d.payload.orders;
+                state.drivers = d.payload.drivers;
+                renderDashboard();
+                if(!leafletMap) initLeafletMap();
+                updateMapMarkers();
+            }
+        }
+
+        function renderDashboard() {
+            const listPending = document.getElementById('list-pending');
+            const listReady = document.getElementById('list-ready');
+            const listDrivers = document.getElementById('list-drivers');
+            
+            let pCount = 0; let rCount = 0;
+            let pHtml = ''; let rHtml = '';
+
+            const now = new Date();
+
+            state.orders.forEach(o => {
+                const isSelected = state.selectedOrders.includes(o.id);
+                const promised = new Date(o.promised_time || now);
+                const diffMin = Math.floor((promised - now) / 60000);
+                
+                let timeStr = ""; let timeCol = "text-white";
+                if (diffMin < 0) { timeStr = `Spóźnione ${Math.abs(diffMin)}m`; timeCol = "text-red-500 font-black animate-pulse"; } 
+                else if (diffMin <= 5) { timeStr = `Za ${diffMin} min`; timeCol = "text-yellow-500 font-black"; } 
+                else { timeStr = `Za ${diffMin} min`; timeCol = "text-green-500"; }
+
+                const payBadge = o.payment_status === 'paid' ? `<span class="bg-green-900/30 text-green-500 border border-green-500/50 px-2 py-0.5 rounded text-[8px] uppercase font-black"><i class="fa-solid fa-check"></i> Opłacone</span>` : `<span class="bg-red-900/30 text-red-500 border border-red-500/50 px-2 py-0.5 rounded text-[8px] uppercase font-black animate-pulse"><i class="fa-solid fa-hand-holding-dollar"></i> Pobrać ${o.total_price}zł</span>`;
+
+                if(o.status === 'pending') {
+                    pCount++;
+                    pHtml += `
+                        <div class="glass p-3 rounded-xl border-l-2 border-l-yellow-500 bg-white/5">
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="font-black text-xs text-white">#${o.order_number.split('/')[2]}</span>
+                                <span class="${timeCol} text-[10px]">${timeStr}</span>
+                            </div>
+                            <p class="text-[9px] font-bold text-slate-400 uppercase truncate mb-2"><i class="fa-solid fa-location-dot"></i> ${o.address || 'Brak'}</p>
+                            ${payBadge}
+                        </div>`;
+                } 
+                else if(o.status === 'ready') {
+                    rCount++;
+                    rHtml += `
+                        <div onclick="toggleOrderSelection(${o.id})" class="order-card p-4 rounded-xl cursor-pointer bg-white/5 ${isSelected ? 'selected' : 'border-white/10 hover:border-white/30'}">
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="font-black text-sm text-white">#${o.order_number.split('/')[2]}</span>
+                                <span class="${timeCol} text-[10px]">${timeStr}</span>
+                            </div>
+                            <p class="text-[10px] font-bold text-slate-300 uppercase truncate mb-2"><i class="fa-solid fa-location-dot"></i> ${o.address || 'Brak'}</p>
+                            <div class="flex justify-between items-center mt-3">
+                                ${payBadge}
+                                ${isSelected ? '<i class="fa-solid fa-circle-check text-blue-500 text-lg"></i>' : '<i class="fa-regular fa-circle text-slate-600 text-lg"></i>'}
+                            </div>
+                        </div>`;
+                }
+            });
+
+            document.getElementById('c-pending').innerText = pCount;
+            document.getElementById('c-ready').innerText = rCount;
+            listPending.innerHTML = pHtml || '<p class="text-[10px] text-slate-600 text-center font-black uppercase mt-4">Pusto w piecu</p>';
+            listReady.innerHTML = rHtml || '<p class="col-span-full text-[10px] text-slate-600 text-center font-black uppercase mt-10">Brak gotowych dostaw</p>';
+
+            // RENDER FLOTY
+            let dHtml = '';
+            state.drivers.forEach(d => {
+                const driverOrders = state.orders.filter(o => o.status === 'in_delivery' && o.driver_id == d.id);
+                const isSelected = state.activeDriverId === d.id;
+                
+                let statusBadge = '';
+                if(d.status === 'offline') statusBadge = `<span class="text-[9px] text-slate-500 uppercase font-black">Offline</span>`;
+                else if(driverOrders.length > 0) statusBadge = `<span class="text-[9px] text-blue-500 uppercase font-black animate-pulse"><i class="fa-solid fa-motorcycle"></i> W trasie (${driverOrders.length})</span>`;
+                else statusBadge = `<span class="text-[9px] text-green-500 uppercase font-black"><i class="fa-solid fa-store"></i> W lokalu</span>`;
+
+                dHtml += `
+                    <div onclick="selectDriver(${d.id})" class="glass p-4 rounded-xl cursor-pointer transition ${isSelected ? 'border-blue-500 bg-blue-900/10' : 'border-white/5 hover:border-white/20'}">
+                        <div class="flex justify-between items-center mb-3">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center font-black text-xs text-white"><i class="fa-solid fa-user"></i></div>
+                                <div>
+                                    <p class="text-xs font-black uppercase text-white">${d.first_name || 'Kierowca'}</p>
+                                    ${statusBadge}
+                                </div>
+                            </div>
+                            ${d.status !== 'offline' ? `<button onclick="openCashModal(${d.id}); event.stopPropagation();" class="text-[10px] bg-white/10 px-2 py-1 rounded text-slate-300 hover:text-white"><i class="fa-solid fa-wallet"></i> ${parseFloat(d.initial_cash).toFixed(2)}</button>` : ''}
+                        </div>
+                        
+                        ${d.status !== 'offline' ? `
+                        <div class="bg-black/50 p-2 rounded-lg flex justify-between items-center text-[9px] font-bold text-slate-400 uppercase">
+                            <span>Utarg w gotówce:</span>
+                            <span class="text-green-500 font-black">${parseFloat(d.collected_cash).toFixed(2)} zł</span>
+                        </div>
+                        ` : ''}
+
+                        ${isSelected && state.selectedOrders.length > 0 && d.status !== 'offline' ? `
+                            <button onclick="assignRoute(event)" class="w-full mt-3 py-3 bg-blue-600 rounded-lg text-[10px] font-black uppercase text-white shadow-lg shadow-blue-500/20 hover:bg-blue-500 active:scale-95 transition">
+                                <i class="fa-solid fa-route mr-1"></i> Wyślij w trasę (${state.selectedOrders.length} zam.)
+                            </button>
+                        ` : ''}
+                    </div>`;
+            });
+            listDrivers.innerHTML = dHtml || '<p class="text-[10px] text-slate-600 text-center font-black uppercase mt-4">Brak kierowców</p>';
+        }
+
+        function toggleOrderSelection(id) {
+            if(state.selectedOrders.includes(id)) state.selectedOrders = state.selectedOrders.filter(x => x !== id);
+            else state.selectedOrders.push(id);
+            renderDashboard();
+        }
+
+        function selectDriver(id) {
+            const d = state.drivers.find(x => x.id == id);
+            if(d.status === 'offline') return showToast("Ten kierowca jest offline!", "error");
+            state.activeDriverId = state.activeDriverId === id ? null : id;
+            renderDashboard();
+        }
+
+        async function assignRoute(e) {
+            e.stopPropagation();
+            if(!state.activeDriverId || state.selectedOrders.length === 0) return;
+            const d = await apiPost('assign_route', {driver_id: state.activeDriverId, order_ids: state.selectedOrders});
+            if(d.status === 'success') {
+                showToast(d.payload.message, "success");
+                state.selectedOrders = []; state.activeDriverId = null;
+                fetchDashboard();
+            } else { showToast(d.error, "error"); }
+        }
+
+        // POGOTOWIE KASOWE
+        let cashDriverId = null;
+        function openCashModal(driverId) {
+            cashDriverId = driverId;
+            document.getElementById('cash-input').value = "";
+            document.getElementById('cash-modal').classList.add('active');
+        }
+
+        async function saveCash() {
+            const cash = parseFloat(document.getElementById('cash-input').value || 0);
+            const d = await apiPost('set_initial_cash', {driver_id: cashDriverId, cash: cash});
+            if(d.status === 'success') {
+                showToast(d.payload.message, "success");
+                document.getElementById('cash-modal').classList.remove('active');
+                fetchDashboard();
+            } else { showToast(d.error, "error"); }
+        }
+
+        // MAPA
+        function initLeafletMap() { 
+            leafletMap = L.map('leaflet-map', { zoomControl: false }).setView([52.4064, 16.9252], 13); 
+            L.control.zoom({ position: 'bottomright' }).addTo(leafletMap); 
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; CARTO', subdomains: 'abcd', maxZoom: 20, opacity: 0.6 }).addTo(leafletMap); 
+            mapMarkersLayer = L.layerGroup().addTo(leafletMap); 
+            const baseIcon = L.divIcon({ className: '', html: '<div class="w-10 h-10 bg-red-600 rounded-full border-[3px] border-[#0a0f1c] flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.8)]"><i class="fa-solid fa-store text-white text-sm"></i></div>', iconSize: [40, 40], iconAnchor: [20, 20] }); 
+            L.marker([52.4064, 16.9252], {icon: baseIcon}).addTo(leafletMap).bindPopup('<b class="text-xs uppercase">SliceHub Base</b>'); 
+        }
+
+        function updateMapMarkers() { 
+            if (!leafletMap || !mapMarkersLayer) return; 
+            mapMarkersLayer.clearLayers(); 
+            const readyOrders = state.orders.filter(o => o.status === 'ready'); 
+            
+            readyOrders.forEach((o) => { 
+                const latOffset = (Math.random() - 0.5) * 0.04; const lngOffset = (Math.random() - 0.5) * 0.04; 
+                const isSelected = state.selectedOrders.includes(o.id);
+                const bgClass = isSelected ? 'bg-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.8)]' : 'bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.4)]'; 
+                
+                const htmlIcon = `<div class="relative w-8 h-8 rounded-full border-2 border-white flex items-center justify-center ${bgClass} cursor-pointer hover:scale-110 transition"><i class="fa-solid fa-box text-[10px] text-white"></i><span class="absolute -top-2 -right-2 bg-white text-black text-[8px] font-black px-1.5 py-0.5 rounded-full">${o.id}</span></div>`; 
+                const marker = L.marker([52.4064 + latOffset, 16.9252 + lngOffset], {icon: L.divIcon({ className: '', html: htmlIcon, iconSize: [32, 32], iconAnchor: [16, 16] })})
+                    .addTo(mapMarkersLayer).bindPopup(`<div class="font-black text-xs uppercase">${o.address || 'Brak adresu'}</div><div class="text-[9px] text-slate-400 mt-1">#${o.order_number.split('/')[2]}</div>`); 
+                
+                marker.on('click', function(e) { e.target.closePopup(); toggleOrderSelection(o.id); }); 
+            }); 
+        }
+
+        fetchDashboard();
+        setInterval(fetchDashboard, 10000);
+    </script>
+</body>
+</html>

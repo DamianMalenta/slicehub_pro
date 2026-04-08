@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SliceHub - Receptury</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Montserrat', sans-serif; background-color: #050505; color: white; }
+        .glass { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); }
+        .selected-item { border-left: 4px solid #eab308 !important; background: rgba(234, 179, 8, 0.1) !important; }
+    </style>
+</head>
+<body class="p-6 md:p-10 overflow-x-hidden">
+
+    <header class="mb-10">
+        <h2 class="text-4xl font-black italic uppercase tracking-tighter">Konfigurator Receptur</h2>
+        <p class="text-[11px] font-bold text-slate-500 uppercase tracking-widest mt-2">Połącz pozycje z menu ze składnikami magazynowymi</p>
+    </header>
+
+    <div class="flex flex-col md:flex-row gap-8 h-[calc(100vh-200px)]">
+        
+        <div class="w-full md:w-1/3 flex flex-col gap-4 overflow-y-auto pr-2">
+            <input type="text" id="menu-search" oninput="renderMenuList()" placeholder="Szukaj dania..." class="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-sm outline-none focus:border-yellow-500 transition">
+            <div id="menu-list" class="space-y-2">
+                </div>
+        </div>
+
+        <div id="recipe-editor" class="flex-1 glass p-8 rounded-3xl hidden">
+            <div class="flex justify-between items-start mb-8">
+                <h3 id="selected-item-name" class="text-2xl font-black uppercase italic text-yellow-500">Wybierz danie</h3>
+                <button onclick="saveRecipe()" class="bg-yellow-600 hover:bg-yellow-500 text-black px-6 py-3 rounded-xl font-black uppercase text-xs transition">Zapisz Recepturę</button>
+            </div>
+
+            <table class="w-full text-left">
+                <thead>
+                    <tr class="border-b border-white/10 text-[10px] uppercase text-slate-500">
+                        <th class="pb-4">Produkt Magazynowy</th>
+                        <th class="pb-4 text-center">Ilość (kg/l)</th>
+                        <th class="pb-4 text-center">Waste %</th>
+                        <th class="pb-4 text-right">Akcja</th>
+                    </tr>
+                </thead>
+                <tbody id="recipe-items"></tbody>
+            </table>
+
+            <button onclick="addRow()" class="mt-6 text-yellow-500 font-bold text-[10px] uppercase tracking-widest hover:text-white transition">
+                <i class="fa-solid fa-plus mr-2"></i> Dodaj Składnik
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let dbProducts = [], dbMenu = [], dbRecipes = [], currentMenuId = null;
+
+        async function api(action, payload = {}) {
+            payload.action = action;
+            const res = await fetch('api_recipes.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            return await res.json();
+        }
+
+        async function init() {
+            const res = await api('get_recipes_init');
+            if(res.status === 'success') {
+                dbProducts = res.payload.products;
+                dbMenu = res.payload.menu_items;
+                dbRecipes = res.payload.recipes;
+                renderMenuList();
+            }
+        }
+
+        function renderMenuList() {
+            const query = document.getElementById('menu-search').value.toLowerCase();
+            const list = document.getElementById('menu-list');
+            list.innerHTML = dbMenu.filter(m => m.name.toLowerCase().includes(query)).map(m => `
+                <div onclick="selectDish(${m.id}, '${m.name}')" id="menu-item-${m.id}" class="p-4 glass rounded-xl cursor-pointer border border-transparent hover:bg-white/5 transition flex justify-between items-center">
+                    <span class="font-bold text-sm text-slate-300">${m.name}</span>
+                    ${dbRecipes.some(r => r.menu_item_id == m.id) ? '<i class="fa-solid fa-check-circle text-yellow-500"></i>' : ''}
+                </div>
+            `).join('');
+        }
+
+        function selectDish(id, name) {
+            currentMenuId = id;
+            document.querySelectorAll('#menu-list div').forEach(el => el.classList.remove('selected-item'));
+            document.getElementById(`menu-item-${id}`).classList.add('selected-item');
+            document.getElementById('recipe-editor').classList.remove('hidden');
+            document.getElementById('selected-item-name').innerText = name;
+
+            const tbody = document.getElementById('recipe-items');
+            tbody.innerHTML = '';
+            const myIng = dbRecipes.filter(r => r.menu_item_id == id);
+            if(myIng.length) myIng.forEach(i => addRow(i.product_id, i.quantity, i.waste_percent));
+            else addRow();
+        }
+
+        function addRow(prodId = '', qty = '', waste = 0) {
+            const tbody = document.getElementById('recipe-items');
+            const tr = document.createElement('tr');
+            tr.className = "border-b border-white/5";
+            let opt = dbProducts.map(p => `<option value="${p.id}" ${p.id == prodId ? 'selected' : ''}>${p.name} (${p.unit})</option>`).join('');
+
+            tr.innerHTML = `
+                <td class="py-4 pr-4"><select class="ing-id w-full bg-black border border-white/10 rounded-lg p-3 text-sm font-bold text-white outline-none focus:border-yellow-500"><option value="">-- Wybierz --</option>${opt}</select></td>
+                <td class="py-4"><input type="number" step="0.001" value="${qty}" class="ing-qty w-24 mx-auto block bg-black border border-white/10 rounded-lg p-3 text-sm font-bold text-center"></td>
+                <td class="py-4"><input type="number" value="${waste}" class="ing-waste w-20 mx-auto block bg-black border border-white/10 rounded-lg p-3 text-sm font-bold text-center"></td>
+                <td class="py-4 text-right"><button onclick="this.closest('tr').remove()" class="text-slate-600 hover:text-red-500 transition"><i class="fa-solid fa-trash"></i></button></td>
+            `;
+            tbody.appendChild(tr);
+        }
+
+        async function saveRecipe() {
+            const ingredients = Array.from(document.querySelectorAll('#recipe-items tr')).map(row => ({
+                product_id: row.querySelector('.ing-id').value,
+                quantity: row.querySelector('.ing-qty').value,
+                waste_percent: row.querySelector('.ing-waste').value
+            })).filter(i => i.product_id && i.quantity > 0);
+
+            const res = await api('save_recipe', { menu_item_id: currentMenuId, ingredients: ingredients });
+            if(res.status === 'success') { alert("Zapisano!"); init(); }
+        }
+
+        init();
+    </script>
+</body>
+</html>

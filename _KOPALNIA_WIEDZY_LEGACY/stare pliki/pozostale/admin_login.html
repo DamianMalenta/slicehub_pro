@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Slicehub - Boss</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-[#050505] h-screen flex items-center justify-center p-6 font-sans">
+    <div class="w-full max-w-sm text-center">
+        <h1 class="text-4xl font-black italic text-red-600 tracking-tighter mb-12 uppercase">SLICEHUB BOSS</h1>
+        <div class="space-y-4">
+            <input id="user" type="text" placeholder="ADMIN LOGIN" class="w-full p-6 bg-zinc-900 border border-white/5 rounded-[32px] text-white font-black outline-none focus:border-red-600 transition-all uppercase text-xs">
+            <input id="pass" type="password" placeholder="ADMIN HASŁO" class="w-full p-6 bg-zinc-900 border border-white/5 rounded-[32px] text-white font-black outline-none focus:border-red-600 transition-all text-xs">
+        </div>
+        <button onclick="login()" class="w-full bg-white text-black p-6 rounded-[32px] font-black uppercase mt-10 shadow-2xl active:scale-95 transition-all text-sm tracking-widest">Panel Właściciela</button>
+    </div>
+    <script>
+        async function login() {
+            const fd = new URLSearchParams();
+            fd.append('action', 'login');
+            fd.append('app', 'dashboard'); // Tłumaczymy serwerowi, że chcemy do panelu bossa
+            fd.append('username', document.getElementById('user').value);
+            fd.append('password', document.getElementById('pass').value);
+            
+            try {
+                const res = await fetch('api_auth.php', { method: 'POST', body: fd });
+                const d = await res.json();
+                
+                if (d.success) {
+                    window.location.href = d.target;
+                } else {
+                    alert(d.error || "Błąd logowania.");
+                }
+            } catch(e) {
+                alert("Błąd połączenia z serwerem.");
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SliceHub - Panel Kelnera</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body { font-family: 'Montserrat', sans-serif; background-color: #050505; color: white; user-select: none; overflow: hidden; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        
+        .table-card { transition: all 0.2s ease; border: 2px solid rgba(255,255,255,0.05); }
+        .table-card:active { transform: scale(0.95); }
+        .table-free { background: rgba(34, 197, 94, 0.1); border-color: rgba(34, 197, 94, 0.3); }
+        .table-occupied { background: rgba(59, 130, 246, 0.15); border-color: #3b82f6; box-shadow: 0 0 15px rgba(59, 130, 246, 0.2); }
+        
+        .item-card { background: rgba(255,255,255,0.05); transition: all 0.1s; }
+        .item-card:active { background: rgba(239,68,68,0.2); border-color: #ef4444; transform: scale(0.97); }
+
+        .cat-btn { white-space: nowrap; transition: 0.2s; border-bottom: 3px solid transparent; }
+        .cat-btn.active { color: #ef4444; border-bottom-color: #ef4444; font-weight: 900; }
+
+        #cart-sheet { transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        #cart-sheet.active { transform: translateY(0); }
+
+        .modal { position: fixed; inset: 0; background: #050505; z-index: 500; display: none; flex-direction: column; }
+        .modal.active { display: flex; }
+    </style>
+</head>
+<body class="flex flex-col h-screen w-screen relative">
+
+    <div id="toast-container" class="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] flex flex-col gap-2 pointer-events-none w-[90%] max-w-sm text-center"></div>
+
+    <div id="view-tables" class="flex-1 flex flex-col overflow-hidden w-full h-full relative z-10 bg-[#050505]">
+        <header class="pt-8 pb-4 px-6 bg-[#0a0f1c] border-b border-white/5 flex justify-between items-center shrink-0">
+            <div>
+                <h1 class="text-2xl font-black uppercase tracking-tighter"><i class="fa-solid fa-utensils text-blue-500 mr-2"></i> Sala</h1>
+                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Wybierz stolik do obsługi</p>
+            </div>
+            <button onclick="fetchData()" class="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-slate-400 hover:text-white active:scale-95"><i class="fa-solid fa-rotate-right"></i></button>
+        </header>
+        
+        <div class="flex-1 overflow-y-auto p-6 hide-scrollbar pb-32">
+            <div id="tables-grid" class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                </div>
+        </div>
+    </div>
+
+    <div id="view-menu" class="hidden flex-1 flex flex-col w-full h-full relative z-10 bg-[#050505]">
+        <header class="pt-8 pb-4 px-4 bg-[#0a0f1c] flex flex-col shrink-0 border-b border-white/5">
+            <div class="flex justify-between items-center mb-4">
+                <button onclick="switchView('tables')" class="text-slate-400 font-black uppercase text-xs active:text-white"><i class="fa-solid fa-chevron-left mr-2"></i> Wróć</button>
+                <div class="text-right">
+                    <h2 id="current-table-label" class="text-lg font-black text-blue-500 uppercase leading-none">Stolik --</h2>
+                    <span id="order-mode-badge" class="text-[9px] bg-blue-600 px-2 py-0.5 rounded text-white font-bold uppercase mt-1 inline-block">Na Miejscu</span>
+                </div>
+            </div>
+            <div id="cat-list" class="flex gap-4 overflow-x-auto hide-scrollbar pb-1 text-sm font-bold text-slate-500"></div>
+        </header>
+
+        <div class="flex justify-between items-center px-4 py-2 bg-black/50 border-b border-white/5">
+            <button onclick="toggleHalfMode()" id="btn-half" class="px-4 py-2 rounded-lg border border-orange-500/30 text-orange-500 font-black uppercase text-[10px] active:bg-orange-500/20 transition"><i class="fa-solid fa-circle-half-stroke mr-1"></i> Pół na Pół</button>
+            <div class="flex gap-2">
+                <button onclick="setOrderType('dine_in', this)" class="type-btn-mob border-b-2 border-blue-500 text-blue-500 px-2 py-1 text-[10px] font-black uppercase">Sala</button>
+                <button onclick="setOrderType('takeaway', this)" class="type-btn-mob border-b-2 border-transparent text-slate-500 px-2 py-1 text-[10px] font-black uppercase">Wynos</button>
+            </div>
+        </div>
+
+        <div id="item-grid" class="flex-1 overflow-y-auto p-4 grid grid-cols-2 gap-3 hide-scrollbar pb-32 content-start"></div>
+
+        <button onclick="toggleCart()" class="absolute bottom-24 right-6 bg-red-600 text-white rounded-full py-4 px-6 font-black uppercase text-sm shadow-[0_10px_25px_rgba(239,68,68,0.5)] active:scale-95 flex items-center gap-3 z-20">
+            <div class="relative"><i class="fa-solid fa-cart-shopping"></i><span id="cart-badge" class="absolute -top-3 -right-3 bg-black border border-red-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full hidden">0</span></div>
+            <span id="fab-total">0.00 zł</span>
+        </button>
+    </div>
+
+    <nav class="h-20 bg-[#0a0f1c] border-t border-white/5 flex justify-around items-center px-4 fixed bottom-0 w-full z-[400] pb-safe">
+        <button id="nav-tables" onclick="switchView('tables')" class="flex flex-col items-center gap-1 w-1/3 text-blue-500 transition-all">
+            <i class="fa-solid fa-utensils text-2xl"></i><span class="text-[9px] font-black uppercase tracking-widest mt-1">Sala</span>
+        </button>
+        <button id="nav-takeaway" onclick="switchView('takeaway-list')" class="flex flex-col items-center gap-1 w-1/3 text-slate-500 transition-all">
+            <i class="fa-solid fa-bag-shopping text-2xl"></i><span class="text-[9px] font-black uppercase tracking-widest mt-1">Wynosy</span>
+        </button>
+        <button onclick="location.reload()" class="flex flex-col items-center gap-1 w-1/3 text-slate-600 transition-all">
+            <i class="fa-solid fa-rotate-right text-2xl"></i><span class="text-[9px] font-black uppercase tracking-widest mt-1">Odśwież</span>
+        </button>
+    </nav>
+
+    <div id="view-takeaway-list" class="hidden flex-1 flex flex-col overflow-hidden w-full h-full relative z-10 bg-[#050505]">
+        <header class="pt-8 pb-4 px-6 bg-[#0a0f1c] border-b border-white/5 flex justify-between items-center shrink-0">
+            <h1 class="text-2xl font-black uppercase tracking-tighter"><i class="fa-solid fa-bag-shopping text-yellow-500 mr-2"></i> Wynosy</h1>
+            <button onclick="startTakeawayOrder()" class="bg-yellow-600 text-black px-4 py-2 rounded-lg font-black text-[10px] uppercase active:scale-95"><i class="fa-solid fa-plus mr-1"></i> Nowy Wynos</button>
+        </header>
+        <div id="takeaway-grid" class="flex-1 overflow-y-auto p-4 space-y-3 hide-scrollbar pb-32"></div>
+    </div>
+
+    <div id="cart-sheet" class="fixed inset-0 z-[600] flex flex-col justify-end bg-black/60 backdrop-blur-sm pointer-events-none">
+        <div class="bg-[#0a0f1c] w-full h-[90vh] rounded-t-[32px] flex flex-col border-t border-white/10 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] pointer-events-auto relative">
+            <div class="p-5 border-b border-white/5 flex justify-between items-center bg-red-600 rounded-t-[32px]">
+                <h3 class="font-black text-lg uppercase tracking-widest text-white"><i class="fa-solid fa-receipt mr-2"></i> Zamówienie</h3>
+                <button onclick="toggleCart()" class="w-10 h-10 rounded-full bg-black/30 flex items-center justify-center text-white"><i class="fa-solid fa-chevron-down"></i></button>
+            </div>
+            
+            <div id="cart-items" class="flex-1 overflow-y-auto p-4 space-y-2 hide-scrollbar"></div>
+
+            <div class="px-6 pt-4 bg-[#050505] shrink-0 border-t border-white/5">
+                <p class="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">Sugerowany czas wydania:</p>
+                <div class="flex gap-2 overflow-x-auto hide-scrollbar pb-2">
+                    <button onclick="setWaiterTime(15, this)" class="waiter-time-btn active border-b-2 border-blue-500 text-blue-500 font-black px-4 py-2 text-[12px] whitespace-nowrap transition bg-blue-900/10 rounded-t-lg">15 min</button>
+                    <button onclick="setWaiterTime(30, this)" class="waiter-time-btn border-b-2 border-transparent text-slate-500 font-black px-4 py-2 text-[12px] whitespace-nowrap transition rounded-t-lg">30 min</button>
+                    <button onclick="setWaiterTime(45, this)" class="waiter-time-btn border-b-2 border-transparent text-slate-500 font-black px-4 py-2 text-[12px] whitespace-nowrap transition rounded-t-lg">45 min</button>
+                    <button onclick="setWaiterTime(60, this)" class="waiter-time-btn border-b-2 border-transparent text-slate-500 font-black px-4 py-2 text-[12px] whitespace-nowrap transition rounded-t-lg">60 min</button>
+                </div>
+            </div>
+
+            <div class="p-6 bg-[#050505] shrink-0 pb-safe">
+                <div class="flex justify-between items-end mb-4">
+                    <span class="text-xs font-black uppercase text-slate-500">Do zapłaty:</span>
+                    <span id="cart-total-display" class="text-4xl font-black italic text-green-500">0.00 zł</span>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <button onclick="submitOrder('park')" class="py-4 bg-blue-600 rounded-xl font-black uppercase text-[10px] text-white shadow-lg active:scale-95"><i class="fa-solid fa-fire mr-1"></i> Na Kuchnię (Zamów)</button>
+                    <button onclick="openPaymentModal()" class="py-4 bg-green-600 rounded-xl font-black uppercase text-[10px] text-white shadow-lg active:scale-95"><i class="fa-solid fa-dollar-sign mr-1"></i> Rozlicz Stolik</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="dish-modal" class="modal">
+        <header class="p-6 border-b border-white/5 flex justify-between items-center bg-[#0a0f1c]">
+            <h3 id="dc-name" class="text-xl font-black uppercase italic tracking-tighter leading-tight w-3/4 truncate">Nazwa</h3>
+            <button onclick="closeDishModal()" class="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="flex-1 overflow-y-auto p-6 pb-32 hide-scrollbar space-y-6">
+            <div>
+                <p class="text-[10px] font-black uppercase text-slate-500 mb-3 tracking-widest">Składniki bazowe (Kliknij by usunąć)</p>
+                <div id="dc-ingredients" class="flex flex-wrap gap-2"></div>
+            </div>
+            <div>
+                <p class="text-[10px] font-black uppercase text-slate-500 mb-3 tracking-widest">Dodatki płatne</p>
+                <div id="dc-modifiers" class="space-y-2"></div>
+            </div>
+            <div>
+                <textarea id="dc-comment" placeholder="Komentarz dla kuchni (np. mocno wypieczone)..." class="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-xs font-bold h-24 outline-none focus:border-blue-500"></textarea>
+            </div>
+        </div>
+        <div class="absolute bottom-0 w-full p-6 bg-[#0a0f1c] border-t border-white/10 flex items-center justify-between pb-safe">
+            <div class="flex items-center gap-4 bg-white/5 rounded-xl p-2">
+                <button onclick="changeDcQty(-1)" class="w-12 h-12 rounded-lg bg-black flex items-center justify-center font-black text-lg">-</button>
+                <span id="dc-qty" class="text-2xl font-black w-8 text-center">1</span>
+                <button onclick="changeDcQty(1)" class="w-12 h-12 rounded-lg bg-black flex items-center justify-center font-black text-lg">+</button>
+            </div>
+            <button onclick="addDishToCart()" class="bg-blue-600 px-8 py-4 rounded-xl font-black uppercase text-xs shadow-lg active:scale-95"><span id="dc-price" class="block text-[10px] opacity-70"></span>Dodaj</button>
+        </div>
+    </div>
+
+    <div id="payment-modal" class="modal">
+        <div class="flex-1 flex flex-col items-center justify-center p-6">
+            <div class="w-full max-w-sm bg-[#0a0f1c] rounded-[32px] p-8 border border-white/10 shadow-2xl text-center relative">
+                <button onclick="document.getElementById('payment-modal').classList.remove('active')" class="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-400"><i class="fa-solid fa-xmark"></i></button>
+                <h3 class="text-2xl font-black uppercase italic mb-6 text-green-500">ZAPŁATA</h3>
+                <p class="text-[12px] font-bold text-slate-400 uppercase mb-6">Wybierz formę rozliczenia dla stolika.</p>
+                
+                <div class="grid grid-cols-2 gap-3 mb-6">
+                    <button onclick="confirmPayment('card')" class="py-6 rounded-2xl font-black uppercase text-[11px] border border-blue-500/30 bg-blue-900/20 text-white active:scale-95 transition"><i class="fa-solid fa-credit-card block mb-2 text-3xl text-blue-500"></i> Karta</button>
+                    <button onclick="confirmPayment('cash')" class="py-6 rounded-2xl font-black uppercase text-[11px] border border-green-500/30 bg-green-900/20 text-white active:scale-95 transition"><i class="fa-solid fa-money-bill-wave block mb-2 text-3xl text-green-500"></i> Gotówka</button>
+                </div>
+
+                <div class="flex items-center justify-center gap-3 bg-black/40 p-4 rounded-xl border border-white/5 mb-6">
+                    <input type="checkbox" id="settle-print-receipt" class="w-6 h-6 accent-red-600 rounded">
+                    <label for="settle-print-receipt" class="text-xs font-black uppercase text-white">Drukuj Paragon</label>
+                </div>
+            </div>
+        </div>
+    </div>
+<script>
+    // 🚀 SYSTEM TOASTÓW
+    function showToast(msg, type='info') {
+        const toast = document.createElement('div');
+        const color = type === 'error' ? 'bg-red-600' : (type === 'success' ? 'bg-green-600' : 'bg-blue-600');
+        toast.className = `${color} text-white px-4 py-3 rounded-xl shadow-2xl font-black text-[10px] uppercase tracking-widest transform transition-all duration-300 translate-y-[-100%] opacity-0 border border-white/10`;
+        toast.innerHTML = type === 'error' ? `<i class="fa-solid fa-triangle-exclamation mr-2"></i> ${msg}` : `<i class="fa-solid fa-check mr-2"></i> ${msg}`;
+        document.getElementById('toast-container').appendChild(toast);
+        
+        requestAnimationFrame(() => {
+            toast.classList.remove('translate-y-[-100%]', 'opacity-0');
+        });
+        
+        setTimeout(()=> { 
+            toast.classList.add('opacity-0', 'scale-95'); 
+            setTimeout(()=>toast.remove(), 300); 
+        }, 3000);
+    }
+
+    // 🚀 STAN APLIKACJI KELNERA
+    let state = { 
+        items: [], categories: [], orders: [], tables: [], ingredients: [], cart: [],
+        currentView: 'tables',
+        orderType: 'dine_in', 
+        currentTable: null, 
+        editOrderId: null,
+        activeItem: null, 
+        isHalfMode: false, 
+        halfA: null,
+        waiterTime: 15 // Domyślny czas dla kuchni
+    };
+
+    // 🚀 KOMUNIKACJA API
+    async function apiPost(action, payload = {}) {
+        payload.action = action;
+        try {
+            const r = await fetch('api_pos.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            return await r.json();
+        } catch(e) { return { status: 'error', error: 'Błąd połączenia z serwerem.' }; }
+    }
+
+    async function fetchData() {
+        const dInit = await apiPost('get_init_data');
+        const dOrd = await apiPost('get_orders');
+        
+        if (dInit.status === 'success') {
+            state.items = dInit.payload.items;
+            state.categories = dInit.payload.categories;
+            state.tables = dInit.payload.tables;
+            state.ingredients = dInit.payload.ingredients;
+        }
+        if (dOrd.status === 'success') {
+            state.orders = dOrd.payload.orders;
+        }
+        
+        if(state.currentView === 'tables') renderTables();
+        if(state.currentView === 'takeaway-list') renderTakeaways();
+    }
+
+    // 🚀 NAWIGACJA GŁÓWNA
+    function switchView(view) {
+        state.currentView = view;
+        document.getElementById('view-tables').classList.add('hidden');
+        document.getElementById('view-menu').classList.add('hidden');
+        document.getElementById('view-takeaway-list').classList.add('hidden');
+        
+        document.getElementById('nav-tables').classList.replace('text-blue-500', 'text-slate-500');
+        document.getElementById('nav-takeaway').classList.replace('text-blue-500', 'text-slate-500');
+
+        if(view === 'tables') {
+            document.getElementById('view-tables').classList.remove('hidden');
+            document.getElementById('nav-tables').classList.replace('text-slate-500', 'text-blue-500');
+            renderTables();
+        } else if (view === 'takeaway-list') {
+            document.getElementById('view-takeaway-list').classList.remove('hidden');
+            document.getElementById('nav-takeaway').classList.replace('text-slate-500', 'text-blue-500');
+            renderTakeaways();
+        } else if (view === 'menu') {
+            document.getElementById('view-menu').classList.remove('hidden');
+            renderCats();
+            updateCartUI();
+        }
+    }
+
+    // 🚀 RENDEROWANIE STOLIKÓW (Główny ekran)
+    function renderTables() {
+        const grid = document.getElementById('tables-grid');
+        let html = '';
+        
+        state.tables.forEach(t => {
+            const activeOrder = state.orders.find(o => o.type === 'dine_in' && o.address === t.table_number && o.status !== 'completed');
+            
+            if (activeOrder) {
+                html += `
+                <div onclick="openTableOrder('${t.table_number}', ${activeOrder.id})" class="table-card table-occupied rounded-3xl p-5 flex flex-col justify-between cursor-pointer relative overflow-hidden">
+                    <div class="absolute top-0 right-0 bg-blue-600 text-white text-[8px] font-black uppercase px-2 py-1 rounded-bl-lg shadow-md">Zajęty</div>
+                    <h3 class="text-3xl font-black italic text-blue-400 mb-2">${t.table_number}</h3>
+                    <div>
+                        <p class="text-[10px] text-slate-300 font-bold uppercase truncate">BOM #${activeOrder.order_number.split('/')[2]}</p>
+                        <p class="text-lg font-black text-white mt-1">${activeOrder.total_price} <span class="text-xs text-blue-300">zł</span></p>
+                    </div>
+                </div>`;
+            } else {
+                html += `
+                <div onclick="openTableOrder('${t.table_number}', null)" class="table-card table-free rounded-3xl p-5 flex flex-col justify-between cursor-pointer relative overflow-hidden opacity-70 hover:opacity-100">
+                    <div class="absolute top-0 right-0 bg-green-600 text-white text-[8px] font-black uppercase px-2 py-1 rounded-bl-lg shadow-md">Wolny</div>
+                    <h3 class="text-3xl font-black italic text-green-400 mb-2">${t.table_number}</h3>
+                    <div>
+                        <p class="text-[10px] text-green-500 font-bold uppercase mt-1"><i class="fa-solid fa-plus mr-1"></i> Otwórz rachunek</p>
+                    </div>
+                </div>`;
+            }
+        });
+        
+        grid.innerHTML = html || '<p class="col-span-full text-center text-slate-500 text-xs font-bold uppercase py-10">Brak stolików. Dodaj je w panelu menadżera.</p>';
+    }
+
+    // 🚀 RENDEROWANIE WYNOSÓW (Opcjonalne)
+    function renderTakeaways() {
+        const grid = document.getElementById('takeaway-grid');
+        let takeaways = state.orders.filter(o => o.type === 'takeaway' && o.status !== 'completed');
+        
+        let html = takeaways.map(o => `
+            <div onclick="openTakeawayOrder(${o.id})" class="glass p-4 rounded-2xl border-l-4 border-yellow-500 active:scale-95 transition cursor-pointer flex justify-between items-center">
+                <div>
+                    <h4 class="font-black text-white text-lg">#${o.order_number.split('/')[2]}</h4>
+                    <p class="text-[10px] text-slate-400 font-bold uppercase mt-1"><i class="fa-solid fa-user mr-1"></i> ${o.customer_name || 'Gość'}</p>
+                </div>
+                <div class="text-right">
+                    <span class="block text-lg font-black text-white">${o.total_price} zł</span>
+                    ${o.payment_status==='paid' ? '<span class="text-[8px] bg-green-600/20 text-green-500 px-2 py-0.5 rounded font-black uppercase mt-1 inline-block">Opłacone</span>' : '<span class="text-[8px] bg-red-600/20 text-red-500 px-2 py-0.5 rounded font-black uppercase mt-1 inline-block animate-pulse">Do zapłaty</span>'}
+                </div>
+            </div>
+        `).join('');
+        
+        grid.innerHTML = html || '<div class="text-center text-slate-600 text-xs font-black uppercase mt-10">Brak aktywnych zamówień na wynos</div>';
+    }
+
+    // 🚀 OTWIERANIE STOLIKA LUB WYNOSU (Ładowanie)
+    function openTableOrder(tableNumber, orderId) {
+        state.orderType = 'dine_in';
+        state.currentTable = tableNumber;
+        document.getElementById('current-table-label').innerText = `Stolik ${tableNumber}`;
+        document.getElementById('order-mode-badge').innerText = 'Na Miejscu';
+        document.getElementById('order-mode-badge').className = 'text-[9px] bg-blue-600 px-2 py-0.5 rounded text-white font-bold uppercase mt-1 inline-block';
+        
+        loadOrderToCart(orderId);
+        switchView('menu');
+    }
+
+    function startTakeawayOrder() {
+        state.orderType = 'takeaway';
+        state.currentTable = 'Wynos';
+        document.getElementById('current-table-label').innerText = `Nowy Wynos`;
+        document.getElementById('order-mode-badge').innerText = 'Na Wynos / Odbiór';
+        document.getElementById('order-mode-badge').className = 'text-[9px] bg-yellow-600 px-2 py-0.5 rounded text-white font-bold uppercase mt-1 inline-block';
+        
+        loadOrderToCart(null);
+        switchView('menu');
+    }
+
+    function openTakeawayOrder(orderId) {
+        state.orderType = 'takeaway';
+        state.currentTable = 'Wynos';
+        const o = state.orders.find(x => x.id === orderId);
+        document.getElementById('current-table-label').innerText = `#${o.order_number.split('/')[2]}`;
+        document.getElementById('order-mode-badge').innerText = 'Edycja Wynosu';
+        document.getElementById('order-mode-badge').className = 'text-[9px] bg-yellow-600 px-2 py-0.5 rounded text-white font-bold uppercase mt-1 inline-block';
+        
+        loadOrderToCart(orderId);
+        switchView('menu');
+    }
+
+    function loadOrderToCart(orderId) {
+        state.cart = [];
+        state.editOrderId = orderId;
+        
+        if (orderId) {
+            const o = state.orders.find(x => x.id === orderId);
+            if (o) {
+                try { state.cart = JSON.parse(o.cart_json || '[]'); } catch(e) { state.cart = []; }
+            }
+        }
+        updateCartUI();
+    }
+
+    // 🚀 OBSŁUGA CZASU KELNERA W KOSZYKU
+    function setWaiterTime(mins, btn) {
+        state.waiterTime = mins;
+        document.querySelectorAll('.waiter-time-btn').forEach(b => {
+            b.classList.remove('active', 'border-blue-500', 'text-blue-500', 'bg-blue-900/10');
+            b.classList.add('border-transparent', 'text-slate-500');
+        });
+        btn.classList.remove('border-transparent', 'text-slate-500');
+        btn.classList.add('active', 'border-blue-500', 'text-blue-500', 'bg-blue-900/10');
+    }
+
+    // 🚀 OBSŁUGA KOSZYKA I UI
+    function toggleCart() {
+        document.getElementById('cart-sheet').classList.toggle('active');
+    }
+
+    function updateCartUI() {
+        const list = document.getElementById('cart-items'); 
+        let total = 0; let qtyCount = 0;
+        
+        list.innerHTML = state.cart.map(i => { 
+            total += (parseFloat(i.price) * i.qty); 
+            qtyCount += i.qty;
+            const addedNames = i.added.map(addId => { const ing = state.ingredients.find(x => x.id == addId); return ing ? ing.name : ''; }).filter(x=>x); 
+            
+            return `
+            <div class="bg-white/5 p-3 rounded-xl flex justify-between items-start border-l-2 border-blue-500 cursor-pointer active:bg-white/10 transition" onclick="editCartItem(${i.cart_id})">
+                <div class="w-[70%]">
+                    <p class="text-[11px] font-black uppercase text-white">${i.qty}x ${i.name}</p>
+                    ${i.removed && i.removed.length ? `<p class="text-[9px] text-red-500 font-bold uppercase mt-1">Bez: ${i.removed.length} składników</p>` : ''}
+                    ${addedNames.length ? `<p class="text-[9px] text-green-500 font-bold uppercase mt-1">+ Dodatki (${addedNames.length})</p>` : ''}
+                    ${i.comment ? `<p class="text-[9px] text-yellow-500 italic uppercase mt-1">Uwaga: ${i.comment}</p>` : ''}
+                </div>
+                <div class="text-right w-[30%] flex flex-col items-end">
+                    <p class="text-[12px] font-black text-white">${(i.price*i.qty).toFixed(2)} zł</p>
+                    <button onclick="state.cart = state.cart.filter(c=>c.cart_id!==${i.cart_id}); updateCartUI(); event.stopPropagation();" class="w-8 h-8 bg-red-900/30 text-red-500 rounded-lg flex items-center justify-center mt-2 active:bg-red-600 active:text-white transition"><i class="fa-solid fa-trash"></i></button>
+                </div>
+            </div>`; 
+        }).join(''); 
+        
+        if (state.cart.length === 0) {
+            list.innerHTML = `<div class="text-center text-slate-600 text-[10px] font-black uppercase mt-10"><i class="fa-solid fa-ghost text-3xl mb-3 block opacity-50"></i>Koszyk jest pusty</div>`;
+        }
+        
+        const totalStr = total.toFixed(2) + " zł";
+        document.getElementById('cart-total-display').innerText = totalStr; 
+        document.getElementById('fab-total').innerText = totalStr;
+        
+        const badge = document.getElementById('cart-badge');
+        if (qtyCount > 0) { badge.innerText = qtyCount; badge.classList.remove('hidden'); } 
+        else { badge.classList.add('hidden'); }
+    }
+
+    // 🚀 OBSŁUGA MENU
+    function renderCats() { 
+        document.getElementById('cat-list').innerHTML = state.categories.map((c, index) => `
+            <button onclick="document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('active')); this.classList.add('active'); renderItems(${c.id})" class="cat-btn px-4 py-3 text-[11px] uppercase ${index === 0 ? 'active' : ''}">${c.name_utf8}</button>
+        `).join(''); 
+        if(state.categories.length) renderItems(state.categories[0].id); 
+    }
+    
+    function renderItems(cid) { 
+        document.getElementById('item-grid').innerHTML = state.items.filter(i => i.category_id == cid).map(i => `
+            <div onclick="clickItem(${i.id})" class="item-card p-4 rounded-[20px] h-32 flex flex-col justify-between border border-transparent shadow-sm">
+                <h5 class="text-[10px] font-black uppercase leading-tight text-slate-200">${i.name}</h5>
+                <span class="text-green-500 font-black text-sm italic">${i.price} zł</span>
+            </div>
+        `).join(''); 
+    }
+
+    function toggleHalfMode() { 
+        state.isHalfMode = !state.isHalfMode; 
+        state.halfA = null; 
+        document.getElementById('btn-half').classList.toggle('bg-orange-500/20'); 
+        document.getElementById('btn-half').classList.toggle('border-orange-500'); 
+        if(state.isHalfMode) showToast("Tryb 1/2. Wybierz pierwszą połówkę.", "info");
+    }
+
+    function clickItem(id) { 
+        if(state.isHalfMode) { 
+            const item = state.items.find(i=>i.id==id); 
+            if(!state.halfA) { 
+                state.halfA = item; 
+                showToast(`Wybierz drugą połowę.`, "info"); 
+            } else { 
+                openHalfDishCard(state.halfA, item); 
+                state.halfA = null; 
+                state.isHalfMode = false; 
+                document.getElementById('btn-half').classList.remove('bg-orange-500/20', 'border-orange-500'); 
+            } 
+        } else { 
+            openDishCard(id); 
+        } 
+    }
+    
+    // 🚀 MODAL DANIA (KARTY)
+    async function openDishCard(id) { 
+        const item = state.items.find(i => i.id == id); 
+        state.activeItem = { ...item, qty: 1, removed: [], added: [], comment: "", cart_id: Date.now() }; 
+        document.getElementById('dc-name').innerText = item.name; 
+        document.getElementById('dc-price').innerText = item.price + " zł"; 
+        document.getElementById('dc-qty').innerText = "1"; 
+        document.getElementById('dc-comment').value = ""; 
+        document.getElementById('dish-modal').classList.add('active'); 
+        
+        try { 
+            const d = await apiPost('get_item_details', {item_id: id}); 
+            if (d.status === 'success') { 
+                document.getElementById('dc-ingredients').innerHTML = d.payload.ingredients.map(ing => `
+                    <div class="ing-chip bg-white/5 border border-white/5 px-3 py-2 rounded-lg text-[9px] font-black uppercase flex items-center gap-1 active:scale-95" onclick="this.classList.toggle('removed'); toggleRem(${ing.product_id})">${ing.name_utf8}</div>
+                `).join(''); 
+                document.getElementById('dc-modifiers').innerHTML = state.ingredients.map(ing => `
+                    <label class="flex items-center gap-3 bg-black/40 border border-white/5 p-3 rounded-xl cursor-pointer active:bg-white/5 transition">
+                        <input type="checkbox" value="${ing.id}" onchange="toggleAddMod(this)" class="w-5 h-5 accent-blue-600 rounded">
+                        <span class="text-[10px] font-bold uppercase truncate text-white">${ing.name}</span>
+                    </label>
+                `).join(''); 
+            } 
+        } catch(e) {} 
+    }
+
+    async function openHalfDishCard(itemA, itemB) { 
+        const price = Math.max(parseFloat(itemA.price), parseFloat(itemB.price)) + 2.00; 
+        state.activeItem = { id: null, name: `½ ${itemA.name} + ½ ${itemB.name}`, price: price.toFixed(2), qty: 1, removed: [], added: [], comment: "", is_half: true, half_a: itemA.id, half_b: itemB.id, cart_id: Date.now() }; 
+        document.getElementById('dc-name').innerText = state.activeItem.name; 
+        document.getElementById('dc-price').innerText = state.activeItem.price + " zł"; 
+        document.getElementById('dc-qty').innerText = "1"; 
+        document.getElementById('dc-comment').value = ""; 
+        document.getElementById('dish-modal').classList.add('active'); 
+        
+        try { 
+            const d = await apiPost('get_item_details', {item_id: itemA.id, half_b_id: itemB.id}); 
+            if (d.status === 'success') { 
+                document.getElementById('dc-ingredients').innerHTML = d.payload.ingredients.map(ing => { 
+                    const prefix = ing.half === 'A' ? `[½ ${itemA.name}] ` : `[½ ${itemB.name}] `; 
+                    return `<div class="ing-chip bg-white/5 border border-white/5 px-3 py-2 rounded-lg text-[9px] font-black uppercase flex items-center gap-1" onclick="this.classList.toggle('removed'); toggleRem(${ing.product_id})">${prefix}${ing.name_utf8}</div>`; 
+                }).join(''); 
+                document.getElementById('dc-modifiers').innerHTML = state.ingredients.map(ing => `
+                    <label class="flex items-center gap-3 bg-black/40 border border-white/5 p-3 rounded-xl cursor-pointer">
+                        <input type="checkbox" value="${ing.id}" onchange="toggleAddMod(this)" class="w-5 h-5 accent-blue-600 rounded">
+                        <span class="text-[10px] font-bold uppercase truncate text-white">${ing.name}</span>
+                    </label>
+                `).join(''); 
+            } 
+        } catch(e) {} 
+    }
+
+    function editCartItem(cartId) {
+        document.getElementById('cart-sheet').classList.remove('active');
+        const itemIndex = state.cart.findIndex(i => i.cart_id === cartId); if(itemIndex < 0) return;
+        state.activeItem = JSON.parse(JSON.stringify(state.cart[itemIndex])); 
+        document.getElementById('dc-name').innerText = state.activeItem.name; 
+        document.getElementById('dc-price').innerText = state.activeItem.price + " zł"; 
+        document.getElementById('dc-qty').innerText = state.activeItem.qty; 
+        document.getElementById('dc-comment').value = state.activeItem.comment || ""; 
+        document.getElementById('dish-modal').classList.add('active'); 
+        
+        fetch(`api_pos.php?action=get_item_details&item_id=${state.activeItem.id || state.activeItem.half_a}&half_b_id=${state.activeItem.half_b || 0}`).then(r => r.json()).then(d => {
+            if (d.status === 'success') { 
+                document.getElementById('dc-ingredients').innerHTML = d.payload.ingredients.map(ing => {
+                    const isRemoved = state.activeItem.removed.includes(ing.product_id) ? 'removed' : ''; const prefix = ing.half ? `[½] ` : '';
+                    return `<div class="ing-chip bg-white/5 border border-white/5 px-3 py-2 rounded-lg text-[9px] font-black uppercase flex items-center gap-1 ${isRemoved}" onclick="this.classList.toggle('removed'); toggleRem(${ing.product_id})">${prefix}${ing.name_utf8}</div>`; 
+                }).join(''); 
+                document.getElementById('dc-modifiers').innerHTML = state.ingredients.map(ing => {
+                    const isAdded = state.activeItem.added.includes(ing.id) ? 'checked' : '';
+                    return `<label class="flex items-center gap-3 bg-black/40 border border-white/5 p-3 rounded-xl cursor-pointer">
+                        <input type="checkbox" value="${ing.id}" onchange="toggleAddMod(this)" class="w-5 h-5 accent-blue-600 rounded" ${isAdded}>
+                        <span class="text-[10px] font-bold uppercase truncate text-white">${ing.name}</span>
+                    </label>`; 
+                }).join('');
+            }
+        });
+    }
+
+    function toggleAddMod(cb) { const id = parseInt(cb.value); if(cb.checked) { state.activeItem.added.push(id); state.activeItem.price = (parseFloat(state.activeItem.price) + 4.00).toFixed(2); } else { state.activeItem.added = state.activeItem.added.filter(x => x !== id); state.activeItem.price = (parseFloat(state.activeItem.price) - 4.00).toFixed(2); } document.getElementById('dc-price').innerText = state.activeItem.price + " zł"; }
+    function toggleRem(id) { if(state.activeItem.removed.includes(id)) state.activeItem.removed = state.activeItem.removed.filter(x=>x!==id); else state.activeItem.removed.push(id); }
+    function changeDcQty(v) { state.activeItem.qty = Math.max(1, state.activeItem.qty + v); document.getElementById('dc-qty').innerText = state.activeItem.qty; }
+    function addDishToCart() { state.activeItem.comment = document.getElementById('dc-comment').value; const existingIndex = state.cart.findIndex(c => c.cart_id === state.activeItem.cart_id); if(existingIndex >= 0) state.cart[existingIndex] = state.activeItem; else state.cart.push(state.activeItem); updateCartUI(); closeDishModal(); }
+    function closeDishModal() { document.getElementById('dish-modal').classList.remove('active'); }
+
+    // 🚀 FINALIZACJA ZAMÓWIENIA (KELNER WYSYŁA Z FLAGĄ)
+    function openPaymentModal() {
+        if(state.cart.length === 0) return showToast("Koszyk jest pusty!", "error");
+        document.getElementById('cart-sheet').classList.remove('active');
+        document.getElementById('payment-modal').classList.add('active');
+    }
+
+    async function submitOrder(actionType, payMethod = 'unpaid', payStatus = 'unpaid', printReceipt = 0) {
+        if(state.cart.length === 0) return showToast("Koszyk pusty!", "error");
+        
+        let total = 0; state.cart.forEach(i => total += parseFloat(i.price) * i.qty);
+        
+        // 🚨 Inteligentny czas docelowy (Teraz + sugerowane minuty kelnera)
+        let targetTime = new Date();
+        targetTime.setMinutes(targetTime.getMinutes() + state.waiterTime);
+        const isoTime = new Date(targetTime.getTime() - (targetTime.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+        
+        const isNewOrder = state.editOrderId === null;
+
+        const payload = { 
+            edit_order_id: state.editOrderId, 
+            action_type: actionType, // 'park' lub 'close'
+            payment_method: payMethod, 
+            payment_status: payStatus, 
+            print_receipt: printReceipt, 
+            print_kitchen: 1, // Zawsze informuj kuchnię 
+            custom_datetime: isoTime, 
+            order_type: state.orderType, 
+            customer_phone: '', 
+            address: state.currentTable, 
+            nip: '', 
+            total_price: total.toFixed(2), 
+            cart: state.cart,
+            source: 'waiter', // 🚨 KELNER JAKO ŹRÓDŁO
+            status: isNewOrder ? 'new' : 'pending' // 🚨 Nowe trafia do Online. Edycja od razu na kuchnię/Battlefield.
+        }; 
+
+        const btnTxt = actionType === 'close' ? 'Rozliczam...' : 'Wysyłam...';
+        showToast(btnTxt, 'info');
+
+        const d = await apiPost('process_order', payload);
+        if(d.status === 'success') { 
+            showToast("Zapisano pomyślnie!", "success"); 
+            state.editOrderId = null; 
+            state.cart = [];
+            document.getElementById('cart-sheet').classList.remove('active');
+            document.getElementById('payment-modal').classList.remove('active');
+            fetchData(); // Odśwież stoliki
+            switchView('tables'); 
+        } else { 
+            showToast(d.error, "error"); 
+        }
+    }
+
+    function confirmPayment(method) {
+        let isReceiptChecked = document.getElementById('settle-print-receipt').checked;
+        if(method === 'card') {
+            isReceiptChecked = true; // Karta absolutnie wymusza paragon
+        }
+        submitOrder('close', method, 'paid', isReceiptChecked ? 1 : 0);
+    }
+
+    // Odpalamy!
+    init(); 
+    setInterval(fetchData, 8000); // Automatyczne sprawdzanie stolików w tle
+</script>

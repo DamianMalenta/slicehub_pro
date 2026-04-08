@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SliceHub - Panel Kierowcy</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Montserrat', sans-serif; background-color: #050505; color: white; -webkit-tap-highlight-color: transparent; }
+        .glass { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .btn-active { transform: scale(0.97); }
+    </style>
+</head>
+<body class="flex flex-col h-screen overflow-hidden">
+
+    <header class="p-6 bg-[#0a0f1c] border-b border-white/5 flex justify-between items-center shrink-0">
+        <div>
+            <h1 class="text-xl font-black italic tracking-tighter text-red-500 uppercase">SliceHub Driver</h1>
+            <p class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">Aktywne kursy</p>
+        </div>
+        <div class="text-right">
+            <p class="text-[8px] font-black uppercase text-slate-500 mb-1 tracking-widest">Portfel (Gotówka)</p>
+            <p id="cash-wallet" class="text-lg font-black text-green-500">0.00 zł</p>
+        </div>
+    </header>
+
+    <main class="flex-1 overflow-y-auto p-4 space-y-4 hide-scrollbar" id="routes-container">
+        <div class="h-full flex flex-col items-center justify-center opacity-50">
+            <i class="fa-solid fa-motorcycle text-4xl mb-4 text-slate-600"></i>
+            <p class="text-xs font-black uppercase tracking-widest text-slate-500">Brak aktywnych kursów</p>
+        </div>
+    </main>
+
+    <nav class="p-4 bg-[#0a0f1c] border-t border-white/5 grid grid-cols-2 gap-4 shrink-0 pb-8">
+        <button onclick="fetchRoutes()" class="py-4 rounded-2xl bg-white/5 text-white font-black uppercase text-[10px] flex flex-col items-center gap-2 transition active:bg-white/10">
+            <i class="fa-solid fa-rotate-right text-lg"></i> Odśwież
+        </button>
+        <button onclick="window.location.href='dashboard.html'" class="py-4 rounded-2xl bg-red-600 hover:bg-red-500 text-white font-black uppercase text-[10px] flex flex-col items-center gap-2 transition shadow-lg shadow-red-500/20 active:bg-red-700">
+            <i class="fa-solid fa-power-off text-lg"></i> Zakończ zmianę
+        </button>
+    </nav>
+
+    <script>
+        async function api(action, payload = {}) {
+            payload.action = action;
+            const res = await fetch('api_driver.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            return await res.json();
+        }
+
+        async function fetchRoutes() {
+            try {
+                const res = await api('get_my_routes');
+                if (res.status === 'success') {
+                    document.getElementById('cash-wallet').innerText = res.payload.cash_in_hand + " zł";
+                    renderRoutes(res.payload.routes);
+                } else {
+                    alert("Błąd: " + res.error);
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        function renderRoutes(routes) {
+            const container = document.getElementById('routes-container');
+            if(routes.length === 0) {
+                container.innerHTML = `
+                    <div class="h-full flex flex-col items-center justify-center opacity-50 mt-20">
+                        <i class="fa-solid fa-mug-hot text-5xl mb-4 text-slate-600"></i>
+                        <p class="text-xs font-black uppercase tracking-widest text-slate-500 text-center leading-relaxed">Poczekaj na dyspozytora<br>Brak kursów</p>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = routes.map(r => {
+                const isPaid = r.payment_status === 'paid' || r.payment_method === 'online';
+                const paymentBadge = isPaid 
+                    ? `<span class="bg-green-900/30 text-green-500 border border-green-500/30 px-3 py-1 rounded-lg text-[9px] font-black uppercase"><i class="fa-solid fa-check mr-1"></i> Opłacone</span>`
+                    : `<span class="bg-red-900/50 text-red-500 border border-red-500 px-3 py-1 rounded-lg text-[10px] font-black uppercase animate-pulse"><i class="fa-solid fa-hand-holding-dollar mr-1"></i> Pobierz ${r.total_price} zł</span>`;
+
+                const navLink = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(r.address)}`;
+
+                let actionButton = '';
+                if(r.status === 'ready') {
+                    actionButton = `<button onclick="updateStatus(${r.id}, 'in_delivery', this)" class="w-full mt-4 py-4 rounded-xl bg-blue-600 text-white font-black uppercase text-xs shadow-lg active:scale-95 transition">🚗 Wyjeżdżam do klienta</button>`;
+                } else if (r.status === 'in_delivery') {
+                    actionButton = `<button onclick="updateStatus(${r.id}, 'completed', this)" class="w-full mt-4 py-4 rounded-xl bg-green-600 text-white font-black uppercase text-xs shadow-lg active:scale-95 transition">✅ Dostarczone i Rozliczone</button>`;
+                }
+
+                return `
+                <div class="glass p-5 rounded-[24px] relative overflow-hidden border-l-4 ${r.status === 'in_delivery' ? 'border-l-blue-500' : 'border-l-slate-600'}">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">#${r.id}</span>
+                        ${paymentBadge}
+                    </div>
+                    
+                    <h3 class="text-lg font-black uppercase leading-tight mb-1">${r.address || 'Brak adresu!'}</h3>
+                    <p class="text-[11px] font-bold text-slate-400 uppercase mb-4"><i class="fa-solid fa-phone mr-1"></i> ${r.customer_phone || 'Brak telefonu'}</p>
+                    
+                    <div class="flex gap-2">
+                        <a href="tel:${r.customer_phone}" class="flex-1 py-3 text-center rounded-xl bg-white/5 text-white font-black uppercase text-[10px] border border-white/10 active:bg-white/10 transition"><i class="fa-solid fa-phone mr-1"></i> Zadzwoń</a>
+                        <a href="${navLink}" target="_blank" class="flex-1 py-3 text-center rounded-xl bg-white/5 text-white font-black uppercase text-[10px] border border-white/10 active:bg-white/10 transition"><i class="fa-solid fa-location-arrow mr-1"></i> Nawiguj</a>
+                    </div>
+                    
+                    ${actionButton}
+                </div>`;
+            }).join('');
+        }
+
+        async function updateStatus(id, newStatus, btn) {
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            const res = await api('update_route_status', { order_id: id, new_status: newStatus });
+            if(res.status === 'success') {
+                fetchRoutes();
+            } else {
+                alert("Błąd: " + res.error);
+                fetchRoutes();
+            }
+        }
+
+        // Auto odświeżanie co 10 sekund
+        setInterval(fetchRoutes, 10000);
+        fetchRoutes();
+    </script>
+</body>
+</html>

@@ -80,7 +80,7 @@ window.ItemEditor = {
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 gap-3 border border-white/10 bg-black/30 rounded-xl p-4 mt-4">
+            <div id="item-publication-panel" class="grid grid-cols-1 gap-3 border border-white/10 bg-black/30 rounded-xl p-4 mt-4">
                 <label class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Panel Publikacji</label>
                 <select id="item-publication-status" class="bg-black/50 border border-white/10 text-white rounded p-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition cursor-pointer">
                     <option value="Draft">Draft</option>
@@ -142,7 +142,7 @@ window.ItemEditor = {
 
         let modifierGroupsHtml = `
 <div class="bg-[#0a0a0f]/60 border border-purple-500/20 p-6 rounded-2xl mb-6 shadow-[0_0_15px_rgba(168,85,247,0.05)]">
-    <h5 class="text-[10px] text-purple-400 font-bold uppercase tracking-wider mb-4">Powiazane Grupy Modyfikatorow</h5>
+    <h5 class="text-[10px] text-purple-400 font-bold uppercase tracking-wider mb-4">Powiązane Grupy Modyfikatorów</h5>
     <div class="grid grid-cols-2 md:grid-cols-3 gap-3" id="modifierGroupsCheckboxContainer">`;
 
         if (window.StudioState && window.StudioState.modifierGroups && window.StudioState.modifierGroups.length > 0) {
@@ -155,10 +155,15 @@ window.ItemEditor = {
         `;
             });
         } else {
-            modifierGroupsHtml += '<div class="col-span-full text-slate-500 text-xs font-bold uppercase">Brak grup modyfikatorow w systemie.</div>';
+            modifierGroupsHtml += '<div class="col-span-full text-slate-500 text-xs font-bold uppercase">Brak grup modyfikatorów w systemie.</div>';
         }
         modifierGroupsHtml += `</div></div>`;
-        form.insertAdjacentHTML('beforeend', modifierGroupsHtml);
+        const publicationPanel = document.getElementById('item-publication-panel');
+        if (publicationPanel) {
+            publicationPanel.insertAdjacentHTML('beforebegin', modifierGroupsHtml);
+        } else {
+            form.insertAdjacentHTML('beforeend', modifierGroupsHtml);
+        }
 
         // Magia Auto-SKU
         const nameInput = document.getElementById('item-name');

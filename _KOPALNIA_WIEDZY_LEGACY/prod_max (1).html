@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SliceHub POS - Moduł Produkcji (MAX)</title>
+    <style>
+        :root { --primary: #4f46e5; --dark: #111827; --gray: #f3f4f6; --text: #374151; --danger: #ef4444; --success: #10b981; --warning: #f59e0b; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #e5e7eb; color: var(--text); margin: 0; padding: 20px; }
+        .dashboard { max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: 2.5fr 1fr; gap: 20px; }
+        
+        /* Karty i Nagłówki */
+        .card { background: white; border-radius: 12px; padding: 25px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        .header { background: var(--dark); color: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { margin: 0; font-size: 22px; }
+        .badge { background: var(--primary); color: white; padding: 5px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
+
+        /* Strefa Pracownika */
+        .recipe-selector { background: #eef2ff; border: 2px solid #c7d2fe; padding: 25px; border-radius: 12px; margin-bottom: 20px; display: flex; gap: 20px; align-items: flex-end; }
+        .form-group { flex: 1; }
+        .form-group label { display: block; font-size: 13px; font-weight: bold; color: #4f46e5; margin-bottom: 8px; text-transform: uppercase; }
+        .input-main { width: 100%; padding: 12px; font-size: 16px; border-radius: 8px; border: 1px solid #a5b4fc; box-sizing: border-box; }
+        
+        .table-ui { width: 100%; border-collapse: collapse; }
+        .table-ui th { background: var(--gray); padding: 12px; text-align: left; font-size: 13px; color: #6b7280; text-transform: uppercase; }
+        .table-ui td { padding: 15px 12px; border-bottom: 1px solid #e5e7eb; vertical-align: middle; }
+        
+        .status-pill { font-weight: bold; padding: 4px 10px; border-radius: 20px; font-size: 12px; display: inline-block; }
+        .pill-ok { background: #d1fae5; color: var(--success); }
+        .pill-warn { background: #fef3c7; color: var(--warning); }
+        .pill-bad { background: #fee2e2; color: var(--danger); }
+
+        .btn-massive { display: block; width: 100%; background: var(--primary); color: white; padding: 18px; text-align: center; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; margin-top: 20px; transition: 0.2s; text-transform: uppercase; }
+        .btn-massive:hover { background: #4338ca; }
+
+        /* Strefa Admina */
+        .admin-panel { border-top: 4px solid var(--primary); }
+        .setting-group { margin-bottom: 25px; }
+        .setting-group h4 { margin: 0 0 10px 0; color: var(--dark); border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; }
+        
+        .toggle-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; }
+        .toggle-label { font-size: 13px; font-weight: 500; }
+        
+        /* Switch CSS */
+        .switch { position: relative; display: inline-block; width: 40px; height: 20px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 20px; }
+        .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--primary); }
+        input:checked + .slider:before { transform: translateX(20px); }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div>
+        <h1>SLICEHUB POS v3.1 Pro</h1>
+        <div style="color: #9ca3af; font-size: 14px; margin-top: 5px;">Zalogowany: Szef Kuchni | Baza: sh_recipes</div>
+    </div>
+    <span class="badge">Moduł: Produkcja (PROD)</span>
+</div>
+
+<div class="dashboard">
+    <div class="card">
+        <h2 style="margin-top:0;">Panel Kompletacji i Produkcji</h2>
+        
+        <div class="recipe-selector">
+            <div class="form-group" style="flex: 2;">
+                <label>Wybierz Recepturę (Półprodukt)</label>
+                <select class="input-main">
+                    <option>Ciasto na pizzę (Zaczyn 24h)</option>
+                    <option selected>Sos Pomidorowy Baza (Wiadro 10L)</option>
+                    <option>Krojenie Pieczarek (Pojemnik)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Ilość do wyprodukowania</label>
+                <input type="number" class="input-main" value="2" style="text-align: center; font-weight: bold;">
+            </div>
+        </div>
+
+        <h3 style="font-size: 15px; color: #4b5563; margin-bottom: 10px;">Surowce do pobrania z magazynu (Kalkulacja dla: 2 x Wiadro 10L):</h3>
+        
+        <table class="table-ui">
+            <thead>
+                <tr>
+                    <th style="width: 40%;">Składnik Receptury</th>
+                    <th style="width: 20%; text-align: center;">Wymagane</th>
+                    <th style="width: 20%; text-align: center;">Stan Magazynu</th>
+                    <th style="width: 20%; text-align: right;">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Pomidory Pelati (Puszka)</strong></td>
+                    <td style="text-align: center; font-weight: bold;">8.00 szt</td>
+                    <td style="text-align: center; color: #6b7280;">24.00 szt</td>
+                    <td style="text-align: right;"><span class="status-pill pill-ok">Dostępne</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Czosnek świeży (kg)</strong></td>
+                    <td style="text-align: center; font-weight: bold;">0.40 kg</td>
+                    <td style="text-align: center; color: #6b7280;">0.50 kg</td>
+                    <td style="text-align: right;"><span class="status-pill pill-warn">Niski Stan</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Oliwa Extra Virgin (L)</strong></td>
+                    <td style="text-align: center; font-weight: bold;">1.00 L</td>
+                    <td style="text-align: center; color: #ef4444; font-weight: bold;">0.20 L</td>
+                    <td style="text-align: right;"><span class="status-pill pill-bad">BRAK SUROWCA</span></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <button class="btn-massive" style="background: #ef4444; cursor: not-allowed;">Brak surowców - Produkcja wstrzymana</button>
+    </div>
+
+    <div class="card admin-panel">
+        <h2 style="margin-top:0;">Sterowanie Produkcją</h2>
+        <p style="font-size: 12px; color: #6b7280; margin-bottom: 20px;">Określa, na ile kucharz może modyfikować systemowe przepisy i stany.</p>
+
+        <div class="setting-group">
+            <h4>Rygor Magazynowy</h4>
+            <div class="toggle-row">
+                <span class="toggle-label">Blokuj produkcję przy braku surowców</span>
+                <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row">
+                <span class="toggle-label">Pozwól na stany ujemne (zrzut w ciemno)</span>
+                <label class="switch"><input type="checkbox"><span class="slider"></span></label>
+            </div>
+        </div>
+
+        <div class="setting-group">
+            <h4>Odchylenia od Receptury</h4>
+            <div class="toggle-row">
+                <span class="toggle-label">Kucharz może edytować zużycie surowca</span>
+                <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row">
+                <span class="toggle-label">Wymagaj PIN przy zmianie > 10% wagi</span>
+                <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+            </div>
+        </div>
+
+        <div class="setting-group">
+            <h4>Koszty (Food Cost)</h4>
+            <div class="toggle-row">
+                <span class="toggle-label">Automatycznie aktualizuj koszt produkcji (bazując na ostatnich fakturach PZ)</span>
+                <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+            </div>
+        </div>
+        
+    </div>
+</div>
+
+</body>
+</html>

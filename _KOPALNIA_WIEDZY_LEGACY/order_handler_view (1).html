@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SliceHub POS - Zamówienia Online</title>
+    <style>
+        :root { --primary: #0284c7; --dark: #0f172a; --gray: #f1f5f9; --text: #334155; --success: #10b981; --warning: #f59e0b; --danger: #ef4444; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #cbd5e1; color: var(--text); margin: 0; padding: 20px; }
+        .dashboard { max-width: 1500px; margin: 0 auto; display: grid; grid-template-columns: 3fr 1fr; gap: 20px; }
+        
+        .card { background: white; border-radius: 12px; padding: 25px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .header { background: var(--dark); color: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; border-left: 5px solid var(--primary); }
+        .header h1 { margin: 0; font-size: 22px; }
+        .badge { background: var(--primary); color: white; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
+
+        /* Strefa Kanban (Zamówienia) */
+        .kanban-board { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; }
+        .kanban-col { background: var(--gray); border-radius: 8px; padding: 15px; min-height: 600px; }
+        .kanban-col h3 { margin-top: 0; color: var(--dark); font-size: 16px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; display: flex; justify-content: space-between; }
+        .ticket-count { background: var(--primary); color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; }
+
+        /* Bony (Tickets) */
+        .ticket { background: white; border-radius: 8px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-left: 4px solid #cbd5e1; transition: 0.2s; }
+        .ticket.new { border-left-color: var(--danger); animation: pulse 2s infinite; }
+        .ticket.kitchen { border-left-color: var(--warning); }
+        .ticket.ready { border-left-color: var(--success); }
+        
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+
+        .t-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 13px; font-weight: bold; color: #64748b; }
+        .t-source { background: #e0f2fe; color: #0284c7; padding: 2px 6px; border-radius: 4px; font-size: 11px; text-transform: uppercase; }
+        .t-items { font-size: 14px; font-weight: bold; margin-bottom: 15px; line-height: 1.5; }
+        .t-item-note { font-size: 12px; color: var(--danger); font-weight: normal; display: block; margin-left: 10px; }
+        
+        .btn-ticket { width: 100%; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; color: white; text-transform: uppercase; font-size: 13px; }
+        .btn-accept { background: var(--success); }
+        .btn-move { background: var(--primary); }
+
+        /* Strefa Admina */
+        .setting-group { margin-bottom: 25px; }
+        .setting-group h4 { margin: 0 0 10px 0; color: var(--dark); border-bottom: 1px solid #e2e8f0; padding-bottom: 5px; }
+        
+        .toggle-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; }
+        .toggle-label { font-size: 13px; font-weight: 500; }
+        .value-input { width: 60px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; text-align: center; font-weight: bold; }
+        
+        .switch { position: relative; display: inline-block; width: 36px; height: 18px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .4s; border-radius: 20px; }
+        .slider:before { position: absolute; content: ""; height: 12px; width: 12px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--primary); }
+        input:checked + .slider:before { transform: translateX(18px); }
+
+        .btn-panic { background: var(--danger); color: white; width: 100%; padding: 15px; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; text-transform: uppercase; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4); margin-top: 20px; }
+        .btn-panic:hover { background: #dc2626; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div>
+        <h1>SLICEHUB POS - Zamówienia Online & KDS</h1>
+        <div style="color: #cbd5e1; font-size: 13px; margin-top: 5px;">Integracja: Własna strona WWW + Kiosk | Widok: Sala/Kuchnia</div>
+    </div>
+    <span class="badge">Silnik: OrderHandler API</span>
+</div>
+
+<div class="dashboard">
+    <div class="card" style="padding: 15px; background: transparent; box-shadow: none;">
+        <div class="kanban-board">
+            
+            <div class="kanban-col">
+                <h3><span>Oczekujące (Nowe)</span> <span class="ticket-count" style="background: var(--danger);">1</span></h3>
+                
+                <div class="ticket new">
+                    <div class="t-header">
+                        <span>#WEB-4021</span>
+                        <span class="t-source">Strona WWW</span>
+                    </div>
+                    <div class="t-header" style="color: var(--dark);">
+                        <span>14:02 (3 min temu)</span>
+                        <span style="color: var(--success);">Opłacone (PayU)</span>
+                    </div>
+                    <div class="t-items">
+                        1x Pizza Parma (32cm)
+                        <span class="t-item-note">- BEZ RUKOLI</span>
+                        1x Sos Czosnkowy
+                    </div>
+                    <button class="btn-ticket btn-accept">Akceptuj i wyślij na kuchnię</button>
+                </div>
+            </div>
+
+            <div class="kanban-col">
+                <h3><span>W przygotowaniu</span> <span class="ticket-count" style="background: var(--warning);">2</span></h3>
+                
+                <div class="ticket kitchen">
+                    <div class="t-header">
+                        <span>#KIO-108</span>
+                        <span class="t-source" style="background: #fef08a; color: #a16207;">Kiosk Lokal</span>
+                    </div>
+                    <div class="t-header" style="color: var(--dark);">
+                        <span>13:50 (12 min temu)</span>
+                        <span>Odbiór: Na miejscu</span>
+                    </div>
+                    <div class="t-items">
+                        2x Burger Drwala
+                        1x Frytki Duże
+                    </div>
+                    <button class="btn-ticket btn-move">Oznacz jako GOTOWE</button>
+                </div>
+
+                <div class="ticket kitchen">
+                    <div class="t-header">
+                        <span>#WEB-4020</span>
+                        <span class="t-source">Strona WWW</span>
+                    </div>
+                    <div class="t-header" style="color: var(--dark);">
+                        <span>13:45 (17 min temu)</span>
+                        <span>Dostawa: ul. Polna 12</span>
+                    </div>
+                    <div class="t-items">
+                        3x Pizza Margherita
+                    </div>
+                    <button class="btn-ticket btn-move">Oznacz jako GOTOWE</button>
+                </div>
+            </div>
+
+            <div class="kanban-col">
+                <h3><span>Gotowe / Wydane</span> <span class="ticket-count" style="background: var(--success);">1</span></h3>
+                
+                <div class="ticket ready">
+                    <div class="t-header">
+                        <span>#WEB-4019</span>
+                        <span class="t-source">Strona WWW</span>
+                    </div>
+                    <div class="t-header" style="color: var(--dark);">
+                        <span>Wydano kierowcy: Jan</span>
+                        <span>Opłacone</span>
+                    </div>
+                    <div class="t-items" style="color: #64748b; text-decoration: line-through;">
+                        1x Zestaw Sushi (M)
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="card" style="border-top: 4px solid var(--primary);">
+        <h2 style="margin-top:0;">Konfiguracja Odbioru</h2>
+        <p style="font-size: 12px; color: #64748b; margin-bottom: 20px;">Plik docelowy: <code>orders_settings.php</code></p>
+
+        <div class="setting-group">
+            <h4>Automatyzacja Zleceń</h4>
+            <div class="toggle-row">
+                <span class="toggle-label">Auto-akceptuj zlecenia z Kiosku</span>
+                <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row">
+                <span class="toggle-label">Auto-akceptuj WWW (Tylko opłacone)</span>
+                <label class="switch"><input type="checkbox"><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row">
+                <span class="toggle-label">Domyślny czas dostawy (min)</span>
+                <input type="number" class="value-input" value="45">
+            </div>
+        </div>
+
+        <div class="setting-group">
+            <h4>Integracje API (Zewnętrzne)</h4>
+            <div class="toggle-row">
+                <span class="toggle-label">Pobieraj zlecenia z Glovo/UberEats</span>
+                <label class="switch"><input type="checkbox"><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row">
+                <span class="toggle-label">Zdejmuj surowce (PROD) w locie</span>
+                <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+            </div>
+        </div>
+
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 2px dashed #fca5a5; text-align: center;">
+            <span style="font-size: 12px; font-weight: bold; color: var(--danger);">KRYTYCZNE PRZECIĄŻENIE KUCHNI?</span>
+            <button class="btn-panic">🛑 WSTRZYMAJ ZAMÓWIENIA ONLINE</button>
+            <p style="font-size: 11px; color: #64748b; margin-top: 8px;">Wyłącza możliwość zamawiania na stronie WWW i w Kiosku do odwołania.</p>
+        </div>
+        
+    </div>
+</div>
+
+</body>
+</html>

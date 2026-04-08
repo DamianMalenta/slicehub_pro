@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SliceHub POS - Config Factory (ROOT)</title>
+    <style>
+        :root { --primary: #8b5cf6; --dark: #0f172a; --gray: #f1f5f9; --text: #334155; --success: #10b981; --warning: #f59e0b; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #e2e8f0; color: var(--text); margin: 0; padding: 20px; }
+        .dashboard { max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: 1fr 3fr; gap: 20px; }
+        
+        /* Karty i Nagłówki */
+        .card { background: white; border-radius: 12px; padding: 25px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .header { background: var(--dark); color: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; border-left: 5px solid var(--primary); }
+        .header h1 { margin: 0; font-size: 22px; letter-spacing: 1px; }
+        .badge { background: var(--primary); color: white; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+
+        /* Nawigacja Boczna (Master Menu) */
+        .side-menu { display: flex; flex-direction: column; gap: 8px; }
+        .menu-item { padding: 12px 15px; background: var(--gray); border-radius: 8px; font-weight: bold; color: var(--text); cursor: pointer; transition: 0.2s; border-left: 3px solid transparent; display: flex; justify-content: space-between; align-items: center; }
+        .menu-item:hover { background: #e2e8f0; }
+        .menu-item.active { background: white; border-left-color: var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .status-dot { height: 10px; width: 10px; background-color: var(--success); border-radius: 50%; display: inline-block; }
+        .status-dot.off { background-color: #ef4444; }
+
+        /* Siatka Ustawień */
+        .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .setting-box { border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; }
+        .setting-box h4 { margin: 0 0 15px 0; color: var(--dark); border-bottom: 2px solid var(--gray); padding-bottom: 8px; font-size: 15px; }
+        
+        .toggle-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px dashed #e2e8f0; }
+        .toggle-row:last-child { border-bottom: none; }
+        .toggle-label { font-size: 13px; font-weight: 500; }
+        
+        /* Switch CSS */
+        .switch { position: relative; display: inline-block; width: 36px; height: 18px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .4s; border-radius: 20px; }
+        .slider:before { position: absolute; content: ""; height: 12px; width: 12px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--primary); }
+        input:checked + .slider:before { transform: translateX(18px); }
+
+        .btn-massive { display: block; width: 100%; background: var(--dark); color: white; padding: 16px; text-align: center; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 25px; transition: 0.2s; text-transform: uppercase; letter-spacing: 1px; }
+        .btn-massive:hover { background: var(--primary); box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3); }
+        
+        .code-preview { background: #1e293b; color: #a5b4fc; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 12px; margin-top: 20px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div>
+        <h1>CONFIG FACTORY & ROOT ADMIN</h1>
+        <div style="color: #cbd5e1; font-size: 13px; margin-top: 5px;">Rdzeń Systemu | Zabezpieczenie: Wymagany PIN ROOT</div>
+    </div>
+    <span class="badge">Status: Online</span>
+</div>
+
+<div class="dashboard">
+    <div class="card">
+        <h3 style="margin-top:0; font-size: 16px; color: var(--dark);">Zarządzaj Modułami</h3>
+        <div class="side-menu">
+            <div class="menu-item active">
+                <span>📦 Logistyka (PZ/RW/IN)</span>
+                <span class="status-dot"></span>
+            </div>
+            <div class="menu-item">
+                <span>🛒 POS & Sprzedaż</span>
+                <span class="status-dot"></span>
+            </div>
+            <div class="menu-item">
+                <span>👨‍🍳 Produkcja & Receptury</span>
+                <span class="status-dot"></span>
+            </div>
+            <div class="menu-item">
+                <span>🎁 Lojalność (LoyaltyEngine)</span>
+                <span class="status-dot"></span>
+            </div>
+            <div class="menu-item">
+                <span>📱 Marketing (Bridge/API)</span>
+                <span class="status-dot off" title="Moduł wyłączony"></span>
+            </div>
+            <div class="menu-item">
+                <span>🌐 Zamówienia (OrderHandler)</span>
+                <span class="status-dot"></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="margin:0; color: var(--dark);">Konfigurator: Logistyka i Kody QR</h2>
+            <span style="font-size: 12px; color: #64748b;">Cel zapisu: <code>modules/logistics/settings.php</code></span>
+        </div>
+
+        <div class="settings-grid">
+            <div class="setting-box">
+                <h4>Główne Parametry (ASCII Core)</h4>
+                <div class="toggle-row">
+                    <span class="toggle-label">Ścisłe sprawdzanie kluczy ASCII</span>
+                    <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+                </div>
+                <div class="toggle-row">
+                    <span class="toggle-label">Konwersja nazw do UTF-8 dla interfejsu</span>
+                    <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+                </div>
+                <div class="toggle-row">
+                    <span class="toggle-label">Zezwól na stany ujemne (Globalnie)</span>
+                    <label class="switch"><input type="checkbox"><span class="slider"></span></label>
+                </div>
+            </div>
+
+            <div class="setting-box">
+                <h4>Logistyka QR (QRManager.php)</h4>
+                <div class="toggle-row">
+                    <span class="toggle-label">Włącz obsługę skanerów sprzętowych</span>
+                    <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+                </div>
+                <div class="toggle-row">
+                    <span class="toggle-label">Generuj etykiety QR przy dostawie (PZ)</span>
+                    <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+                </div>
+                <div class="toggle-row">
+                    <span class="toggle-label">Skanowanie QR jako autoryzacja (Zamiast PIN)</span>
+                    <label class="switch"><input type="checkbox"><span class="slider"></span></label>
+                </div>
+            </div>
+        </div>
+
+        <div class="code-preview">
+            // Podgląd pliku, który wygeneruje Config Factory:
+            <br><br>
+            &lt;?php<br>
+            /* Wygenerowano przez Config Factory */<br>
+            $settings['logistics']['strict_ascii'] = true;<br>
+            $settings['logistics']['allow_negative_stock'] = false;<br>
+            $settings['qr_manager']['hardware_scanners'] = true;<br>
+            $settings['qr_manager']['auto_generate_labels'] = true;<br>
+            ?&gt;
+        </div>
+
+        <button class="btn-massive">Zbuduj i Zapisz Ustawienia Modułu (settings.php)</button>
+    </div>
+</div>
+
+</body>
+</html>

@@ -6,6 +6,50 @@ window.StudioState.products = window.StudioState.products || [];
 window.StudioState.activeModGroupId = null;
 
 window.ModifierInspector = {
+    toAutoSlug(value, prefix) {
+        const polishMap = {
+            'ą': 'a', 'ć': 'c', 'ę': 'e', 'ł': 'l', 'ń': 'n', 'ó': 'o', 'ś': 's', 'ź': 'z', 'ż': 'z',
+            'Ą': 'A', 'Ć': 'C', 'Ę': 'E', 'Ł': 'L', 'Ń': 'N', 'Ó': 'O', 'Ś': 'S', 'Ź': 'Z', 'Ż': 'Z'
+        };
+
+        const asciiBase = (value || '')
+            .split('')
+            .map(ch => polishMap[ch] || ch)
+            .join('')
+            .replace(/\s+/g, '_')
+            .replace(/[^a-zA-Z0-9_]/g, '')
+            .replace(/_+/g, '_')
+            .replace(/^_+|_+$/g, '')
+            .toUpperCase();
+
+        return asciiBase ? `${prefix}${asciiBase}` : '';
+    },
+
+    bindGroupAutoSlug() {
+        const groupNameInput = document.getElementById('mod-group-name');
+        const groupAsciiInput = document.getElementById('mod-group-ascii');
+        if (!groupNameInput || !groupAsciiInput) return;
+
+        groupNameInput.addEventListener('input', () => {
+            const groupId = parseInt(document.getElementById('mod-group-id')?.value, 10) || 0;
+            if (groupId !== 0) return;
+            groupAsciiInput.value = this.toAutoSlug(groupNameInput.value, 'GRP_');
+        });
+    },
+
+    bindOptionAutoSlug(row) {
+        const optionNameInput = row.querySelector('.opt-name');
+        const optionAsciiInput = row.querySelector('.opt-ascii');
+        const optionIdInput = row.querySelector('.opt-id');
+        if (!optionNameInput || !optionAsciiInput || !optionIdInput) return;
+
+        optionNameInput.addEventListener('input', () => {
+            const optionId = parseInt(optionIdInput.value, 10) || 0;
+            if (optionId !== 0) return;
+            optionAsciiInput.value = this.toAutoSlug(optionNameInput.value, 'OPT_');
+        });
+    },
+
     async init() {
         if (window.StudioState.products.length === 0) {
             try {
@@ -21,6 +65,24 @@ window.ModifierInspector = {
             } catch (e) {
                 console.warn("[ModifierInspector] Nie udało się pobrać słownika magazynu.", e);
             }
+        }
+        // --- ŁATKA: Ładujemy PRAWDZIWE modyfikatory z bazy przy starcie! ---
+        await this.loadModifiersFromDB();
+    },
+
+    async loadModifiersFromDB() {
+        try {
+            const response = await fetch('../../api/backoffice/api_menu_studio.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer mock_jwt_token_123' },
+                body: JSON.stringify({ action: 'get_modifiers_full' })
+            });
+            const result = await response.json();
+            if (result.status === 'success' && result.payload) {
+                window.StudioState.modifierGroups = result.payload;
+            }
+        } catch(e) {
+            console.error("[ModifierInspector] Błąd pobierania modyfikatorów z bazy:", e);
         }
     },
 
@@ -83,6 +145,24 @@ window.ModifierInspector = {
                             </label>
                         </div>
                     </div>
+                    <div class="pt-4 border-t border-white/5 space-y-3">
+                        <label class="block text-[9px] font-black uppercase text-cyan-400 mb-2"><i class="fa-solid fa-globe mr-1"></i> Panel Publikacji</label>
+                        <select id="mod-publication-status" class="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-[10px] font-black uppercase outline-none focus:border-cyan-500 transition">
+                            <option value="Draft">Draft</option>
+                            <option value="Live">Live</option>
+                            <option value="Archived">Archived</option>
+                        </select>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-[8px] font-black uppercase text-slate-500 mb-1">validFrom</label>
+                                <input type="datetime-local" id="mod-valid-from" class="w-full bg-black/50 border border-white/10 rounded-xl p-2 text-white text-[10px] outline-none focus:border-cyan-500 transition">
+                            </div>
+                            <div>
+                                <label class="block text-[8px] font-black uppercase text-slate-500 mb-1">validTo</label>
+                                <input type="datetime-local" id="mod-valid-to" class="w-full bg-black/50 border border-white/10 rounded-xl p-2 text-white text-[10px] outline-none focus:border-cyan-500 transition">
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="bg-gradient-to-br from-blue-900/10 to-transparent p-8 rounded-3xl border border-blue-500/20 flex flex-col justify-center items-center text-center">
@@ -103,22 +183,19 @@ window.ModifierInspector = {
             </section>
         </div>
         `;
+
+        this.bindGroupAutoSlug();
     },
 
     async renderGroupList() {
         const container = document.getElementById('dynamic-tree-container');
         if(!container) return;
 
-        if(window.StudioState.modifierGroups.length === 0) {
-            window.StudioState.modifierGroups = [
-                {id: 1, name: "Wybierz Ciasto", asciiKey: "GRP_CIASTO", min: 1, max: 1, freeLimit: 0, multiQty: false}, 
-                {id: 2, name: "Składniki Burgera", asciiKey: "GRP_BURGER", min: 0, max: 10, freeLimit: 0, multiQty: false}
-            ];
-        }
-
-        const groups = window.StudioState.modifierGroups;
+        const groups = window.StudioState.modifierGroups || [];
+        
         if(groups.length === 0) {
-            container.innerHTML = '<div class="text-center mt-10 text-slate-500 font-bold text-[10px] uppercase">Brak grup.</div>'; 
+            container.innerHTML = `<button onclick="window.ModifierInspector.createNewGroup()" class="w-full mb-4 py-3 bg-green-900/40 text-green-400 border border-green-500/30 rounded flex items-center justify-center hover:bg-green-600 hover:text-white transition text-[10px] font-black uppercase"><i class="fa-solid fa-plus mr-2"></i> Nowa Grupa</button>` + 
+            '<div class="text-center mt-10 text-slate-500 font-bold text-[10px] uppercase">Brak zapisanych grup w bazie.</div>'; 
             return; 
         }
 
@@ -150,10 +227,14 @@ window.ModifierInspector = {
         document.getElementById('mod-max').value = "1";
         document.getElementById('mod-free-limit').value = "0";
         document.getElementById('mod-multi-qty').checked = false;
+        document.getElementById('mod-publication-status').value = "Draft";
+        document.getElementById('mod-valid-from').value = "";
+        document.getElementById('mod-valid-to').value = "";
         document.getElementById('btn-save-modifier').classList.remove('opacity-50', 'cursor-not-allowed');
         
         this.renderModifierItems([]);
         this.addOptionRow(); 
+        this.applyFranchiseShieldForGroup(false);
     },
 
     selectGroup(id) {
@@ -184,13 +265,14 @@ window.ModifierInspector = {
         document.getElementById('mod-max').value = group.max || 1;
         document.getElementById('mod-free-limit').value = group.freeLimit || 0;
         document.getElementById('mod-multi-qty').checked = !!group.multiQty;
+        document.getElementById('mod-publication-status').value = group.publicationStatus || 'Draft';
+        document.getElementById('mod-valid-from').value = group.validFrom || '';
+        document.getElementById('mod-valid-to').value = group.validTo || '';
         document.getElementById('btn-save-modifier').classList.remove('opacity-50', 'cursor-not-allowed');
 
-        const mockOptions = id === 2 ? [
-            {id: 1, name: "Podwójny Ser", asciiKey: "OPT_SER", price: 4.50, isDefault: false, actionType: "ADD", sku: "SKU_MOZZARELLA", qty: 0.05},
-            {id: 2, name: "Bez Cebuli", asciiKey: "OPT_BEZ_CEBULI", price: 0.00, isDefault: true, actionType: "REMOVE", sku: "SKU_CEBULA", qty: 0}
-        ] : [];
-        this.renderModifierItems(mockOptions);
+        const itemsToRender = group.options || [];
+        this.renderModifierItems(itemsToRender);
+        this.applyFranchiseShieldForGroup(!!group.isLockedByHq);
     },
 
     renderModifierItems(items) {
@@ -211,7 +293,7 @@ window.ModifierInspector = {
             <div class="grid grid-cols-12 gap-2 px-6 text-[9px] font-black uppercase text-slate-500 tracking-wider mb-2">
                 <div class="col-span-4">Nazwa (POS)</div>
                 <div class="col-span-4">Klucz Systemowy (SKU)</div>
-                <div class="col-span-3 text-center">Dopłata (PLN)</div>
+                <div class="col-span-3 text-center">Macierz Cenowa (PLN)</div>
                 <div class="col-span-1"></div>
             </div>
             <div id="actual-options-list" class="flex flex-col gap-2"></div>
@@ -219,7 +301,7 @@ window.ModifierInspector = {
         list.innerHTML = html;
         items.forEach(item => this.addOptionRow(item));
         
-        list.innerHTML += `<button onclick="window.ModifierInspector.addOptionRow()" class="w-full mt-4 py-5 border-2 border-dashed border-white/10 rounded-2xl text-[10px] font-black uppercase text-slate-500 hover:text-white transition hover:border-white/30">+ Dodaj Nowy Składnik</button>`;
+        list.innerHTML += `<button id="btn-add-option-row" onclick="window.ModifierInspector.addOptionRow()" class="w-full mt-4 py-5 border-2 border-dashed border-white/10 rounded-2xl text-[10px] font-black uppercase text-slate-500 hover:text-white transition hover:border-white/30">+ Dodaj Nowy Składnik</button>`;
     },
 
     addOptionRow(opt = {}) {
@@ -229,13 +311,19 @@ window.ModifierInspector = {
         const id = opt.id || 0;
         const name = opt.name || '';
         const asciiKey = opt.asciiKey || '';
-        const price = opt.price !== undefined ? parseFloat(opt.price).toFixed(2) : '0.00';
+        const priceTiers = opt.priceTiers || [];
+        const posTier = priceTiers.find(t => t.channel === 'POS');
+        const takeawayTier = priceTiers.find(t => t.channel === 'Takeaway');
+        const deliveryTier = priceTiers.find(t => t.channel === 'Delivery');
+        const pricePos = posTier ? parseFloat(posTier.price).toFixed(2) : (opt.price !== undefined ? parseFloat(opt.price).toFixed(2) : '0.00');
+        const priceTakeaway = takeawayTier ? parseFloat(takeawayTier.price).toFixed(2) : (opt.priceTakeaway !== undefined ? parseFloat(opt.priceTakeaway).toFixed(2) : '0.00');
+        const priceDelivery = deliveryTier ? parseFloat(deliveryTier.price).toFixed(2) : (opt.priceDelivery !== undefined ? parseFloat(opt.priceDelivery).toFixed(2) : '0.00');
         const isEdit = id > 0;
 
         const isDefault = opt.isDefault ? 'checked' : '';
         const actionType = opt.actionType || 'NONE';
-        const linkedSku = opt.sku || '';
-        const qty = opt.qty || '';
+        const linkedSku = opt.linkedWarehouseSku || opt.sku || '';
+        const qty = opt.linkedQuantity !== undefined ? opt.linkedQuantity : (opt.qty || '');
 
         let skuOptions = '<option value="">-- Wybierz surowiec --</option>';
         window.StudioState.products.forEach(p => {
@@ -249,20 +337,32 @@ window.ModifierInspector = {
             <input type="hidden" class="opt-id" value="${id}">
             
             <div class="grid grid-cols-12 gap-2 items-center">
-                <div class="col-span-4 flex items-center gap-3">
+                <div class="col-span-4 flex items-center gap-3 lock-opt-name">
                     <i class="fa-solid fa-grip-vertical text-slate-700 cursor-grab opacity-50 hover:opacity-100"></i>
                     <input type="text" class="opt-name w-full bg-transparent text-white font-black text-[11px] outline-none focus:text-blue-400" placeholder="np. Ciasto Grube" value="${name}">
                 </div>
-                <div class="col-span-4 flex flex-col gap-1">
+                <div class="col-span-4 flex flex-col gap-1 lock-opt-name">
                     <input type="text" class="opt-ascii w-full bg-black/50 border border-white/10 text-slate-400 rounded p-2 text-[10px] focus:border-blue-500 outline-none font-mono uppercase ${isEdit ? 'cursor-not-allowed opacity-50' : ''}" placeholder="OPT_GRUBE" value="${asciiKey}" ${isEdit ? 'disabled' : ''}>
                 </div>
                 <div class="col-span-3 flex items-center justify-end gap-2">
-                    <input type="number" step="0.01" class="opt-price bg-black/40 p-2 rounded-lg text-blue-400 w-24 text-right font-black border border-white/5 outline-none transition-colors" placeholder="0.00" value="${price}">
-                    <span class="text-[8px] font-black text-slate-500">PLN</span>
+                    <div class="grid grid-cols-3 gap-1 w-full">
+                        <div class="flex flex-col gap-1">
+                            <span class="text-[7px] font-black text-slate-500 text-center">POS</span>
+                            <input type="number" step="0.01" class="opt-price-tier opt-price-pos bg-black/40 p-1.5 rounded text-blue-400 w-full text-right font-black border border-white/5 outline-none transition-colors text-[10px]" placeholder="0.00" value="${pricePos}">
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <span class="text-[7px] font-black text-slate-500 text-center">TAK</span>
+                            <input type="number" step="0.01" class="opt-price-tier opt-price-takeaway bg-black/40 p-1.5 rounded text-blue-400 w-full text-right font-black border border-white/5 outline-none transition-colors text-[10px]" placeholder="0.00" value="${priceTakeaway}">
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <span class="text-[7px] font-black text-slate-500 text-center">DEL</span>
+                            <input type="number" step="0.01" class="opt-price-tier opt-price-delivery bg-black/40 p-1.5 rounded text-blue-400 w-full text-right font-black border border-white/5 outline-none transition-colors text-[10px]" placeholder="0.00" value="${priceDelivery}">
+                        </div>
+                    </div>
                 </div>
-                <div class="col-span-1 text-right flex flex-col items-end gap-2">
-                    <button type="button" onclick="this.closest('.mod-option-row').remove()" class="text-slate-600 hover:text-red-500 transition px-2" title="Usuń z grupy"><i class="fa-solid fa-trash-can"></i></button>
-                    <button type="button" onclick="window.ModifierInspector.toggleAdvanced(this)" class="text-[8px] uppercase font-bold text-slate-500 hover:text-blue-400 transition" title="Logika Magazynowa"><i class="fa-solid fa-gear"></i></button>
+                <div class="col-span-1 text-right flex flex-col items-end gap-2 lock-opt-warehouse">
+                    <button type="button" onclick="this.closest('.mod-option-row').remove()" class="opt-remove-btn text-slate-600 hover:text-red-500 transition px-2" title="Usuń z grupy"><i class="fa-solid fa-trash-can"></i></button>
+                    <button type="button" onclick="window.ModifierInspector.toggleAdvanced(this)" class="opt-advanced-btn text-[8px] uppercase font-bold text-slate-500 hover:text-blue-400 transition" title="Logika Magazynowa"><i class="fa-solid fa-gear"></i></button>
                 </div>
             </div>
 
@@ -272,7 +372,7 @@ window.ModifierInspector = {
                     <label class="text-[8px] font-black uppercase text-slate-400">Domyślnie wybrane na POS</label>
                 </div>
                 
-                <div class="col-span-3">
+                <div class="col-span-3 lock-opt-warehouse">
                     <label class="block text-[8px] font-black uppercase text-slate-500 mb-1">Akcja Magazynowa</label>
                     <select class="opt-action w-full bg-black/50 border border-white/10 text-white text-[9px] rounded p-2 outline-none cursor-pointer" onchange="window.ModifierInspector.handleActionChange(this)">
                         <option value="NONE" ${actionType==='NONE'?'selected':''}>Tylko Tekst (NONE)</option>
@@ -281,20 +381,23 @@ window.ModifierInspector = {
                     </select>
                 </div>
 
-                <div class="col-span-4">
+                <div class="col-span-4 lock-opt-warehouse">
                     <label class="block text-[8px] font-black uppercase text-slate-500 mb-1">Powiązany Surowiec</label>
                     <select class="opt-sku w-full bg-black/50 border border-white/10 text-white text-[9px] rounded p-2 outline-none font-mono ${actionType==='NONE' ? 'opacity-30 cursor-not-allowed' : ''}" ${actionType==='NONE' ? 'disabled' : ''}>
                         ${skuOptions}
                     </select>
                 </div>
 
-                <div class="col-span-2">
-                    <label class="block text-[8px] font-black uppercase text-slate-500 mb-1">Waga (ADD)</label>
+                <div class="col-span-2 lock-opt-warehouse">
+                    <label class="block text-[8px] font-black uppercase text-slate-500 mb-1">linkedQuantity (ułamek)</label>
                     <input type="number" step="0.001" class="opt-qty w-full bg-black/50 border border-white/10 text-white text-[9px] rounded p-2 outline-none text-center ${actionType!=='ADD' ? 'opacity-30 cursor-not-allowed' : ''}" placeholder="0.000" value="${qty}" ${actionType!=='ADD' ? 'disabled' : ''}>
                 </div>
             </div>
         `;
         list.appendChild(row);
+        this.bindOptionAutoSlug(row);
+        const group = window.StudioState.modifierGroups.find(g => g.id === window.StudioState.activeModGroupId);
+        if (group && group.isLockedByHq) this.applyFranchiseShieldForGroup(true);
     },
 
     toggleAdvanced(btn) {
@@ -323,11 +426,54 @@ window.ModifierInspector = {
         }
     },
 
+    applyFranchiseShieldForGroup(isLocked) {
+        const groupSelectors = [
+            '#mod-group-name',
+            '#mod-group-ascii',
+            '#mod-min',
+            '#mod-max',
+            '#mod-free-limit',
+            '#mod-multi-qty',
+            '#mod-publication-status',
+            '#mod-valid-from',
+            '#mod-valid-to'
+        ];
+
+        groupSelectors.forEach(selector => {
+            const el = document.querySelector(selector);
+            if (!el) return;
+            el.disabled = !!isLocked;
+            if (isLocked) {
+                el.classList.add('opacity-50', 'cursor-not-allowed', 'pointer-events-none');
+            } else {
+                el.classList.remove('opacity-50', 'cursor-not-allowed', 'pointer-events-none');
+            }
+        });
+
+        document.querySelectorAll('.mod-option-row').forEach(row => {
+            row.querySelectorAll('.lock-opt-name, .lock-opt-warehouse').forEach(block => {
+                if (isLocked) block.classList.add('pointer-events-none', 'opacity-50');
+                else block.classList.remove('pointer-events-none', 'opacity-50');
+            });
+
+            row.querySelectorAll('.opt-name, .opt-ascii, .opt-action, .opt-sku, .opt-qty, .opt-default').forEach(input => {
+                if (input) input.disabled = !!isLocked;
+            });
+        });
+
+        const addBtn = document.getElementById('btn-add-option-row');
+        if (addBtn) {
+            addBtn.disabled = !!isLocked;
+            if (isLocked) addBtn.classList.add('opacity-50', 'pointer-events-none', 'cursor-not-allowed');
+            else addBtn.classList.remove('opacity-50', 'pointer-events-none', 'cursor-not-allowed');
+        }
+    },
+
     quickAdjust(type) {
         const val = parseFloat(document.getElementById('quick-mod-price').value) || 0;
         if(val === 0 && type !== 'set') return;
         
-        document.querySelectorAll('.opt-price').forEach(input => {
+        document.querySelectorAll('.opt-price-tier').forEach(input => {
             let current = parseFloat(input.value) || 0;
             if(type === 'add') current += val;
             if(type === 'sub') current = Math.max(0, current - val);
@@ -359,6 +505,9 @@ window.ModifierInspector = {
         const maxSelection = parseInt(document.getElementById('mod-max').value) || 1;
         const freeLimit = parseInt(document.getElementById('mod-free-limit').value) || 0;
         const multiQty = document.getElementById('mod-multi-qty').checked;
+        const publicationStatus = document.getElementById('mod-publication-status').value || 'Draft';
+        const validFrom = document.getElementById('mod-valid-from').value || '';
+        const validTo = document.getElementById('mod-valid-to').value || '';
 
         if (!groupName) { alert("Nazwa grupy jest wymagana!"); return; }
         if (!groupAsciiKey) { alert("SKU Grupy jest wymagane i nie może zawierać polskich znaków ani spacji!"); return; }
@@ -372,7 +521,9 @@ window.ModifierInspector = {
             const name = row.querySelector('.opt-name').value.trim();
             const rawAscii = row.querySelector('.opt-ascii').value;
             const cleanAscii = rawAscii.replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
-            const price = parseFloat(row.querySelector('.opt-price').value) || 0.00;
+            const pricePos = parseFloat(row.querySelector('.opt-price-pos').value) || 0.00;
+            const priceTakeaway = parseFloat(row.querySelector('.opt-price-takeaway').value) || 0.00;
+            const priceDelivery = parseFloat(row.querySelector('.opt-price-delivery').value) || 0.00;
             
             const isDefault = row.querySelector('.opt-default').checked;
             const actionType = row.querySelector('.opt-action').value;
@@ -382,11 +533,13 @@ window.ModifierInspector = {
             if (!name || !cleanAscii) return; 
 
             if (typeof window.SliceValidator !== 'undefined') {
-                const valResult = window.SliceValidator.validatePrice(price);
-                if (valResult && valResult.error) {
-                    alert(`Błąd ceny w opcji "${name}": ` + valResult.message);
-                    hasValidationError = true;
-                }
+                [pricePos, priceTakeaway, priceDelivery].forEach(channelPrice => {
+                    const valResult = window.SliceValidator.validatePrice(channelPrice);
+                    if (valResult && valResult.error) {
+                        alert(`Błąd ceny w opcji "${name}": ` + valResult.message);
+                        hasValidationError = true;
+                    }
+                });
             }
 
             if (actionType !== 'NONE' && !linkedSku) {
@@ -395,8 +548,18 @@ window.ModifierInspector = {
             }
 
             options.push({ 
-                id, name, asciiKey: cleanAscii, price, 
-                isDefault, actionType, linkedWarehouseSku: linkedSku, linkedQuantity: linkedQty 
+                id,
+                name,
+                asciiKey: cleanAscii,
+                priceTiers: [
+                    { channel: 'POS', price: pricePos },
+                    { channel: 'Takeaway', price: priceTakeaway },
+                    { channel: 'Delivery', price: priceDelivery }
+                ],
+                isDefault,
+                actionType,
+                linkedWarehouseSku: linkedSku,
+                linkedQuantity: parseFloat(linkedQty)
             });
         });
 
@@ -414,6 +577,9 @@ window.ModifierInspector = {
             maxSelection: maxSelection,
             freeLimit: freeLimit,
             allowMultiQty: multiQty,
+            publicationStatus: publicationStatus,
+            validFrom: validFrom,
+            validTo: validTo,
             options: options
         };
 
@@ -434,6 +600,42 @@ window.ModifierInspector = {
                     document.getElementById('mod-group-ascii').disabled = true;
                     document.getElementById('mod-group-ascii').classList.add('opacity-50', 'cursor-not-allowed');
                 }
+
+                if (groupId === 0) {
+                    const newGroupId = (result.payload && result.payload.groupId) ? parseInt(result.payload.groupId, 10) : 0;
+                    if (newGroupId > 0) {
+                        window.StudioState.modifierGroups.push({
+                            id: newGroupId,
+                            name: groupName,
+                            asciiKey: groupAsciiKey,
+                            min: minSelection,
+                            max: maxSelection,
+                            freeLimit: freeLimit,
+                            multiQty: multiQty,
+                            publicationStatus: publicationStatus,
+                            validFrom: validFrom,
+                            validTo: validTo,
+                            options: options
+                        });
+                        window.StudioState.activeModGroupId = newGroupId;
+                    }
+                } else {
+                    const existingGroup = window.StudioState.modifierGroups.find(g => g.id === groupId);
+                    if (existingGroup) {
+                        existingGroup.name = groupName;
+                        existingGroup.asciiKey = groupAsciiKey;
+                        existingGroup.min = minSelection;
+                        existingGroup.max = maxSelection;
+                        existingGroup.freeLimit = freeLimit;
+                        existingGroup.multiQty = multiQty;
+                        existingGroup.publicationStatus = publicationStatus;
+                        existingGroup.validFrom = validFrom;
+                        existingGroup.validTo = validTo;
+                        existingGroup.options = options;
+                    }
+                }
+
+                window.ModifierInspector.renderGroupList();
             } else {
                 alert("Błąd API: " + result.message);
                 btn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-2"></i> Zapisz Grupę';
