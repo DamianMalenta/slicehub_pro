@@ -1,0 +1,32 @@
+htdocs/slicehub/
+│
+├── Baza_Projektu_SliceHub_PRO.txt      <-- (Twoje notatki operacyjne)
+├── Kronika operacyjna projektu v1.txt  <-- (Twoje notatki operacyjne)
+├── Transformacja prototypu.txt         <-- (Twoje notatki operacyjne)
+│
+├── core/                               <-- 🔴 SERCE SYSTEMU (Wspólne dla wszystkich)
+│   ├── db_config.php                   <-- Ustawienia nowej bazy (slicehub_pro_v2)
+│   └── core_validator.js               <-- Strażnik jakości (RegEx, jednostki)
+│
+├── api/                                <-- 🟡 BACKEND (ZERO PLIKÓW LUZEM!)
+│   ├── backoffice/                     <-- [TWÓJ GŁÓWNY SILOS ZARZĄDZANIA]
+│   │   ├── api_menu_studio.php         <-- Gotowe
+│   │   ├── api_recipes.php             <-- PRZENIEŚ TUTAJ!
+│   │   ├── api_inventory.php           <-- PRZENIEŚ TUTAJ!
+│   │   ├── api_manager.php             <-- PRZENIEŚ TUTAJ!
+│   │   └── api_mapping.php             <-- PRZENIEŚ TUTAJ!
+│   │
+│   ├── frontline/                      <-- (Silos na przyszłość: Kelner, KDS, QR Menu)
+│   └── supply_chain/                   <-- (Silos na przyszłość: Magazyn i Dostawcy)
+│
+└── modules/                            <-- 🔵 FRONTEND (Aplikacje dla użytkownika)
+    ├── warehouse/                      <-- (Stary prototyp magazynu)
+    └── studio/                         <-- [TWÓJ OBECNY PLAC BOJU]
+        ├── index.html                  <-- Interfejs, w którym działamy
+        └── js/
+            ├── studio_ui.js            <-- Interfejs (camelCase)
+            ├── studio_core.js          <-- Mózg (Ścieżki: '../../api/backoffice/...')
+            ├── studio_recipe.js        <-- Twój Bliźniak Cyfrowy
+            ├── studio_item.js          <-- Twój edytor dań
+            ├── studio_bulk.js          <-- Zmiany masowe
+            └── studio_modifiers.js     <-- Moduł dodatków

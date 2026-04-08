@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SliceHub - Centrala Magazynowa</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="../../core/core_validator.js"></script>
+
+    <style>
+        body { font-family: 'Montserrat', sans-serif; background-color: #050505; color: white; }
+        .glass { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); }
+        .glass-panel { background: linear-gradient(145deg, rgba(20,20,20,0.8) 0%, rgba(5,5,5,0.9) 100%); border: 1px solid rgba(255,255,255,0.05); box-shadow: inset 0 0 20px rgba(0,0,0,0.5); }
+        
+        .negative-stock { color: #ef4444; font-weight: 900; text-shadow: 0 0 10px rgba(239, 68, 68, 0.3); }
+        .positive-stock { color: #22c55e; font-weight: 900; text-shadow: 0 0 10px rgba(34, 197, 94, 0.3); }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { height: 6px; width: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(59, 130, 246, 0.5); }
+    </style>
+</head>
+<body class="p-6 md:p-10 overflow-x-hidden">
+
+    <header class="mb-10 flex justify-between items-end">
+        <div>
+            <h2 class="text-4xl font-black italic uppercase tracking-tighter">Centrala Magazynowa</h2>
+            <div class="flex items-center gap-4 mt-2">
+                <p class="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Zarządzanie Asortymentem i Matryca Stanów</p>
+                <div class="inline-flex items-center gap-2 bg-blue-900/20 text-blue-400 px-3 py-1 rounded-full border border-blue-500/30 text-[10px] font-bold uppercase tracking-widest">
+                    <i class="fa-solid fa-microchip animate-pulse"></i> Zabezpieczone Walidatorem
+                </div>
+            </div>
+        </div>
+        <button onclick="init()" class="bg-black hover:bg-white/5 text-slate-300 px-6 py-3 rounded-xl font-black uppercase text-xs transition border border-white/10 shadow-lg">
+            <i class="fa-solid fa-rotate-right mr-2 text-blue-500"></i> Odśwież Matrycę
+        </button>
+    </header>
+
+    <div class="glass-panel p-8 rounded-3xl mb-8 relative overflow-hidden group">
+        <div class="absolute top-0 left-0 w-1 h-full bg-blue-600 shadow-[0_0_15px_rgba(37,99,235,0.8)]"></div>
+        <h3 class="text-sm font-black uppercase tracking-widest mb-6 text-slate-300"><i class="fa-solid fa-box-open mr-2 text-blue-500"></i> Dodaj Nowy Surowiec do Bazy</h3>
+        
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+            <div class="md:col-span-2">
+                <label class="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 flex justify-between">
+                    <span>Nazwa Surowca</span> <span class="text-blue-500">UTF-8</span>
+                </label>
+                <input type="text" id="new-item-name" placeholder="np. Mąka Pszenna Typ 500" class="w-full bg-black border border-white/10 rounded-xl p-4 text-sm font-bold text-white outline-none focus:border-blue-500 transition shadow-inner">
+            </div>
+            <div>
+                <label class="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 flex justify-between">
+                    <span>Jednostka Bazowa</span> <span class="text-red-500"><i class="fa-solid fa-lock"></i> Strict</span>
+                </label>
+                <select id="new-item-unit" class="w-full bg-black border border-white/10 rounded-xl p-4 text-sm font-bold text-white outline-none focus:border-blue-500 cursor-pointer appearance-none shadow-inner transition">
+                    </select>
+            </div>
+            <button onclick="createItem()" class="bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-xl font-black uppercase tracking-wider text-xs transition shadow-[0_0_20px_rgba(37,99,235,0.3)]">
+                Dodaj
+            </button>
+        </div>
+    </div>
+<div class="glass p-8 rounded-3xl overflow-x-auto border border-white/5">
+        <table class="w-full text-left border-collapse min-w-max">
+            <thead>
+                <tr id="matrix-head" class="border-b border-white/10 text-[10px] uppercase text-slate-500 tracking-widest">
+                    <th class="pb-4 pr-4">Zidentyfikowany Produkt</th>
+                    <th class="pb-4 pr-4 text-center">J.m.</th>
+                    </tr>
+            </thead>
+            <tbody id="matrix-body">
+                <tr><td colspan="5" class="py-10 text-center text-slate-500 font-bold uppercase text-xs tracking-widest"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i> Trwa ładowanie matrycy...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // 🛡️ Komunikacja z API Magazynu (Zaktualizowana ścieżka)
+        async function api(action, payload = {}) {
+            payload.action = action;
+            try {
+                const res = await fetch('../../api/api_inventory.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                return await res.json();
+            } catch (err) {
+                console.error("API Error:", err);
+                return { status: 'error', error: 'Błąd połączenia z serwerem.' };
+            }
+        }
+
+        // 🧠 Ładowanie twardego słownika jednostek z Mózgu (Walidatora)
+        function loadUnitDictionary() {
+            const unitSelect = document.getElementById('new-item-unit');
+            const units = SliceValidator.units;
+            
+            let options = '<option value="">-- Wybierz Jednostkę --</option>';
+            for (const [key, data] of Object.entries(units)) {
+                // Pokazujemy tylko jednostki o proporcji 1 (bazowe) - np. kg, l, szt, a ukrywamy g, ml
+                if (data.ratio === 1) {
+                    options += `<option value="${key}">${data.label} (${key})</option>`;
+                }
+            }
+            unitSelect.innerHTML = options;
+        }
+
+        // 🟢 Tworzenie Nowego Surowca
+        async function createItem() {
+            const nameInput = document.getElementById('new-item-name');
+            const unitInput = document.getElementById('new-item-unit');
+            
+            const name = nameInput.value.trim();
+            const unit = unitInput.value;
+
+            if (!name || !unit) {
+                alert("Wypełnij nazwę i wybierz jednostkę bazową!");
+                return;
+            }
+
+            // Oczyszczanie przed wstrzyknięciem (XSS protection)
+            const safeName = name.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+            const res = await api('create_product', { 
+                name: safeName, 
+                unit: unit 
+            });
+
+            if (res.status === 'success') {
+                nameInput.value = '';
+                unitInput.value = '';
+                init(); // Przeładowanie matrycy, aby pokazać nowy produkt
+            } else {
+                alert("Błąd zapisu surowca: " + (res.error || "Nieznany błąd"));
+            }
+        }
+
+        // 🟢 Inicjalizacja Matrycy Stanów
+        async function init() {
+            const tbody = document.getElementById('matrix-body');
+            tbody.innerHTML = `<tr><td colspan="5" class="py-10 text-center text-blue-500 font-bold uppercase text-xs tracking-widest"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Odświeżanie Matrycy...</td></tr>`;
+
+            const res = await api('get_stock_matrix');
+            
+            if (res.status === 'success') {
+                const { products, warehouses, stocks } = res.payload;
+                
+                // 1. Budowanie nagłówków (Kolumny magazynów)
+                const thead = document.getElementById('matrix-head');
+                let headHtml = `<th class="pb-4 pr-4">Zidentyfikowany Produkt</th><th class="pb-4 pr-4 text-center">J.m.</th>`;
+                warehouses.forEach(w => {
+                    headHtml += `<th class="pb-4 text-center text-blue-500"><i class="fa-solid fa-warehouse mr-2 text-[10px]"></i>${w.name}</th>`;
+                });
+                thead.innerHTML = headHtml;
+
+                // 2. Budowanie wierszy (Produkty i ich stany)
+                let bodyHtml = '';
+
+                if (products.length === 0) {
+                    bodyHtml = `<tr><td colspan="${warehouses.length + 2}" class="py-10 text-center text-slate-500 font-bold uppercase text-xs">Brak surowców w bazie. Dodaj pierwszy powyżej.</td></tr>`;
+                } else {
+                    products.forEach(p => {
+                        bodyHtml += `<tr class="border-b border-white/5 hover:bg-white/5 transition group">
+                                        <td class="py-4 pr-4 font-bold text-xs uppercase text-slate-200 tracking-wide">${p.name}</td>
+                                        <td class="py-4 pr-4 text-center text-slate-500 text-[10px] font-black uppercase bg-black/20 rounded-lg">${p.unit}</td>`;
+                        
+                        // Szukanie stanu dla każdego magazynu
+                        warehouses.forEach(w => {
+                            const stockEntry = stocks.find(s => s.product_id === p.id && s.warehouse_id === w.id);
+                            const qty = stockEntry ? parseFloat(stockEntry.quantity).toFixed(3) : "0.000";
+                            
+                            let colorClass = "text-slate-500"; // Pusty stan
+                            if(qty < 0) colorClass = "negative-stock";
+                            if(qty > 0) colorClass = "positive-stock";
+
+                            bodyHtml += `<td class="py-4 text-center text-sm font-mono ${colorClass} group-hover:bg-black/30 transition">${qty}</td>`;
+                        });
+                        
+                        bodyHtml += `</tr>`;
+                    });
+                }
+
+                tbody.innerHTML = bodyHtml;
+            } else {
+                tbody.innerHTML = `<tr><td colspan="5" class="py-10 text-center text-red-500 font-bold uppercase text-xs"><i class="fa-solid fa-triangle-exclamation mr-2"></i> Błąd pobierania danych z serwera.</td></tr>`;
+                console.error("Błąd API:", res.error);
+            }
+        }
+
+        // Uruchomienie procedur startowych
+        loadUnitDictionary();
+        init();
+    </script>
+</body>
+</html>

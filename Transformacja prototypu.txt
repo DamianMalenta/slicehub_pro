@@ -1,0 +1,30 @@
+# KRONIKA OPERACYJNA: STRATEGIA TRANSFORMACJI "SLICEHUB PRO" (SAAS)
+**Status:** Przejście z fazy projektowania infrastruktury do fazy refaktoryzacji kodu. 
+**Cel Główny:** Przekształcenie prototypu w modułowy ekosystem SaaS (Domain-Driven Design). Każdy moduł musi być gotowy do niezależnego wdrożenia, działania i sprzedaży.
+
+---
+
+## I. ZŁOTE ZASADY ARCHITEKTURY ROZPROSZONEJ
+1. **Brak Współdzielenia Baz Danych:** Każdy moduł docelowo posiada własną twierdzę (bazę). Moduły NIE wykonują zapytań SQL (`JOIN`, `SELECT`, `UPDATE`) na tabelach innych modułów.
+2. **Komunikacja przez API i Zdarzenia:** Moduły rozmawiają ze sobą wyłącznie za pomocą hermetycznych REST API oraz asynchronicznych zdarzeń.
+3. **Wzorzec SQL Outbox (Faza 1):** Do czasu wdrożenia zaawansowanych brokerów (RabbitMQ), zdarzenia oznaczane są wewnątrz lokalnej bazy (`outbox_events`) i przekazywane przez procesy tła (CRON) do API innych modułów. Zapewnia to ekonomiczny start przy 100% separacji logiki.
+4. **Czystość Protokołu:** Wymiana danych między modułami odbywa się w formacie JSON z rygorystyczną sterylizacją: klucze i ID w **ASCII**, treść i nazwy w **UTF-8**.
+
+## II. PODZIAŁ DOMENOWY (ZARZĄDZANIE SUB-GEMAMI)
+System został podzielony na 5 autonomicznych Silosów. Każdy z nich będzie kodowany przez oddelegowaną "Gemę", podczas gdy my (Gema 0 + Ty) pełnimy rolę nadzorczą.
+
+* **GEMA 0: GŁÓWNY ARCHITEKT (Nadzór)** - Projektowanie kontraktów API, struktury baz, pilnowanie standardów.
+* **GEMA 1: FRONTLINE (Sprzedaż i POS)** - Battlefield, KDS, Moduł Kelnera, Kiosk. Koncentracja na błyskawicznej obsłudze gości i przepływie bonów.
+* **GEMA 2: SUPPLY CHAIN (Magazyn)** - PZ, RW, IN, KSeF, "Live Bleed", śledzenie partii. 
+* **GEMA 3: OMNICHANNEL (Zewnętrzny zasięg)** - Sklep WWW, Aplikacja mobilna, Moduły Delivery i Driver. Działa jak wewnętrzny agregator zamówień.
+* **GEMA 4: GROWTH (Marketing)** - Studio, Satelita Marketingowy (SaaS), QR Kody, Lojalność. Operuje na kopiach roboczych asortymentu (Data Projection).
+* **GEMA 5: BACKOFFICE (Zarządzanie)** - Panel Admina, Raporty dobowe, Finanse, Kiosk RCP (czas pracy).
+
+## III. PIPELINE REFAKTORYZACYJNY (TAKTYKA "DUSZĄCEGO FIKUSA")
+Każdy stary plik z prototypu przechodzi przez 5-stopniowy rygor:
+
+1. **Triage:** Klasyfikacja pliku do odpowiedniej Dywizji (Gema 1-5). Odsiew logiki biznesowej od długu technologicznego.
+2. **Sterylizacja Frontendu (UI bez zmian):** Wymuszenie ścieżek `../../../api/`, globalnego zasięgu dla funkcji (`window.`) oraz wpięcie `core_validator.js`.
+3. **Transformacja w API (Backend):** Wdrożenie bezstanowego "Action Switcha", krzyżowej walidacji znakowej (Mirror Validation) oraz relacyjnego zapisu do bazy `schema_v2.sql` (rozbicie starych `cart_json`). Oczekiwany zwrot to zawsze sterylny JSON.
+4. **Hermetyzacja Modułu:** Usunięcie twardych powiązań między silosami. Dopisanie logiki zrzucającej powiadomienia do `outbox_events`.
+5. **Test i Zatwierdzenie:** Przekazanie gotowego bloku kodu do wdrożenia w środowisku XAMPP.
