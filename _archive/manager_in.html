@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SliceHub - Inwentaryzacja IN (Ultimate)</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="../core/js/api_client.js"></script>
+    <script src="../core/js/core_validator.js"></script>
+
+    <style>
+        body { font-family: 'Montserrat', sans-serif; background-color: #050505; color: white; -webkit-tap-highlight-color: transparent; }
+        .glass { background: rgba(255, 255, 255, 0.02); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        
+        /* Custom Scrollbar pod tabelę Maximum Pro */
+        ::-webkit-scrollbar { height: 6px; width: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        ::-webkit-scrollbar-thumb { background: rgba(245, 158, 11, 0.5); border-radius: 10px; }
+
+        /* Style dla ukrytych danych w Blind Mode */
+        .blind-mode-active .sys-qty { filter: blur(4px); user-select: none; opacity: 0.5; }
+        .blind-mode-active .diff-col { display: none; }
+    </style>
+</head>
+<body class="h-screen flex flex-col font-sans overflow-hidden">
+
+    <header class="p-6 flex justify-between items-center border-b border-white/5 bg-[#0a0a0a]">
+        <div>
+            <h1 class="text-2xl font-black italic text-amber-500 tracking-tighter uppercase">
+                <i class="fa-solid fa-clipboard-check mr-2"></i> IN - Inwentaryzacja
+            </h1>
+            <p class="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] mt-1">Wyrównanie i kontrola stanów magazynowych</p>
+        </div>
+        <div class="flex gap-4">
+            <div class="inline-flex items-center gap-2 bg-amber-900/20 text-amber-400 px-4 py-2 rounded-xl border border-amber-500/30 text-[10px] font-bold uppercase tracking-widest" id="validator-status">
+                <i class="fa-solid fa-microchip animate-pulse"></i> Validator Aktywny
+            </div>
+            <button onclick="window.location.href='settings_magazyn.html'" class="glass px-6 py-2 rounded-xl text-xs font-bold uppercase tracking-widest text-slate-300 hover:text-white transition hover:bg-white/5 border border-white/10">
+                <i class="fa-solid fa-arrow-left mr-2"></i> Matryca
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 overflow-y-auto hide-scrollbar p-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
+        
+        <div class="glass p-6 rounded-3xl h-fit border-t-4 border-t-amber-500 flex flex-col gap-6">
+            <div>
+                <h3 class="text-sm font-black uppercase tracking-widest text-white"><i class="fa-solid fa-sliders mr-2 text-amber-500"></i> Logika Spisu</h3>
+                <p class="text-[10px] text-slate-500 mt-1 uppercase font-bold tracking-widest">Wymuś reguły liczenia</p>
+            </div>
+
+            <div class="space-y-3">
+                <div class="flex justify-between items-center p-3 bg-black/40 rounded-xl border border-white/5 cursor-pointer hover:border-amber-500/30 transition" onclick="toggleBlindMode()">
+                    <span class="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Inwentaryzacja Ślepa</span>
+                    <i id="icon-blind" class="fa-solid fa-toggle-on text-amber-500 text-xl transition-colors"></i>
+                </div>
+                <div class="flex justify-between items-center p-3 bg-black/40 rounded-xl border border-white/5 cursor-pointer hover:border-amber-500/30 transition" onclick="toggleOption(this)">
+                    <span class="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Generuj logi (RW/PW)</span>
+                    <i class="fa-solid fa-toggle-on text-amber-500 text-xl"></i>
+                </div>
+                <div class="flex justify-between items-center p-3 bg-black/40 rounded-xl border border-white/5 cursor-pointer hover:border-amber-500/30 transition" onclick="toggleOption(this)">
+                    <span class="text-[10px] font-bold text-slate-300 uppercase tracking-wider">Autoryzacja różnic > 100 zł</span>
+                    <i class="fa-solid fa-toggle-on text-amber-500 text-xl"></i>
+                </div>
+            </div>
+
+            <div class="pt-4 border-t border-white/5">
+                <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2 block">Numer Dokumentu IN</label>
+                <input type="text" id="doc_number" oninput="this.value = SliceValidator.sanitizeKey(this.value)" placeholder="IN_2026_01" class="w-full bg-black/50 border border-white/10 text-white rounded-xl p-4 outline-none focus:border-amber-500 font-bold uppercase transition">
+            </div>
+
+            <div>
+                <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2 block">Magazyn</label>
+                <select id="warehouse_id" onchange="loadInventoryData()" class="w-full bg-black/50 border border-white/10 text-amber-400 rounded-xl p-4 outline-none focus:border-amber-500 font-bold uppercase appearance-none cursor-pointer transition">
+                    <option value="">Wybierz magazyn...</option>
+                </select>
+            </div>
+        </div>
+<div class="lg:col-span-3 space-y-6">
+            
+            <div class="glass p-8 rounded-3xl border border-white/5 relative overflow-hidden group">
+                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-30 transition-opacity">
+                    <i class="fa-solid fa-barcode text-6xl"></i>
+                </div>
+                
+                <h3 class="text-sm font-black uppercase tracking-widest text-slate-400 mb-6 flex justify-between items-center">
+                    <span>Arkusze Spisu z Natury</span>
+                    <span id="items-count" class="text-amber-500 bg-amber-500/10 px-3 py-1 rounded-lg border border-amber-500/20 text-[10px]">Wczytano: 0 pozycji</span>
+                </h3>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse" id="in-table">
+                        <thead>
+                            <tr class="border-b border-white/10 text-[10px] uppercase text-slate-500 tracking-widest">
+                                <th class="pb-4 pr-4">Produkt (UTF-8)</th>
+                                <th class="pb-4 pr-4 text-center sys-qty">Stan Systemowy</th>
+                                <th class="pb-4 pr-4 text-center">Stan Faktyczny (Półka)</th>
+                                <th class="pb-4 pr-4 text-center">J.m.</th>
+                                <th class="pb-4 text-right diff-col">Różnica</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventory-list" class="divide-y divide-white/5">
+                            <tr><td colspan="5" class="py-20 text-center text-slate-600 font-bold uppercase text-xs tracking-widest italic">Wybierz magazyn, aby rozpocząć liczenie...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-10 flex gap-4">
+                    <button id="btn-save" onclick="saveInventory()" class="flex-1 bg-amber-600 hover:bg-amber-500 text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] shadow-[0_0_30px_rgba(245,158,11,0.2)] transition-all relative overflow-hidden group btn-press disabled:opacity-50">
+                        <span class="relative z-10"><i class="fa-solid fa-lock mr-2"></i> Zakończ i Nadpisz Stany</span>
+                        <div class="absolute inset-0 h-full w-0 bg-white/20 group-hover:w-full transition-all duration-300 ease-out z-0"></div>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="loading-overlay" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 hidden flex flex-col justify-center items-center">
+        <i class="fa-solid fa-circle-notch fa-spin text-6xl text-amber-500 mb-6"></i>
+        <p class="font-black tracking-[0.3em] uppercase text-amber-500 text-sm animate-pulse">Przeliczanie Matrycy Magazynowej...</p>
+    </div>
+<script src="js/warehouse_in.js"></script>
+</body>
+</html>

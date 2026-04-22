@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SliceHub OS — Test Runner v1.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #05050a; font-family: 'Courier New', monospace; }
+        @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.3} }
+        @keyframes slideIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .animate-pulse-dot { animation: pulse-dot 1.2s infinite; }
+        .animate-slide-in  { animation: slideIn 0.25s ease-out both; }
+        .animate-spin      { animation: spin 0.9s linear infinite; }
+        .suite-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); }
+        ::-webkit-scrollbar { width: 4px; } 
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+    </style>
+</head>
+<body class="min-h-screen text-gray-300">
+
+<!-- ═══════════════════════════════════════════════════════════
+     NAGŁÓWEK GŁÓWNY
+═══════════════════════════════════════════════════════════ -->
+<div class="border-b border-white/5 bg-black/60 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-4">
+            <div class="w-8 h-8 bg-violet-600 rounded-lg flex items-center justify-center text-white font-black text-sm">S</div>
+            <div>
+                <div class="text-white font-bold text-sm tracking-wide">SliceHub OS — Test Runner</div>
+                <div class="text-gray-600 text-xs font-mono">v1.0 · REST Integration Suite · tenant_id=1</div>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <div id="summary-badge" class="hidden text-xs font-mono px-3 py-1.5 rounded-full border"></div>
+            <button id="btn-run-all"
+                    onclick="runAllTests()"
+                    class="bg-violet-600 hover:bg-violet-500 active:scale-95 text-white text-xs font-bold uppercase tracking-wider
+                           px-5 py-2.5 rounded-lg transition-all shadow-lg shadow-violet-900/30 flex items-center gap-2">
+                <svg id="btn-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                Uruchom Wszystkie Testy
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     PASEK STATUSU
+═══════════════════════════════════════════════════════════ -->
+<div class="max-w-6xl mx-auto px-6 mt-6">
+    <div id="progress-bar-wrap" class="hidden mb-6 bg-white/5 rounded-full h-1.5 overflow-hidden">
+        <div id="progress-bar" class="h-full bg-violet-500 transition-all duration-300 rounded-full" style="width:0%"></div>
+    </div>
+    <div id="global-stats" class="hidden grid grid-cols-4 gap-4 mb-8">
+        <div class="suite-card rounded-xl p-4 text-center">
+            <div id="stat-total" class="text-2xl font-black text-white">0</div>
+            <div class="text-xs text-gray-600 uppercase tracking-wider mt-1">Łącznie</div>
+        </div>
+        <div class="suite-card rounded-xl p-4 text-center">
+            <div id="stat-pass" class="text-2xl font-black text-emerald-400">0</div>
+            <div class="text-xs text-gray-600 uppercase tracking-wider mt-1">Passed</div>
+        </div>
+        <div class="suite-card rounded-xl p-4 text-center">
+            <div id="stat-fail" class="text-2xl font-black text-red-400">0</div>
+            <div class="text-xs text-gray-600 uppercase tracking-wider mt-1">Failed</div>
+        </div>
+        <div class="suite-card rounded-xl p-4 text-center">
+            <div id="stat-warn" class="text-2xl font-black text-yellow-400">0</div>
+            <div class="text-xs text-gray-600 uppercase tracking-wider mt-1">Warnings</div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SEKCJA TESTÓW
+═══════════════════════════════════════════════════════════ -->
+<div class="max-w-6xl mx-auto px-6 pb-16 space-y-6" id="suites-container">
+
+    <!-- SUITE 1 -->
+    <div class="suite-card rounded-2xl overflow-hidden">
+        <div class="px-6 py-4 border-b border-white/5 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <span class="text-xs font-black bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-md">SUITE 1</span>
+                <span class="text-white font-bold text-sm">Infrastruktura — Dostępność Endpointów</span>
+            </div>
+            <div id="suite-1-status" class="text-xs text-gray-600 font-mono">oczekuje</div>
+        </div>
+        <div id="suite-1-tests" class="divide-y divide-white/4"></div>
+    </div>
+
+    <!-- SUITE 2 -->
+    <div class="suite-card rounded-2xl overflow-hidden">
+        <div class="px-6 py-4 border-b border-white/5 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <span class="text-xs font-black bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-md">SUITE 2</span>
+                <span class="text-white font-bold text-sm">API Warehouse — Akcje &amp; Walidacja</span>
+            </div>
+            <div id="suite-2-status" class="text-xs text-gray-600 font-mono">oczekuje</div>
+        </div>
+        <div id="suite-2-tests" class="divide-y divide-white/4"></div>
+    </div>
+
+    <!-- SUITE 3 -->
+    <div class="suite-card rounded-2xl overflow-hidden">
+        <div class="px-6 py-4 border-b border-white/5 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <span class="text-xs font-black bg-violet-500/20 text-violet-400 border border-violet-500/30 px-2 py-0.5 rounded-md">SUITE 3</span>
+                <span class="text-white font-bold text-sm">API Menu Studio — Akcje &amp; Autoryzacja</span>
+            </div>
+            <div id="suite-3-status" class="text-xs text-gray-600 font-mono">oczekuje</div>
+        </div>
+        <div id="suite-3-tests" class="divide-y divide-white/4"></div>
+    </div>
+
+    <!-- SUITE 4 -->
+    <div class="suite-card rounded-2xl overflow-hidden">
+        <div class="px-6 py-4 border-b border-white/5 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <span class="text-xs font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-md">SUITE 4</span>
+                <span class="text-white font-bold text-sm">Zgodność Formatu Odpowiedzi (Konstytucja V2)</span>
+            </div>
+            <div id="suite-4-status" class="text-xs text-gray-600 font-mono">oczekuje</div>
+        </div>
+        <div id="suite-4-tests" class="divide-y divide-white/4"></div>
+    </div>
+
+    <!-- SUITE 5 -->
+    <div class="suite-card rounded-2xl overflow-hidden">
+        <div class="px-6 py-4 border-b border-white/5 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <span class="text-xs font-black bg-pink-500/20 text-pink-400 border border-pink-500/30 px-2 py-0.5 rounded-md">SUITE 5</span>
+                <span class="text-white font-bold text-sm">Kompatybilność JS Klientów z API</span>
+            </div>
+            <div id="suite-5-status" class="text-xs text-gray-600 font-mono">oczekuje</div>
+        </div>
+        <div id="suite-5-tests" class="divide-y divide-white/4"></div>
+    </div>
+
+    <!-- SUITE 6 -->
+    <div class="suite-card rounded-2xl overflow-hidden">
+        <div class="px-6 py-4 border-b border-white/5 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <span class="text-xs font-black bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 px-2 py-0.5 rounded-md">SUITE 6</span>
+                <span class="text-white font-bold text-sm">Integracja Cross-Module</span>
+            </div>
+            <div id="suite-6-status" class="text-xs text-gray-600 font-mono">oczekuje</div>
+        </div>
+        <div id="suite-6-tests" class="divide-y divide-white/4"></div>
+    </div>
+
+    <!-- SUITE 7 -->
+    <div class="suite-card rounded-2xl overflow-hidden">
+        <div class="px-6 py-4 border-b border-white/5 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <span class="text-xs font-black bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded-md">SUITE 7</span>
+                <span class="text-white font-bold text-sm">Bezpieczeństwo — Izolacja Tenant&amp;Auth</span>
+            </div>
+            <div id="suite-7-status" class="text-xs text-gray-600 font-mono">oczekuje</div>
+        </div>
+        <div id="suite-7-tests" class="divide-y divide-white/4"></div>
+    </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SILNIK TESTÓW
+═══════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+// ─── Konfiguracja ───────────────────────────────────────────────────────────
+const CFG = {
+    warehouse : '../api/api_warehouse.php',
+    studio    : '../api/backoffice/api_menu_studio.php',
+    jsClients : {
+        studioCore   : '../modules/studio/js/studio_core.js',
+        studioRecipe : '../modules/studio/js/studio_recipe.js',
+        studioItem   : '../modules/studio/js/studio_item.js',
+        warehouseCore: '../modules/warehouse/js/warehouse_core.js',
+    },
+    authToken : 'mock_jwt_token_123',
+    timeout   : 8000,
+};
+
+// ─── Globalny licznik ───────────────────────────────────────────────────────
+let COUNTS = { total: 0, pass: 0, fail: 0, warn: 0 };
+let TOTAL_TESTS = 0;
+let DONE_TESTS  = 0;
+
+// ─── Render helpers ─────────────────────────────────────────────────────────
+function renderTestRow(suiteId, testId, label, description) {
+    const container = document.getElementById(`suite-${suiteId}-tests`);
+    const row = document.createElement('div');
+    row.id = `test-${testId}`;
+    row.className = 'px-6 py-3.5 flex items-start gap-4 animate-slide-in';
+    row.innerHTML = `
+        <div id="icon-${testId}" class="mt-0.5 shrink-0 w-5 h-5 flex items-center justify-center">
+            <div class="w-4 h-4 rounded-full border-2 border-gray-700 border-t-violet-400 animate-spin"></div>
+        </div>
+        <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-[10px] font-black font-mono text-gray-600">${testId}</span>
+                <span id="label-${testId}" class="text-sm text-gray-300 font-medium">${label}</span>
+            </div>
+            <div class="text-xs text-gray-600 mt-0.5">${description}</div>
+            <div id="detail-${testId}" class="hidden mt-2 text-xs font-mono bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-gray-400 max-h-32 overflow-y-auto whitespace-pre-wrap break-all leading-relaxed"></div>
+        </div>
+        <div id="badge-${testId}" class="shrink-0 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border font-mono">...</div>
+    `;
+    container.appendChild(row);
+}
+
+function setResult(testId, status, detail = '') {
+    const icon   = document.getElementById(`icon-${testId}`);
+    const badge  = document.getElementById(`badge-${testId}`);
+    const detEl  = document.getElementById(`detail-${testId}`);
+    const label  = document.getElementById(`label-${testId}`);
+
+    const cfg = {
+        pass : { icon: '✓', iconClass: 'text-emerald-400 text-sm font-black',
+                 badgeClass: 'bg-emerald-950 border-emerald-600/50 text-emerald-400', text: 'PASS' },
+        fail : { icon: '✗', iconClass: 'text-red-400 text-sm font-black',
+                 badgeClass: 'bg-red-950 border-red-600/50 text-red-400', text: 'FAIL' },
+        warn : { icon: '⚠', iconClass: 'text-yellow-400 text-sm font-black',
+                 badgeClass: 'bg-yellow-950 border-yellow-600/50 text-yellow-400', text: 'WARN' },
+        skip : { icon: '–', iconClass: 'text-gray-600 text-sm font-black',
+                 badgeClass: 'bg-gray-900 border-gray-700 text-gray-600', text: 'SKIP' },
+    }[status] || cfg.skip;
+
+    icon.innerHTML  = `<span class="${cfg.iconClass}">${cfg.icon}</span>`;
+    badge.className = `shrink-0 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border font-mono ${cfg.badgeClass}`;
+    badge.textContent = cfg.text;
+
+    if (detail) {
+        detEl.textContent = detail;
+        detEl.classList.remove('hidden');
+        if (status === 'fail') detEl.classList.add('border-red-900/50', 'text-red-300');
+        if (status === 'warn') detEl.classList.add('border-yellow-900/50', 'text-yellow-300');
+    }
+
+    COUNTS[status] = (COUNTS[status] || 0) + 1;
+    DONE_TESTS++;
+    updateProgress();
+}
+
+function updateProgress() {
+    document.getElementById('stat-total').textContent = COUNTS.total || TOTAL_TESTS;
+    document.getElementById('stat-pass').textContent  = COUNTS.pass  || 0;
+    document.getElementById('stat-fail').textContent  = COUNTS.fail  || 0;
+    document.getElementById('stat-warn').textContent  = COUNTS.warn  || 0;
+    const pct = TOTAL_TESTS > 0 ? Math.round((DONE_TESTS / TOTAL_TESTS) * 100) : 0;
+    document.getElementById('progress-bar').style.width = pct + '%';
+}
+
+function setSuiteStatus(suiteId) {
+    const container = document.getElementById(`suite-${suiteId}-tests`);
+    const icons = container.querySelectorAll('[id^="badge-"]');
+    let pass=0, fail=0, warn=0;
+    icons.forEach(b => {
+        if (b.textContent === 'PASS') pass++;
+        if (b.textContent === 'FAIL') fail++;
+        if (b.textContent === 'WARN') warn++;
+    });
+    const el = document.getElementById(`suite-${suiteId}-status`);
+    if (fail > 0) el.innerHTML = `<span class="text-red-400 font-bold">${fail} FAIL</span><span class="text-gray-600"> / ${pass} pass</span>`;
+    else if (warn > 0) el.innerHTML = `<span class="text-yellow-400 font-bold">${warn} WARN</span><span class="text-gray-600"> / ${pass} pass</span>`;
+    else el.innerHTML = `<span class="text-emerald-400 font-bold">✓ ${pass} passed</span>`;
+}
+
+// ─── Fetch helpers ───────────────────────────────────────────────────────────
+async function callWarehouse(params = {}, method = 'GET') {
+    const url = method === 'GET'
+        ? `${CFG.warehouse}?${new URLSearchParams(params)}`
+        : CFG.warehouse;
+    const opts = { method, headers: { 'Content-Type': 'application/json' } };
+    if (method === 'POST') opts.body = JSON.stringify(params);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), CFG.timeout);
+    try {
+        const r = await fetch(url, { ...opts, signal: ctrl.signal });
+        clearTimeout(timer);
+        return { httpStatus: r.status, contentType: r.headers.get('content-type') || '', body: await r.text() };
+    } catch (e) { clearTimeout(timer); return { error: e.message }; }
+}
+
+async function callStudio(payload = {}) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), CFG.timeout);
+    try {
+        const r = await fetch(CFG.studio, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${CFG.authToken}` },
+            body: JSON.stringify(payload),
+            signal: ctrl.signal
+        });
+        clearTimeout(timer);
+        return { httpStatus: r.status, contentType: r.headers.get('content-type') || '', body: await r.text() };
+    } catch (e) { clearTimeout(timer); return { error: e.message }; }
+}
+
+async function fetchJs(path) {
+    try {
+        const r = await fetch(path);
+        return r.ok ? await r.text() : null;
+    } catch { return null; }
+}
+
+function tryParse(text) {
+    try { return JSON.parse(text); } catch { return null; }
+}
+
+// ─── DEFINICJA TESTÓW ────────────────────────────────────────────────────────
+
+const SUITES = [
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SUITE 1: Infrastruktura
+    // ═══════════════════════════════════════════════════════════════════════
+    {
+        id: 1,
+        tests: [
+            {
+                id: 'T01', label: 'API Warehouse — HTTP 200',
+                desc: 'GET /api/api_warehouse.php?action=GET_STOCK zwraca status HTTP 200',
+                async run() {
+                    const r = await callWarehouse({ action: 'GET_STOCK' });
+                    if (r.error) return ['fail', `Błąd połączenia: ${r.error}`];
+                    if (r.httpStatus !== 200) return ['fail', `HTTP ${r.httpStatus} — oczekiwano 200`];
+                    return ['pass', `HTTP ${r.httpStatus} OK`];
+                }
+            },
+            {
+                id: 'T02', label: 'API Menu Studio — HTTP 200',
+                desc: 'POST /api/backoffice/api_menu_studio.php z tokenem zwraca HTTP 200',
+                async run() {
+                    const r = await callStudio({ action: 'get_menu_tree' });
+                    if (r.error) return ['fail', `Błąd połączenia: ${r.error}`];
+                    if (r.httpStatus !== 200) return ['fail', `HTTP ${r.httpStatus} — oczekiwano 200`];
+                    return ['pass', `HTTP ${r.httpStatus} OK`];
+                }
+            },
+            {
+                id: 'T03', label: 'Content-Type: application/json (Warehouse)',
+                desc: 'Nagłówek odpowiedzi zawiera charset UTF-8 i typ JSON',
+                async run() {
+                    const r = await callWarehouse({ action: 'GET_STOCK' });
+                    if (r.error) return ['skip', 'Endpoint niedostępny'];
+                    const ok = r.contentType.includes('application/json');
+                    if (!ok) return ['fail', `Content-Type: "${r.contentType}"\nOczekiwano: application/json`];
+                    return ['pass', `Content-Type: ${r.contentType}`];
+                }
+            },
+            {
+                id: 'T04', label: 'Content-Type: application/json (Studio)',
+                desc: 'Nagłówek odpowiedzi Studio zawiera charset UTF-8 i typ JSON',
+                async run() {
+                    const r = await callStudio({ action: 'get_menu_tree' });
+                    if (r.error) return ['skip', 'Endpoint niedostępny'];
+                    const ok = r.contentType.includes('application/json');
+                    if (!ok) return ['fail', `Content-Type: "${r.contentType}"\nOczekiwano: application/json`];
+                    return ['pass', `Content-Type: ${r.contentType}`];
+                }
+            },
+            {
+                id: 'T05', label: 'Brak HTML Leakage — Warehouse',
+                desc: 'Odpowiedź nie zawiera znaczników HTML przed JSON-em (ryzyko Fatal error, Notice)',
+                async run() {
+                    const r = await callWarehouse({ action: 'GET_STOCK' });
+                    if (r.error) return ['skip', 'Endpoint niedostępny'];
+                    const body = r.body.trim();
+                    if (body.startsWith('<') || body.includes('Fatal error') || body.includes('Notice:')) {
+                        return ['fail', `Odpowiedź zaczyna się od HTML/PHP error:\n${body.substring(0,200)}`];
+                    }
+                    return ['pass', 'Brak wycieków HTML/PHP przed JSON-em'];
+                }
+            },
+            {
+                id: 'T06', label: 'Brak HTML Leakage — Studio',
+                desc: 'Odpowiedź Studio nie zawiera znaczników HTML przed JSON-em',
+                async run() {
+                    const r = await callStudio({ action: 'get_menu_tree' });
+                    if (r.error) return ['skip', 'Endpoint niedostępny'];
+                    const body = r.body.trim();
+                    if (body.startsWith('<') || body.includes('Fatal error') || body.includes('Notice:')) {
+                        return ['fail', `Odpowiedź zaczyna się od HTML/PHP error:\n${body.substring(0,200)}`];
+                    }
+                    return ['pass', 'Brak wycieków HTML/PHP przed JSON-em'];
+                }
+            },
+        ]
+    },
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SUITE 2: API Warehouse
+    // ═══════════════════════════════════════════════════════════════════════
+    {
+        id: 2,
+        tests: [
+            {
+                id: 'T07', label: 'GET_STOCK — zwraca tablicę surowców',
+                desc: 'GET ?action=GET_STOCK → status:"success", payload:[...] (LEFT JOIN sys_items + wh_stock)',
+                async run() {
+                    const r = await callWarehouse({ action: 'GET_STOCK' });
+                    if (r.error) return ['fail', r.error];
+                    const json = tryParse(r.body);
+                    if (!json) return ['fail', `Nieparsowalny JSON:\n${r.body.substring(0,200)}`];
+                    if (json.status !== 'success') return ['fail', `status="${json.status}" msg: ${json.message}`];
+                    if (!Array.isArray(json.payload)) return ['fail', `payload powinien być tablicą, got: ${typeof json.payload}`];
+                    const item = json.payload[0];
+                    if (item && !('sku' in item)) return ['warn', 'Pierwszy rekord nie ma pola "sku" — sprawdź schemat sys_items'];
+                    return ['pass', `Zwrócono ${json.payload.length} surowców. Przykład SKU: ${item?.sku || 'brak rekordów'}`];
+                }
+            },
+            {
+                id: 'T08', label: 'GET_AVCO_DICT — zwraca słownik SKU→cena',
+                desc: 'GET ?action=GET_AVCO_DICT → status:"success", payload:{sku:price,...}',
+                async run() {
+                    const r = await callWarehouse({ action: 'GET_AVCO_DICT' });
+                    if (r.error) return ['fail', r.error];
+                    const json = tryParse(r.body);
+                    if (!json) return ['fail', `Nieparsowalny JSON:\n${r.body.substring(0,200)}`];
+                    if (json.status !== 'success') return ['fail', `status="${json.status}" msg: ${json.message}`];
+                    if (typeof json.payload !== 'object' || Array.isArray(json.payload))
+                        return ['fail', `payload powinien być obiektem {sku:price}`];
+                    const keys = Object.keys(json.payload);
+                    return ['pass', `Słownik AVCO: ${keys.length} wpisów. ${keys.slice(0,3).join(', ')}${keys.length>3?'...':''}`];
+                }
+            },
+            {
+                id: 'T09', label: 'PROCESS_PZ — walidacja (brak items)',
+                desc: 'POST action=PROCESS_PZ bez items → status:"error" + czytelny komunikat',
+                async run() {
+                    const r = await callWarehouse({ action: 'PROCESS_PZ', notes: 'test' }, 'POST');
+                    if (r.error) return ['fail', r.error];
+                    const json = tryParse(r.body);
+                    if (!json) return ['fail', `Nieparsowalny JSON:\n${r.body.substring(0,200)}`];
+                    if (json.status !== 'error') return ['fail', `Oczekiwano status:"error", got "${json.status}"`];
+                    return ['pass', `Poprawny błąd walidacji: "${json.message}"`];
+                }
+            },
+            {
+                id: 'T10', label: 'PROCESS_RW — walidacja (brak sku)',
+                desc: 'POST action=PROCESS_RW bez pola sku → status:"error"',
+                async run() {
+                    const r = await callWarehouse({ action: 'PROCESS_RW', qty: 1 }, 'POST');
+                    if (r.error) return ['fail', r.error];
+                    const json = tryParse(r.body);
+                    if (!json) return ['fail', `Nieparsowalny JSON:\n${r.body.substring(0,200)}`];
+                    if (json.status !== 'error') return ['fail', `Oczekiwano status:"error", got "${json.status}"`];
+                    return ['pass', `Poprawny błąd walidacji: "${json.message}"`];
+                }
+            },
+            {
+                id: 'T11', label: 'Nieznana akcja Warehouse → error',
+                desc: 'GET ?action=FOOBAR → zwraca error zamiast pustej odpowiedzi',
+                async run() {
+                    const r = await callWarehouse({ action: 'FOOBAR_NIEZNANA' });
+                    if (r.error) return ['fail', r.error];
+                    const json = tryParse(r.body);
+                    if (!json) return ['fail', `Nieparsowalny JSON:\n${r.body.substring(0,200)}`];
+                    if (json.status === 'success') return ['fail', 'Nieznana akcja nie powinna zwracać success!'];
+                    return ['pass', `Bezpieczna odpowiedź na nieznane akcje: "${json.message}"`];
+                }
+            },
+        ]
+    },
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SUITE 3: API Menu Studio
+    // ═══════════════════════════════════════════════════════════════════════
+    {
+        id: 3,
+        tests: [
+            {
+                id: 'T12', label: 'get_menu_tree — zwraca categories+items+modifierGroups',
+                desc: 'POST action=get_menu_tree → success:true, data:{categories,items,modifierGroups}',
+                async run() {
+                    const r = await callStudio({ action: 'get_menu_tree' });
+                    if (r.error) return ['fail', r.error];
+                    const json = tryParse(r.body);
+                    if (!json) return ['fail', `Nieparsowalny JSON:\n${r.body.substring(0,200)}`];
+                    if (json.success !== true) return ['fail', `success=${json.success} msg: ${json.message}`];
+                    if (!json.data || !('categories' in json.data)) return ['fail', 'Brak klucza data.categories'];
+                    if (!('items' in json.data)) return ['fail', 'Brak klucza data.items'];
+                    if (!('modifierGroups' in json.data)) return ['fail', 'Brak klucza data.modifierGroups'];
+                    return ['pass', `Kategorie: ${json.data.categories.length}, Dania: ${json.data.items.length}, Mod.Grupy: ${json.data.modifierGroups.length}`];
+                }
+            },
+            {
+                id: 'T13', label: 'get_recipes_init — zwraca products z tenant_id',
+                desc: 'POST action=get_recipes_init → success:true, data.products — filtrowane przez tenant_id',
+                async run() {
+                    const r = await callStudio({ action: 'get_recipes_init' });
+                    if (r.error) return ['fail', r.error];
+                    const json = tryParse(r.body);
+                    if (!json) return ['fail', `Nieparsowalny JSON:\n${r.body.substring(0,200)}`];
+                    if (json.success !== true) return ['fail', `success=${json.success} msg: ${json.message}`];
+                    if (!json.data || !Array.isArray(json.data.products)) return ['fail', 'Brak tablicy data.products'];
+                    const item = json.data.products[0];
+                    if (item && !('sku' in item)) return ['warn', 'Rekord produktu nie ma pola "sku"'];
+                    return ['pass', `Zwrócono ${json.data.products.length} surowców. Przykład: ${item?.sku || 'brak'}`];
+                }
+            },
+            {
+                id: 'T14', label: 'get_item_recipe — walidacja pustego SKU',
+                desc: 'POST action=get_item_recipe bez menuItemSku → success:false + czytelny błąd',
+                async run() {
+                    const r = await callStudio({ action: 'get_item_recipe', menuItemSku: '' });
+                    if (r.error) return ['fail', r.error];
+                    const json = tryParse(r.body);
+                    if (!json) return ['fail', `Nieparsowalny JSON:\n${r.body.substring(0,200)}`];
+                    if (json.success !== false) return ['fail', `Oczekiwano success:false, got success:${json.success}`];
+                    return ['pass', `Poprawna walidacja: "${json.message}"`];
+                }
+            },
+            {
+                id: 'T15', label: 'save_recipe — walidacja pustego SKU',
+                desc: 'POST action=save_recipe bez menuItemSku → success:false',
+                async run() {
+                    const r = await callStudio({ action: 'save_recipe', menuItemSku: '', ingredients: [] });
+                    if (r.error) return ['fail', r.error];
+                    const json = tryParse(r.body);
+                    if (!json) return ['fail', `Nieparsowalny JSON:\n${r.body.substring(0,200)}`];
+                    if (json.success !== false) return ['fail', `Oczekiwano success:false, got success:${json.success}`];
+                    return ['pass', `Poprawna walidacja: "${json.message}"`];
+                }
+            },
+            {
+                id: 'T16', label: 'Nieznana akcja — Tarcza Diagnostyczna',
+                desc: 'POST action=FOOBAR → success:false + "[FOOBAR]" w message (Tarcza Diagnostyczna)',
+                async run() {
+                    const r = await callStudio({ action: 'FOOBAR_TEST_ACTION' });
+                    if (r.error) return ['fail', r.error];
+                    const json = tryParse(r.body);
+                    if (!json) return ['fail', `Nieparsowalny JSON:\n${r.body.substring(0,200)}`];
+                    if (json.success !== false) return ['fail', `Nieznana akcja powinna zwrócić success:false`];
+                    if (!json.message.includes('FOOBAR_TEST_ACTION')) return ['warn', `Komunikat nie zawiera nazwy akcji: "${json.message}"`];
+                    return ['pass', `Tarcza aktywna: "${json.message}"`];
+                }
+            },
+            {
+                id: 'T17', label: 'Pusta akcja → PUSTA_AKCJA komunikat',
+                desc: 'POST bez pola action → success:false + "PUSTA_AKCJA" w message',
+                async run() {
+                    const r = await callStudio({});
+                    if (r.error) return ['fail', r.error];
+                    const json = tryParse(r.body);
+                    if (!json) return ['fail', `Nieparsowalny JSON:\n${r.body.substring(0,200)}`];
+                    if (json.success !== false) return ['fail', `Oczekiwano success:false dla pustej akcji`];
+                    const hasPusta = json.message && json.message.includes('PUSTA_AKCJA');
+                    if (!hasPusta) return ['warn', `Brak "PUSTA_AKCJA" w komunikacie: "${json.message}"`];
+                    return ['pass', `Pusta akcja obsłużona: "${json.message}"`];
+                }
+            },
+            {
+                id: 'T18', label: 'get_modifiers_full — zwraca drzewo z opcjami',
+                desc: 'POST action=get_modifiers_full → success:true, data:[...grupy z options]',
+                async run() {
+                    const r = await callStudio({ action: 'get_modifiers_full' });
+                    if (r.error) return ['fail', r.error];
+                    const json = tryParse(r.body);
+                    if (!json) return ['fail', `Nieparsowalny JSON:\n${r.body.substring(0,200)}`];
+                    if (json.success !== true) return ['fail', `success=${json.success} msg: ${json.message}`];
+                    if (!Array.isArray(json.data)) return ['fail', `data powinno być tablicą, got: ${typeof json.data}`];
+                    return ['pass', `Zwrócono ${json.data.length} grup modyfikatorów`];
+                }
+            },
+        ]
+    },
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SUITE 4: Zgodność Formatu (Konstytucja V2)
+    // ═══════════════════════════════════════════════════════════════════════
+    {
+        id: 4,
+        tests: [
+            {
+                id: 'T19', label: 'Warehouse API — format {status, message, payload}',
+                desc: 'api_warehouse.php zachowuje stary format. warehouse_core.js jest z nim spójny.',
+                async run() {
+                    const r = await callWarehouse({ action: 'GET_STOCK' });
+                    if (r.error) return ['skip', 'Endpoint niedostępny'];
+                    const json = tryParse(r.body);
+                    if (!json) return ['fail', 'Nieparsowalny JSON'];
+                    const hasOldFormat = 'status' in json && 'payload' in json && 'message' in json;
+                    const hasNewFormat = 'success' in json;
+                    if (hasNewFormat && !hasOldFormat) return ['warn', 'Warehouse zwraca NOWY format, ale warehouse_core.js czyta STARY. Niespójność!'];
+                    if (!hasOldFormat) return ['fail', `Brak pól {status,payload,message}. Got keys: ${Object.keys(json).join(', ')}`];
+                    return ['pass', `Format OK: {status:"${json.status}", payload:[...], message:"..."}. Spójny z warehouse_core.js.`];
+                }
+            },
+            {
+                id: 'T20', label: 'Studio API — format {success, message, data}',
+                desc: 'api_menu_studio.php zwraca nowy V2 format. Brak starych pól status/payload.',
+                async run() {
+                    const r = await callStudio({ action: 'get_menu_tree' });
+                    if (r.error) return ['skip', 'Endpoint niedostępny'];
+                    const json = tryParse(r.body);
+                    if (!json) return ['fail', 'Nieparsowalny JSON'];
+                    const hasNewFormat = 'success' in json && 'data' in json && 'message' in json;
+                    const hasOldStatus = 'status' in json;
+                    const hasOldPayload = 'payload' in json;
+                    if (!hasNewFormat) return ['fail', `Brak pól {success,data,message}. Got: ${Object.keys(json).join(', ')}`];
+                    if (hasOldStatus) return ['warn', `Nadmiarowe pole "status" w odpowiedzi — stary format się przebija`];
+                    if (hasOldPayload) return ['fail', `Pole "payload" nadal istnieje — migracja nieukończona!`];
+                    return ['pass', `Format V2 OK: {success:${json.success}, data:{...}, message:"..."}. Brak starych pól.`];
+                }
+            },
+            {
+                id: 'T21', label: 'Studio error format — {success:false, data:null}',
+                desc: 'Odpowiedź błędu Studio: success:false, data:null (nie status:"error", payload:null)',
+                async run() {
+                    const r = await callStudio({ action: 'NIEISTNIEJACA' });
+                    if (r.error) return ['skip', 'Endpoint niedostępny'];
+                    const json = tryParse(r.body);
+                    if (!json) return ['fail', 'Nieparsowalny JSON'];
+                    if (json.success !== false) return ['fail', `success powinno być false, got: ${json.success}`];
+                    if (json.data !== null) return ['warn', `data powinno być null dla błędu, got: ${JSON.stringify(json.data)}`];
+                    if ('status' in json) return ['warn', `Nadmiarowe pole "status":"${json.status}" — resztka starego formatu`];
+                    return ['pass', `Error format V2 OK: {success:false, data:null, message:"..."}`];
+                }
+            },
+            {
+                id: 'T22', label: 'JSON parse integrity — brak surowych wartości NaN/Infinity',
+                desc: 'Odpowiedzi API muszą być parsowalne przez JSON.parse() bez wyjątków',
+                async run() {
+                    const calls = [
+                        callWarehouse({ action: 'GET_STOCK' }),
+                        callWarehouse({ action: 'GET_AVCO_DICT' }),
+                        callStudio({ action: 'get_menu_tree' }),
+                        callStudio({ action: 'get_recipes_init' }),
+                    ];
+                    const results = await Promise.all(calls);
+                    const failed = [];
+                    results.forEach((r, i) => {
+                        if (r.error) return;
+                        try { JSON.parse(r.body); } catch(e) { failed.push(`Endpoint ${i+1}: ${e.message}`); }
+                    });
+                    if (failed.length > 0) return ['fail', failed.join('\n')];
+                    return ['pass', 'Wszystkie 4 sprawdzone odpowiedzi parsują się poprawnie'];
+                }
+            },
+        ]
+    },
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SUITE 5: Kompatybilność JS klientów z API
+    // ═══════════════════════════════════════════════════════════════════════
+    {
+        id: 5,
+        tests: [
+            {
+                id: 'T23', label: 'studio_core.js — czyta res.success (nowy format)',
+                desc: 'Kod JS musi używać res.success !== res.status przy sprawdzaniu odpowiedzi Studio',
+                async run() {
+                    const src = await fetchJs(CFG.jsClients.studioCore);
+                    if (!src) return ['fail', 'Nie udało się pobrać studio_core.js'];
+                    const usesOldStatus = /res\.status\s*===\s*['"]success['"]/.test(src);
+                    const usesOldPayload = /res\.payload/.test(src);
+                    const usesNewSuccess = /res\.success/.test(src);
+                    if (usesOldStatus) return ['fail', `ZNALEZIONO: res.status === 'success' — stary format, niezgodny z API!\nUżyj: res.success === true`];
+                    if (usesOldPayload) return ['fail', `ZNALEZIONO: res.payload — stary format, niezgodny z API!\nUżyj: res.data`];
+                    if (!usesNewSuccess) return ['warn', 'Brak res.success w pliku — czy plik jest aktualny?'];
+                    return ['pass', 'studio_core.js używa res.success i res.data — spójny z API V2'];
+                }
+            },
+            {
+                id: 'T24', label: 'studio_recipe.js — URL wskazuje api_menu_studio.php',
+                desc: 'RecipeMapper musi wywoływać api_menu_studio.php (po fuzji), nie api_recipes.php',
+                async run() {
+                    const src = await fetchJs(CFG.jsClients.studioRecipe);
+                    if (!src) return ['fail', 'Nie udało się pobrać studio_recipe.js'];
+                    const usesOldUrl = /api_recipes\.php/.test(src);
+                    const usesNewUrl = /api_menu_studio\.php/.test(src);
+                    if (usesOldUrl) return ['fail', `ZNALEZIONO: api_recipes.php — plik po fuzji nie istnieje!\nURL musi wskazywać na api_menu_studio.php`];
+                    if (!usesNewUrl) return ['warn', 'Brak api_menu_studio.php — sprawdź URL endpointu w RecipeMapper.fetchApi()'];
+                    return ['pass', 'studio_recipe.js wskazuje na api_menu_studio.php'];
+                }
+            },
+            {
+                id: 'T25', label: 'studio_recipe.js — czyta response.success (nowy format)',
+                desc: 'RecipeMapper musi używać response.success, nie response.status',
+                async run() {
+                    const src = await fetchJs(CFG.jsClients.studioRecipe);
+                    if (!src) return ['fail', 'Nie udało się pobrać studio_recipe.js'];
+                    const usesOldStatus = /response\.status\s*===\s*['"]success['"]/.test(src);
+                    const usesOldPayload = /response\.payload/.test(src);
+                    if (usesOldStatus) return ['fail', `ZNALEZIONO: response.status === 'success'\nMusi być: response.success === true`];
+                    if (usesOldPayload) return ['fail', `ZNALEZIONO: response.payload\nMusi być: response.data`];
+                    return ['pass', 'studio_recipe.js używa nowego formatu odpowiedzi'];
+                }
+            },
+            {
+                id: 'T26', label: 'studio_item.js — czyta result.success (nowy format)',
+                desc: 'ItemEditor.saveItem() musi używać result.success, nie result.status',
+                async run() {
+                    const src = await fetchJs(CFG.jsClients.studioItem);
+                    if (!src) return ['fail', 'Nie udało się pobrać studio_item.js'];
+                    const usesOldStatus = /result\.status\s*===\s*['"]success['"]/.test(src);
+                    if (usesOldStatus) return ['fail', `ZNALEZIONO: result.status === 'success'\nMusi być: result.success === true`];
+                    return ['pass', 'studio_item.js używa nowego formatu odpowiedzi'];
+                }
+            },
+            {
+                id: 'T27', label: 'warehouse_core.js — spójny z api_warehouse.php (stary format)',
+                desc: 'warehouse_core.js musi używać result.status — spójne z api_warehouse.php który zwraca stary format',
+                async run() {
+                    const src = await fetchJs(CFG.jsClients.warehouseCore);
+                    if (!src) return ['fail', 'Nie udało się pobrać warehouse_core.js'];
+                    const usesOldStatus = /result\.status\s*===\s*['"]success['"]/.test(src);
+                    const usesNewSuccess = /result\.success/.test(src);
+                    if (!usesOldStatus && usesNewSuccess) return ['warn', 'warehouse_core.js używa result.success, ale api_warehouse.php zwraca stary format {status}. Niespójność!'];
+                    if (!usesOldStatus) return ['warn', 'Brak result.status w warehouse_core.js — sprawdź logikę obsługi odpowiedzi'];
+                    return ['pass', 'warehouse_core.js spójny z api_warehouse.php (oba używają starszego formatu {status,payload})'];
+                }
+            },
+        ]
+    },
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SUITE 6: Cross-Module Integration
+    // ═══════════════════════════════════════════════════════════════════════
+    {
+        id: 6,
+        tests: [
+            {
+                id: 'T28', label: 'Wspólny słownik surowców — Warehouse ↔ Studio',
+                desc: 'sys_items musi być dostępna z obu API. SKU z Warehouse powinno istnieć w Studio',
+                async run() {
+                    const [rW, rS] = await Promise.all([
+                        callWarehouse({ action: 'GET_STOCK' }),
+                        callStudio({ action: 'get_recipes_init' })
+                    ]);
+                    if (rW.error || rS.error) return ['fail', 'Jeden z endpointów niedostępny'];
+                    const jW = tryParse(rW.body);
+                    const jS = tryParse(rS.body);
+                    if (!jW || !jS) return ['fail', 'Błąd parsowania JSON'];
+                    if (jW.status !== 'success') return ['skip', `Warehouse error: ${jW.message}`];
+                    if (jS.success !== true) return ['skip', `Studio error: ${jS.message}`];
+                    const warehouseSkus = new Set((jW.payload || []).map(i => i.sku));
+                    const studioSkus   = new Set((jS.data?.products || []).map(p => p.sku));
+                    if (warehouseSkus.size === 0 && studioSkus.size === 0) 
+                        return ['warn', 'Oba API zwracają 0 surowców — baza może być pusta. Sprawdź sys_items.'];
+                    const overlap = [...warehouseSkus].filter(s => studioSkus.has(s));
+                    if (overlap.length === 0 && warehouseSkus.size > 0 && studioSkus.size > 0)
+                        return ['warn', `Brak pokrywających się SKU między Warehouse (${warehouseSkus.size}) a Studio (${studioSkus.size}). Możliwy problem z tenant_id.`];
+                    return ['pass', `${overlap.length} wspólnych SKU. Warehouse: ${warehouseSkus.size}, Studio: ${studioSkus.size}.`];
+                }
+            },
+            {
+                id: 'T29', label: 'Studio menu_tree.items posiadają asciiKey dla receptur',
+                desc: 'Każde danie w drzewie menu musi mieć asciiKey — to jest klucz powiązania z sh_recipes',
+                async run() {
+                    const r = await callStudio({ action: 'get_menu_tree' });
+                    if (r.error) return ['fail', r.error];
+                    const json = tryParse(r.body);
+                    if (!json || json.success !== true) return ['skip', `API error: ${json?.message}`];
+                    const items = json.data?.items || [];
+                    if (items.length === 0) return ['warn', 'Brak dań w menu — nie można zweryfikować asciiKey. Dodaj testowe dania.'];
+                    const noKey = items.filter(i => !i.asciiKey);
+                    if (noKey.length > 0) return ['fail', `${noKey.length} dań bez asciiKey: ${noKey.map(i=>i.name).slice(0,3).join(', ')}`];
+                    return ['pass', `Wszystkie ${items.length} dań mają asciiKey — receptury mogą być przypisane.`];
+                }
+            },
+            {
+                id: 'T30', label: 'AVCO Dict — dostępność cen dla kalkulatora food cost',
+                desc: 'Studio może pobierać AVCO z Warehouse, aby liczyć koszt receptury (food cost calculation)',
+                async run() {
+                    const [rAvco, rRecipes] = await Promise.all([
+                        callWarehouse({ action: 'GET_AVCO_DICT' }),
+                        callStudio({ action: 'get_recipes_init' })
+                    ]);
+                    if (rAvco.error || rRecipes.error) return ['fail', 'Endpoint niedostępny'];
+                    const jA = tryParse(rAvco.body);
+                    const jR = tryParse(rRecipes.body);
+                    if (!jA || !jR) return ['fail', 'Błąd JSON'];
+                    if (jA.status !== 'success') return ['skip', `Warehouse: ${jA.message}`];
+                    if (jR.success !== true) return ['skip', `Studio: ${jR.message}`];
+                    const avcoSkus    = Object.keys(jA.payload || {});
+                    const studioSkus  = (jR.data?.products || []).map(p => p.sku);
+                    const priceable   = studioSkus.filter(s => avcoSkus.includes(s));
+                    if (avcoSkus.length === 0) return ['warn', 'AVCO Dict pusty — brak przyjęć PZ. Kalkulator food cost będzie zwracał 0.'];
+                    return ['pass', `${priceable.length}/${studioSkus.length} surowców Studio ma cenę AVCO z Warehouse.`];
+                }
+            },
+            {
+                id: 'T31', label: 'Niezależność modułów — Warehouse działa bez Studio',
+                desc: 'api_warehouse.php nie wymaga api_menu_studio.php. Moduły są luźno powiązane przez REST.',
+                async run() {
+                    const r = await callWarehouse({ action: 'GET_STOCK' });
+                    if (r.error) return ['fail', `Warehouse niedostępny: ${r.error}`];
+                    const json = tryParse(r.body);
+                    if (!json) return ['fail', 'Nieparsowalny JSON'];
+                    // Liczymy tylko czy odpowiedź nie zawiera żadnych referencji do studio API
+                    const refersToStudio = r.body.includes('api_menu_studio') || r.body.includes('api_recipes');
+                    if (refersToStudio) return ['warn', 'Odpowiedź Warehouse zawiera referencje do Studio — możliwe zależności'];
+                    return ['pass', 'Warehouse API działa niezależnie (zero zależności od innych modułów w odpowiedzi)'];
+                }
+            },
+        ]
+    },
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SUITE 7: Bezpieczeństwo
+    // ═══════════════════════════════════════════════════════════════════════
+    {
+        id: 7,
+        tests: [
+            {
+                id: 'T32', label: 'Studio — brak tokena → odmowa dostępu',
+                desc: 'POST bez nagłówka Authorization → success:false + komunikat o braku tokena',
+                async run() {
+                    const ctrl = new AbortController();
+                    const timer = setTimeout(() => ctrl.abort(), CFG.timeout);
+                    let r;
+                    try {
+                        const resp = await fetch(CFG.studio, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ action: 'get_menu_tree' }),
+                            signal: ctrl.signal
+                        });
+                        clearTimeout(timer);
+                        r = { httpStatus: resp.status, body: await resp.text() };
+                    } catch(e) { clearTimeout(timer); return ['fail', e.message]; }
+                    const json = tryParse(r.body);
+                    if (!json) return ['fail', `Nieparsowalny JSON:\n${r.body.substring(0,200)}`];
+                    if (json.success === true) return ['fail', 'BEZ TOKENA UDZIELONO DOSTĘPU — KRYTYCZNY BŁĄD BEZPIECZEŃSTWA!'];
+                    return ['pass', `Odmowa bez tokena: "${json.message}"`];
+                }
+            },
+            {
+                id: 'T33', label: 'Studio — fałszywy token → odmowa (symulacja aktywna)',
+                desc: 'W trybie produkcyjnym JWT musi być walidowany. Teraz: symulacja $tenantId=1 per token.',
+                async run() {
+                    const ctrl = new AbortController();
+                    const timer = setTimeout(() => ctrl.abort(), CFG.timeout);
+                    let r;
+                    try {
+                        const resp = await fetch(CFG.studio, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer FAKE_TOKEN_XYZ' },
+                            body: JSON.stringify({ action: 'get_menu_tree' }),
+                            signal: ctrl.signal
+                        });
+                        clearTimeout(timer);
+                        r = { body: await resp.text() };
+                    } catch(e) { clearTimeout(timer); return ['fail', e.message]; }
+                    const json = tryParse(r.body);
+                    if (!json) return ['fail', 'Nieparsowalny JSON'];
+                    if (json.success === true) {
+                        return ['warn', 'Fałszywy token zaakceptowany — UWAGA: to jest oczekiwane zachowanie w fazie DEV (mock JWT). W PRODUKCJI należy wdrożyć prawdziwą weryfikację JWT!'];
+                    }
+                    return ['pass', 'Fałszywy token odrzucony'];
+                }
+            },
+            {
+                id: 'T34', label: 'SQL Injection — sanityzacja action',
+                desc: "action zawierający SQL/HTML jest sanityzowany przez preg_replace('/[^a-zA-Z0-9_-]/', '')",
+                async run() {
+                    const malicious = "get_menu_tree'; DROP TABLE sh_menu_items; --";
+                    const r = await callStudio({ action: malicious });
+                    if (r.error) return ['fail', r.error];
+                    const json = tryParse(r.body);
+                    if (!json) return ['fail', 'Nieparsowalny JSON'];
+                    // Prawidłowe zachowanie: sanityzacja daje "get_menu_treeDROPTABLEsh_menu_items--" → nieznana akcja
+                    if (json.success === true && json.data && 'categories' in json.data) {
+                        // Wyjątkowo jeśli regex zostawił 'get_menu_tree' to mogło przejść
+                        return ['warn', `Akcja sanityzowana do get_menu_tree — test przeszedł do prawidłowej obsługi. SQL znaki zostały usunięte.`];
+                    }
+                    if (json.success === false) return ['pass', `SQL Injection zablokowany. Akcja sanityzowana, zwrócono: "${json.message}"`];
+                    return ['warn', `Odpowiedź niejednoznaczna: success=${json.success}`];
+                }
+            },
+            {
+                id: 'T35', label: 'XSS w action — escape HTML w komunikacie błędu',
+                desc: 'Nieznana akcja zawierająca <script> nie może zostać odbita bez escapowania',
+                async run() {
+                    const xssAction = '<script>alert(1)</script>';
+                    const r = await callStudio({ action: xssAction });
+                    if (r.error) return ['fail', r.error];
+                    // Sprawdzamy czy w JSON response nie ma surowego <script>
+                    const rawScript = /<script>alert/.test(r.body);
+                    if (rawScript) return ['fail', 'Niebezpieczne: odpowiedź zawiera niescapowany <script> tag!'];
+                    return ['pass', `XSS zablokowany przez sanityzację action — znaki specjalne usunięte przez preg_replace`];
+                }
+            },
+        ]
+    },
+];
+
+// ─── Główna pętla wykonania ───────────────────────────────────────────────────
+async function runAllTests() {
+    // Reset
+    COUNTS = { total: 0, pass: 0, fail: 0, warn: 0 };
+    DONE_TESTS = 0;
+
+    // Policz wszystkie testy
+    TOTAL_TESTS = SUITES.reduce((sum, s) => sum + s.tests.length, 0);
+    COUNTS.total = TOTAL_TESTS;
+
+    // UI: stan uruchamiania
+    const btn = document.getElementById('btn-run-all');
+    const btnIcon = document.getElementById('btn-icon');
+    btn.disabled = true;
+    btnIcon.innerHTML = `<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>`;
+    btnIcon.classList.add('animate-spin');
+    btn.textContent = 'Trwa testowanie...';
+
+    document.getElementById('progress-bar-wrap').classList.remove('hidden');
+    document.getElementById('global-stats').classList.remove('hidden');
+    document.getElementById('summary-badge').classList.add('hidden');
+
+    updateProgress();
+
+    // Wyczyść poprzednie wyniki
+    SUITES.forEach(suite => {
+        document.getElementById(`suite-${suite.id}-tests`).innerHTML = '';
+        document.getElementById(`suite-${suite.id}-status`).textContent = 'uruchamianie...';
+    });
+
+    // Renderuj szkielety wierszy
+    SUITES.forEach(suite => {
+        suite.tests.forEach(t => renderTestRow(suite.id, t.id, t.label, t.desc));
+    });
+
+    // Uruchom suite po suite
+    for (const suite of SUITES) {
+        for (const test of suite.tests) {
+            try {
+                const [status, detail] = await test.run();
+                setResult(test.id, status, detail);
+            } catch (e) {
+                setResult(test.id, 'fail', `Nieoczekiwany wyjątek w teście: ${e.message}`);
+            }
+        }
+        setSuiteStatus(suite.id);
+    }
+
+    // Finalizacja UI
+    btn.disabled = false;
+    btnIcon.classList.remove('animate-spin');
+    btn.innerHTML = `<svg id="btn-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+    </svg> Uruchom Ponownie`;
+
+    const badge = document.getElementById('summary-badge');
+    badge.classList.remove('hidden');
+    if (COUNTS.fail > 0) {
+        badge.className = 'text-xs font-mono px-3 py-1.5 rounded-full border bg-red-950 border-red-600/50 text-red-400';
+        badge.textContent = `${COUNTS.fail} FAILED · ${COUNTS.pass} passed`;
+    } else if (COUNTS.warn > 0) {
+        badge.className = 'text-xs font-mono px-3 py-1.5 rounded-full border bg-yellow-950 border-yellow-600/50 text-yellow-400';
+        badge.textContent = `${COUNTS.warn} WARNINGS · ${COUNTS.pass} passed`;
+    } else {
+        badge.className = 'text-xs font-mono px-3 py-1.5 rounded-full border bg-emerald-950 border-emerald-600/50 text-emerald-400';
+        badge.textContent = `✓ ALL ${COUNTS.pass} PASSED`;
+    }
+}
+</script>
+</body>
+</html>

@@ -4,26 +4,16 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
-$response = ["status" => "error", "payload" => null, "message" => "Wystąpił błąd serwera."];
+$response = ["success" => false, "data" => null, "message" => "Wystąpił błąd serwera."];
 
 try {
     require_once '../../core/db_config.php';
+    require_once '../../core/auth_guard.php';
     if (!isset($pdo)) {
         throw new Exception("Brak połączenia z bazą danych.");
     }
 
-    $headers = apache_request_headers();
-    $authHeader = $headers['Authorization'] ?? $_SERVER['HTTP_AUTHORIZATION'] ?? '';
-    $tenantId = null;
-    
-    // Symulacja weryfikacji tokena JWT
-    if (preg_match('/Bearer\s+(.+)$/i', $authHeader, $matches) && !empty($matches[1])) {
-        $tenantId = 1; 
-    }
-
-    if (!$tenantId) {
-        throw new Exception("Odmowa dostępu. Brak poprawnego tokena autoryzacji.");
-    }
+    // $tenant_id and $user_id are injected by auth_guard.php
 
     $inputJSON = file_get_contents('php://input');
     $input = json_decode($inputJSON, true);
@@ -49,10 +39,10 @@ try {
             
             // Wymuszamy domyślne 0 dla display_order
             $stmt = $pdo->prepare("INSERT INTO sh_categories (tenant_id, name, is_menu, display_order) VALUES (?, ?, 1, 0)");
-            $stmt->execute([$tenantId, $catName]);
+            $stmt->execute([$tenant_id, $catName]);
             
-            $response['status'] = 'success';
-            $response['payload'] = ['categoryId' => $pdo->lastInsertId()];
+            $response['success'] = true;
+            $response['data'] = ['categoryId' => $pdo->lastInsertId()];
             $response['message'] = "Dodano nową kategorię.";
             break;
 
@@ -61,12 +51,12 @@ try {
         // ==============================================================================
         case 'get_menu_tree':
             $stmtCat = $pdo->prepare("SELECT id, name FROM sh_categories WHERE tenant_id = ? AND is_menu = 1 AND is_deleted = 0 ORDER BY display_order ASC, id ASC");
-            $stmtCat->execute([$tenantId]);
+            $stmtCat->execute([$tenant_id]);
             $categoriesRaw = $stmtCat->fetchAll(PDO::FETCH_ASSOC);
 
             // Pobieramy dania bez płaskiej ceny (zgodnie z nową architekturą)
             $stmtItems = $pdo->prepare("SELECT id, category_id, name, ascii_key, is_active, badge_type, is_secret, stock_count, vat_rate_dine_in, kds_station_id, is_locked_by_hq FROM sh_menu_items WHERE tenant_id = ? AND is_deleted = 0 ORDER BY display_order ASC, name ASC");
-            $stmtItems->execute([$tenantId]);
+            $stmtItems->execute([$tenant_id]);
             $itemsRaw = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
 
             // Pobieramy całą Macierz Cenową dla dań (żeby wkleić ją do drzewka)
@@ -109,7 +99,7 @@ try {
 
             // --- ŁATKA: POBIERANIE MODYFIKATORÓW ---
             $stmtMods = $pdo->prepare("SELECT id, name, ascii_key FROM sh_modifier_groups WHERE tenant_id = ? AND is_deleted = 0 ORDER BY id ASC");
-            $stmtMods->execute([$tenantId]);
+            $stmtMods->execute([$tenant_id]);
             $modifierGroupsRaw = $stmtMods->fetchAll(PDO::FETCH_ASSOC);
             
             $modifierGroups = array_map(function($g) {
@@ -121,9 +111,9 @@ try {
             }, $modifierGroupsRaw);
             // ---------------------------------------
 
-            $response['status'] = 'success';
+            $response['success'] = true;
             // Zwracamy kategorie, dania ORAZ grupy modyfikatorów!
-            $response['payload'] = ['categories' => $categories, 'items' => $items, 'modifierGroups' => $modifierGroups];
+            $response['data'] = ['categories' => $categories, 'items' => $items, 'modifierGroups' => $modifierGroups];
             $response['message'] = "Pobrano drzewo menu.";
             break;
 
@@ -135,7 +125,7 @@ try {
             if ($itemId <= 0) throw new Exception("Nieprawidłowe ID elementu.");
 
             $stmtItem = $pdo->prepare("SELECT id, category_id, name, ascii_key, is_active, vat_rate_dine_in as vat_rate, kds_station_id, is_locked_by_hq, publication_status, valid_from, valid_to, description, image_url, marketing_tags, barcode_ean, parent_sku, allergens_json FROM sh_menu_items WHERE id = ? AND tenant_id = ? AND is_deleted = 0");
-            $stmtItem->execute([$itemId, $tenantId]);
+            $stmtItem->execute([$itemId, $tenant_id]);
             $item = $stmtItem->fetch(PDO::FETCH_ASSOC);
 
             if (!$item) throw new Exception("Nie znaleziono dania.");
@@ -167,8 +157,8 @@ try {
             $modifierGroupIds = $stmtMods->fetchAll(PDO::FETCH_COLUMN) ?: [];
             $item['modifierGroupIds'] = array_map('intval', $modifierGroupIds);
 
-            $response['status'] = 'success';
-            $response['payload'] = [
+            $response['success'] = true;
+            $response['data'] = [
                 'id' => (int)$item['id'],
                 'categoryId' => (int)$item['category_id'],
                 'name' => $item['name'],
@@ -235,11 +225,11 @@ try {
             try {
                 if ($action === 'add_item') {
                     $stmt = $pdo->prepare("INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, is_active, vat_rate_dine_in, vat_rate_takeaway, kds_station_id, publication_status, valid_from, valid_to, description, image_url, marketing_tags, barcode_ean, parent_sku, allergens_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                    $stmt->execute([$tenantId, $categoryId, $name, $asciiKey, $isActive, $vatRate, $vatRate, $kdsStationId, $pubStatus, $validFrom, $validTo, $description, $imageUrl, $marketingTags, $barcodeEan, $parentSku, $allergensJson]);
+                    $stmt->execute([$tenant_id, $categoryId, $name, $asciiKey, $isActive, $vatRate, $vatRate, $kdsStationId, $pubStatus, $validFrom, $validTo, $description, $imageUrl, $marketingTags, $barcodeEan, $parentSku, $allergensJson]);
                     $itemId = $pdo->lastInsertId();
                 } else {
                     $stmt = $pdo->prepare("UPDATE sh_menu_items SET name = ?, ascii_key = ?, category_id = ?, is_active = ?, vat_rate_dine_in = ?, vat_rate_takeaway = ?, kds_station_id = ?, publication_status = ?, valid_from = ?, valid_to = ?, description = ?, image_url = ?, marketing_tags = ?, barcode_ean = ?, parent_sku = ?, allergens_json = ?, updated_at = NOW() WHERE id = ? AND tenant_id = ? AND is_deleted = 0");
-                    $stmt->execute([$name, $asciiKey, $categoryId, $isActive, $vatRate, $vatRate, $kdsStationId, $pubStatus, $validFrom, $validTo, $description, $imageUrl, $marketingTags, $barcodeEan, $parentSku, $allergensJson, $itemId, $tenantId]);
+                    $stmt->execute([$name, $asciiKey, $categoryId, $isActive, $vatRate, $vatRate, $kdsStationId, $pubStatus, $validFrom, $validTo, $description, $imageUrl, $marketingTags, $barcodeEan, $parentSku, $allergensJson, $itemId, $tenant_id]);
                 }
 
                 // Bezpieczny Upsert do Macierzy Cenowej (sh_price_tiers)
@@ -264,8 +254,8 @@ try {
                 }
 
                 $pdo->commit();
-                $response['status'] = 'success';
-                $response['payload'] = ['id' => $itemId];
+                $response['success'] = true;
+                $response['data'] = ['id' => $itemId];
                 $response['message'] = $action === 'add_item' ? "Dodano nowe danie do bazy." : "Zaktualizowano danie (Omnichannel).";
             } catch (Exception $e) {
                 $pdo->rollBack();
@@ -317,7 +307,7 @@ try {
 
                 if (!empty($updates)) {
                     $sql = "UPDATE sh_menu_items SET " . implode(', ', $updates) . ", updated_at = NOW() WHERE tenant_id = ? AND is_deleted = 0 AND id IN ($placeholders)";
-                    $finalParams = array_merge($params, [$tenantId], $cleanIds);
+                    $finalParams = array_merge($params, [$tenant_id], $cleanIds);
                     $stmtUpdate = $pdo->prepare($sql);
                     $stmtUpdate->execute($finalParams);
                 }
@@ -331,7 +321,7 @@ try {
 
                     // Wyciągamy SKU zaznaczonych dań, żeby wiedzieć w co uderzyć w Macierzy
                     $stmtSku = $pdo->prepare("SELECT ascii_key FROM sh_menu_items WHERE tenant_id = ? AND is_deleted = 0 AND id IN ($placeholders)");
-                    $stmtSku->execute(array_merge([$tenantId], $cleanIds));
+                    $stmtSku->execute(array_merge([$tenant_id], $cleanIds));
                     $skus = $stmtSku->fetchAll(PDO::FETCH_COLUMN);
 
                     $stmtCurrentPrice = $pdo->prepare("SELECT price FROM sh_price_tiers WHERE target_type='ITEM' AND target_sku=? AND channel=?");
@@ -355,7 +345,7 @@ try {
                 }
 
                 $pdo->commit();
-                $response['status'] = 'success';
+                $response['success'] = true;
                 $response['message'] = "Zaktualizowano masowo strukturę Enterprise.";
             } catch (Exception $e) {
                 $pdo->rollBack();
@@ -387,14 +377,14 @@ try {
             try {
                 if ($groupId > 0) {
                     $stmtCheck = $pdo->prepare("SELECT id FROM sh_modifier_groups WHERE id = ? AND tenant_id = ? AND is_deleted = 0");
-                    $stmtCheck->execute([$groupId, $tenantId]);
+                    $stmtCheck->execute([$groupId, $tenant_id]);
                     if (!$stmtCheck->fetch()) throw new Exception("Grupa nie istnieje.");
 
                     $stmt = $pdo->prepare("UPDATE sh_modifier_groups SET name = ?, min_selection = ?, max_selection = ?, free_limit = ?, allow_multi_qty = ?, publication_status = ?, valid_from = ?, valid_to = ? WHERE id = ? AND tenant_id = ?");
-                    $stmt->execute([$name, $minSel, $maxSel, $freeLimit, $allowMulti, $pubStatus, $validFrom, $validTo, $groupId, $tenantId]);
+                    $stmt->execute([$name, $minSel, $maxSel, $freeLimit, $allowMulti, $pubStatus, $validFrom, $validTo, $groupId, $tenant_id]);
                 } else {
                     $stmt = $pdo->prepare("INSERT INTO sh_modifier_groups (tenant_id, name, ascii_key, min_selection, max_selection, free_limit, allow_multi_qty, publication_status, valid_from, valid_to) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                    $stmt->execute([$tenantId, $name, $groupAsciiKey, $minSel, $maxSel, $freeLimit, $allowMulti, $pubStatus, $validFrom, $validTo]);
+                    $stmt->execute([$tenant_id, $name, $groupAsciiKey, $minSel, $maxSel, $freeLimit, $allowMulti, $pubStatus, $validFrom, $validTo]);
                     $groupId = $pdo->lastInsertId();
                 }
 
@@ -442,8 +432,8 @@ try {
                 }
 
                 $pdo->commit();
-                $response['status'] = 'success';
-                $response['payload'] = ['groupId' => $groupId];
+                $response['success'] = true;
+                $response['data'] = ['id' => $groupId];
                 $response['message'] = "Zapisano grupę modyfikatorów i połączono z KSeF.";
             } catch (Exception $e) {
                 $pdo->rollBack();
@@ -455,7 +445,7 @@ try {
         // ==============================================================================
         case 'get_modifiers_full':
             $stmtG = $pdo->prepare("SELECT * FROM sh_modifier_groups WHERE tenant_id = ? AND is_deleted = 0 ORDER BY id ASC");
-            $stmtG->execute([$tenantId]);
+            $stmtG->execute([$tenant_id]);
             $groups = $stmtG->fetchAll(PDO::FETCH_ASSOC);
 
             $stmtO = $pdo->prepare("SELECT * FROM sh_modifiers WHERE is_deleted = 0");
@@ -503,8 +493,94 @@ try {
                 ];
             }
 
-            $response['status'] = 'success';
-            $response['payload'] = $finalGroups;
+            $response['success'] = true;
+            $response['data'] = $finalGroups;
+            break;
+
+        // ==============================================================================
+        // 7. SŁOWNIK SUROWCÓW MAGAZYNOWYCH (Dla RecipeMapper i ModifierInspector)
+        // ==============================================================================
+        case 'get_recipes_init':
+            $stmt = $pdo->prepare("SELECT sku, name, base_unit FROM sys_items WHERE tenant_id = ? ORDER BY name ASC");
+            $stmt->execute([$tenant_id]);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $products = array_map(function($r) {
+                return [
+                    'sku'      => $r['sku'],
+                    'name'     => $r['name'],
+                    'baseUnit' => $r['base_unit'],
+                    'aliases'  => ''
+                ];
+            }, $rows);
+
+            $response['success'] = true;
+            $response['data']    = ['products' => $products];
+            $response['message'] = 'Słownik surowców pobrany.';
+            break;
+
+        // ==============================================================================
+        // 8. POBIERANIE RECEPTURY DANIA
+        // ==============================================================================
+        case 'get_item_recipe':
+            $menuItemSku = preg_replace('/[^a-zA-Z0-9_-]/', '', $input['menuItemSku'] ?? '');
+            if (empty($menuItemSku)) throw new Exception("Brak SKU dania.");
+
+            $stmt = $pdo->prepare("
+                SELECT r.warehouse_sku, s.name, s.base_unit, r.quantity_base, r.waste_percent, r.is_packaging
+                FROM sh_recipes r
+                JOIN sys_items s ON s.sku = r.warehouse_sku
+                WHERE r.menu_item_sku = ? AND r.tenant_id = ?
+                ORDER BY r.id ASC
+            ");
+            $stmt->execute([$menuItemSku, $tenant_id]);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $ingredients = array_map(function($r) {
+                return [
+                    'warehouseSku'  => $r['warehouse_sku'],
+                    'name'          => $r['name'],
+                    'baseUnit'      => $r['base_unit'],
+                    'quantityBase'  => (float)$r['quantity_base'],
+                    'wastePercent'  => (float)$r['waste_percent'],
+                    'isPackaging'   => (bool)$r['is_packaging']
+                ];
+            }, $rows);
+
+            $response['success'] = true;
+            $response['data']    = ['ingredients' => $ingredients];
+            $response['message'] = 'Receptura pobrana.';
+            break;
+
+        // ==============================================================================
+        // 9. ZAPIS RECEPTURY DANIA
+        // ==============================================================================
+        case 'save_recipe':
+            $menuItemSku  = preg_replace('/[^a-zA-Z0-9_-]/', '', $input['menuItemSku'] ?? '');
+            $ingredients  = $input['ingredients'] ?? [];
+            if (empty($menuItemSku)) throw new Exception("Brak SKU dania.");
+
+            $pdo->beginTransaction();
+            try {
+                $stmtDel = $pdo->prepare("DELETE FROM sh_recipes WHERE menu_item_sku = ? AND tenant_id = ?");
+                $stmtDel->execute([$menuItemSku, $tenant_id]);
+
+                $stmtIns = $pdo->prepare("INSERT INTO sh_recipes (tenant_id, menu_item_sku, warehouse_sku, quantity_base, waste_percent, is_packaging) VALUES (?, ?, ?, ?, ?, ?)");
+                foreach ($ingredients as $ing) {
+                    $sku     = preg_replace('/[^a-zA-Z0-9_-]/', '', $ing['warehouseSku'] ?? '');
+                    $qty     = floatval($ing['quantityBase']  ?? 0);
+                    $waste   = floatval($ing['wastePercent']  ?? 0);
+                    $isPkg   = !empty($ing['isPackaging']) ? 1 : 0;
+                    if (empty($sku) || $qty <= 0) continue;
+                    $stmtIns->execute([$tenant_id, $menuItemSku, $sku, $qty, $waste, $isPkg]);
+                }
+                $pdo->commit();
+                $response['success'] = true;
+                $response['message'] = 'Receptura zapisana.';
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
             break;
 
         // ==============================================================================
@@ -515,8 +591,8 @@ try {
             throw new Exception("Nieznana akcja API: [{$unknown}] - Prawdopodobnie stara wersja JS!");
     }
 } catch (Exception $e) {
-    $response['status'] = 'error';
-    $response['payload'] = null;
+    $response['success'] = false;
+    $response['data'] = null;
     $response['message'] = $e->getMessage();
 }
 

@@ -1,6 +1,10 @@
 # 03 MAPA KOPALNI (Legacy)
 
-Poniżej znajduje się zaktualizowana mapa folderu `_KOPALNIA_WIEDZY_LEGACY/` po ponownym skanie.  
+> **STATUS: ARCHIWUM OFFLINE (od 2026-04-22)**  
+> Folder `_KOPALNIA_WIEDZY_LEGACY/` **został przeniesiony poza repo** na dysk backupowy (decyzja: 108 plików legacy, 0 referencji z aktywnego kodu, 1,84 MB). Ten dokument pozostaje jako **inwentarz historyczny** — wiedza o tym *co było* i *gdzie szukać* przy ewentualnych konsultacjach (np. Gemini pytający o stary widok UI).  
+> Do repo folder nie wróci — jest w `.gitignore`. Kopia znajduje się w archiwum dysku właściciela.
+
+Poniżej znajduje się zaktualizowana mapa folderu `_KOPALNIA_WIEDZY_LEGACY/` (stan z momentu przeniesienia).  
 Priorytety zostały nadane z naciskiem na: zarządzanie, magazyn, 86'ing (braki towarowe), zamówienia, grywalizację oraz architekturę POS.
 
 | Nazwa pliku | Prawdopodobna główna funkcja / Logika Biznesowa | Priorytet przydatności (Wysoki / Średni / Niski) | Uwagi |

@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SliceHub Enterprise | Control Tower</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Niestandardowy scrollbar dla widoku Enterprise */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+        
+        /* Klasa pomocnicza do aktywnego wiersza */
+        .row-active { background-color: rgba(139, 92, 246, 0.15) !important; border-left: 4px solid #8b5cf6; }
+    </style>
+</head>
+<body class="bg-[#0a0a0f] text-gray-300 h-screen w-screen overflow-hidden flex flex-col p-6 font-sans">
+
+    <header class="flex justify-between items-center mb-6 shrink-0">
+        <div>
+            <h1 class="text-2xl font-bold text-white tracking-wide">MAGAZYN <span class="text-violet-500">CONTROL TOWER</span></h1>
+            <p class="text-sm text-gray-500 mt-1">Live Stock Matrix & Analytics</p>
+        </div>
+        <div class="flex items-center gap-4">
+            <button id="btn-add-item" onclick="openAddItemModal()"
+                    class="flex items-center gap-2 bg-transparent hover:bg-emerald-500/10 active:scale-95 text-emerald-400 font-semibold rounded-xl px-5 py-2.5 text-sm transition-all border border-emerald-500/40 hover:border-emerald-400/70">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM9 12h6"/>
+                </svg>
+                Nowy Surowiec
+            </button>
+            <button onclick="openPZModal()"
+                    class="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-semibold rounded-xl px-5 py-2.5 text-sm transition-all shadow-lg shadow-blue-900/40 border border-blue-400/30">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                Rejestruj Dostawę (PZ)
+            </button>
+            <button id="btn-open-rw"
+                    class="flex items-center gap-2 bg-rose-900/50 hover:bg-rose-800/50 active:scale-95 text-rose-400 font-semibold rounded-lg px-4 py-2 text-sm transition-all border border-rose-500/30">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
+                </svg>
+                Strata (RW)
+            </button>
+            <div class="text-sm text-gray-400 bg-white/5 px-4 py-2 rounded-full border border-white/10 backdrop-blur-md">
+                Status połączenia: <span class="text-emerald-400 font-semibold animate-pulse">● ONLINE</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="grid grid-cols-4 gap-6 mb-6 shrink-0" id="zoneA">
+        <div class="bg-white/5 backdrop-blur-md border border-red-500/30 rounded-xl p-5 relative overflow-hidden group hover:bg-white/10 transition-all">
+            <div class="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
+            <h3 class="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Alert 86 (Krytyczne Braki)</h3>
+            <div class="text-3xl font-bold text-white" id="dashAlert86">0</div>
+        </div>
+        <div class="bg-white/5 backdrop-blur-md border border-yellow-400/30 rounded-xl p-5 relative overflow-hidden group hover:bg-white/10 transition-all">
+            <div class="absolute top-0 left-0 w-1 h-full bg-yellow-400"></div>
+            <h3 class="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Tarcza Anty-Inflacyjna</h3>
+            <div class="text-3xl font-bold text-white">Aktywna</div>
+        </div>
+        <div class="bg-white/5 backdrop-blur-md border border-blue-500/30 rounded-xl p-5 relative overflow-hidden group hover:bg-white/10 transition-all">
+            <div class="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+            <h3 class="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Oczekujące Drafty PZ</h3>
+            <div class="text-3xl font-bold text-white" id="dashDrafts">0</div>
+        </div>
+        <div class="bg-white/5 backdrop-blur-md border border-emerald-500/30 rounded-xl p-5 relative overflow-hidden group hover:bg-white/10 transition-all">
+            <div class="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
+            <h3 class="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Wartość Magazynu</h3>
+            <div class="text-3xl font-bold text-white" id="dashTotalValue">0,00 zł</div>
+        </div>
+    </div>
+
+    <div class="flex gap-6 flex-grow overflow-hidden">
+        
+        <div class="w-[70%] bg-white/5 backdrop-blur-md border border-white/10 rounded-xl flex flex-col overflow-hidden relative">
+            
+            <div class="bg-black/40 border-b border-white/10 px-6 py-4 grid grid-cols-12 gap-4 text-xs font-semibold text-gray-400 uppercase tracking-wider shrink-0">
+                <div class="col-span-2">SKU</div>
+                <div class="col-span-3">Nazwa Surowca</div>
+                <div class="col-span-1 text-right">Stan (Qty)</div>
+                <div class="col-span-1 text-right">Cena Netto</div>
+                <div class="col-span-2 text-right">AVCO</div>
+                <div class="col-span-2 text-right">Wartość Magazynu</div>
+                <div class="col-span-1 text-center">Akcje</div>
+            </div>
+
+            <div class="flex-grow overflow-y-auto" id="matrixBody">
+                <div class="flex items-center justify-center h-full text-gray-500">
+                    Trwa łączenie z serwerem i inicjalizacja macierzy...
+                </div>
+            </div>
+        </div>
+
+        <div class="w-[30%] bg-white/5 backdrop-blur-md border border-white/10 rounded-xl flex flex-col overflow-hidden shadow-2xl">
+            <div class="bg-black/40 border-b border-white/10 px-6 py-4 shrink-0">
+                <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-2">
+                    <svg class="w-4 h-4 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    Smart Action Panel
+                </h2>
+            </div>
+            
+            <div id="actionPanelContent" class="p-6 flex-grow overflow-y-auto">
+                <div class="flex flex-col items-center justify-center h-full text-center opacity-40">
+                    <svg class="w-16 h-16 text-gray-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M8 15a3 3 0 11-6 0 3 3 0 016 0zm14 0a3 3 0 11-6 0 3 3 0 016 0zm-7-7a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    <p class="text-sm">Wybierz surowiec z matrycy po lewej,<br>aby wywołać protokół operacyjny.</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="../../core/js/api_client.js"></script>
+    <script src="../../core/js/core_validator.js"></script>
+    <script src="js/warehouse_core.js"></script>
+
+    <!-- ===================================================================
+         MODAL: REJESTRACJA DOSTAWY PZ
+         =================================================================== -->
+    <div id="pzModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black/75 backdrop-blur-sm" onclick="closePZModal()"></div>
+
+        <!-- Panel -->
+        <div class="relative z-10 w-full max-w-3xl bg-[#0d0d18] border border-blue-500/20 rounded-2xl shadow-2xl flex flex-col max-h-[92vh]">
+
+            <!-- Header -->
+            <div class="flex items-center justify-between px-6 py-5 border-b border-white/10 shrink-0">
+                <div>
+                    <h2 class="text-lg font-bold text-white tracking-wide">
+                        Rejestracja Dostawy <span class="text-blue-400">PZ</span>
+                    </h2>
+                    <p class="text-xs text-gray-500 mt-0.5">Przyjęcie Zewnętrzne — wycena AVCO aktualizuje się automatycznie po zapisie</p>
+                </div>
+                <button onclick="closePZModal()"
+                        class="text-gray-500 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Body (scrollable) -->
+            <div class="p-6 overflow-y-auto flex-grow">
+
+                <!-- Notatki / Nr Faktury -->
+                <div class="mb-6">
+                    <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                        Notatki / Nr Faktury
+                    </label>
+                    <input id="pzNotes" type="text"
+                           placeholder="np. FV/2026/04/0123 — opcjonalnie"
+                           class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-gray-200 placeholder-gray-600
+                                  focus:outline-none focus:border-blue-500/60 focus:bg-white/8 transition-all text-sm">
+                </div>
+
+                <!-- Pozycje dostawy -->
+                <div>
+                    <div class="flex items-center justify-between mb-3">
+                        <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Pozycje Dostawy</label>
+                        <button onclick="addPZRow()"
+                                class="flex items-center gap-2 text-xs bg-blue-600/20 hover:bg-blue-600/40 text-blue-400
+                                       border border-blue-500/30 rounded-lg px-3 py-2 transition-all active:scale-95">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                            Dodaj pozycję
+                        </button>
+                    </div>
+
+                    <!-- Nagłówki kolumn pozycji -->
+                    <div class="grid grid-cols-12 gap-3 mb-2 px-1">
+                        <div class="col-span-5 text-xs text-gray-600 font-semibold uppercase tracking-wide">Surowiec</div>
+                        <div class="col-span-3 text-xs text-gray-600 font-semibold uppercase tracking-wide text-right">Ilość</div>
+                        <div class="col-span-3 text-xs text-gray-600 font-semibold uppercase tracking-wide text-right">Cena Jdn. Netto</div>
+                        <div class="col-span-1"></div>
+                    </div>
+
+                    <!-- Kontener dynamicznych wierszy -->
+                    <div id="pzItemsContainer" class="space-y-2"></div>
+
+                    <!-- Stan pusty -->
+                    <div id="pzEmptyState"
+                         class="py-10 text-center text-gray-600 text-sm border border-dashed border-white/10 rounded-xl mt-2">
+                        Kliknij „Dodaj pozycję" aby rozpocząć tworzenie dokumentu PZ
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="px-6 py-4 border-t border-white/10 flex items-center justify-between shrink-0 bg-black/20 rounded-b-2xl">
+                <div class="text-sm text-gray-500">
+                    Wartość dostawy: <span id="pzTotalValue" class="text-gray-200 font-semibold ml-1">0,00 zł</span>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="closePZModal()"
+                            class="px-5 py-2.5 text-sm text-gray-400 hover:text-white border border-white/10
+                                   hover:border-white/20 rounded-xl transition-all">
+                        Anuluj
+                    </button>
+                    <button onclick="submitPZ()" id="pzSubmitBtn"
+                            class="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold bg-blue-600 hover:bg-blue-500
+                                   active:scale-95 text-white rounded-xl transition-all shadow-lg shadow-blue-900/30
+                                   border border-blue-400/30 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        Zapisz Dostawę
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================
+         MODAL: REJESTRACJA STRATY / ROZCHODU RW
+         =================================================================== -->
+    <div id="rwModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black/75 backdrop-blur-sm" onclick="closeRWModal()"></div>
+
+        <!-- Panel -->
+        <div class="relative z-10 w-full max-w-lg bg-[#0d0d18] border border-red-500/20 rounded-2xl shadow-2xl flex flex-col">
+
+            <!-- Header -->
+            <div class="flex items-center justify-between px-6 py-5 border-b border-white/10 shrink-0">
+                <div>
+                    <h2 class="text-lg font-bold text-white tracking-wide">
+                        Rejestracja Straty /
+                        <span class="text-red-400">Rozchód (RW)</span>
+                    </h2>
+                    <p class="text-xs text-gray-500 mt-0.5">Stan magazynowy zostanie pomniejszony — operacja nieodwracalna</p>
+                </div>
+                <button onclick="closeRWModal()"
+                        class="text-gray-500 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Body -->
+            <div class="p-6 flex flex-col gap-5">
+
+                <!-- Wybór Towaru -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                        Surowiec
+                    </label>
+                    <select id="rw-item-select"
+                            class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-gray-200
+                                   focus:outline-none focus:border-red-500/60 transition-all text-sm appearance-none
+                                   cursor-pointer">
+                        <option value="">— wybierz surowiec —</option>
+                    </select>
+                </div>
+
+                <!-- Ilość -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                        Ilość do odpisania
+                    </label>
+                    <input id="rw-qty" type="number" step="0.001" min="0.001" placeholder="0.000"
+                           class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-gray-200
+                                  placeholder-gray-600 focus:outline-none focus:border-red-500/60 transition-all
+                                  text-sm text-right
+                                  [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none
+                                  [&::-webkit-inner-spin-button]:appearance-none">
+                </div>
+
+                <!-- Powód -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                        Powód rozchodu
+                    </label>
+                    <select id="rw-reason"
+                            class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-gray-200
+                                   focus:outline-none focus:border-red-500/60 transition-all text-sm appearance-none
+                                   cursor-pointer">
+                        <option value="Przeterminowanie">Przeterminowanie</option>
+                        <option value="Zniszczenie">Zniszczenie</option>
+                        <option value="Błąd produkcji">Błąd produkcji</option>
+                        <option value="Inne">Inne</option>
+                    </select>
+                </div>
+
+            </div>
+
+            <!-- Footer -->
+            <div class="px-6 py-4 border-t border-white/10 flex items-center justify-end gap-3 shrink-0 bg-black/20 rounded-b-2xl">
+                <button onclick="closeRWModal()"
+                        class="px-5 py-2.5 text-sm text-gray-400 hover:text-white border border-white/10
+                               hover:border-white/20 rounded-xl transition-all">
+                    Anuluj
+                </button>
+                <button onclick="submitRW()" id="btn-save-rw"
+                        class="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold bg-red-600 hover:bg-red-500
+                               active:scale-95 text-white rounded-xl transition-all shadow-lg shadow-red-900/30
+                               border border-red-400/30 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                    Zaksięguj Rozchód
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================
+         MODAL: NOWY SUROWIEC (Słownik Surowców)
+         =================================================================== -->
+    <div id="addItemModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black/75 backdrop-blur-sm" onclick="closeAddItemModal()"></div>
+
+        <!-- Panel -->
+        <div class="relative z-10 w-full max-w-lg bg-[#0d0d18] border border-emerald-500/20 rounded-2xl shadow-2xl flex flex-col">
+
+            <!-- Header -->
+            <div class="flex items-center justify-between px-6 py-5 border-b border-white/10 shrink-0">
+                <div>
+                    <h2 class="text-lg font-bold text-white tracking-wide">
+                        Nowy Surowiec <span class="text-emerald-400">/ Słownik</span>
+                    </h2>
+                    <p class="text-xs text-gray-500 mt-0.5">Dodaj surowiec do słownika magazynowego — SKU zostanie wygenerowane automatycznie jeśli pozostawisz puste</p>
+                </div>
+                <button onclick="closeAddItemModal()"
+                        class="text-gray-500 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/10">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Body -->
+            <div class="p-6 flex flex-col gap-5">
+
+                <!-- Nazwa Surowca -->
+                <div>
+                    <label for="new-item-name" class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                        Nazwa Surowca <span class="text-red-400">*</span>
+                    </label>
+                    <input id="new-item-name" type="text" placeholder="np. Mąka Caputo Tipo 00"
+                           class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-gray-200
+                                  placeholder-gray-600 focus:outline-none focus:border-emerald-500/60
+                                  focus:bg-white/8 transition-all text-sm">
+                </div>
+
+                <!-- Jednostka Bazowa -->
+                <div>
+                    <label for="new-item-unit" class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                        Jednostka Bazowa <span class="text-red-400">*</span>
+                    </label>
+                    <select id="new-item-unit"
+                            class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-gray-200
+                                   focus:outline-none focus:border-emerald-500/60 transition-all text-sm
+                                   appearance-none cursor-pointer">
+                        <option value="">— wybierz jednostkę —</option>
+                        <option value="kg">kg — kilogram</option>
+                        <option value="g">g — gram</option>
+                        <option value="l">l — litr</option>
+                        <option value="ml">ml — mililitr</option>
+                        <option value="szt">szt — sztuka</option>
+                        <option value="por">por — porcja</option>
+                        <option value="opak">opak — opakowanie</option>
+                    </select>
+                </div>
+
+                <!-- VAT -->
+                <div>
+                    <label for="new-item-vat" class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                        Domyślna Stawka VAT <span class="text-red-400">*</span>
+                    </label>
+                    <select id="new-item-vat"
+                            class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-gray-200
+                                   focus:outline-none focus:border-emerald-500/60 transition-all text-sm
+                                   appearance-none cursor-pointer">
+                        <option value="23">23%</option>
+                        <option value="8">8%</option>
+                        <option value="5" selected>5%</option>
+                        <option value="0">0% (zw.)</option>
+                    </select>
+                </div>
+
+                <!-- Kod KSeF (opcjonalne) -->
+                <div>
+                    <label for="modal-item-ksef" class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                        Kod KSeF <span class="text-gray-600 font-normal normal-case tracking-normal">(GTU / PKWiU — opcjonalne)</span>
+                    </label>
+                    <input id="modal-item-ksef" type="text" placeholder="np. GTU_02 lub 10.73.11.0"
+                           class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-gray-200
+                                  placeholder-gray-600 focus:outline-none focus:border-emerald-500/60
+                                  focus:bg-white/8 transition-all text-sm font-mono">
+                </div>
+
+                <!-- SKU (opcjonalne) -->
+                <div>
+                    <label for="new-item-sku" class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                        SKU <span class="text-gray-600 font-normal normal-case tracking-normal">(opcjonalne — auto-generowane jeśli puste)</span>
+                    </label>
+                    <input id="new-item-sku" type="text" placeholder="np. MAKA_CAPUTO"
+                           class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-emerald-300
+                                  placeholder-gray-600 focus:outline-none focus:border-emerald-500/60
+                                  focus:bg-white/8 transition-all text-sm font-mono tracking-widest uppercase">
+                </div>
+
+            </div>
+
+            <!-- Footer -->
+            <div class="px-6 py-4 border-t border-white/10 flex items-center justify-end gap-3 shrink-0 bg-black/20 rounded-b-2xl">
+                <button onclick="closeAddItemModal()"
+                        class="px-5 py-2.5 text-sm text-gray-400 hover:text-white border border-white/10
+                               hover:border-white/20 rounded-xl transition-all">
+                    Anuluj
+                </button>
+                <button id="btn-save-new-item" onclick="saveNewItem()"
+                        class="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold bg-emerald-600 hover:bg-emerald-500
+                               active:scale-95 text-white rounded-xl transition-all shadow-lg shadow-emerald-900/30
+                               border border-emerald-400/30">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    Zapisz do bazy
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="fixed bottom-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none"></div>
+
+</body>
+</html>

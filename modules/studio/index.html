@@ -193,7 +193,16 @@
                         <option value="">Wybierz surowiec z magazynu...</option>
                     </select>
                     <input type="number" id="manual-ingredient-qty" step="0.001" min="0" class="w-24 bg-black/50 border border-white/10 text-white rounded p-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition text-center" placeholder="Ilość">
-                    <button type="button" onclick="window.RecipeMapper.addManual(document.getElementById('manual-ingredient-select').value, document.getElementById('manual-ingredient-qty').value)" class="bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs uppercase tracking-wider py-2 px-4 rounded transition border border-slate-500/50 shrink-0">
+                    <select id="add-ingredient-unit" class="bg-black/50 border border-white/10 text-white rounded p-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition cursor-pointer">
+                        <option value="g" selected>g</option>
+                        <option value="ml">ml</option>
+                        <option value="kg">kg</option>
+                        <option value="l">l</option>
+                        <option value="szt">szt</option>
+                        <option value="por">por</option>
+                        <option value="opak">opak</option>
+                    </select>
+                    <button type="button" onclick="window.RecipeMapper.addManual(document.getElementById('manual-ingredient-select').value, document.getElementById('manual-ingredient-qty').value, document.getElementById('add-ingredient-unit').value)" class="bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs uppercase tracking-wider py-2 px-4 rounded transition border border-slate-500/50 shrink-0">
                         <i class="fa-solid fa-plus"></i> Dodaj
                     </button>
                 </div>
@@ -203,6 +212,8 @@
             </div>
 
         </div>
+
+        <div id="margin-container" class="sticky bottom-0 z-50 p-4 mt-8 bg-[#0a0a0f] bg-opacity-95 backdrop-blur-md border-t border-gray-800 shadow-2xl rounded-t-xl transition-all duration-300"></div>
     </div>
 </div>
 
@@ -271,12 +282,14 @@
         </div>
     </main>
 
-    <script src="../../core/core_validator.js"></script>
+    <script src="../../core/js/api_client.js"></script>
+    <script src="../../core/js/core_validator.js"></script>
     <script src="js/studio_core.js"></script>
     <script src="js/studio_item.js"></script>
     <script src="js/studio_bulk.js"></script>
     <script src="js/studio_modifiers.js"></script>
     <script src="js/studio_recipe.js"></script>
     <script src="js/studio_ui.js"></script>
+    <script src="js/studio_margin.js"></script>
 </body>
 </html>

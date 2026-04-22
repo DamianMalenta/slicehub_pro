@@ -114,16 +114,9 @@ window.BulkEditor = {
         };
         
         try {
-            // BEZPOŚREDNIE UDERZENIE W API
-            const response = await fetch('../../api/backoffice/api_menu_studio.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer mock_jwt_token_123' },
-                body: JSON.stringify(payload)
-            });
+            const result = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', payload);
             
-            const result = await response.json();
-            
-            if (result.status === 'success') {
+            if (result.success === true) {
                 alert("SUKCES: " + result.message);
                 
                 // Resetujemy zaznaczenia i UI po udanej operacji

@@ -409,26 +409,10 @@ window.ItemEditor = {
         payload.parentSku = document.getElementById('item-parent-sku').value.trim();
         payload.allergens = Array.from(document.querySelectorAll('.allergen-checkbox:checked')).map(cb => cb.value);
 
-        const authToken = 'mock_jwt_token_123';
-
         try {
-            const response = await fetch('../../api/backoffice/api_menu_studio.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'Authorization': `Bearer ${authToken}`
-                },
-                body: JSON.stringify(payload)
-            });
+            const result = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', payload);
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! Status: ${response.status}`);
-            }
-
-            const result = await response.json();
-
-            if (result.status === 'success') {
+            if (result.success === true) {
                 if (typeof window.loadMenuTree === 'function') {
                     await window.loadMenuTree();
                 }

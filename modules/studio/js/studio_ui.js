@@ -120,16 +120,11 @@ window.Core = {
 
         // 2. Uderzenie do bazy po PEŁNE dane księgowe (Cena, VAT, Drukarka)
         try {
-            const response = await fetch('../../api/backoffice/api_menu_studio.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer mock_jwt_token_123' },
-                body: JSON.stringify({ action: 'get_item_details', itemId: itemId })
-            });
-            const result = await response.json();
-            
-            if (result.status === 'success' && window.ItemEditor) {
+            const result = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'get_item_details', itemId: itemId });
+
+            if (result.success === true && window.ItemEditor) {
                 // Wstrzykujemy twarde dane z bazy do formularza po lewej stronie
-                window.ItemEditor.loadItemDataToForm(result.payload);
+                window.ItemEditor.loadItemDataToForm(result.data);
             } else {
                 console.error("[UI] Błąd pobierania detali dania:", result.message);
             }
@@ -179,7 +174,7 @@ window.Core = {
 
         try {
             const response = await window.apiStudio('add_category', { name: name });
-            if (response && response.status === 'success') {
+            if (response && response.success === true) {
                 await window.loadMenuTree();
                 window.Core.renderTree();
             } else {
@@ -193,6 +188,8 @@ window.Core = {
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
+    if (window.MarginGuardian) await window.MarginGuardian.init();
+
     const treeContainer = document.getElementById('dynamic-tree-container');
     if (typeof window.loadMenuTree !== 'function') {
         if(treeContainer) treeContainer.innerHTML = '<div class="text-center mt-10 text-red-500 font-bold text-[10px]">Błąd Krytyczny: Brak pliku Mózgu (studio_core.js)</div>';

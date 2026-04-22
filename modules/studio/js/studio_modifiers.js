@@ -2,7 +2,8 @@
 
 window.StudioState = window.StudioState || {};
 window.StudioState.modifierGroups = window.StudioState.modifierGroups || [];
-window.StudioState.products = window.StudioState.products || []; 
+window.StudioState.products = window.StudioState.products || [];
+window.StudioState.warehouseItems = window.StudioState.warehouseItems || [];
 window.StudioState.activeModGroupId = null;
 
 window.ModifierInspector = {
@@ -52,37 +53,30 @@ window.ModifierInspector = {
 
     async init() {
         if (window.StudioState.products.length === 0) {
-            try {
-                const response = await fetch('../../api/backoffice/api_recipes.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer mock_jwt_token_123' },
-                    body: JSON.stringify({ action: 'get_recipes_init' })
-                });
-                const result = await response.json();
-                if (result.status === 'success' && result.payload) {
-                    window.StudioState.products = result.payload.products || [];
-                }
-            } catch (e) {
-                console.warn("[ModifierInspector] Nie udało się pobrać słownika magazynu.", e);
+            const result = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'get_recipes_init' });
+            if (result.success && result.data) {
+                window.StudioState.products = result.data.products || [];
+            } else {
+                console.warn("[ModifierInspector] Nie udało się pobrać słownika magazynu.", result.message);
             }
         }
-        // --- ŁATKA: Ładujemy PRAWDZIWE modyfikatory z bazy przy starcie! ---
+        if (window.StudioState.warehouseItems.length === 0) {
+            const whResult = await window.ApiClient.post('../../api/api_warehouse.php', { action: 'GET_STOCK' });
+            if (whResult.success && Array.isArray(whResult.data)) {
+                window.StudioState.warehouseItems = whResult.data;
+            } else {
+                console.warn("[ModifierInspector] Nie udało się pobrać surowców z magazynu (GET_STOCK).", whResult.message);
+            }
+        }
         await this.loadModifiersFromDB();
     },
 
     async loadModifiersFromDB() {
-        try {
-            const response = await fetch('../../api/backoffice/api_menu_studio.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer mock_jwt_token_123' },
-                body: JSON.stringify({ action: 'get_modifiers_full' })
-            });
-            const result = await response.json();
-            if (result.status === 'success' && result.payload) {
-                window.StudioState.modifierGroups = result.payload;
-            }
-        } catch(e) {
-            console.error("[ModifierInspector] Błąd pobierania modyfikatorów z bazy:", e);
+        const result = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'get_modifiers_full' });
+        if (result.success === true && result.data) {
+            window.StudioState.modifierGroups = result.data;
+        } else {
+            console.error("[ModifierInspector] Błąd pobierania modyfikatorów z bazy:", result.message);
         }
     },
 
@@ -289,6 +283,8 @@ window.ModifierInspector = {
                    <button onclick="window.ModifierInspector.quickAdjust('set')" class="bg-green-600 text-white w-9 h-9 rounded-xl flex items-center justify-center hover:bg-green-500 transition shadow"><i class="fa-solid fa-equals text-[10px]"></i></button>
                </div>
             </div>
+
+            <div id="modifier-creator-slot" class="hidden mb-4"></div>
             
             <div class="grid grid-cols-12 gap-2 px-6 text-[9px] font-black uppercase text-slate-500 tracking-wider mb-2">
                 <div class="col-span-4">Nazwa (POS)</div>
@@ -300,8 +296,13 @@ window.ModifierInspector = {
         `;
         list.innerHTML = html;
         items.forEach(item => this.addOptionRow(item));
-        
-        list.innerHTML += `<button id="btn-add-option-row" onclick="window.ModifierInspector.addOptionRow()" class="w-full mt-4 py-5 border-2 border-dashed border-white/10 rounded-2xl text-[10px] font-black uppercase text-slate-500 hover:text-white transition hover:border-white/30">+ Dodaj Nowy Składnik</button>`;
+
+        const addBtn = document.createElement('button');
+        addBtn.id = 'btn-add-option-row';
+        addBtn.className = 'w-full mt-4 py-5 border-2 border-dashed border-green-500/20 rounded-2xl text-[10px] font-black uppercase text-slate-500 hover:text-green-400 hover:border-green-500/50 transition flex items-center justify-center gap-2';
+        addBtn.innerHTML = '<i class="fa-solid fa-plus-circle"></i> Kreator Nowego Dodatku';
+        addBtn.onclick = () => window.ModifierInspector.openCreatorPanel();
+        list.appendChild(addBtn);
     },
 
     addOptionRow(opt = {}) {
@@ -325,10 +326,14 @@ window.ModifierInspector = {
         const linkedSku = opt.linkedWarehouseSku || opt.sku || '';
         const qty = opt.linkedQuantity !== undefined ? opt.linkedQuantity : (opt.qty || '');
 
+        const warehouseSource = window.StudioState.warehouseItems.length
+            ? window.StudioState.warehouseItems
+            : window.StudioState.products;
         let skuOptions = '<option value="">-- Wybierz surowiec --</option>';
-        window.StudioState.products.forEach(p => {
+        warehouseSource.forEach(p => {
             const selected = p.sku === linkedSku ? 'selected' : '';
-            skuOptions += `<option value="${p.sku}" ${selected}>${p.name} (${p.sku})</option>`;
+            const baseUnit = p.base_unit || '';
+            skuOptions += `<option value="${p.sku}" data-base-unit="${baseUnit}" ${selected}>${p.name} (${p.sku})</option>`;
         });
 
         const row = document.createElement('div');
@@ -469,6 +474,277 @@ window.ModifierInspector = {
         }
     },
 
+    openCreatorPanel() {
+        const slot = document.getElementById('modifier-creator-slot');
+        if (!slot) return;
+
+        const warehouseSource = window.StudioState.warehouseItems.length
+            ? window.StudioState.warehouseItems
+            : window.StudioState.products;
+
+        const skuOptionsHtml = '<option value="">-- Wybierz surowiec --</option>' +
+            warehouseSource.map(p =>
+                `<option value="${p.sku}" data-base-unit="${p.base_unit || ''}">${p.name} (${p.sku})</option>`
+            ).join('');
+
+        const activeGroup = window.StudioState.modifierGroups.find(g => g.id === window.StudioState.activeModGroupId);
+        const prefilledGroup = activeGroup ? activeGroup.name : '';
+
+        const datalistOptions = window.StudioState.modifierGroups.map(g =>
+            `<option value="${g.name}">`
+        ).join('');
+
+        slot.innerHTML = `
+        <div class="bg-gradient-to-br from-green-900/10 to-transparent border border-green-500/20 rounded-3xl p-6 space-y-5 shadow-[0_0_20px_rgba(34,197,94,0.05)]">
+            <div class="flex items-center justify-between border-b border-white/5 pb-4">
+                <h4 class="text-[10px] font-black uppercase text-green-400 tracking-widest flex items-center gap-2">
+                    <i class="fa-solid fa-plus-circle"></i> Kreator Nowego Dodatku / Modyfikatora
+                </h4>
+                <button onclick="window.ModifierInspector.closeCreatorPanel()" class="text-slate-500 hover:text-red-400 transition w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-900/20">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-[8px] font-black uppercase text-slate-500 mb-1.5">Grupa Modyfikatora</label>
+                    <input list="modifier-groups-datalist" id="creator-group" value="${prefilledGroup}"
+                        class="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-[10px] outline-none focus:border-green-500 transition"
+                        placeholder="np. Sosy, Płatne Dodatki...">
+                    <datalist id="modifier-groups-datalist">${datalistOptions}</datalist>
+                </div>
+                <div>
+                    <label class="block text-[8px] font-black uppercase text-slate-500 mb-1.5">Nazwa Dodatku</label>
+                    <input type="text" id="creator-name"
+                        class="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-[10px] outline-none focus:border-green-500 transition"
+                        placeholder="np. Dodatkowa Mozzarella">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-[8px] font-black uppercase text-blue-400 mb-1.5">
+                    <i class="fa-solid fa-tags mr-1"></i> Macierz Cenowa Omnichannel (PLN)
+                </label>
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="flex flex-col gap-1">
+                        <span class="text-[8px] font-black text-slate-500 uppercase text-center">POS</span>
+                        <input type="number" step="0.01" min="0" id="creator-price-pos"
+                            class="bg-black/50 border border-white/10 rounded-xl p-3 text-blue-400 text-center font-black text-[11px] outline-none focus:border-blue-500 transition"
+                            placeholder="0.00" value="0.00">
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <span class="text-[8px] font-black text-slate-500 uppercase text-center">TAKEAWAY</span>
+                        <input type="number" step="0.01" min="0" id="creator-price-takeaway"
+                            class="bg-black/50 border border-white/10 rounded-xl p-3 text-blue-400 text-center font-black text-[11px] outline-none focus:border-blue-500 transition"
+                            placeholder="0.00" value="0.00">
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <span class="text-[8px] font-black text-slate-500 uppercase text-center">DELIVERY</span>
+                        <input type="number" step="0.01" min="0" id="creator-price-delivery"
+                            class="bg-black/50 border border-white/10 rounded-xl p-3 text-blue-400 text-center font-black text-[11px] outline-none focus:border-blue-500 transition"
+                            placeholder="0.00" value="0.00">
+                    </div>
+                </div>
+            </div>
+
+            <div class="border-t border-white/5 pt-5 space-y-4">
+                <label class="block text-[8px] font-black uppercase text-amber-400">
+                    <i class="fa-solid fa-boxes-stacked mr-1"></i> Powiązanie z Magazynem (Food Cost / Bliźniak Cyfrowy)
+                </label>
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-[7px] font-black uppercase text-slate-500 mb-1">Typ Akcji</label>
+                        <select id="creator-action" onchange="window.ModifierInspector.handleCreatorActionChange(this)"
+                            class="w-full bg-black/50 border border-white/10 rounded-xl p-2.5 text-white text-[9px] outline-none focus:border-amber-500 transition cursor-pointer">
+                            <option value="NONE">Neutralny (NONE)</option>
+                            <option value="ADD">+ Dodaje surowiec (ADD)</option>
+                            <option value="REMOVE">− Usuwa surowiec (REMOVE)</option>
+                        </select>
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-[7px] font-black uppercase text-slate-500 mb-1">Surowiec z Magazynu</label>
+                        <select id="creator-sku" onchange="window.ModifierInspector.onCreatorSkuChange(this)"
+                            class="w-full bg-black/50 border border-white/10 rounded-xl p-2.5 text-white text-[9px] font-mono outline-none focus:border-amber-500 transition opacity-30 cursor-not-allowed" disabled>
+                            ${skuOptionsHtml}
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-4 gap-3">
+                    <div>
+                        <label class="block text-[7px] font-black uppercase text-slate-500 mb-1">Ilość</label>
+                        <input type="number" step="0.001" min="0" id="creator-qty"
+                            class="w-full bg-black/50 border border-white/10 rounded-xl p-2.5 text-white text-[9px] text-center outline-none focus:border-amber-500 transition opacity-30 cursor-not-allowed"
+                            placeholder="0.000" disabled>
+                    </div>
+                    <div>
+                        <label class="block text-[7px] font-black uppercase text-slate-500 mb-1">Jednostka</label>
+                        <select id="creator-unit" class="w-full bg-black/50 border border-white/10 rounded-xl p-2.5 text-white text-[9px] outline-none focus:border-amber-500 transition opacity-30 cursor-not-allowed" disabled>
+                            <option value="g">g</option>
+                            <option value="ml">ml</option>
+                            <option value="kg">kg</option>
+                            <option value="l">l</option>
+                            <option value="szt" selected>szt</option>
+                            <option value="por">por</option>
+                            <option value="opak">opak</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[7px] font-black uppercase text-slate-500 mb-1">Ubytek (%)</label>
+                        <input type="number" step="0.1" min="0" max="100" id="creator-waste"
+                            class="w-full bg-black/50 border border-white/10 rounded-xl p-2.5 text-white text-[9px] text-center outline-none focus:border-amber-500 transition"
+                            placeholder="0" value="0">
+                    </div>
+                    <div class="flex flex-col justify-end">
+                        <span id="creator-base-unit-label" class="text-[8px] text-amber-400/70 font-bold uppercase text-center py-2.5 bg-amber-900/10 rounded-xl border border-amber-500/10 tracking-wider">
+                            JN. BAZOWA
+                        </span>
+                        <span id="creator-base-unit-info" class="text-[11px] text-amber-300 font-black uppercase text-center mt-1">—</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-4 border-t border-white/5 flex gap-3">
+                <button id="btn-save-modifier-draft" onclick="window.ModifierInspector.saveModifier()"
+                    class="flex-1 bg-green-600 hover:bg-green-500 active:scale-95 text-white font-black text-[11px] uppercase tracking-widest py-3 rounded-xl shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-all flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-floppy-disk"></i> Zapisz Modyfikator
+                </button>
+                <button onclick="window.ModifierInspector.closeCreatorPanel()"
+                    class="px-6 bg-white/5 border border-white/10 text-slate-400 hover:text-white font-black text-[10px] uppercase rounded-xl transition">
+                    Anuluj
+                </button>
+            </div>
+        </div>
+        `;
+
+        slot.classList.remove('hidden');
+        slot.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        document.getElementById('creator-name')?.focus();
+    },
+
+    closeCreatorPanel() {
+        const slot = document.getElementById('modifier-creator-slot');
+        if (slot) slot.classList.add('hidden');
+    },
+
+    handleCreatorActionChange(selectEl) {
+        const action = selectEl.value;
+        const skuSelect = document.getElementById('creator-sku');
+        const qtyInput = document.getElementById('creator-qty');
+        const unitSelect = document.getElementById('creator-unit');
+
+        if (action === 'NONE') {
+            [skuSelect, qtyInput, unitSelect].forEach(el => {
+                if (!el) return;
+                el.disabled = true;
+                el.classList.add('opacity-30', 'cursor-not-allowed');
+            });
+            if (skuSelect) skuSelect.value = '';
+            document.getElementById('creator-base-unit-info').textContent = '—';
+        } else {
+            skuSelect.disabled = false;
+            skuSelect.classList.remove('opacity-30', 'cursor-not-allowed');
+            unitSelect.disabled = false;
+            unitSelect.classList.remove('opacity-30', 'cursor-not-allowed');
+
+            if (action === 'REMOVE') {
+                qtyInput.disabled = true;
+                qtyInput.classList.add('opacity-30', 'cursor-not-allowed');
+            } else {
+                qtyInput.disabled = false;
+                qtyInput.classList.remove('opacity-30', 'cursor-not-allowed');
+            }
+        }
+    },
+
+    onCreatorSkuChange(selectEl) {
+        const selected = selectEl.options[selectEl.selectedIndex];
+        const baseUnit = selected ? (selected.dataset.baseUnit || '—') : '—';
+        const infoEl = document.getElementById('creator-base-unit-info');
+        if (infoEl) infoEl.textContent = baseUnit;
+
+        const unitSelect = document.getElementById('creator-unit');
+        if (unitSelect && baseUnit !== '—') {
+            const matchingOption = Array.from(unitSelect.options).find(o => o.value === baseUnit);
+            if (matchingOption) unitSelect.value = baseUnit;
+        }
+    },
+
+    async saveModifier() {
+        const groupInput    = document.getElementById('creator-group');
+        const nameInput     = document.getElementById('creator-name');
+        const pricePos      = parseFloat(document.getElementById('creator-price-pos')?.value) || 0;
+        const priceTakeaway = parseFloat(document.getElementById('creator-price-takeaway')?.value) || 0;
+        const priceDelivery = parseFloat(document.getElementById('creator-price-delivery')?.value) || 0;
+        const actionSelect  = document.getElementById('creator-action');
+        const skuSelect     = document.getElementById('creator-sku');
+        const qtyInput      = document.getElementById('creator-qty');
+        const unitSelect    = document.getElementById('creator-unit');
+        const wasteInput    = document.getElementById('creator-waste');
+
+        const name = nameInput ? nameInput.value.trim() : '';
+        if (!name) {
+            nameInput?.focus();
+            nameInput?.classList.add('border-red-500');
+            setTimeout(() => nameInput?.classList.remove('border-red-500'), 2000);
+            return;
+        }
+
+        const selectedSkuOpt = (skuSelect && skuSelect.selectedIndex > 0)
+            ? skuSelect.options[skuSelect.selectedIndex]
+            : null;
+
+        const payload = {
+            action:    'SAVE_MODIFIER',
+            groupName: groupInput ? groupInput.value.trim() : '',
+            name,
+            asciiKey:  this.toAutoSlug(name, 'OPT_'),
+            priceTiers: [
+                { channel: 'POS',      price: pricePos },
+                { channel: 'Takeaway', price: priceTakeaway },
+                { channel: 'Delivery', price: priceDelivery },
+            ],
+            warehouseLink: {
+                actionType:           actionSelect ? actionSelect.value : 'NONE',
+                warehouseSku:         skuSelect    ? skuSelect.value    : '',
+                warehouseSkuBaseUnit: selectedSkuOpt ? (selectedSkuOpt.dataset.baseUnit || '') : '',
+                quantity:             parseFloat(qtyInput?.value)  || 0,
+                unit:                 unitSelect  ? unitSelect.value  : 'szt',
+                wastePercent:         parseFloat(wasteInput?.value) || 0,
+            },
+        };
+
+        const btn = document.getElementById('btn-save-modifier-draft');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Zapisywanie...';
+        }
+
+        try {
+            const result = await window.ApiClient.post('../../api/api_modifiers.php', payload);
+
+            if (!result.success) {
+                throw new Error(result.message || 'Błąd API.');
+            }
+
+            this.closeCreatorPanel();
+            await this.loadModifiersFromDB();
+            this.renderGroupList();
+
+        } catch (err) {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-triangle-exclamation mr-2"></i> Błąd — spróbuj ponownie';
+                btn.classList.replace('bg-green-600', 'bg-red-600');
+                setTimeout(() => {
+                    btn.innerHTML = '<i class="fa-solid fa-terminal mr-2"></i> Podgląd Draftu (Console)';
+                    btn.classList.replace('bg-red-600', 'bg-green-600');
+                    btn.disabled = false;
+                }, 3000);
+            }
+            console.error('[SliceHub] SAVE_MODIFIER error:', err.message);
+        }
+    },
+
     quickAdjust(type) {
         const val = parseFloat(document.getElementById('quick-mod-price').value) || 0;
         if(val === 0 && type !== 'set') return;
@@ -584,25 +860,21 @@ window.ModifierInspector = {
         };
 
         try {
-            const response = await fetch('../../api/backoffice/api_menu_studio.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer mock_jwt_token_123' },
-                body: JSON.stringify(payload)
-            });
-            const result = await response.json();
+            const result = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', payload);
 
-            if (result.status === 'success') {
+            if (result.success === true) {
                 btn.innerHTML = '<i class="fa-solid fa-check mr-2"></i> ZAPISANO!';
                 setTimeout(() => { btn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-2"></i> Zapisz Grupę'; }, 2000);
                 
-                if(groupId === 0 && result.payload && result.payload.groupId) {
-                    document.getElementById('mod-group-id').value = result.payload.groupId;
+                const returnedId = result.data ? result.data.id : null;
+                if(groupId === 0 && returnedId) {
+                    document.getElementById('mod-group-id').value = returnedId;
                     document.getElementById('mod-group-ascii').disabled = true;
                     document.getElementById('mod-group-ascii').classList.add('opacity-50', 'cursor-not-allowed');
                 }
 
                 if (groupId === 0) {
-                    const newGroupId = (result.payload && result.payload.groupId) ? parseInt(result.payload.groupId, 10) : 0;
+                    const newGroupId = returnedId ? parseInt(returnedId, 10) : 0;
                     if (newGroupId > 0) {
                         window.StudioState.modifierGroups.push({
                             id: newGroupId,

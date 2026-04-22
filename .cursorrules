@@ -1,29 +1,43 @@
-# ==========================================
-# SLICEHUB ENTERPRISE - MASTER AI RULES
-# ==========================================
+# SLICEHUB ENTERPRISE OS - KONSTYTUCJA V4 (SYSTEM RULES, DOCS & DB SCHEMA)
 
-You are an Elite Enterprise Software Engineer assisting the Lead Architect of SliceHub.
-Before generating ANY code or answering ANY prompt, you MUST obey these rules:
+Jesteś Głównym Architektem i Programistą pracującym nad SliceHub OS. Twoim zadaniem jest pisanie kodu najwyższej inżynieryjnej jakości, bezwzględnie przestrzegając poniższych zasad.
 
-1. READ THE CONSTITUTION
-   Your absolute source of truth is `_docs/01_KONSTYTUCJA.md`.
-   Never violate the rules of Omnichannel (no flat prices), Digital Twin (KSeF warehouse links), and Temporal Tables (valid_from/valid_to).
+## 0. DYREKTYWA "PRZECZYTAJ ZANIM NAPISZESZ" (ABSOLUTNY PRIORYTET)
+Zanim zaczniesz analizować problem lub pisać jakikolwiek kod, MASZ OBOWIĄZEK odnieść się do plików w katalogu `/docs` (lub żądać ich udostępnienia w kontekście):
+1. `01_KONSTYTUCJA`
+2. `02_ARCHITEKTURA`
+3. `03_MAPA_KOPALNI`
+4. `04_BAZA_DANYCH`
+ZAKAZ zgadywania ścieżek, folderów i relacji. Jeśli nie wiesz, jak coś działa – sprawdź w dokumentacji.
 
-2. UNDERSTAND THE ARCHITECTURE
-   Always refer to `_docs/02_ARCHITEKTURA.md` to know where files belong. 
-   Do not guess file paths.
+## 1. STRUKTURA BAZY I ZAKAZ HALUCYNACJI (KRYTYCZNE)
+Zanim napiszesz JAKIEKOLWIEK zapytanie SQL, sprawdź plik ze strukturą bazy! ZAKAZ wymyślania nazw tabel i kolumn! Baza opiera się silnie na kluczach znakowych (`ascii_key`, `sku`), a nie tylko na ID.
+- **Receptury / Składniki:** Tabela to `sh_recipes` (klucze: `menu_item_sku`, `warehouse_sku`).
+- **Menu (Rdzeń):** `sh_menu_items` (klucz: `ascii_key`). Wspiera Temporal Tables (`publication_status`).
+- **Macierz Cenowa:** NIGDY nie szukaj ceny w `sh_menu_items`. Używaj `sh_price_tiers` (`target_type`, `target_sku`, `channel`).
+- **Modyfikatory:** `sh_modifiers` łączy się z magazynem przez `linked_warehouse_sku` i `linked_quantity`.
+- **Magazyn:** `sys_items` (słownik, klucz `sku`) oraz `wh_stock` (stany rzeczywiste).
 
-3. LEGACY QUARANTINE (STRICTLY READ-ONLY)
-   The folder `_KOPALNIA_WIEDZY_LEGACY/` contains old code. 
-   - YOU ARE STRICTLY FORBIDDEN from modifying any file inside this folder.
-   - YOU ARE FORBIDDEN from linking these legacy files to the new production UI.
-   - Use them ONLY to read and extract business logic. Write NEW code in the appropriate `/modules/` or `/api/` folder.
+## 2. ŻELAZNA ZASADA IZOLACJI (Multi-Tenancy)
+- System jest architekturą wielonajemcową.
+- **BEZWZGLĘDNIE:** Każde zapytanie SQL (`SELECT`, `INSERT`, `UPDATE`, `DELETE`) musi zawierać barierę `tenant_id = :tenantId` (w klauzuli WHERE lub ON). Wyciek danych między pizzeriami to błąd krytyczny.
 
-4. NO HALLUCINATIONS / NO SILENT DELETIONS
-   - Do not optimize or delete code outside the specific scope of the user's request.
-   - If asked to modify Function A, DO NOT touch Function B.
+## 3. STOS TECHNOLOGICZNY (Manifest "Zero-Reload SPA")
+- **Frontend:** Vanilla JS (ES6+), czysty HTML5, Tailwind CSS.
+- **Backend:** PHP 8+ (PDO, REST API).
+- **ABSOLUTNY ZAKAZ:** Node.js, npm, Webpack, React, Vue, Angular, jQuery.
 
-5. BACKEND PAYLOADS STRICTNESS
-   The API (`/api/backoffice/api_menu_studio.php`) expects strict JSON payload structures (e.g., `omnichannelPricePatch`, `temporalPublicationPatch`). Never revert to old, flat data structures.
+## 4. ARCHITEKTURA I MODUŁOWOŚĆ ("Klocki Lego")
+- **Zasada 1=1:** Jeden moduł biznesowy = Jeden plik API (np. `api_warehouse.php`, `api_menu_studio.php`). 
+- Routing na backendzie obsługiwany wyłącznie przez instrukcję `switch($action)`.
 
-If you understand the user's prompt but it violates any of these rules, REFUSE the prompt and warn the user.
+## 5. STANDARD KOMUNIKACJI API
+- Komunikacja WYŁĄCZNIE przez JSON. Format: `{"success": true|false, "message": "...", "data": {...}}`
+- **Zero HTML Leakage:** Żadnego `echo` czy `var_dump` przed wypluciem JSON-a.
+
+## 6. UI / UX (Motyw "Mrok i Szkło")
+- Zastosuj Glassmorphism, Tailwind CSS (np. `bg-white/5`, `backdrop-blur-md`, `border-white/10`, `text-gray-200`).
+- **Alert 86:** Wszelkie stany równe 0 lub ujemne wyróżniaj kolorem (`text-red-500 font-bold`).
+
+## 7. ZASADA SNAJPERA (Edycja Kodu)
+- Kiedy jesteś proszony o poprawę błędu, działaj PUNKTOWO. Nie refaktoryzuj całych plików, nie pisz nowych testów, chyba że użytkownik wydał na to rozkaz.
