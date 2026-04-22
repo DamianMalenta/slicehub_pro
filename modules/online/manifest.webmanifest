@@ -1,0 +1,18 @@
+{
+  "name": "SliceHub Online",
+  "short_name": "SliceHub",
+  "start_url": "/slicehub/modules/online/index.html",
+  "scope": "/slicehub/modules/online/",
+  "display": "standalone",
+  "background_color": "#0a0806",
+  "theme_color": "#0a0806",
+  "description": "Cinematic storefront for SliceHub online orders.",
+  "icons": [
+    {
+      "src": "/slicehub/modules/online/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

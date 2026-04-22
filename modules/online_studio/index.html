@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>SliceHub · Online Studio</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <link rel="stylesheet" href="css/studio.css">
+    <link rel="stylesheet" href="css/director.css">
+    <link rel="stylesheet" href="css/conductor.css">
+</head>
+<body>
+
+<!-- BOOT / AUTH GATE -->
+<div id="boot" class="boot">
+    <div class="boot__logo"><i class="fa-solid fa-pizza-slice"></i></div>
+    <div class="boot__title">Online Studio</div>
+    <div class="boot__spinner"><div></div><div></div><div></div><div></div></div>
+    <p id="boot-msg" class="boot__msg">Ładowanie sesji…</p>
+</div>
+
+<!-- MAIN APP (revealed after auth) -->
+<div id="app" class="app hidden">
+
+    <!-- ─── SIDEBAR ────────────────────────────────────────────── -->
+    <aside class="sidebar">
+        <div class="sidebar__brand">
+            <div class="sidebar__logo"><i class="fa-solid fa-pizza-slice"></i></div>
+            <div>
+                <div class="sidebar__title">ONLINE STUDIO</div>
+                <div class="sidebar__sub">Scene Studio · Hollywood Atelier</div>
+            </div>
+        </div>
+
+        <nav class="sidebar__nav">
+            <button class="nav-btn active" data-tab="library">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+                <span>Assets</span>
+                <small id="nav-library-count" class="nav-btn__count">·</small>
+            </button>
+            <button class="nav-btn" data-tab="director">
+                <i class="fa-solid fa-clapperboard"></i>
+                <span>Scene Studio</span>
+                <small class="nav-btn__badge" style="background:linear-gradient(135deg,#a855f7,#6366f1)">PRO</small>
+            </button>
+            <button class="nav-btn" data-tab="conductor">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                <span>Style Conductor</span>
+                <small class="nav-btn__badge" style="background:linear-gradient(135deg,#f59e0b,#ef4444)">BULK</small>
+            </button>
+            <button class="nav-btn" data-tab="companions">
+                <i class="fa-solid fa-people-carry-box"></i>
+                <span>Companions</span>
+            </button>
+            <button class="nav-btn" data-tab="surface">
+                <i class="fa-solid fa-border-all"></i>
+                <span>Surface</span>
+            </button>
+            <button class="nav-btn" data-tab="preview">
+                <i class="fa-solid fa-eye"></i>
+                <span>Live Preview</span>
+            </button>
+            <button class="nav-btn" data-tab="storefront">
+                <i class="fa-solid fa-store"></i>
+                <span>Ustawienia sklepu</span>
+                <small class="nav-btn__badge" style="background:linear-gradient(135deg,#10b981,#059669)">NEW</small>
+            </button>
+        </nav>
+
+        <div class="sidebar__foot">
+            <div id="tenant-badge" class="tenant-badge sidebar__tenant">
+                <i class="fa-solid fa-building"></i>
+                <span>tenant #—</span>
+            </div>
+            <a href="../../modules/studio/index.html" class="sidebar__back" title="Wróć do Studio Menu">
+                <i class="fa-solid fa-arrow-left"></i>
+                <span>Studio Menu</span>
+            </a>
+        </div>
+    </aside>
+
+    <!-- ─── MAIN STAGE ─────────────────────────────────────────── -->
+    <main class="stage">
+
+        <header class="stage__head">
+            <div class="stage__head-left">
+                <h1 id="stage-title">Asset Studio</h1>
+                <p id="stage-desc">Drop Zone Wizard — wgrywasz plik i jedno okno prowadzi Cię: co to jest → gdzie przypisać.</p>
+            </div>
+            <div class="stage__head-right">
+                <button id="btn-global-refresh" class="btn btn--ghost" title="Odśwież (F5)">
+                    <i class="fa-solid fa-rotate"></i>
+                </button>
+                <button id="btn-open-preview" class="btn btn--accent">
+                    <i class="fa-solid fa-external-link-alt"></i>
+                    Otwórz storefront
+                </button>
+            </div>
+        </header>
+
+        <section id="tab-library"     class="tab tab--active"></section>
+        <section id="tab-director"    class="tab" style="position:relative;padding:0;overflow:hidden"></section>
+        <section id="tab-conductor"   class="tab"></section>
+        <section id="tab-companions"  class="tab"></section>
+        <section id="tab-surface"     class="tab"></section>
+        <section id="tab-preview"     class="tab"></section>
+        <section id="tab-storefront"  class="tab"></section>
+
+    </main>
+
+</div>
+
+<!-- TOAST -->
+<div id="toast-root" class="toast-root" aria-live="polite"></div>
+
+<!-- MODAL ROOT -->
+<div id="modal-root"></div>
+
+<!-- BOOT SCRIPT -->
+<script type="module" src="js/studio_app.js"></script>
+</body>
+</html>

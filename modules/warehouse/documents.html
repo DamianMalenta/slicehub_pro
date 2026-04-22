@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>SliceHub — Rejestr Dokumentów Magazynowych</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Montserrat', sans-serif; background-color: #050505; color: white; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+        input, textarea, select, [contenteditable] { user-select: text; -webkit-user-select: text; }
+        .glass { background: rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.05); backdrop-filter:blur(10px); }
+        .badge-pz  { background: rgba(34,197,94,0.15); color: #4ade80; border:1px solid rgba(34,197,94,0.3); }
+        .badge-rw  { background: rgba(239,68,68,0.15); color: #f87171; border:1px solid rgba(239,68,68,0.3); }
+        .badge-inw { background: rgba(245,158,11,0.15); color: #fbbf24; border:1px solid rgba(245,158,11,0.3); }
+        .badge-mm  { background: rgba(99,102,241,0.15); color: #a5b4fc; border:1px solid rgba(99,102,241,0.3); }
+        .badge-kor { background: rgba(249,115,22,0.15); color: #fb923c; border:1px solid rgba(249,115,22,0.3); }
+        .badge-wz  { background: rgba(168,85,247,0.15); color: #c084fc; border:1px solid rgba(168,85,247,0.3); }
+    </style>
+</head>
+<body class="p-6 md:p-10 overflow-x-hidden">
+
+    <header class="mb-8 flex justify-between items-end">
+        <div>
+            <h2 class="text-4xl font-black italic uppercase tracking-tighter"><i class="fa-solid fa-book mr-3 text-violet-400"></i>Rejestr Dokumentów</h2>
+            <p class="text-[11px] font-bold text-slate-500 uppercase tracking-widest mt-2">wh_documents — historia PZ / RW / INW / MM / KOR / WZ</p>
+        </div>
+        <a href="index.html" class="glass px-4 py-3 rounded-xl text-xs font-bold uppercase text-slate-400 hover:text-white transition border border-white/10"><i class="fa-solid fa-warehouse mr-2"></i> Hub</a>
+    </header>
+
+    <div class="flex gap-2 mb-6 flex-wrap">
+        <button type="button" data-type="" class="filter-btn glass px-4 py-2 rounded-lg text-xs font-bold uppercase text-slate-300 border border-white/10 hover:bg-white/10 transition">Wszystkie</button>
+        <button type="button" data-type="PZ" class="filter-btn glass px-4 py-2 rounded-lg text-xs font-bold uppercase text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/10 transition">PZ</button>
+        <button type="button" data-type="RW" class="filter-btn glass px-4 py-2 rounded-lg text-xs font-bold uppercase text-red-400 border border-red-500/30 hover:bg-red-500/10 transition">RW</button>
+        <button type="button" data-type="INW" class="filter-btn glass px-4 py-2 rounded-lg text-xs font-bold uppercase text-amber-400 border border-amber-500/30 hover:bg-amber-500/10 transition">INW</button>
+        <button type="button" data-type="MM" class="filter-btn glass px-4 py-2 rounded-lg text-xs font-bold uppercase text-indigo-400 border border-indigo-500/30 hover:bg-indigo-500/10 transition">MM</button>
+        <button type="button" data-type="KOR" class="filter-btn glass px-4 py-2 rounded-lg text-xs font-bold uppercase text-orange-400 border border-orange-500/30 hover:bg-orange-500/10 transition">KOR</button>
+        <button type="button" data-type="WZ" class="filter-btn glass px-4 py-2 rounded-lg text-xs font-bold uppercase text-purple-400 border border-purple-500/30 hover:bg-purple-500/10 transition">WZ</button>
+    </div>
+
+    <div class="glass p-6 rounded-3xl overflow-x-auto">
+        <div class="flex justify-between items-center mb-4">
+            <span id="doc-count" class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Ładowanie…</span>
+            <div class="flex gap-2">
+                <button type="button" onclick="window.prevPage()" id="btn-prev" class="glass px-3 py-1.5 rounded-lg text-xs text-slate-400 border border-white/10 disabled:opacity-30" disabled>&laquo; Poprz.</button>
+                <button type="button" onclick="window.nextPage()" id="btn-next" class="glass px-3 py-1.5 rounded-lg text-xs text-slate-400 border border-white/10 disabled:opacity-30" disabled>Nast. &raquo;</button>
+            </div>
+        </div>
+        <table class="w-full text-left border-collapse min-w-[900px]">
+            <thead><tr class="border-b border-white/10 text-[10px] uppercase text-slate-500 tracking-widest">
+                <th class="pb-3">Nr dok.</th><th class="pb-3">Typ</th><th class="pb-3">Status</th><th class="pb-3">Magazyn</th>
+                <th class="pb-3 text-center">Pozycji</th><th class="pb-3 text-right">Wartość netto</th><th class="pb-3 text-right">Data</th>
+            </tr></thead>
+            <tbody id="doc-body"><tr><td colspan="7" class="py-16 text-center text-slate-600 font-bold uppercase text-xs"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Ładowanie…</td></tr></tbody>
+        </table>
+    </div>
+
+    <script src="../../core/js/api_client.js"></script>
+    <script src="js/warehouse_api.js"></script>
+    <script src="js/warehouse_documents.js"></script>
+</body>
+</html>

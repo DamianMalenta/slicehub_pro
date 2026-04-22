@@ -1,0 +1,11 @@
+{
+    "name": "SliceHub Driver",
+    "short_name": "Driver",
+    "description": "SliceHub Delivery Driver App",
+    "start_url": "/slicehub/modules/driver_app/index.html",
+    "display": "standalone",
+    "orientation": "portrait",
+    "background_color": "#050508",
+    "theme_color": "#050508",
+    "icons": []
+}

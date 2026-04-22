@@ -1,0 +1,184 @@
+/* ============================================================================
+   SLICEHUB KDS — Kitchen Display System
+   Dark high-contrast theme, massive text, touch-friendly
+   ============================================================================ */
+:root {
+    --bg-root: #050508;
+    --bg-surface: #0a0f1c;
+    --bg-card: rgba(255,255,255,0.04);
+    --border: rgba(255,255,255,0.08);
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #475569;
+    --accent-green: #22c55e;
+    --accent-red: #ef4444;
+    --accent-blue: #3b82f6;
+    --accent-yellow: #eab308;
+    --accent-orange: #f97316;
+    --accent-purple: #a855f7;
+    --radius-sm: 10px;
+    --radius-md: 14px;
+    --font: 'Inter', system-ui, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; font-family: var(--font); background: var(--bg-root); color: var(--text-primary); overflow: hidden; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; touch-action: manipulation; }
+
+/* KDS: Scale grid for 1080p/4K wall-mounted displays */
+@media (min-width: 1920px) {
+    .kds-board { grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 16px; padding: 16px; }
+    .kds-order-num { font-size: 28px; }
+    .kds-line-qty { font-size: 22px; min-width: 44px; }
+    .kds-line-name { font-size: 17px; }
+    .kds-bump { padding: 18px; font-size: 15px; }
+    .kds-clock { font-size: 34px; }
+    .kds-topbar { height: 64px; }
+}
+@media (min-width: 3200px) {
+    .kds-board { grid-template-columns: repeat(auto-fill, minmax(560px, 1fr)); gap: 20px; padding: 20px; }
+    .kds-order-num { font-size: 36px; }
+    .kds-line-qty { font-size: 28px; min-width: 52px; }
+    .kds-line-name { font-size: 20px; }
+    .kds-line { padding: 12px 18px; }
+    .kds-bump { padding: 22px; font-size: 18px; }
+    .kds-ticket-header { padding: 16px 18px; }
+    .kds-clock { font-size: 42px; }
+    .kds-topbar { height: 72px; }
+    .kds-logo { width: 52px; height: 52px; font-size: 24px; }
+}
+
+/* TOPBAR */
+.kds-topbar { height: 56px; background: var(--bg-surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; gap: 12px; }
+.kds-logo { width: 40px; height: 40px; background: var(--accent-red); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; color: #fff; }
+.kds-title { font-size: 14px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-secondary); }
+.kds-spacer { flex: 1; }
+.kds-clock { font-size: 28px; font-weight: 900; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.kds-refresh { width: 44px; height: 44px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary); font-size: 16px; cursor: pointer; }
+
+/* BOARD */
+.kds-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; padding: 12px; height: calc(100vh - 56px); overflow-y: auto; align-content: start; }
+
+/* TICKET CARD */
+.kds-ticket { background: var(--bg-card); border: 2px solid var(--border); border-radius: var(--radius-md); overflow: hidden; display: flex; flex-direction: column; transition: border-color 0.3s; }
+.kds-ticket.status-new       { border-top: 4px solid var(--accent-blue);   animation: kds-new-pulse 2.5s infinite; }
+.kds-ticket.status-accepted  { border-top: 4px solid var(--accent-purple); }
+.kds-ticket.status-preparing { border-top: 4px solid var(--accent-orange); }
+/* Backwards compat if legacy orders still use 'pending': */
+.kds-ticket.status-pending   { border-top: 4px solid var(--accent-blue); }
+@keyframes kds-new-pulse {
+    0%,100% { border-top-color: var(--accent-blue); }
+    50%     { border-top-color: #60a5fa; }
+}
+
+.kds-ticket-header { padding: 12px 14px; background: rgba(0,0,0,0.3); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.kds-order-num { font-size: 22px; font-weight: 900; }
+.kds-order-meta { text-align: right; }
+.kds-order-type { font-size: 9px; font-weight: 900; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; background: rgba(59,130,246,0.15); color: var(--accent-blue); }
+.kds-order-type.delivery { background: rgba(249,115,22,0.15); color: var(--accent-orange); }
+.kds-order-type.takeaway { background: rgba(168,85,247,0.15); color: var(--accent-purple); }
+.kds-order-timer { font-size: 14px; font-weight: 900; margin-top: 4px; }
+.kds-order-timer.urgent { color: var(--accent-red); animation: kds-pulse 1.5s infinite; }
+.kds-order-timer.warning { color: var(--accent-yellow); }
+.kds-order-timer.ok { color: var(--accent-green); }
+
+@keyframes kds-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+/* LINES */
+.kds-lines { padding: 8px 0; flex: 1; }
+.kds-line { padding: 8px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.kds-line:last-child { border-bottom: none; }
+.kds-line-qty { font-size: 18px; font-weight: 900; color: var(--accent-blue); min-width: 36px; text-align: center; }
+.kds-line-name { font-size: 14px; font-weight: 700; flex: 1; }
+.kds-line-comment { font-size: 11px; color: var(--accent-yellow); font-style: italic; display: block; margin-top: 2px; }
+.kds-line-mods { font-size: 10px; color: var(--accent-green); display: block; margin-top: 2px; }
+
+/* DRIVER ACTION WARNINGS */
+.kds-line.action-pack_cold { background: rgba(59,130,246,0.08); }
+.kds-line.action-pack_cold .kds-action-tag { background: rgba(59,130,246,0.2); color: var(--accent-blue); border: 1px solid rgba(59,130,246,0.4); }
+
+.kds-line.action-pack_separate {
+    background: rgba(239,68,68,0.12);
+    border-left: 4px solid var(--accent-red);
+}
+.kds-line.action-pack_separate .kds-line-name { text-decoration: line-through; text-decoration-color: var(--accent-red); }
+.kds-line.action-pack_separate .kds-action-tag { background: rgba(239,68,68,0.2); color: var(--accent-red); border: 1px solid rgba(239,68,68,0.5); }
+
+.kds-line.action-check_id { background: rgba(168,85,247,0.08); }
+.kds-line.action-check_id .kds-action-tag { background: rgba(168,85,247,0.2); color: var(--accent-purple); border: 1px solid rgba(168,85,247,0.4); }
+
+.kds-action-tag {
+    font-size: 8px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 4px 8px; border-radius: 4px; white-space: nowrap; flex-shrink: 0;
+    animation: kds-pulse 2s infinite;
+}
+
+/* DELIVERY ADDRESS BAR */
+.kds-delivery-bar { padding: 8px 14px; background: rgba(249,115,22,0.08); border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 700; color: var(--accent-orange); }
+
+/* BUMP BUTTON */
+.kds-ticket-foot { display: flex; gap: 0; }
+.kds-bump { flex: 1; padding: 14px; border: none; font-size: 13px; font-weight: 900; text-transform: uppercase; cursor: pointer; transition: all 0.15s; letter-spacing: 0.05em; }
+.kds-bump:active { transform: scale(0.98); }
+.kds-bump.bump-accept { background: var(--accent-blue); color: #fff; }
+.kds-bump.bump-start  { background: var(--accent-orange); color: #fff; }
+.kds-bump.bump-done   { background: var(--accent-green); color: #fff; }
+
+.kds-recall {
+    width: 54px;
+    border: none;
+    background: rgba(255,255,255,0.06);
+    color: var(--text-secondary);
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    border-left: 1px solid rgba(0,0,0,0.3);
+}
+.kds-recall:hover { background: rgba(239,68,68,0.2); color: var(--accent-red); }
+
+/* Source badge (WWW / POS / KIOSK / AGG) */
+.kds-source-badge {
+    display: inline-block;
+    font-size: 8px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em;
+    padding: 3px 6px;
+    border-radius: 3px;
+    color: #fff;
+}
+
+/* Payment badge */
+.kds-pay-badge {
+    display: inline-block;
+    font-size: 9px; font-weight: 800;
+    padding: 3px 6px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.06);
+    color: var(--text-secondary);
+}
+.kds-pay-badge.kds-pay-cash_on_delivery { background: rgba(34,197,94,0.12); color: var(--accent-green); }
+.kds-pay-badge.kds-pay-card_on_delivery { background: rgba(59,130,246,0.12); color: var(--accent-blue); }
+.kds-pay-badge.kds-pay-online_transfer { background: rgba(168,85,247,0.12); color: var(--accent-purple); }
+
+.kds-order-badges {
+    display: inline-flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end;
+}
+
+.kds-customer-line {
+    padding: 6px 14px;
+    background: rgba(59,130,246,0.08);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px; font-weight: 700;
+    color: var(--accent-blue);
+}
+.kds-customer-line i { margin-right: 4px; }
+.kds-customer-line a { color: var(--accent-blue); text-decoration: underline; }
+
+/* EMPTY STATE */
+.kds-empty { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px; color: var(--text-muted); }
+.kds-empty i { font-size: 64px; opacity: 0.2; margin-bottom: 16px; }
+.kds-empty h3 { font-size: 18px; font-weight: 900; text-transform: uppercase; }
+
+/* TOAST */
+#toast-container { position: fixed; top: 12px; right: 12px; z-index: 9999; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+.toast { padding: 12px 18px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 700; animation: toast-in 0.3s; pointer-events: auto; }
+.toast.success { background: rgba(34,197,94,0.95); color: #fff; }
+.toast.error { background: rgba(239,68,68,0.95); color: #fff; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }

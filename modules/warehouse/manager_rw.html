@@ -2,17 +2,18 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>SliceHub POS - Straty RW</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <script src="../../core/core_validator.js"></script>
+    <script src="../../core/js/core_validator.js"></script>
 
     <style>
-        body { font-family: 'Montserrat', sans-serif; background-color: #050505; color: white; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Montserrat', sans-serif; background-color: #050505; color: white; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+        input, textarea, select, [contenteditable] { user-select: text; -webkit-user-select: text; }
         .glass { background: rgba(255, 255, 255, 0.02); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.05); transition: all 0.3s ease; }
         .glass:hover { border-color: rgba(239, 68, 68, 0.15); background: rgba(255, 255, 255, 0.03); }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
@@ -38,9 +39,14 @@
             </h1>
             <p class="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] mt-1">Rejestracja strat i ubytków magazynowych</p>
         </div>
-        <button onclick="window.location.href='../studio/index.html'" class="glass px-6 py-3 rounded-2xl text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-white hover:border-white/20 transition">
-            <i class="fa-solid fa-power-off mr-2"></i> Control Center
-        </button>
+        <div class="flex gap-2">
+            <button type="button" onclick="window.location.href='index.html'" class="glass px-4 py-3 rounded-2xl text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-white transition border border-white/10">
+                <i class="fa-solid fa-warehouse mr-2"></i> Magazyn
+            </button>
+            <button type="button" onclick="window.location.href='../studio/index.html'" class="glass px-6 py-3 rounded-2xl text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-white hover:border-white/20 transition">
+                <i class="fa-solid fa-power-off mr-2"></i> Studio
+            </button>
+        </div>
     </header>
 
     <main class="flex-1 overflow-y-auto hide-scrollbar p-6 lg:p-10 grid grid-cols-1 xl:grid-cols-3 gap-8 max-w-[1600px] mx-auto w-full">
@@ -60,8 +66,7 @@
                     <div>
                         <label class="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2 block">Magazyn Źródłowy</label>
                         <select id="warehouse_id" class="w-full bg-black border border-white/10 text-white rounded-xl p-4 outline-none focus:border-red-500 font-bold uppercase appearance-none transition">
-                            <option value="1">Magazyn Główny</option>
-                            <option value="2">Magazyn Kuchnia / Bar</option>
+                            <option value="">Ładowanie magazynów...</option>
                         </select>
                     </div>
                 </div>
@@ -181,6 +186,8 @@
         <p class="font-black tracking-[0.3em] uppercase text-red-500 text-sm animate-pulse">Spalanie Stanów Magazynowych...</p>
     </div>
 
+    <script src="../../core/js/api_client.js"></script>
+    <script src="js/warehouse_api.js"></script>
     <script src="js/warehouse_rw.js"></script>
 </body>
 </html>

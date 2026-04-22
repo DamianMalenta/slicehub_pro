@@ -17,6 +17,7 @@ Zanim napiszesz JAKIEKOLWIEK zapytanie SQL, sprawdź plik ze strukturą bazy! ZA
 - **Macierz Cenowa:** NIGDY nie szukaj ceny w `sh_menu_items`. Używaj `sh_price_tiers` (`target_type`, `target_sku`, `channel`).
 - **Modyfikatory:** `sh_modifiers` łączy się z magazynem przez `linked_warehouse_sku` i `linked_quantity`.
 - **Magazyn:** `sys_items` (słownik, klucz `sku`) oraz `wh_stock` (stany rzeczywiste).
+- **Silosy prefiksowe:** baza jest podzielona na trzy izolowane silosy (`sh_` biznes, `sys_` słownik surowców, `wh_` magazyn). Połączenia MIĘDZY silosami TYLKO przez klucze znakowe — patrz §9.
 
 ## 2. ŻELAZNA ZASADA IZOLACJI (Multi-Tenancy)
 - System jest architekturą wielonajemcową.
@@ -28,7 +29,7 @@ Zanim napiszesz JAKIEKOLWIEK zapytanie SQL, sprawdź plik ze strukturą bazy! ZA
 - **ABSOLUTNY ZAKAZ:** Node.js, npm, Webpack, React, Vue, Angular, jQuery.
 
 ## 4. ARCHITEKTURA I MODUŁOWOŚĆ ("Klocki Lego")
-- **Zasada 1=1:** Jeden moduł biznesowy = Jeden plik API (np. `api_warehouse.php`, `api_menu_studio.php`). 
+- **Zasada 1=1:** Jeden moduł biznesowy = spójna warstwa API (np. `api/warehouse/*.php`, `api/backoffice/api_menu_studio.php`). 
 - Routing na backendzie obsługiwany wyłącznie przez instrukcję `switch($action)`.
 
 ## 5. STANDARD KOMUNIKACJI API
@@ -41,3 +42,76 @@ Zanim napiszesz JAKIEKOLWIEK zapytanie SQL, sprawdź plik ze strukturą bazy! ZA
 
 ## 7. ZASADA SNAJPERA (Edycja Kodu)
 - Kiedy jesteś proszony o poprawę błędu, działaj PUNKTOWO. Nie refaktoryzuj całych plików, nie pisz nowych testów, chyba że użytkownik wydał na to rozkaz.
+
+## 8. ARCHITEKTURA LOGISTYKI & DOSTAW
+### Silnik: `api/courses/engine.php`
+Unified REST API (POST, action-based) obsługujący Dispatcher i Driver App.
+Akcje: `get_dashboard`, `dispatch`, `update_order_status`, `cancel_stop`, `start_shift`, `update_location`, `get_driver_runs`, `set_initial_cash`, `reconcile`, `set_driver_status`, `collect_payment`, `deliver_order`, `emergency_recall`, `check_recall`, `clear_recall`, `get_driver_wallet`.
+
+### Payment Lock (KRYTYCZNE)
+Kierowca NIE MOŻE oznaczyć zamówienia jako "Dostarczono" jeśli `payment_status != 'paid'`. Musi najpierw wywołać `collect_payment` (cash|card). Zamówienia opłacone online mają `payment_status='paid'` od początku → one-click deliver.
+
+### K-System & L-Queues
+- Kurs: `K{n}` — dzienny sekwencyjny numer kursu per tenant (tabela `sh_course_sequences`).
+- Przystanek: `L{n}` — numer kolejny w kursie.
+- Kierowca: `available` → `busy` (po dispatch) → `available` (po zakończeniu kursu).
+
+### Emergency Recall
+Dyspozytor → `emergency_recall` → ustawia `heading = -999` w `sh_driver_locations` → Driver App polluje `check_recall` → flash red overlay z wibracjami → `clear_recall` po potwierdzeniu.
+
+### Moduły Frontend
+- **Dispatcher:** `/modules/courses/` (Vanilla JS, Leaflet, Dark Glass theme)
+- **Driver PWA:** `/modules/driver_app/` (Vanilla JS, 56px touch targets, safe-area-inset)
+
+## 9. IZOLACJA SILOSÓW PREFIKSOWYCH (ŚWIĘTOŚĆ)
+Baza jest podzielona na trzy izolowane silosy po prefiksie. Każdy silos ma własny świat numerycznych ID i NIE WOLNO ich mieszać między silosami.
+
+### Silosy
+| Prefiks | Domena | Przykładowe tabele |
+|---------|--------|---------------------|
+| `sh_`   | Biznes SliceHub (menu, orders, users, drivers, modyfikatory, receptury, promocje, tables, price_tiers) | `sh_menu_items`, `sh_orders`, `sh_order_lines`, `sh_recipes`, `sh_modifiers`, `sh_users`, `sh_drivers`, `sh_price_tiers`, `sh_product_mapping` |
+| `sys_`  | Słownik surowców (master data magazynowe — nazwa, jednostka, kategoria) | `sys_items` |
+| `wh_`   | Magazyn rzeczywisty (stany, dokumenty, linie, ruchy) | `wh_stock`, `wh_documents`, `wh_document_lines` |
+
+### Zasada żelazna
+- ✅ **Wewnątrz jednego silosu** — JOIN-y po numerycznym `id` są OK (np. `sh_orders.id = sh_order_lines.order_id`, `wh_documents.id = wh_document_lines.document_id`).
+- ❌ **BEZWZGLĘDNY ZAKAZ** JOIN-a / UPDATE-a między silosami po numerycznym `id` (np. `sh_orders.id = wh_stock.something_id`, `sh_menu_items.id = sys_items.item_id`). Takie FK nie mogą nawet istnieć w schemacie.
+- ✅ **Cross-silo łączy się WYŁĄCZNIE przez klucze znakowe**:
+  - `sku` (VARCHAR) — most między `sh_` ↔ `sys_` ↔ `wh_`.
+  - `ascii_key` (VARCHAR) — most w obrębie `sh_` (menu ↔ modifiers ↔ price_tiers).
+
+### Referencyjne wzorce (TAK — rób tak)
+```sql
+-- sh_ → sys_: łączenie receptury ze słownikiem surowców przez SKU
+FROM sh_recipes r
+JOIN sys_items s ON s.sku = r.warehouse_sku AND s.tenant_id = r.tenant_id
+
+-- sh_ → wh_: pobranie AVCO dla składnika receptury przez SKU
+FROM sh_recipes r
+LEFT JOIN wh_stock ws ON ws.sku = r.warehouse_sku AND ws.tenant_id = r.tenant_id
+
+-- sh_ → wh_: pobranie AVCO dla modyfikatora przez SKU
+FROM sh_modifiers m
+LEFT JOIN wh_stock ws ON ws.sku = m.linked_warehouse_sku AND ws.tenant_id = :tid
+
+-- sys_ → wh_: widok stanów magazynowych z nazwą z dictionary
+FROM sys_items s
+LEFT JOIN wh_stock w ON w.sku = s.sku AND w.tenant_id = s.tenant_id
+```
+
+### Antywzorce (NIE — nigdy)
+```sql
+-- ❌ NIE: numeryczny FK cross-silo
+JOIN wh_stock ws ON ws.item_id = mi.id          -- sh_menu_items.id → wh_
+JOIN sys_items s ON s.id = r.sys_item_id         -- sh_recipes → sys_items.id
+UPDATE sh_orders o JOIN wh_stock w ON w.id = o.warehouse_stock_id  -- cross-silo UPDATE
+```
+
+### Bariera tenant_id w cross-silo JOIN
+Każdy most SKU MUSI mieć dodatkowy warunek `tenant_id` po obu stronach (§2 + §9 łącznie):
+```sql
+JOIN sys_items s ON s.sku = r.warehouse_sku AND s.tenant_id = r.tenant_id
+```
+
+### Obowiązek przy dodawaniu nowego prefiksu
+Jeśli w przyszłości powstanie nowy silos (np. `pay_`, `log_`, `aud_`), automatycznie obowiązuje tu ta sama reguła: most tylko przez klucze znakowe, nigdy po ID.

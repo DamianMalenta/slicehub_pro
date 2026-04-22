@@ -20,9 +20,16 @@
      */
     async function request(endpoint, options = {}) {
         try {
+            const headers = { 'Content-Type': 'application/json' };
+
+            const token = localStorage.getItem('sh_token');
+            if (token) {
+                headers['Authorization'] = 'Bearer ' + token;
+            }
+
             const fetchOptions = {
                 method:  options.method || 'GET',
-                headers: { 'Content-Type': 'application/json' },
+                headers,
             };
 
             if (options.body !== undefined) {
@@ -30,9 +37,17 @@
             }
 
             const response = await fetch(endpoint, fetchOptions);
-            const json     = await response.json();
 
-            // Normalizacja — zapewnij, że zwracany obiekt zawsze ma klucze protokołu V4
+            if (response.status === 401) {
+                console.warn('[ApiClient] 401 — token expired or invalid. Redirecting to login.');
+                localStorage.removeItem('sh_token');
+                const loginPath = window.location.pathname.replace(/modules\/.*$/, '') + 'login.html';
+                window.location.href = loginPath;
+                return { success: false, message: 'Sesja wygasła. Przekierowanie do logowania...', data: null };
+            }
+
+            const json = await response.json();
+
             return {
                 success: json.success === true,
                 message: json.message ?? '',

@@ -2,16 +2,17 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>SliceHub - Słownik Mapowania</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <script src="../../core/core_validator.js"></script>
+    <script src="../../core/js/core_validator.js"></script>
 
     <style>
-        body { font-family: 'Montserrat', sans-serif; background-color: #050505; color: white; }
+        body { font-family: 'Montserrat', sans-serif; background-color: #050505; color: white; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+        input, textarea, select, [contenteditable] { user-select: text; -webkit-user-select: text; }
         .glass { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); }
         .neon-border-blue { border: 1px solid rgba(59, 130, 246, 0.5); box-shadow: 0 0 15px rgba(59, 130, 246, 0.1); transition: all 0.3s ease; }
         .neon-border-blue:focus-within { box-shadow: 0 0 25px rgba(59, 130, 246, 0.3); }
@@ -31,7 +32,8 @@
                 Połącz nazwy z faktur zewnętrznych z Twoimi produktami <span class="text-blue-500 ml-2"><i class="fa-solid fa-bolt"></i> KSeF Ready</span>
             </p>
         </div>
-        <div class="text-right hidden md:block">
+        <div class="flex items-center gap-3">
+            <a href="index.html" class="glass px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-white transition border border-white/10"><i class="fa-solid fa-warehouse mr-2"></i>Hub</a>
             <div class="inline-flex items-center gap-2 bg-blue-900/20 text-blue-400 px-3 py-1 rounded-full border border-blue-500/30 text-[10px] font-bold uppercase tracking-widest" id="validator-status">
                 <i class="fa-solid fa-microchip animate-pulse"></i> Validator Aktywny
             </div>
@@ -82,105 +84,8 @@
         </div>
     </div>
 
-    <script>
-        let products = [];
-
-        // 🛡️ Komunikacja z zabezpieczonym API
-        async function api(action, payload = {}) {
-            payload.action = action;
-            try {
-                // Ścieżka do API (Silos 2: Magazyn)
-                const res = await fetch('../../api/api_mapping.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                return await res.json();
-            } catch (err) {
-                console.error("Błąd połączenia z API:", err);
-                return { status: 'error', error: 'Błąd sieci lub serwera.' };
-            }
-        }
-
-        // 🟢 Inicjalizacja i renderowanie danych
-        async function init() {
-            const res = await api('get_mapping_data');
-            
-            if(res.status === 'success') {
-                products = res.payload.products;
-                
-                // Renderowanie listy wyboru produktów
-                const sel = document.getElementById('map-int-id');
-                sel.innerHTML = '<option value="">-- Wybierz produkt z bazy --</option>' + 
-                    products.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
-
-                // Renderowanie tabeli zmapowanych produktów
-                const tbody = document.getElementById('mapping-list');
-                const mappings = res.payload.mappings;
-                
-                document.getElementById('mapping-count').innerText = mappings.length;
-
-                tbody.innerHTML = mappings.map(m => `
-                    <tr class="border-b border-white/5 hover:bg-white/5 transition group">
-                        <td class="py-4 font-bold text-slate-300 text-sm tracking-wide">
-                            <i class="fa-solid fa-file-invoice text-slate-600 mr-2 text-[10px]"></i> ${m.external_name}
-                        </td>
-                        <td class="py-4 font-black text-blue-400 text-sm italic underline decoration-blue-900 decoration-2 underline-offset-4">
-                            <i class="fa-solid fa-box text-blue-900 mr-2 text-[10px]"></i> ${m.internal_name}
-                        </td>
-                        <td class="py-4 text-right">
-                            <button onclick="deleteMapping(${m.id})" class="text-slate-600 hover:text-red-500 transition p-2 bg-black/30 rounded-lg hover:bg-red-500/10 group-hover:opacity-100 opacity-50">
-                                <i class="fa-solid fa-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `).join('') || '<tr><td colspan="3" class="text-center py-10 text-slate-500 font-bold">Brak reguł mapowania. Dodaj pierwszą z faktury.</td></tr>';
-            } else {
-                alert("Błąd ładowania danych: " + res.error);
-            }
-        }
-
-        // 🟢 Zapis nowego mapowania (Z wykorzystaniem walidacji)
-        async function saveMapping() {
-            const extNameInput = document.getElementById('map-ext-name');
-            let extName = extNameInput.value.trim();
-            const intId = document.getElementById('map-int-id').value;
-
-            // 1. Wstępna walidacja interfejsu
-            if(!extName || !intId) {
-                alert("Wypełnij oba pola, Szefie!");
-                return;
-            }
-
-            // 2. Czyszczenie nazwy zewnętrznej z niebezpiecznych tagów (XSS protection), ale zostawiamy UTF-8 (polskie znaki)
-            extName = extName.replace(/</g, "&lt;").replace(/>/g, "&gt;").toUpperCase();
-
-            // 3. Wysłanie do API
-            const res = await api('add_mapping', { external_name: extName, internal_product_id: intId });
-            
-            if(res.status === 'success') {
-                extNameInput.value = ''; // Czyszczenie inputa
-                extNameInput.focus();
-                init(); // Przeładowanie tabeli
-            } else {
-                alert("Błąd zapisu: " + res.error);
-            }
-        }
-
-        // 🟢 Usuwanie z zabezpieczeniem
-        async function deleteMapping(id) {
-            if(!confirm("Na pewno chcesz usunąć tę regułę mapowania? KSeF nie rozpozna tego produktu przy kolejnej fakturze.")) return;
-            
-            const res = await api('delete_mapping', { mapping_id: id });
-            if(res.status === 'success') {
-                init();
-            } else {
-                alert("Błąd usuwania: " + res.error);
-            }
-        }
-
-        // Uruchomienie silnika po załadowaniu
-        init();
-    </script>
+    <script src="../../core/js/api_client.js"></script>
+    <script src="js/warehouse_api.js"></script>
+    <script src="js/warehouse_settings_mapping.js"></script>
 </body>
 </html>

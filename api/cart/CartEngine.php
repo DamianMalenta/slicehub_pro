@@ -14,6 +14,327 @@ class CartEngineException extends RuntimeException {}
 
 class CartEngine
 {
+    // =========================================================================
+    // AUTO-PROMOTIONS (sh_promotions) — Faza 4.1
+    // Helpery prywatne do oceny rule_json względem stanu koszyka.
+    // =========================================================================
+
+    /**
+     * Suma line_total_grosze dla linii pasujących do SKU.
+     * @param list<array{item_sku:string,line_total_grosze:int,...}> $lines
+     */
+    private static function sumLinesBySku(array $lines, string $sku): int
+    {
+        if ($sku === '') return 0;
+        $sum = 0;
+        foreach ($lines as $ln) {
+            if (($ln['item_sku'] ?? '') === $sku) {
+                $sum += (int)($ln['line_total_grosze'] ?? 0);
+            }
+        }
+        return $sum;
+    }
+
+    /**
+     * Suma line_total_grosze dla linii z kategorii (po mapie sku → category_id).
+     * @param array<string,int> $catMap
+     */
+    private static function sumLinesByCategory(array $lines, int $categoryId, array $catMap): int
+    {
+        if ($categoryId <= 0) return 0;
+        $sum = 0;
+        foreach ($lines as $ln) {
+            $sku = (string)($ln['item_sku'] ?? '');
+            if (($catMap[$sku] ?? 0) === $categoryId) {
+                $sum += (int)($ln['line_total_grosze'] ?? 0);
+            }
+        }
+        return $sum;
+    }
+
+    /**
+     * Najtańsza jednostka (unit_price_grosze) dla SKU w koszyku albo null gdy brak.
+     */
+    private static function cheapestUnitBySku(array $lines, string $sku): ?int
+    {
+        if ($sku === '') return null;
+        $min = null;
+        foreach ($lines as $ln) {
+            if (($ln['item_sku'] ?? '') === $sku) {
+                $unit = (int)($ln['unit_price_grosze'] ?? 0);
+                if ($unit > 0 && ($min === null || $unit < $min)) $min = $unit;
+            }
+        }
+        return $min;
+    }
+
+    /**
+     * Dodatkowe gating po godzinie / dniu tygodnia.
+     *   time_window_json: { days:[1..7] (ISO, 1=Pn), start:"HH:MM", end:"HH:MM" }
+     */
+    private static function isInTimeWindow(?string $twJson, DateTimeImmutable $now): bool
+    {
+        if ($twJson === null || $twJson === '') return true;
+        $tw = json_decode($twJson, true);
+        if (!is_array($tw)) return true;
+
+        if (!empty($tw['days']) && is_array($tw['days'])) {
+            $dow = (int)$now->format('N');
+            $days = array_map('intval', $tw['days']);
+            if (!in_array($dow, $days, true)) return false;
+        }
+        if (!empty($tw['start']) && !empty($tw['end'])) {
+            $timeNow = $now->format('H:i');
+            $s = (string)$tw['start'];
+            $e = (string)$tw['end'];
+            if ($s <= $e) {
+                if ($timeNow < $s || $timeNow > $e) return false;
+            } else {
+                // okno przez północ
+                if ($timeNow < $s && $timeNow > $e) return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Wylicza rabat w grosze dla jednej promocji.
+     * @param array{id:int,ascii_key:string,name:string,rule_kind:string,rule:?array,badge_text:?string,badge_style:?string} $promo
+     * @param array{subtotal_grosze:int,lines:array,category_map:array<string,int>} $ctx
+     * @return array{promotion_id:int,ascii_key:string,name:string,rule_kind:string,badge_text:?string,badge_style:string,discount_grosze:int,note:string}|null
+     */
+    private static function evaluateRule(array $promo, array $ctx): ?array
+    {
+        $kind = (string)$promo['rule_kind'];
+        $rule = $promo['rule'] ?? null;
+        if (!is_array($rule)) return null;
+
+        $discount = 0;
+        $note = '';
+        $subtotal = (int)$ctx['subtotal_grosze'];
+        $lines    = $ctx['lines'];
+        $catMap   = $ctx['category_map'];
+
+        switch ($kind) {
+            case 'discount_percent': {
+                $target  = (string)($rule['target'] ?? 'cart');
+                $percent = (float)($rule['percent'] ?? 0);
+                if ($percent <= 0 || $percent > 100) return null;
+                $minSubtotal = isset($rule['min_subtotal'])
+                    ? (int)round((float)$rule['min_subtotal'] * 100) : 0;
+                if ($subtotal < $minSubtotal) return null;
+
+                if ($target === 'cart') {
+                    $discount = (int)round($subtotal * $percent / 100);
+                    $note = "-{$percent}% od koszyka";
+                } elseif ($target === 'item') {
+                    $sku = (string)($rule['sku'] ?? '');
+                    $matched = self::sumLinesBySku($lines, $sku);
+                    $discount = (int)round($matched * $percent / 100);
+                    $note = "-{$percent}% na {$sku}";
+                } elseif ($target === 'category') {
+                    $cid = (int)($rule['category_id'] ?? 0);
+                    $matched = self::sumLinesByCategory($lines, $cid, $catMap);
+                    $discount = (int)round($matched * $percent / 100);
+                    $note = "-{$percent}% na kategorię #{$cid}";
+                }
+                break;
+            }
+
+            case 'discount_amount': {
+                $target = (string)($rule['target'] ?? 'cart');
+                $amountGrosze = (int)round((float)($rule['amount'] ?? 0) * 100);
+                if ($amountGrosze <= 0) return null;
+                $minSubtotal = isset($rule['min_subtotal'])
+                    ? (int)round((float)$rule['min_subtotal'] * 100) : 0;
+                if ($subtotal < $minSubtotal) return null;
+
+                if ($target === 'cart') {
+                    $discount = min($amountGrosze, $subtotal);
+                    $note = '-' . number_format($amountGrosze / 100, 2) . ' od koszyka';
+                } elseif ($target === 'item') {
+                    $sku = (string)($rule['sku'] ?? '');
+                    $matched = self::sumLinesBySku($lines, $sku);
+                    if ($matched <= 0) return null;
+                    $discount = min($amountGrosze, $matched);
+                    $note = '-' . number_format($discount / 100, 2) . " na {$sku}";
+                } elseif ($target === 'category') {
+                    $cid = (int)($rule['category_id'] ?? 0);
+                    $matched = self::sumLinesByCategory($lines, $cid, $catMap);
+                    if ($matched <= 0) return null;
+                    $discount = min($amountGrosze, $matched);
+                    $note = '-' . number_format($discount / 100, 2) . " na kategorię #{$cid}";
+                }
+                break;
+            }
+
+            case 'combo_half_price': {
+                // Kup `anchor_sku`, drugą `combo_sku` za `percent`% ceny (default 50%).
+                $anchorSku = (string)($rule['anchor_sku'] ?? '');
+                $comboSku  = (string)($rule['combo_sku']  ?? '');
+                $percent   = (float)($rule['percent'] ?? 50);
+                if ($anchorSku === '' || $comboSku === '' || $percent <= 0 || $percent > 100) return null;
+
+                if (self::sumLinesBySku($lines, $anchorSku) <= 0) return null;
+                $comboUnit = self::cheapestUnitBySku($lines, $comboSku);
+                if ($comboUnit === null) return null;
+
+                $discount = (int)round($comboUnit * $percent / 100);
+                $note = "kombo {$anchorSku} + -{$percent}% na {$comboSku}";
+                break;
+            }
+
+            case 'free_item_if_threshold': {
+                $minSubtotal = (int)round((float)($rule['min_subtotal'] ?? 0) * 100);
+                $freeSku     = (string)($rule['free_sku'] ?? '');
+                if ($subtotal < $minSubtotal || $freeSku === '') return null;
+
+                $unit = self::cheapestUnitBySku($lines, $freeSku);
+                if ($unit === null) return null;
+                $discount = $unit;
+                $note = "gratis {$freeSku} (próg " . number_format($minSubtotal / 100, 2) . ')';
+                break;
+            }
+
+            case 'bundle': {
+                $skus = $rule['skus'] ?? [];
+                $bundlePriceGrosze = (int)round((float)($rule['bundle_price'] ?? 0) * 100);
+                if (!is_array($skus) || count($skus) < 2 || $bundlePriceGrosze <= 0) return null;
+
+                $bundleValue = 0;
+                foreach ($skus as $sku) {
+                    $unit = self::cheapestUnitBySku($lines, (string)$sku);
+                    if ($unit === null) return null;
+                    $bundleValue += $unit;
+                }
+                if ($bundleValue <= $bundlePriceGrosze) return null;
+                $discount = $bundleValue - $bundlePriceGrosze;
+                $note = 'bundle (-' . number_format($discount / 100, 2) . ')';
+                break;
+            }
+
+            default:
+                return null;
+        }
+
+        if ($discount <= 0) return null;
+        $discount = min($discount, $subtotal);
+
+        return [
+            'promotion_id'    => (int)$promo['id'],
+            'ascii_key'       => (string)$promo['ascii_key'],
+            'name'            => (string)$promo['name'],
+            'rule_kind'       => $kind,
+            'badge_text'      => $promo['badge_text']  ?? null,
+            'badge_style'     => (string)($promo['badge_style'] ?? 'amber'),
+            'discount_grosze' => $discount,
+            'note'            => $note,
+        ];
+    }
+
+    /**
+     * Ładuje aktywne sh_promotions dla tenanta (time-gated po SQL) i ocenia je.
+     * MVP: best-wins — wybiera jedną promocję dającą największy rabat.
+     * V2 (future): flaga `stackable:true` w rule_json, priorities, wykluczenia.
+     *
+     * @return array{discount_grosze:int, applied:list<array>}
+     */
+    private static function applyAutoPromotions(
+        PDO $pdo,
+        int $tenantId,
+        int $subtotalGrosze,
+        array $linesRaw
+    ): array {
+        // Schema detection — gdy sh_promotions nie istnieje (migracja 022 nie przeszła), zwracamy zera.
+        try {
+            $pdo->query('SELECT 1 FROM sh_promotions LIMIT 0');
+        } catch (\PDOException $e) {
+            return ['discount_grosze' => 0, 'applied' => []];
+        }
+
+        // Load
+        try {
+            $stmt = $pdo->prepare(
+                "SELECT id, ascii_key, name, rule_kind, rule_json,
+                        badge_text, badge_style, time_window_json
+                 FROM sh_promotions
+                 WHERE tenant_id = :tid AND is_active = 1
+                   AND (valid_from IS NULL OR valid_from <= NOW())
+                   AND (valid_to   IS NULL OR valid_to   >= NOW())
+                 ORDER BY id ASC"
+            );
+            $stmt->execute([':tid' => $tenantId]);
+            $promoRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\PDOException $e) {
+            return ['discount_grosze' => 0, 'applied' => []];
+        }
+        if (!$promoRows) return ['discount_grosze' => 0, 'applied' => []];
+
+        // Batch mapa sku → category_id (dla target=category)
+        $catMap = [];
+        $skus = array_values(array_unique(array_filter(array_map(
+            fn($l) => (string)($l['item_sku'] ?? ''),
+            $linesRaw
+        ))));
+        if ($skus) {
+            try {
+                $ph = implode(',', array_fill(0, count($skus), '?'));
+                $stmtCat = $pdo->prepare(
+                    "SELECT ascii_key, category_id FROM sh_menu_items
+                     WHERE tenant_id = ? AND ascii_key IN ({$ph})"
+                );
+                $stmtCat->execute(array_merge([$tenantId], $skus));
+                foreach ($stmtCat->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                    $catMap[(string)$r['ascii_key']] = (int)($r['category_id'] ?? 0);
+                }
+            } catch (\PDOException $e) {
+                // skip — target=category nie zadziała, ale reszta tak
+            }
+        }
+
+        $now = new DateTimeImmutable('now');
+        $ctx = [
+            'subtotal_grosze' => $subtotalGrosze,
+            'lines'           => $linesRaw,
+            'category_map'    => $catMap,
+        ];
+
+        $candidates = [];
+        foreach ($promoRows as $row) {
+            if (!self::isInTimeWindow($row['time_window_json'] ?? null, $now)) continue;
+
+            $rule = null;
+            if (!empty($row['rule_json'])) {
+                $decoded = json_decode((string)$row['rule_json'], true);
+                if (is_array($decoded)) $rule = $decoded;
+            }
+
+            $evaluated = self::evaluateRule([
+                'id'          => (int)$row['id'],
+                'ascii_key'   => (string)$row['ascii_key'],
+                'name'        => (string)$row['name'],
+                'rule_kind'   => (string)$row['rule_kind'],
+                'rule'        => $rule,
+                'badge_text'  => $row['badge_text']  ?? null,
+                'badge_style' => $row['badge_style'] ?? 'amber',
+            ], $ctx);
+
+            if ($evaluated !== null) $candidates[] = $evaluated;
+        }
+
+        if (!$candidates) return ['discount_grosze' => 0, 'applied' => []];
+
+        // Best-wins (MVP)
+        usort($candidates, fn($a, $b) => $b['discount_grosze'] <=> $a['discount_grosze']);
+        $best = $candidates[0];
+
+        return [
+            'discount_grosze' => $best['discount_grosze'],
+            'applied'         => [$best],
+        ];
+    }
+
+
     /**
      * Run a full server-authoritative cart calculation.
      *
@@ -87,7 +408,8 @@ class CartEngine
         $stmtItemPrice = $pdo->prepare(
             "SELECT price FROM sh_price_tiers
              WHERE target_type = 'ITEM' AND target_sku = :sku AND channel = :channel
-             LIMIT 1"
+               AND (tenant_id = :tid OR tenant_id = 0)
+             ORDER BY tenant_id DESC LIMIT 1"
         );
 
         $stmtModifier = $pdo->prepare(
@@ -104,13 +426,15 @@ class CartEngine
         $stmtModPrice = $pdo->prepare(
             "SELECT price FROM sh_price_tiers
              WHERE target_type = 'MODIFIER' AND target_sku = :sku AND channel = :channel
-             LIMIT 1"
+               AND (tenant_id = :tid OR tenant_id = 0)
+             ORDER BY tenant_id DESC LIMIT 1"
         );
 
         $stmtModPriceFallback = $pdo->prepare(
             "SELECT price FROM sh_price_tiers
              WHERE target_type = 'MODIFIER' AND target_sku = :sku AND channel = 'POS'
-             LIMIT 1"
+               AND (tenant_id = :tid OR tenant_id = 0)
+             ORDER BY tenant_id DESC LIMIT 1"
         );
 
         $stmtWarehouseItem = $pdo->prepare(
@@ -125,15 +449,15 @@ class CartEngine
         $fmtMoney = fn(int $grosze): string => number_format($grosze / 100, 2, '.', '');
         $fmtRate  = fn(float $rate): string => number_format($rate, 2, '.', '');
 
-        $resolveModPrice = function (string $modSku) use ($stmtModPrice, $stmtModPriceFallback, $channel): int {
-            $stmtModPrice->execute([':sku' => $modSku, ':channel' => $channel]);
+        $resolveModPrice = function (string $modSku) use ($stmtModPrice, $stmtModPriceFallback, $channel, $tenantId): int {
+            $stmtModPrice->execute([':sku' => $modSku, ':channel' => $channel, ':tid' => $tenantId]);
             $row = $stmtModPrice->fetch(PDO::FETCH_ASSOC);
             if ($row) {
                 return (int)round((float)$row['price'] * 100);
             }
 
             if ($channel !== 'POS') {
-                $stmtModPriceFallback->execute([':sku' => $modSku]);
+                $stmtModPriceFallback->execute([':sku' => $modSku, ':tid' => $tenantId]);
                 $row = $stmtModPriceFallback->fetch(PDO::FETCH_ASSOC);
                 if ($row) {
                     return (int)round((float)$row['price'] * 100);
@@ -187,7 +511,7 @@ class CartEngine
                     throw new CartEngineException("Line #{$idx}: half_a_sku '{$halfASku}' not found for this tenant.");
                 }
 
-                $stmtItemPrice->execute([':sku' => $halfASku, ':channel' => $channel]);
+                $stmtItemPrice->execute([':sku' => $halfASku, ':channel' => $channel, ':tid' => $tenantId]);
                 $pA = $stmtItemPrice->fetch(PDO::FETCH_ASSOC);
                 if (!$pA) {
                     throw new CartEngineException("Line #{$idx}: no '{$channel}' price tier for half_a_sku '{$halfASku}'.");
@@ -200,7 +524,7 @@ class CartEngine
                     throw new CartEngineException("Line #{$idx}: half_b_sku '{$halfBSku}' not found for this tenant.");
                 }
 
-                $stmtItemPrice->execute([':sku' => $halfBSku, ':channel' => $channel]);
+                $stmtItemPrice->execute([':sku' => $halfBSku, ':channel' => $channel, ':tid' => $tenantId]);
                 $pB = $stmtItemPrice->fetch(PDO::FETCH_ASSOC);
                 if (!$pB) {
                     throw new CartEngineException("Line #{$idx}: no '{$channel}' price tier for half_b_sku '{$halfBSku}'.");
@@ -240,7 +564,7 @@ class CartEngine
                     throw new CartEngineException("Line #{$idx}: SKU '{$effectiveSku}' not found for this tenant.");
                 }
 
-                $stmtItemPrice->execute([':sku' => $effectiveSku, ':channel' => $channel]);
+                $stmtItemPrice->execute([':sku' => $effectiveSku, ':channel' => $channel, ':tid' => $tenantId]);
                 $priceRow = $stmtItemPrice->fetch(PDO::FETCH_ASSOC);
                 if (!$priceRow) {
                     throw new CartEngineException("Line #{$idx}: no '{$channel}' price tier for SKU '{$effectiveSku}'.");
@@ -359,23 +683,45 @@ class CartEngine
             $resultLines[] = $lineOutput;
 
             $linesRaw[] = [
-                'item_sku'         => $effectiveSku,
-                'snapshot_name'    => $snapshotName,
-                'unit_price_grosze'=> $unitPriceGrosze,
-                'quantity'         => $quantity,
-                'line_total_grosze'=> $lineTotalGrosze,
-                'vat_rate'         => $vatRate,
-                'vat_amount_grosze'=> $vatAmountGrosze,
+                'line_id'               => $lineId,
+                'item_sku'              => $effectiveSku,
+                'snapshot_name'         => $snapshotName,
+                'unit_price_grosze'     => $unitPriceGrosze,
+                'quantity'              => $quantity,
+                'line_total_grosze'     => $lineTotalGrosze,
+                'vat_rate'              => $vatRate,
+                'vat_amount_grosze'     => $vatAmountGrosze,
+                'modifiers_json'        => !empty($resolvedModifiers)
+                    ? json_encode($resolvedModifiers, JSON_UNESCAPED_UNICODE)
+                    : null,
+                'removed_ingredients_json' => !empty($resolvedRemovals)
+                    ? json_encode($resolvedRemovals, JSON_UNESCAPED_UNICODE)
+                    : null,
+                'comment'               => $comment !== '' ? $comment : null,
             ];
         }
 
         // =====================================================================
-        // 6. PROMO / DISCOUNT ENGINE
+        // 5.5. AUTO-PROMOTIONS (sh_promotions — M022) — Faza 4.1
+        //
+        // Promocje auto-aplikowane (bez kodu) — time-gated w SQL, window-gated
+        // w PHP. MVP: best-wins (jedna promocja = największy rabat). Aplikujemy
+        // PRZED promo_code aby kod liczył się od subtotal after auto-promo.
+        // =====================================================================
+        $autoPromoResult   = self::applyAutoPromotions($pdo, $tenantId, $subtotalGrosze, $linesRaw);
+        $autoDiscountGrosze = (int)$autoPromoResult['discount_grosze'];
+        $appliedAutoPromos  = $autoPromoResult['applied'];
+
+        // =====================================================================
+        // 6. PROMO / DISCOUNT ENGINE (kod ręczny — sh_promo_codes, legacy)
         // =====================================================================
         $discountGrosze    = 0;
         $appliedDiscount   = null;
         $appliedPromoCode  = null;
         $promoCode         = trim($input['promo_code'] ?? '');
+
+        // Subtotal „po" auto-promocji dla oceny progu kodu (min_order_value)
+        $subtotalForCode = max(0, $subtotalGrosze - $autoDiscountGrosze);
 
         if ($promoCode !== '') {
             $stmtPromo = $pdo->prepare(
@@ -401,7 +747,7 @@ class CartEngine
                 $isValid = $now >= $promo['valid_from']
                         && $now <= $promo['valid_to']
                         && (int)$promo['current_uses'] < (int)$promo['max_uses']
-                        && $subtotalGrosze >= $minOrderGrosze
+                        && $subtotalForCode >= $minOrderGrosze
                         && in_array($channel, $allowedList, true);
 
                 if ($isValid) {
@@ -409,32 +755,36 @@ class CartEngine
                     $value = (float)$promo['value'];
 
                     if ($type === 'percentage') {
-                        $discountGrosze = (int)round(($subtotalGrosze * $value) / 100);
+                        $discountGrosze = (int)round(($subtotalForCode * $value) / 100);
                     } elseif ($type === 'fixed_amount') {
                         $discountGrosze = (int)($value * 100);
                     }
 
-                    $discountGrosze = min($discountGrosze, $subtotalGrosze);
+                    $discountGrosze = min($discountGrosze, $subtotalForCode);
 
                     if ($discountGrosze > 0) {
                         $appliedPromoCode = $promo['code'];
                         $appliedDiscount  = [
                             'code'            => $promo['code'],
                             'type'            => $type,
-                            'subtotal_before' => $fmtMoney($subtotalGrosze),
+                            'subtotal_before' => $fmtMoney($subtotalForCode),
                             'discount_amount' => $fmtMoney($discountGrosze),
-                            'subtotal_after'  => $fmtMoney($subtotalGrosze - $discountGrosze),
+                            'subtotal_after'  => $fmtMoney($subtotalForCode - $discountGrosze),
                         ];
                     }
                 }
             }
         }
 
+        // Łączny rabat = auto-promocje + kod ręczny
+        $totalDiscountGrosze = $autoDiscountGrosze + $discountGrosze;
+        $totalDiscountGrosze = min($totalDiscountGrosze, $subtotalGrosze);
+
         // =====================================================================
         // 7. ORDER TOTALS
         // =====================================================================
         $deliveryFeeGrosze = 0;
-        $grandTotalGrosze  = $subtotalGrosze - $discountGrosze + $deliveryFeeGrosze;
+        $grandTotalGrosze  = $subtotalGrosze - $totalDiscountGrosze + $deliveryFeeGrosze;
         $loyaltyPoints     = (int)floor($grandTotalGrosze / 10);
 
         $vatSummary = [];
@@ -456,7 +806,7 @@ class CartEngine
             'order_type'   => $orderType,
             'lines'        => $resultLines,
             'subtotal'     => $fmtMoney($subtotalGrosze),
-            'discount'     => $fmtMoney($discountGrosze),
+            'discount'     => $fmtMoney($totalDiscountGrosze),
             'delivery_fee' => $fmtMoney($deliveryFeeGrosze),
             'grand_total'  => $fmtMoney($grandTotalGrosze),
             'vat_summary'  => $vatSummary,
@@ -466,17 +816,35 @@ class CartEngine
             $responseData['applied_discount'] = $appliedDiscount;
         }
 
+        // Auto-promocje — format czytelny dla klienta (grosze → string "zł.gr")
+        if (!empty($appliedAutoPromos)) {
+            $responseData['applied_auto_promotions'] = array_map(fn($p) => [
+                'promotionId' => $p['promotion_id'],
+                'asciiKey'    => $p['ascii_key'],
+                'name'        => $p['name'],
+                'ruleKind'    => $p['rule_kind'],
+                'badgeText'   => $p['badge_text'],
+                'badgeStyle'  => $p['badge_style'],
+                'discount'    => $fmtMoney($p['discount_grosze']),
+                'note'        => $p['note'],
+            ], $appliedAutoPromos);
+            $responseData['auto_promotion_discount'] = $fmtMoney($autoDiscountGrosze);
+        }
+
         return [
-            'channel'            => $channel,
-            'order_type'         => $orderType,
-            'subtotal_grosze'    => $subtotalGrosze,
-            'discount_grosze'    => $discountGrosze,
-            'delivery_fee_grosze'=> $deliveryFeeGrosze,
-            'grand_total_grosze' => $grandTotalGrosze,
-            'loyalty_points'     => $loyaltyPoints,
-            'applied_promo_code' => $appliedPromoCode,
-            'lines_raw'          => $linesRaw,
-            'response'           => $responseData,
+            'channel'                  => $channel,
+            'order_type'               => $orderType,
+            'subtotal_grosze'          => $subtotalGrosze,
+            'discount_grosze'          => $totalDiscountGrosze,
+            'auto_discount_grosze'     => $autoDiscountGrosze,
+            'code_discount_grosze'     => $discountGrosze,
+            'delivery_fee_grosze'      => $deliveryFeeGrosze,
+            'grand_total_grosze'       => $grandTotalGrosze,
+            'loyalty_points'           => $loyaltyPoints,
+            'applied_promo_code'       => $appliedPromoCode,
+            'applied_auto_promotions'  => $appliedAutoPromos,
+            'lines_raw'                => $linesRaw,
+            'response'                 => $responseData,
         ];
     }
 }

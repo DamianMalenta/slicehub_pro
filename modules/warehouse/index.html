@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>SliceHub — Magazyn V2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: system-ui, sans-serif; background: #05050a; color: #e2e8f0; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+        input, textarea, select, [contenteditable] { user-select: text; -webkit-user-select: text; }
+        a.card { transition: transform 0.15s ease, border-color 0.15s ease; }
+        a.card:hover { transform: translateY(-2px); border-color: rgba(139, 92, 246, 0.45); }
+    </style>
+</head>
+<body class="min-h-screen p-8 md:p-12">
+    <header class="max-w-5xl mx-auto mb-12">
+        <p class="text-violet-400 text-xs font-bold uppercase tracking-widest mb-2">SliceHub Pro · Warehouse</p>
+        <h1 class="text-3xl md:text-4xl font-black text-white tracking-tight">Magazyn <span class="text-violet-500">V2</span></h1>
+        <p class="text-slate-500 text-sm mt-3 max-w-2xl">
+            Wspólna warstwa <code class="text-violet-300/90 bg-white/5 px-1 rounded">api/warehouse/*.php</code> +
+            <code class="text-violet-300/90 bg-white/5 px-1 rounded">WarehouseApi</code> (sys_items, wh_stock, wh_documents, InwEngine, PzEngine, MM, KOR).
+        </p>
+    </header>
+
+    <div class="max-w-5xl mx-auto grid sm:grid-cols-2 gap-5">
+        <a href="warehouse_control_tower.html" class="card block rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+            <div class="text-violet-400 text-xs font-black uppercase tracking-widest mb-2"><i class="fa-solid fa-tower-broadcast mr-2"></i>Control Tower</div>
+            <h2 class="text-lg font-bold text-white">Matryca stanów</h2>
+            <p class="text-slate-500 text-sm mt-2">PZ, RW wewnętrzne, nowy surowiec — jeden widok operacyjny.</p>
+        </a>
+        <a href="manager_pz.html" class="card block rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+            <div class="text-emerald-400 text-xs font-black uppercase tracking-widest mb-2"><i class="fa-solid fa-truck-ramp-box mr-2"></i>PZ</div>
+            <h2 class="text-lg font-bold text-white">Przyjęcie zewnętrzne</h2>
+            <p class="text-slate-500 text-sm mt-2">Faktura → <code class="text-emerald-300/80">receipt.php</code> (PzEngine, AVCO).</p>
+        </a>
+        <a href="manager_rw.html" class="card block rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+            <div class="text-rose-400 text-xs font-black uppercase tracking-widest mb-2"><i class="fa-solid fa-fire mr-2"></i>RW</div>
+            <h2 class="text-lg font-bold text-white">Rozchód / strata</h2>
+            <p class="text-slate-500 text-sm mt-2">Zbiorczy dokument → <code class="text-rose-300/80">batch_rw.php</code> (1 dok. = N linii).</p>
+        </a>
+        <a href="manager_in.html" class="card block rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+            <div class="text-amber-400 text-xs font-black uppercase tracking-widest mb-2"><i class="fa-solid fa-clipboard-check mr-2"></i>IN</div>
+            <h2 class="text-lg font-bold text-white">Inwentaryzacja</h2>
+            <p class="text-slate-500 text-sm mt-2">Spis → <code class="text-amber-300/80">inventory.php</code> (InwEngine).</p>
+        </a>
+        <a href="settings_magazyn.html" class="card block rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+            <div class="text-blue-400 text-xs font-black uppercase tracking-widest mb-2"><i class="fa-solid fa-database mr-2"></i>Słownik</div>
+            <h2 class="text-lg font-bold text-white">Centrala katalogowa</h2>
+            <p class="text-slate-500 text-sm mt-2">sys_items + stany <code class="text-blue-300/80">stock_list.php</code>.</p>
+        </a>
+        <a href="settings_mapping.html" class="card block rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+            <div class="text-cyan-400 text-xs font-black uppercase tracking-widest mb-2"><i class="fa-solid fa-link mr-2"></i>Mapowanie</div>
+            <h2 class="text-lg font-bold text-white">Faktura → SKU</h2>
+            <p class="text-slate-500 text-sm mt-2"><code class="text-cyan-300/80">mapping.php</code> · sh_product_mapping.</p>
+        </a>
+        <a href="manager_mm.html" class="card block rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+            <div class="text-indigo-400 text-xs font-black uppercase tracking-widest mb-2"><i class="fa-solid fa-right-left mr-2"></i>MM</div>
+            <h2 class="text-lg font-bold text-white">Przesunięcie MM</h2>
+            <p class="text-slate-500 text-sm mt-2">Transfer między magazynami → <code class="text-indigo-300/80">transfer.php</code> (MmEngine).</p>
+        </a>
+        <a href="manager_kor.html" class="card block rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+            <div class="text-orange-400 text-xs font-black uppercase tracking-widest mb-2"><i class="fa-solid fa-rotate-left mr-2"></i>KOR</div>
+            <h2 class="text-lg font-bold text-white">Korekta WZ</h2>
+            <p class="text-slate-500 text-sm mt-2">Cofnięcie wydania → <code class="text-orange-300/80">correction.php</code> (KorEngine).</p>
+        </a>
+        <a href="documents.html" class="card block rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+            <div class="text-violet-400 text-xs font-black uppercase tracking-widest mb-2"><i class="fa-solid fa-book mr-2"></i>Rejestr</div>
+            <h2 class="text-lg font-bold text-white">Rejestr dokumentów</h2>
+            <p class="text-slate-500 text-sm mt-2">Historia PZ / RW / INW / MM / KOR / WZ z filtrowaniem i paginacją.</p>
+        </a>
+        <a href="approval.html" class="card block rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+            <div class="text-amber-400 text-xs font-black uppercase tracking-widest mb-2"><i class="fa-solid fa-shield-halved mr-2"></i>Akceptacja</div>
+            <h2 class="text-lg font-bold text-white">Kolejka INW</h2>
+            <p class="text-slate-500 text-sm mt-2">Inwentaryzacje oczekujące zatwierdzenia (pending_approval).</p>
+        </a>
+    </div>
+
+    <footer class="max-w-5xl mx-auto mt-14 text-center text-slate-600 text-xs">
+        Pełny system magazynowy V2 — 10 ekranów · 12 endpointów · 5 silników (PzEngine, InwEngine, MmEngine, KorEngine, WzEngine).
+    </footer>
+</body>
+</html>

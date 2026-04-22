@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="sh-tenant-id" content="1">
+    <meta name="theme-color" content="#0a0806">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>SliceHub — Zamów online</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="icon.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;0,9..40,900;1,9..40,400&family=Fraunces:wght@600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/living-scene.css">
+    <link rel="stylesheet" href="css/doorway.css">
+    <script src="/slicehub/core/js/neon_pizza_engine.js"></script>
+</head>
+<body class="online-body">
+
+    <!-- ═══════════ M4 · Scena Drzwi — hero entry (pierwsze wrażenie) ═══════════ -->
+    <section id="doorway" class="doorway doorway--loading" aria-label="Wejście do restauracji">
+        <div class="doorway__sky" aria-hidden="true"></div>
+        <div class="doorway__illustration" id="doorway-illustration" aria-hidden="true"></div>
+        <div class="doorway__content">
+            <header class="doorway__brand">
+                <span class="doorway__mark"><i class="fa-solid fa-pizza-slice"></i></span>
+                <div class="doorway__brand-text">
+                    <strong id="doorway-brand">SliceHub</strong>
+                    <span class="doorway__tagline" id="doorway-tagline"></span>
+                </div>
+            </header>
+
+            <div class="doorway__status" id="doorway-status" data-state="loading">
+                <span class="doorway__status-dot"></span>
+                <span class="doorway__status-label">Łączenie…</span>
+            </div>
+
+            <h1 class="doorway__headline">
+                <span class="doorway__eyebrow">Witaj</span>
+                <span class="doorway__title">Wejdź, czekamy na&nbsp;Ciebie</span>
+            </h1>
+
+            <div class="doorway__info">
+                <button type="button" class="doorway__info-chip" id="doorway-hours" aria-haspopup="dialog">
+                    <i class="fa-solid fa-clock"></i>
+                    <span id="doorway-hours-label">—</span>
+                </button>
+                <button type="button" class="doorway__info-chip" id="doorway-map-open" aria-haspopup="dialog">
+                    <i class="fa-solid fa-location-dot"></i>
+                    <span id="doorway-address-label">—</span>
+                </button>
+                <a class="doorway__info-chip" id="doorway-phone" href="#" rel="nofollow">
+                    <i class="fa-solid fa-phone"></i>
+                    <span id="doorway-phone-label">—</span>
+                </a>
+            </div>
+
+            <div class="doorway__channels" id="doorway-channels" role="group" aria-label="Kanał zamówienia">
+                <button type="button" class="doorway__channel is-active" data-channel="delivery">
+                    <i class="fa-solid fa-motorcycle"></i><span>Dowóz</span>
+                </button>
+                <button type="button" class="doorway__channel" data-channel="takeaway">
+                    <i class="fa-solid fa-bag-shopping"></i><span>Odbiór</span>
+                </button>
+                <button type="button" class="doorway__channel" data-channel="dine_in" hidden>
+                    <i class="fa-solid fa-utensils"></i><span>Na miejscu</span>
+                </button>
+            </div>
+
+            <div class="doorway__cta">
+                <button type="button" id="doorway-enter" class="doorway__enter">
+                    <span class="doorway__enter-main">Wejdź do menu</span>
+                    <span class="doorway__enter-sub" id="doorway-enter-sub">Otwarte — ok. 30 min</span>
+                    <i class="fa-solid fa-arrow-right"></i>
+                </button>
+                <button type="button" id="doorway-preorder" class="doorway__preorder hidden">
+                    <i class="fa-solid fa-calendar"></i>
+                    <span>Zamów z wyprzedzeniem</span>
+                </button>
+                <button type="button" id="doorway-static" class="doorway__static-toggle" title="Tryb statyczny (dostępność)">
+                    <i class="fa-solid fa-universal-access"></i>
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- M4 · modal mapy (Leaflet ładowany on-demand) -->
+    <div id="doorway-map-modal" class="doorway-map-modal hidden" role="dialog" aria-modal="true" aria-hidden="true">
+        <div class="doorway-map-modal__panel">
+            <header class="doorway-map-modal__head">
+                <h2 id="doorway-map-title">Znajdź nas</h2>
+                <button type="button" class="doorway-map-modal__close" id="doorway-map-close" aria-label="Zamknij">✕</button>
+            </header>
+            <div id="doorway-map-canvas" class="doorway-map-modal__canvas"></div>
+            <footer class="doorway-map-modal__foot">
+                <span id="doorway-map-address">—</span>
+                <a id="doorway-map-nav" class="doorway-map-modal__nav" target="_blank" rel="noopener">
+                    <i class="fa-solid fa-route"></i> Nawiguj
+                </a>
+            </footer>
+        </div>
+    </div>
+
+    <div id="online-loading" class="online-loading hidden">
+        <div class="online-loading__spinner"></div>
+        <p class="online-loading__text">Ładowanie menu…</p>
+    </div>
+
+    <div id="online-error" class="hidden"></div>
+
+    <!-- ═══════════ TOPBAR — cinematic glass, always-on ═══════════ -->
+    <header class="topbar">
+        <div class="topbar__brand">
+            <span class="topbar__mark" aria-hidden="true">
+                <i class="fa-solid fa-pizza-slice"></i>
+            </span>
+            <div class="topbar__brand-text">
+                <strong id="tenant-label">SliceHub</strong>
+                <span class="topbar__brand-sub"><i class="fa-solid fa-location-dot"></i> <span id="tenant-city">Pizzeria online</span></span>
+            </div>
+        </div>
+
+        <div class="topbar__center">
+            <div class="channel-switch" role="tablist" aria-label="Kanał zamówienia">
+                <button type="button" class="channel-switch__btn is-active" id="ch-delivery" role="tab" aria-selected="true">
+                    <i class="fa-solid fa-motorcycle"></i> <span>Dowóz</span>
+                </button>
+                <button type="button" class="channel-switch__btn" id="ch-takeaway" role="tab" aria-selected="false">
+                    <i class="fa-solid fa-bag-shopping"></i> <span>Odbiór</span>
+                </button>
+            </div>
+            <div class="topbar__eta" title="Szacowany czas dostawy">
+                <i class="fa-solid fa-clock"></i>
+                <span id="topbar-eta">30–45 min</span>
+            </div>
+        </div>
+
+        <button type="button" class="topbar__cart" id="topbar-cart" aria-label="Koszyk">
+            <i class="fa-solid fa-basket-shopping"></i>
+            <span class="topbar__cart-count" id="topbar-cart-count">0</span>
+        </button>
+    </header>
+
+    <!-- ═══════════ HERO — welcome surface, only on first load ═══════════ -->
+    <section class="hero-welcome" id="hero-welcome">
+        <div class="hero-welcome__inner">
+            <p class="hero-welcome__eyebrow">Witamy w <span id="hero-tenant">SliceHub</span></p>
+            <h1 class="hero-welcome__title">Pizza na twoją<br><em>powierzchnię</em>.</h1>
+            <p class="hero-welcome__lead">Wybierz danie, komponuj warstwy, zamów w 30 minut.</p>
+            <div class="hero-welcome__meta">
+                <span class="hero-welcome__chip"><i class="fa-solid fa-clock"></i> 30–45 min</span>
+                <span class="hero-welcome__chip"><i class="fa-solid fa-fire"></i> Świeżo pieczona</span>
+                <span class="hero-welcome__chip"><i class="fa-solid fa-shield-halved"></i> Bezpieczny checkout</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════ MAIN ═══════════ -->
+    <main class="surface-main">
+
+        <section class="surface-section" id="popular-section">
+            <header class="section-head">
+                <h2 class="section-h">
+                    <span class="section-h__kicker">Popularne teraz</span>
+                    <span class="section-h__big">Najczęściej zamawiane</span>
+                </h2>
+                <small class="section-h__hint">przesuń poziomo →</small>
+            </header>
+            <div id="popular-root" class="popular-root hidden"></div>
+        </section>
+
+        <section class="surface-section">
+            <header class="section-head">
+                <h2 class="section-h">
+                    <span class="section-h__kicker">Menu</span>
+                    <span class="section-h__big">Wybierz kategorię</span>
+                </h2>
+            </header>
+            <div id="menu-root"></div>
+        </section>
+
+    </main>
+
+    <!-- ═══════════ Dish sheet (fullscreen surface card) ═══════════ -->
+    <aside id="dish-sheet" class="dish-sheet hidden" aria-hidden="true">
+        <div class="dish-sheet__panel">
+            <button type="button" class="dish-sheet__close" id="dish-sheet-close" aria-label="Zamknij">✕</button>
+            <div id="dish-sheet-inner"></div>
+        </div>
+    </aside>
+
+    <!-- ═══════════ Floating cart FAB (mobile) ═══════════ -->
+    <button type="button" id="cart-fab" class="cart-fab" aria-label="Koszyk">
+        <span class="cart-fab__icon"><i class="fa-solid fa-basket-shopping"></i></span>
+        <span class="cart-fab__body">
+            <span class="cart-fab__count" id="cart-fab-count">0</span>
+            <span class="cart-fab__total" id="cart-fab-total">0,00 zł</span>
+        </span>
+    </button>
+
+    <div id="cart-drawer" class="cart-drawer hidden" aria-hidden="true">
+        <div class="cart-drawer__panel">
+            <div class="cart-drawer__head">
+                <h2 class="cart-drawer__title">Twój koszyk</h2>
+                <button type="button" class="cart-drawer__close" id="cart-close" aria-label="Zamknij">✕</button>
+            </div>
+            <div id="cart-lines" class="cart-lines"></div>
+            <div id="cart-summary" class="cart-summary"></div>
+            <div class="cart-drawer__foot">
+                <span>Razem</span>
+                <strong id="cart-total">—</strong>
+            </div>
+            <button type="button" id="cart-checkout-btn" class="cart-checkout-btn" disabled>
+                <i class="fa-solid fa-lock"></i>
+                <span>Przejdź do zamówienia</span>
+            </button>
+            <p class="online-muted online-footnote">Płatność gotówką lub kartą przy dostawie. Bezpieczny checkout.</p>
+            <a id="cart-last-order-link" class="cart-last-link hidden" href="#"><i class="fa-solid fa-location-crosshairs"></i> Śledź ostatnie zamówienie</a>
+        </div>
+    </div>
+
+    <script type="module" src="js/online_app.js"></script>
+</body>
+</html>

@@ -2,10 +2,12 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>SliceHub Enterprise | Control Tower</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        body { user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+        input, textarea, select, [contenteditable] { user-select: text; -webkit-user-select: text; }
         /* Niestandardowy scrollbar dla widoku Enterprise */
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); }
@@ -20,8 +22,15 @@
 
     <header class="flex justify-between items-center mb-6 shrink-0">
         <div>
-            <h1 class="text-2xl font-bold text-white tracking-wide">MAGAZYN <span class="text-violet-500">CONTROL TOWER</span></h1>
-            <p class="text-sm text-gray-500 mt-1">Live Stock Matrix & Analytics</p>
+            <div class="flex items-center gap-4">
+                <h1 class="text-2xl font-bold text-white tracking-wide">MAGAZYN <span class="text-violet-500">CONTROL TOWER</span></h1>
+                <select id="warehousePicker"
+                        class="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-gray-300
+                               focus:outline-none focus:border-violet-500/60 appearance-none cursor-pointer">
+                    <option value="MAIN">MAIN</option>
+                </select>
+            </div>
+            <p class="text-sm text-gray-500 mt-1">Live Stock Matrix & Analytics · <span id="lastUpdated" class="text-gray-600">—</span></p>
         </div>
         <div class="flex items-center gap-4">
             <button id="btn-add-item" onclick="openAddItemModal()"
@@ -45,9 +54,14 @@
                 </svg>
                 Strata (RW)
             </button>
-            <div class="text-sm text-gray-400 bg-white/5 px-4 py-2 rounded-full border border-white/10 backdrop-blur-md">
-                Status połączenia: <span class="text-emerald-400 font-semibold animate-pulse">● ONLINE</span>
-            </div>
+            <a href="index.html"
+               class="flex items-center gap-2 text-sm text-gray-400 bg-white/5 px-4 py-2 rounded-full border border-white/10 backdrop-blur-md hover:bg-white/10 hover:text-white transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                </svg>
+                Warehouse Hub
+            </a>
         </div>
     </header>
 
@@ -114,6 +128,7 @@
     </div>
 
     <script src="../../core/js/api_client.js"></script>
+    <script src="js/warehouse_api.js"></script>
     <script src="../../core/js/core_validator.js"></script>
     <script src="js/warehouse_core.js"></script>
 

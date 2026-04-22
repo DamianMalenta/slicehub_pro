@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="sh-tenant-id" content="1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#000000">
+    <title>SliceHub — Kelner</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/waiter.css">
+</head>
+<body>
+
+<!-- VIEW A: PIN LOCK -->
+<div id="view-pin" class="view">
+    <div class="pin-container">
+        <div class="pin-brand">
+            <div class="pin-logo">SH</div>
+            <span class="pin-label">KELNER</span>
+        </div>
+        <div class="pin-subtitle">Wprowadź swój PIN</div>
+        <div class="pin-dots" id="pin-dots"></div>
+        <div class="pin-error" id="pin-error"></div>
+        <div class="pin-grid">
+            <button class="pin-key" data-val="1">1</button>
+            <button class="pin-key" data-val="2">2</button>
+            <button class="pin-key" data-val="3">3</button>
+            <button class="pin-key" data-val="4">4</button>
+            <button class="pin-key" data-val="5">5</button>
+            <button class="pin-key" data-val="6">6</button>
+            <button class="pin-key" data-val="7">7</button>
+            <button class="pin-key" data-val="8">8</button>
+            <button class="pin-key" data-val="9">9</button>
+            <button class="pin-key pin-key--action" data-val="clear"><i class="fa-solid fa-delete-left"></i></button>
+            <button class="pin-key" data-val="0">0</button>
+            <button class="pin-key pin-key--action pin-key--go" data-val="go"><i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+    </div>
+</div>
+
+<!-- VIEW B: DASHBOARD -->
+<div id="view-dashboard" class="view hidden">
+    <header class="dash-header">
+        <div class="dash-greeting">
+            <span class="dash-hello">Witaj,</span>
+            <span class="dash-name" id="dash-name">—</span>
+        </div>
+        <div class="dash-header-actions">
+            <span class="dash-clock" id="dash-clock"></span>
+            <button class="dash-btn-icon" id="btn-refresh" title="Odśwież"><i class="fa-solid fa-arrows-rotate"></i></button>
+            <button class="dash-btn-icon dash-btn-icon--danger" id="btn-logout" title="Wyloguj"><i class="fa-solid fa-right-from-bracket"></i></button>
+        </div>
+    </header>
+
+    <div class="dash-stats" id="dash-stats">
+        <div class="ds-item"><span class="ds-val" id="stat-tables">0</span><span class="ds-label">stolików</span></div>
+        <div class="ds-sep"></div>
+        <div class="ds-item"><span class="ds-val" id="stat-guests">0</span><span class="ds-label">gości</span></div>
+        <div class="ds-sep"></div>
+        <div class="ds-item"><span class="ds-val ds-val--green" id="stat-revenue">0,00</span><span class="ds-label">zł obrotu</span></div>
+    </div>
+
+    <div class="dash-scroll" id="dash-scroll">
+        <div class="order-list" id="table-grid"></div>
+    </div>
+
+    <!-- FAB: New Order -->
+    <button class="fab" id="fab-new">
+        <i class="fa-solid fa-plus"></i>
+    </button>
+</div>
+
+<!-- VIEW C: NEW ORDER — Table optional -->
+<div id="view-new-order" class="view hidden">
+    <header class="new-header">
+        <button class="new-back" id="btn-back-dash"><i class="fa-solid fa-chevron-left"></i></button>
+        <div class="new-title">Nowe zamówienie</div>
+    </header>
+
+    <div class="new-scroll">
+        <!-- Quick action: no table -->
+        <button class="new-quick-btn" id="btn-no-table">
+            <div class="nqb-icon"><i class="fa-solid fa-receipt"></i></div>
+            <div class="nqb-text">
+                <div class="nqb-title">Bez stolika</div>
+                <div class="nqb-sub">Zamówienie na miejscu bez przypisania</div>
+            </div>
+            <i class="fa-solid fa-chevron-right nqb-arrow"></i>
+        </button>
+
+        <div class="new-divider"><span>lub wybierz stolik</span></div>
+
+        <div class="sel-grid" id="sel-grid"></div>
+    </div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div id="toast-container"></div>
+
+<script type="module" src="js/waiter_app.js"></script>
+</body>
+</html>

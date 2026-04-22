@@ -1,0 +1,405 @@
+/* =============================================================================
+   SliceHub Online · M4 — Scena Drzwi (hero entry)
+   Pierwsze wrażenie: ilustracja drzwi restauracji + status + kanały + CTA.
+   Warianty dobowe (data-time-of-day): morning | day | evening | night.
+   ============================================================================= */
+
+:root {
+    --doorway-accent: #E8B04B;
+    --doorway-accent-soft: rgba(232,176,75,.18);
+    --doorway-ink: #fff;
+    --doorway-ink-muted: rgba(255,255,255,.72);
+    --doorway-card: rgba(10,8,6,.38);
+    --doorway-card-border: rgba(255,255,255,.14);
+}
+
+.online-body.is-door-entered .doorway { display: none; }
+
+.doorway {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+    overflow: hidden;
+    color: var(--doorway-ink);
+    background: linear-gradient(180deg, #1a1410 0%, #0a0806 100%);
+    transition: opacity .55s ease, transform .55s ease;
+    will-change: opacity, transform;
+}
+
+.doorway--loading .doorway__content > *:not(.doorway__brand):not(.doorway__status) {
+    opacity: .35;
+    pointer-events: none;
+}
+
+.doorway.is-leaving {
+    opacity: 0;
+    transform: scale(1.02);
+    pointer-events: none;
+}
+
+/* ── Sky / background ambience ─────────────────────────────────────────── */
+.doorway__sky {
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(1200px 700px at 20% 20%, rgba(232,176,75,.12), transparent 60%),
+        radial-gradient(900px 560px at 90% 85%, rgba(255,108,47,.10), transparent 55%),
+        linear-gradient(180deg, #1a1410 0%, #0a0806 100%);
+    z-index: 0;
+}
+
+.doorway[data-time-of-day="morning"] .doorway__sky {
+    background:
+        radial-gradient(1000px 700px at 30% 25%, rgba(255,211,153,.22), transparent 60%),
+        linear-gradient(180deg, #f2d7b7 0%, #c18e6a 60%, #4a2f28 100%);
+}
+.doorway[data-time-of-day="day"] .doorway__sky {
+    background:
+        radial-gradient(1100px 700px at 30% 20%, rgba(255,240,210,.25), transparent 65%),
+        linear-gradient(180deg, #ffe1b8 0%, #e6a76d 55%, #6b3a2a 100%);
+}
+.doorway[data-time-of-day="evening"] .doorway__sky {
+    background:
+        radial-gradient(1000px 700px at 25% 25%, rgba(232,176,75,.26), transparent 62%),
+        linear-gradient(180deg, #7a3a1f 0%, #30160f 100%);
+}
+.doorway[data-time-of-day="night"] .doorway__sky {
+    background:
+        radial-gradient(900px 600px at 18% 18%, rgba(232,176,75,.12), transparent 55%),
+        radial-gradient(700px 500px at 85% 30%, rgba(80,110,200,.10), transparent 60%),
+        linear-gradient(180deg, #0b0a14 0%, #06050a 100%);
+}
+
+/* ── Ilustracja drzwi (lewa kolumna) ───────────────────────────────────── */
+.doorway__illustration {
+    position: relative;
+    z-index: 1;
+    min-height: 100vh;
+    display: grid;
+    place-items: end center;
+    padding: clamp(24px, 6vh, 80px) clamp(24px, 5vw, 80px);
+}
+
+.doorway__illustration svg {
+    width: min(560px, 85%);
+    height: auto;
+    filter: drop-shadow(0 30px 60px rgba(0,0,0,.55));
+}
+
+/* Soft neon glow on sign during evening/night */
+.doorway[data-time-of-day="evening"] .doorway__sign-glow,
+.doorway[data-time-of-day="night"] .doorway__sign-glow {
+    filter: drop-shadow(0 0 12px var(--doorway-accent)) drop-shadow(0 0 24px rgba(232,176,75,.35));
+}
+
+/* Podłoga / chodnik odbicie */
+.doorway__illustration::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 22vh;
+    background: linear-gradient(180deg, transparent, rgba(0,0,0,.55));
+    pointer-events: none;
+}
+
+/* ── Content (prawa kolumna) ───────────────────────────────────────────── */
+.doorway__content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: clamp(14px, 2.2vh, 22px);
+    padding: clamp(28px, 5vh, 64px) clamp(28px, 5vw, 72px);
+    backdrop-filter: blur(6px);
+    background: linear-gradient(180deg, rgba(10,8,6,.0) 0%, rgba(10,8,6,.55) 100%);
+}
+
+.doorway__brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+.doorway__mark {
+    width: 46px; height: 46px;
+    border-radius: 14px;
+    display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--doorway-accent), #c88f30);
+    color: #1a1007;
+    font-size: 20px;
+    box-shadow: 0 8px 24px rgba(232,176,75,.32);
+}
+.doorway__brand-text {
+    display: flex; flex-direction: column;
+}
+.doorway__brand-text strong {
+    font-family: 'Fraunces', serif;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: .2px;
+}
+.doorway__tagline {
+    font-size: 12.5px;
+    color: var(--doorway-ink-muted);
+}
+
+.doorway__status {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    background: var(--doorway-card);
+    border: 1px solid var(--doorway-card-border);
+    font-size: 13px;
+    color: var(--doorway-ink-muted);
+    align-self: flex-start;
+    backdrop-filter: blur(8px);
+}
+.doorway__status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #6b7280;
+    box-shadow: 0 0 0 0 rgba(107,114,128,.4);
+}
+.doorway__status[data-state="open"] .doorway__status-dot {
+    background: #22c55e;
+    animation: doorPulse 2s infinite;
+}
+.doorway__status[data-state="closing_soon"] .doorway__status-dot {
+    background: var(--doorway-accent);
+    animation: doorPulse 1.5s infinite;
+}
+.doorway__status[data-state="closed"] .doorway__status-dot { background: #ef4444; }
+
+@keyframes doorPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(34,197,94,.55); }
+    70%  { box-shadow: 0 0 0 12px rgba(34,197,94,0); }
+    100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+}
+
+.doorway__headline {
+    margin: 0;
+    display: flex; flex-direction: column; gap: 6px;
+}
+.doorway__eyebrow {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 2.4px;
+    color: var(--doorway-accent);
+    font-weight: 600;
+}
+.doorway__title {
+    font-family: 'Fraunces', serif;
+    font-weight: 800;
+    font-size: clamp(28px, 4.2vw, 52px);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+}
+
+/* ── Info chips (hours, address, phone) ────────────────────────────────── */
+.doorway__info {
+    display: flex; flex-wrap: wrap; gap: 10px;
+}
+.doorway__info-chip {
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 11px 16px;
+    border-radius: 14px;
+    background: var(--doorway-card);
+    border: 1px solid var(--doorway-card-border);
+    color: var(--doorway-ink);
+    font-size: 13.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all .18s ease;
+    text-decoration: none;
+    backdrop-filter: blur(10px);
+}
+.doorway__info-chip:hover {
+    transform: translateY(-1px);
+    border-color: var(--doorway-accent);
+    background: var(--doorway-accent-soft);
+}
+.doorway__info-chip i { color: var(--doorway-accent); }
+
+/* ── Channels switch ───────────────────────────────────────────────────── */
+.doorway__channels {
+    display: inline-flex;
+    padding: 5px;
+    gap: 4px;
+    background: var(--doorway-card);
+    border: 1px solid var(--doorway-card-border);
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+    align-self: flex-start;
+}
+.doorway__channel {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 16px;
+    border-radius: 12px;
+    background: transparent;
+    border: 0;
+    color: var(--doorway-ink-muted);
+    font-size: 13.5px; font-weight: 600;
+    cursor: pointer;
+    transition: all .15s ease;
+}
+.doorway__channel:hover { color: var(--doorway-ink); }
+.doorway__channel.is-active {
+    background: linear-gradient(135deg, var(--doorway-accent), #c88f30);
+    color: #1a1007;
+    box-shadow: 0 6px 18px rgba(232,176,75,.35);
+}
+
+/* ── Enter CTA ─────────────────────────────────────────────────────────── */
+.doorway__cta {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin-top: 6px;
+}
+.doorway__enter {
+    position: relative;
+    display: inline-flex; align-items: center; gap: 14px;
+    padding: 14px 22px;
+    border: 0;
+    border-radius: 18px;
+    background: linear-gradient(135deg, var(--doorway-accent) 0%, #c88f30 100%);
+    color: #1a1007;
+    cursor: pointer;
+    font-weight: 800;
+    font-size: 16px;
+    letter-spacing: .2px;
+    box-shadow: 0 14px 40px rgba(232,176,75,.35), inset 0 0 0 1px rgba(255,255,255,.25);
+    transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+}
+.doorway__enter:hover { transform: translateY(-1px); box-shadow: 0 18px 46px rgba(232,176,75,.45); }
+.doorway__enter:active { transform: translateY(0); }
+.doorway__enter-main { font-family: 'Fraunces', serif; }
+.doorway__enter-sub {
+    display: block;
+    font-size: 11.5px;
+    font-weight: 600;
+    opacity: .72;
+    letter-spacing: .4px;
+    text-transform: uppercase;
+}
+.doorway__enter i { font-size: 14px; transition: transform .15s ease; }
+.doorway__enter:hover i { transform: translateX(4px); }
+
+.doorway__enter:disabled {
+    filter: grayscale(.45) brightness(.85);
+    cursor: not-allowed;
+    box-shadow: 0 6px 12px rgba(0,0,0,.3);
+}
+
+.doorway__preorder {
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 13px 18px;
+    border-radius: 16px;
+    background: transparent;
+    border: 1px solid var(--doorway-card-border);
+    color: var(--doorway-ink);
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 13.5px;
+    transition: all .15s ease;
+}
+.doorway__preorder:hover {
+    border-color: var(--doorway-accent);
+    background: var(--doorway-accent-soft);
+}
+
+.doorway__static-toggle {
+    width: 42px; height: 42px;
+    border-radius: 12px;
+    background: transparent;
+    border: 1px solid var(--doorway-card-border);
+    color: var(--doorway-ink-muted);
+    cursor: pointer;
+    transition: all .15s ease;
+}
+.doorway__static-toggle:hover {
+    color: var(--doorway-ink);
+    border-color: var(--doorway-accent);
+}
+
+/* ── Static/accessible fallback — zgaszona animacja, prosty układ ──────── */
+.doorway.is-static .doorway__sky,
+.doorway.is-static .doorway__illustration {
+    filter: saturate(.75) brightness(.95);
+}
+.doorway.is-static .doorway__status-dot { animation: none !important; }
+.doorway.is-static .doorway__enter { animation: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+    .doorway { transition: opacity .25s ease; transform: none !important; }
+    .doorway__status-dot { animation: none !important; }
+}
+
+/* ── Mobile — pionowy układ, drzwi u góry ──────────────────────────────── */
+@media (max-width: 900px) {
+    .doorway {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(38vh, auto) 1fr;
+    }
+    .doorway__illustration {
+        min-height: 38vh;
+        padding: 18px;
+    }
+    .doorway__illustration svg { width: min(320px, 70%); }
+    .doorway__content {
+        padding: 22px 22px 28px;
+        background: linear-gradient(180deg, rgba(10,8,6,.2) 0%, rgba(10,8,6,.7) 100%);
+    }
+    .doorway__headline { gap: 4px; }
+}
+
+/* ── Map modal ─────────────────────────────────────────────────────────── */
+.doorway-map-modal {
+    position: fixed; inset: 0; z-index: 260;
+    display: grid; place-items: center;
+    background: rgba(6,6,10,.65);
+    backdrop-filter: blur(6px);
+    padding: 16px;
+}
+.doorway-map-modal.hidden { display: none; }
+.doorway-map-modal__panel {
+    width: min(640px, 100%);
+    background: #0e0c0a;
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 30px 80px rgba(0,0,0,.6);
+}
+.doorway-map-modal__head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.doorway-map-modal__head h2 {
+    margin: 0; font-size: 16px; font-family: 'Fraunces', serif;
+    color: var(--doorway-ink);
+}
+.doorway-map-modal__close {
+    background: transparent; border: 0; color: var(--doorway-ink-muted);
+    font-size: 20px; cursor: pointer;
+}
+.doorway-map-modal__canvas {
+    height: 360px;
+    background: #18140f;
+}
+.doorway-map-modal__canvas .leaflet-container { background: #18140f; }
+.doorway-map-modal__foot {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 12px 16px;
+    color: var(--doorway-ink-muted);
+    font-size: 13px;
+}
+.doorway-map-modal__nav {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 14px;
+    border-radius: 10px;
+    background: var(--doorway-accent); color: #1a1007;
+    text-decoration: none; font-weight: 700; font-size: 13px;
+}
+.doorway-map-modal__nav:hover { filter: brightness(1.08); }

@@ -1,0 +1,641 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   SliceHub Online — TRACK ORDER (Faza 5.2)
+   Standalone styles — leci obok style.css na stronie track.html.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.track-body {
+    background: radial-gradient(ellipse at top left, #1e1b16 0%, #0a0806 65%) fixed;
+    min-height: 100vh;
+    color: #1c1917;
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+}
+
+.topbar--compact {
+    padding: 14px 20px;
+    background: rgba(10, 8, 6, .7);
+    backdrop-filter: blur(16px) saturate(1.1);
+    -webkit-backdrop-filter: blur(16px) saturate(1.1);
+    border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.topbar__back {
+    display: inline-flex; align-items: center; gap: 8px;
+    color: #f5f5f4;
+    text-decoration: none;
+    font-size: 13px; font-weight: 600;
+    padding: 8px 14px;
+    border-radius: 10px;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.1);
+    transition: background .15s;
+}
+.topbar__back:hover { background: rgba(255,255,255,.12); }
+
+.track-main {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 24px 16px 80px;
+    display: flex; flex-direction: column;
+    gap: 20px;
+}
+
+.track-loading {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 14px;
+    color: #f5f5f4;
+    padding: 60px 20px;
+    text-align: center;
+}
+.track-loading p { margin: 0; font-size: 14px; opacity: .8; }
+
+/* ── Generic card ────────────────────────────────────────────────────── */
+.track-card {
+    background: #fdfcfa;
+    border-radius: 22px;
+    padding: 22px;
+    box-shadow: 0 16px 40px rgba(0,0,0,.28), 0 0 0 1px rgba(255,255,255,.04);
+    animation: tr-card-in .35s cubic-bezier(.22,.9,.3,1);
+}
+@keyframes tr-card-in {
+    from { transform: translateY(10px); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+}
+.track-card.hidden { display: none !important; }
+
+/* ── Prompt card (initial) ────────────────────────────────────────────── */
+.track-card--prompt .track-card__head {
+    display: flex; gap: 14px; align-items: flex-start;
+    margin-bottom: 16px;
+}
+.track-card__icon {
+    font-size: 32px;
+    color: #c2410c;
+    padding: 10px;
+    background: rgba(255, 237, 213, .6);
+    border-radius: 14px;
+}
+.track-card__title {
+    margin: 0 0 4px;
+    font-family: Fraunces, Georgia, serif;
+    font-size: 24px; font-weight: 700;
+}
+.track-card__subtitle {
+    margin: 0;
+    color: #57534e; font-size: 13.5px;
+}
+
+.track-form {
+    display: flex; flex-direction: column; gap: 14px;
+}
+.track-label {
+    display: flex; flex-direction: column; gap: 5px;
+    font-size: 13px; color: #44403c;
+}
+.track-label > span em { color: #dc2626; font-style: normal; margin-left: 2px; }
+.track-label input {
+    padding: 12px 14px;
+    font-size: 14px;
+    border: 1px solid rgba(0,0,0,.12);
+    border-radius: 10px;
+    background: #fff;
+    font-family: inherit;
+    transition: border-color .15s, box-shadow .15s;
+}
+.track-label input:focus {
+    outline: none;
+    border-color: #c2410c;
+    box-shadow: 0 0 0 3px rgba(194,65,12,.14);
+}
+
+.track-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 8px;
+    padding: 13px 18px;
+    font-size: 14px; font-weight: 700;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    transition: transform .12s, box-shadow .2s;
+    text-decoration: none;
+}
+.track-btn--primary {
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+    color: #fff;
+    box-shadow: 0 10px 24px rgba(15,23,42,.28);
+}
+.track-btn--primary:hover { transform: translateY(-1px); box-shadow: 0 14px 32px rgba(15,23,42,.36); }
+.track-btn--ghost {
+    background: #fff;
+    color: #44403c;
+    border: 1px solid rgba(0,0,0,.12);
+}
+.track-btn--ghost:hover { background: #f5f5f4; }
+
+/* ── Error card ──────────────────────────────────────────────────────── */
+.track-card--error {
+    display: flex; gap: 14px;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+}
+.track-card--error > i { font-size: 28px; }
+.track-card--error h2 { margin: 0 0 4px; font-size: 17px; font-weight: 700; color: #991b1b; }
+.track-card--error p  { margin: 0 0 10px; font-size: 13px; color: #7f1d1d; }
+
+/* ── Head card with timeline ─────────────────────────────────────────── */
+.track-head__top {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 14px;
+    margin-bottom: 22px;
+}
+.track-eyebrow {
+    margin: 0 0 4px;
+    font-size: 10.5px; font-weight: 800; letter-spacing: .14em;
+    text-transform: uppercase; color: #c2410c;
+}
+.track-head__num {
+    margin: 0 0 6px;
+    font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    font-size: 20px; font-weight: 700;
+    letter-spacing: .01em;
+    color: #1c1917;
+}
+.track-head__meta {
+    margin: 0;
+    font-size: 13px; color: #57534e;
+}
+.track-head__meta i { color: #c2410c; }
+
+/* status pill */
+.track-pill {
+    display: inline-flex; align-items: center;
+    padding: 6px 14px;
+    font-size: 12px; font-weight: 700; letter-spacing: .03em;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+.track-pill--blue    { background: #dbeafe; color: #1e40af; }
+.track-pill--indigo  { background: #e0e7ff; color: #3730a3; }
+.track-pill--amber   { background: #fef3c7; color: #92400e; }
+.track-pill--violet  { background: #ede9fe; color: #5b21b6; }
+.track-pill--rose    { background: #ffe4e6; color: #9f1239; animation: tr-pulse 2s infinite; }
+.track-pill--green   { background: #d1fae5; color: #065f46; }
+.track-pill--neutral { background: #f5f5f4; color: #44403c; }
+@keyframes tr-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(159,18,57,.5); }
+    50%      { box-shadow: 0 0 0 10px rgba(159,18,57,0); }
+}
+
+/* ── Timeline ────────────────────────────────────────────────────────── */
+.track-timeline {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 16px;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 4px;
+    position: relative;
+}
+.track-step {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 8px;
+    text-align: center;
+    position: relative;
+}
+.track-step::before {
+    content: '';
+    position: absolute;
+    top: 19px;
+    left: -50%;
+    right: 50%;
+    height: 3px;
+    background: rgba(0,0,0,.08);
+    z-index: 0;
+}
+.track-step:first-child::before { display: none; }
+.track-step.is-reached::before { background: linear-gradient(90deg, #10b981, #059669); }
+
+.track-step__dot {
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: #f5f5f4;
+    border: 2px solid rgba(0,0,0,.08);
+    color: #a8a29e;
+    font-size: 14px;
+    z-index: 1;
+    transition: background .25s, color .25s, transform .25s, border-color .25s, box-shadow .25s;
+}
+.track-step.is-reached .track-step__dot {
+    background: linear-gradient(135deg, #10b981, #059669);
+    border-color: #059669;
+    color: #fff;
+    box-shadow: 0 6px 14px rgba(16,185,129,.32);
+}
+.track-step.is-current .track-step__dot {
+    transform: scale(1.16);
+    animation: tr-current-pulse 1.6s ease-in-out infinite;
+}
+@keyframes tr-current-pulse {
+    0%, 100% { box-shadow: 0 6px 14px rgba(16,185,129,.32), 0 0 0 0 rgba(16,185,129,.45); }
+    50%      { box-shadow: 0 6px 14px rgba(16,185,129,.32), 0 0 0 10px rgba(16,185,129,0); }
+}
+.track-step__label {
+    font-size: 10.5px; font-weight: 600;
+    color: #78716c;
+    line-height: 1.25;
+    max-width: 70px;
+}
+.track-step.is-reached .track-step__label { color: #0f172a; }
+.track-step.is-current .track-step__label { color: #065f46; font-weight: 700; }
+
+.track-head__hint {
+    margin: 12px 0 0;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: #57534e;
+    background: #fafaf9;
+    border-radius: 10px;
+    border: 1px dashed rgba(0,0,0,.08);
+}
+.track-head__hint i { color: #0369a1; margin-right: 6px; }
+
+/* ── Driver card ─────────────────────────────────────────────────────── */
+.track-driver__head {
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 16px;
+}
+.track-driver__avatar {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #fb7185, #e11d48);
+    color: #fff;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    box-shadow: 0 8px 18px rgba(225, 29, 72, .32);
+}
+.track-driver__name {
+    margin: 0 0 2px;
+    font-family: Fraunces, Georgia, serif;
+    font-size: 20px; font-weight: 700;
+}
+.track-driver__speed {
+    margin: 0;
+    font-size: 12.5px;
+    color: #57534e;
+}
+.track-driver__speed i { color: #c2410c; margin-right: 4px; }
+
+.track-map {
+    height: 280px;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid rgba(0,0,0,.08);
+    box-shadow: 0 8px 20px rgba(0,0,0,.08);
+}
+
+/* Leaflet custom marker */
+.track-marker {
+    pointer-events: none;
+}
+.track-marker__ring {
+    position: absolute;
+    inset: 4px;
+    background: linear-gradient(135deg, #fb7185, #e11d48);
+    color: #fff;
+    border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    box-shadow: 0 4px 12px rgba(225,29,72,.45), 0 0 0 3px #fff;
+    transition: transform .35s;
+}
+.track-marker__pulse {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: rgba(225, 29, 72, .35);
+    animation: tr-marker-pulse 1.8s ease-out infinite;
+}
+@keyframes tr-marker-pulse {
+    0%   { transform: scale(.6); opacity: .9; }
+    100% { transform: scale(1.6); opacity: 0;  }
+}
+
+/* ── Summary card ────────────────────────────────────────────────────── */
+.track-summary h3 {
+    margin: 0 0 14px;
+    font-size: 14px; font-weight: 700;
+    color: #1c1917;
+    display: inline-flex; align-items: center; gap: 8px;
+}
+.track-summary h3 i { color: #c2410c; }
+.track-summary__dl {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin: 0;
+}
+.track-summary__dl div {
+    padding: 10px 12px;
+    background: #fafaf9;
+    border: 1px solid rgba(0,0,0,.06);
+    border-radius: 10px;
+    display: flex; flex-direction: column; gap: 2px;
+}
+.track-summary__dl dt {
+    font-size: 10.5px; font-weight: 700; letter-spacing: .08em;
+    text-transform: uppercase; color: #78716c; margin: 0;
+}
+.track-summary__dl dd {
+    margin: 0;
+    font-size: 13.5px; color: #1c1917;
+}
+
+.track-change {
+    align-self: center;
+    margin-top: 4px;
+}
+
+@media (max-width: 520px) {
+    .track-timeline { grid-template-columns: repeat(3, 1fr); row-gap: 18px; }
+    .track-step:nth-child(1)::before,
+    .track-step:nth-child(4)::before { display: none; }
+    .track-step__label { max-width: none; }
+    .track-summary__dl { grid-template-columns: 1fr; }
+    .track-map { height: 220px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * 2026-04-19 · FAZA E · Track rozbudowa:
+ *   - Hero image (tło karty head z neonowym glow)
+ *   - ETA live countdown (duży monospace timer)
+ *   - Items list (karta z miniaturami)
+ *   - Origin marker (statyczny, pin restauracji)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Hero image w tle head-card — subtelne, żeby nie przykryło tekstu */
+.track-head { position: relative; overflow: hidden; isolation: isolate; }
+.track-hero {
+    position: absolute; inset: 0;
+    background-size: cover; background-position: center;
+    opacity: 0;
+    filter: blur(18px) saturate(1.2);
+    transform: scale(1.1);
+    transition: opacity .5s ease, transform .5s ease;
+    z-index: -1;
+}
+.track-hero--active {
+    opacity: .26;
+    transform: scale(1);
+}
+.track-hero::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(253,252,250,.55) 0%, rgba(253,252,250,.92) 100%);
+}
+
+/* Live ETA countdown */
+.track-eta {
+    margin: 0 0 16px;
+    padding: 14px 18px;
+    background: linear-gradient(135deg, #fff7ed, #ffedd5);
+    border: 1.5px solid #fdba74;
+    border-radius: 14px;
+    text-align: center;
+    transition: border-color .2s, background .2s;
+}
+.track-eta.hidden { display: none; }
+.track-eta__label {
+    font-size: 10.5px; font-weight: 800; letter-spacing: .14em;
+    text-transform: uppercase; color: #9a3412;
+    margin-bottom: 4px;
+}
+.track-eta__time {
+    font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    font-size: 36px; font-weight: 700;
+    color: #7c2d12;
+    letter-spacing: .02em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    margin-bottom: 4px;
+}
+.track-eta__sub {
+    font-size: 12.5px;
+    color: #9a3412;
+    font-weight: 600;
+}
+.track-eta--soon {
+    background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+    border-color: #22c55e;
+    animation: tr-eta-soon-pulse 2s ease-in-out infinite;
+}
+.track-eta--soon .track-eta__label { color: #166534; }
+.track-eta--soon .track-eta__time  { color: #14532d; }
+.track-eta--soon .track-eta__sub   { color: #166534; }
+@keyframes tr-eta-soon-pulse {
+    0%, 100% { box-shadow: 0 0 0 0   rgba(34, 197, 94, .35); }
+    50%      { box-shadow: 0 0 0 12px rgba(34, 197, 94, 0);   }
+}
+.track-eta--overdue {
+    background: linear-gradient(135deg, #fef2f2, #fee2e2);
+    border-color: #ef4444;
+}
+.track-eta--overdue .track-eta__label,
+.track-eta--overdue .track-eta__sub   { color: #991b1b; }
+.track-eta--overdue .track-eta__time  { color: #7f1d1d; }
+
+/* Items list card */
+.track-items h3 {
+    margin: 0 0 14px;
+    font-size: 14px; font-weight: 700;
+    color: #1c1917;
+    display: inline-flex; align-items: center; gap: 8px;
+}
+.track-items h3 i { color: #c2410c; }
+.track-items__list {
+    list-style: none; padding: 0; margin: 0;
+    display: flex; flex-direction: column; gap: 8px;
+}
+.track-items__row {
+    display: grid;
+    grid-template-columns: 48px 1fr auto;
+    gap: 12px; align-items: center;
+    padding: 8px 12px;
+    background: #fafaf9;
+    border: 1px solid rgba(0,0,0,.06);
+    border-radius: 12px;
+}
+.track-items__thumb {
+    width: 48px; height: 48px;
+    border-radius: 10px;
+    background: #f5f5f4;
+    display: grid; place-items: center;
+    overflow: hidden;
+    color: #a8a29e;
+    font-size: 18px;
+}
+.track-items__thumb img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.track-items__name {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #1c1917;
+    line-height: 1.3;
+}
+.track-items__qty {
+    font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: #c2410c;
+    padding: 2px 8px;
+    background: rgba(194, 65, 12, .08);
+    border-radius: 6px;
+}
+
+/* Origin marker (restauracja) — statyczny, subtelny */
+.track-marker--origin .track-marker__ring {
+    background: linear-gradient(135deg, #fbbf24, #d97706);
+    box-shadow: 0 4px 10px rgba(217, 119, 6, .4), 0 0 0 3px #fff;
+    font-size: 14px;
+    inset: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * MAGIC STAGE TRANSITIONS — Faza 3 (2026-04-20)
+ * Każdy status = osobna wizualna paleta + emoji background
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Ambient background zmienia się per status — klasy dodawane przez JS */
+.track-body[data-status="new"]         { --stage-hue: 220; --stage-sat: 65%; --stage-light: 28%; }
+.track-body[data-status="accepted"]    { --stage-hue: 250; --stage-sat: 60%; --stage-light: 30%; }
+.track-body[data-status="preparing"]   { --stage-hue: 30;  --stage-sat: 70%; --stage-light: 22%; }
+.track-body[data-status="ready"]       { --stage-hue: 280; --stage-sat: 55%; --stage-light: 25%; }
+.track-body[data-status="in_delivery"] { --stage-hue: 355; --stage-sat: 68%; --stage-light: 20%; }
+.track-body[data-status="completed"]   { --stage-hue: 142; --stage-sat: 55%; --stage-light: 20%; }
+.track-body[data-status="cancelled"]   { --stage-hue: 0;   --stage-sat: 15%; --stage-light: 22%; }
+
+/* Dynamiczne tło z CSS vars */
+.track-body {
+    transition: background 1.2s ease;
+}
+.track-body[data-status] {
+    background: radial-gradient(
+        ellipse at top left,
+        hsl(var(--stage-hue, 220) var(--stage-sat, 65%) var(--stage-light, 28%)) 0%,
+        #0a0806 65%
+    ) fixed;
+}
+
+/* Cancelled — specjalny styl */
+.track-step.is-cancelled {
+    color: #9ca3af;
+    opacity: .7;
+}
+.track-step.is-cancelled .track-step__dot {
+    background: #374151;
+    border-color: #4b5563;
+    color: #9ca3af;
+}
+
+/* Stage-specific stage icons animacje */
+/* Preparing: pulsujący ogień */
+.track-body[data-status="preparing"] .track-step.is-current .track-step__dot i {
+    animation: tr-fire-flicker 1.4s ease-in-out infinite;
+}
+@keyframes tr-fire-flicker {
+    0%, 100% { transform: scale(1)    rotate(0deg);  }
+    25%      { transform: scale(1.15) rotate(-4deg); }
+    50%      { transform: scale(0.95) rotate(3deg);  }
+    75%      { transform: scale(1.1)  rotate(-2deg); }
+}
+
+/* In_delivery: skuter jedzie */
+.track-body[data-status="in_delivery"] .track-step.is-current .track-step__dot i {
+    animation: tr-scooter-ride 1.2s ease-in-out infinite;
+}
+@keyframes tr-scooter-ride {
+    0%, 100% { transform: translateX(0); }
+    50%      { transform: translateX(4px); }
+}
+
+/* Ready: dzwonek pulsuje */
+.track-body[data-status="ready"] .track-step.is-current .track-step__dot i {
+    animation: tr-bell-ring .5s ease-in-out 3;
+}
+@keyframes tr-bell-ring {
+    0%, 100% { transform: rotate(0deg); }
+    20%      { transform: rotate(-14deg); }
+    60%      { transform: rotate(12deg); }
+}
+
+/* Completed: flaga macha */
+.track-body[data-status="completed"] .track-step.is-current .track-step__dot {
+    background: linear-gradient(135deg, #22c55e, #15803d) !important;
+    border-color: #16a34a !important;
+    animation: tr-complete-glow 2s ease-in-out infinite;
+}
+@keyframes tr-complete-glow {
+    0%, 100% { box-shadow: 0 0 0 0   rgba(34, 197, 94, .35); }
+    50%      { box-shadow: 0 0 0 14px rgba(34, 197, 94, 0);   }
+}
+
+/* ─── Stage Status Banner ────────────────────────────────────────────── */
+/* Duży emoji/icon + krótki komunikat kontekstowy pod timeline */
+.track-stage-banner {
+    text-align: center;
+    padding: 14px 20px 8px;
+    font-size: 13.5px;
+    color: #57534e;
+    font-weight: 500;
+}
+.track-stage-banner__emoji {
+    display: block;
+    font-size: 32px;
+    margin-bottom: 6px;
+    animation: tr-banner-pop .4s cubic-bezier(.22,.9,.3,1);
+}
+@keyframes tr-banner-pop {
+    from { transform: scale(.5); opacity: 0; }
+    to   { transform: scale(1);  opacity: 1; }
+}
+
+/* ─── Notification Channel Badge ────────────────────────────────────── */
+/* Subtelny badge pod ETA: "Powiadomimy Cię via SMS" */
+.track-notif-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 auto 0;
+    padding: 5px 12px;
+    background: rgba(0,0,0,.04);
+    border: 1px solid rgba(0,0,0,.08);
+    border-radius: 30px;
+    font-size: 11.5px;
+    color: #78716c;
+    font-weight: 500;
+}
+.track-notif-badge i { color: #a8a29e; font-size: 12px; }
+.track-notif-badge--active i { color: #22c55e; }
+.track-notif-badge--active { color: #57534e; }
+
+/* SSE push indicator — mała zielona kropka gdy SSE podłączone */
+.track-live-dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #a8a29e;
+    margin-right: 4px;
+    transition: background .3s;
+}
+.track-live-dot--active {
+    background: #22c55e;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, .2);
+    animation: tr-live-pulse 2s ease infinite;
+}
+@keyframes tr-live-pulse {
+    0%, 100% { box-shadow: 0 0 0 0   rgba(34, 197, 94, .4); }
+    50%      { box-shadow: 0 0 0 5px rgba(34, 197, 94, 0);   }
+}

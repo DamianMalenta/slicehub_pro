@@ -2,7 +2,7 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>SliceHub - Studio Menu Ultimate</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
@@ -10,7 +10,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
-        body { font-family: 'Montserrat', sans-serif; background-color: #050505; color: white; user-select: none; overflow: hidden; display: flex; height: 100vh; }
+        body { font-family: 'Montserrat', sans-serif; background-color: #050505; color: white; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; overflow: hidden; display: flex; height: 100vh; }
+        input, textarea, select, [contenteditable] { user-select: text; -webkit-user-select: text; }
         .glass { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.05); }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         
@@ -52,6 +53,10 @@
             </button>
             
             <p class="text-[8px] font-black uppercase text-slate-500 tracking-widest px-5 mb-2 mt-4">Narzędzia Zwiększania Zysku</p>
+            <button onclick="window.location.href='../online_studio/index.html'" class="nav-btn w-full text-left px-5 py-3 text-[10px] font-black uppercase text-slate-400 hover:text-white transition flex items-center justify-between">
+                <div class="flex items-center gap-3"><i class="fa-solid fa-pizza-slice w-4 text-center text-orange-400"></i> Online Studio (Wizualny Kompozytor)</div>
+                <span class="bg-orange-500/10 text-orange-400 border border-orange-500/30 text-[7px] px-1.5 py-0.5 rounded">NOWY</span>
+            </button>
             <button class="nav-btn w-full text-left px-5 py-3 text-[10px] font-black uppercase text-slate-500 hover:text-slate-300 transition flex items-center justify-between">
                 <div class="flex items-center gap-3"><i class="fa-solid fa-magnet w-4 text-center"></i> Sprzedaż Sugerowana</div>
                 <span class="bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 text-[7px] px-1.5 py-0.5 rounded badge-soon">WKRÓTCE</span>
@@ -62,9 +67,8 @@
             </button>
 
             <p class="text-[8px] font-black uppercase text-slate-500 tracking-widest px-5 mb-2 mt-4">Integracje i Zaplecze</p>
-            <button class="nav-btn w-full text-left px-5 py-3 text-[10px] font-black uppercase text-slate-500 hover:text-slate-300 transition flex items-center justify-between">
-                <div class="flex items-center gap-3"><i class="fa-solid fa-boxes-stacked w-4 text-center"></i> Magazyn i Food Cost</div>
-                <span class="bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 text-[7px] px-1.5 py-0.5 rounded badge-soon">WKRÓTCE</span>
+            <button onclick="window.location.href='../warehouse/index.html'" class="nav-btn w-full text-left px-5 py-3 text-[10px] font-black uppercase text-slate-400 hover:text-white transition flex items-center gap-3">
+                <i class="fa-solid fa-boxes-stacked w-4 text-center"></i> Magazyn i Food Cost
             </button>
             <button class="nav-btn w-full text-left px-5 py-3 text-[10px] font-black uppercase text-slate-500 hover:text-slate-300 transition flex items-center justify-between">
                 <div class="flex items-center gap-3"><i class="fa-solid fa-cloud-arrow-up w-4 text-center"></i> Integracje (Pyszne/Uber)</div>
@@ -97,123 +101,85 @@
 
     <main class="flex-1 bg-[#050505] flex flex-col relative z-10 overflow-y-auto hide-scrollbar" id="view-container">
         
-        <div id="menu-view" class="h-full w-full p-6 animate-fade-in grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-y-auto hidden">
-    
-    <div class="bg-[#0a0a0f]/60 border border-white/10 rounded-xl p-6 shadow-2xl flex flex-col gap-6">
-        <div class="border-b border-white/5 pb-3">
-            <h2 class="text-white text-lg font-black tracking-wide uppercase">Karta Dania</h2>
-            <p class="text-slate-500 text-[10px] uppercase mt-1 tracking-wider">Konfiguracja podstawowa i księgowa</p>
+        <div id="menu-view" class="h-full w-full animate-fade-in hidden flex flex-col overflow-hidden">
+
+    <header id="item-command-bar" class="shrink-0 bg-[#0a0a0f]/95 backdrop-blur-xl border-b border-white/10 px-6 py-3 z-40">
+        <div class="flex items-center justify-center py-1 text-slate-600">
+            <span class="text-[9px] font-black uppercase tracking-widest"><i class="fa-solid fa-satellite-dish mr-2 opacity-30"></i>Mission Control &mdash; wybierz danie z drzewa</span>
         </div>
-        
-        <form id="item-form" class="flex flex-col gap-5" onsubmit="event.preventDefault();">
-            <input type="hidden" id="item-id" value="0">
-            
-            <div class="grid grid-cols-2 gap-4">
-                <div class="flex flex-col gap-1.5">
-                    <label class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Nazwa Dania</label>
-                    <input type="text" id="item-name" class="bg-black/50 border border-white/10 text-white rounded p-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition" placeholder="np. Pizza Margherita">
-                </div>
-                <div class="flex flex-col gap-1.5">
-                    <label class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">SKU (Klucz systemowy)</label>
-                    <input type="text" id="item-ascii-key" class="bg-black/50 border border-white/10 text-white rounded p-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition font-mono" placeholder="np. PIZZA_MARG">
-                </div>
+    </header>
+
+    <div class="flex-1 overflow-y-auto hide-scrollbar" id="menu-view-scroll">
+        <div class="flex gap-4 px-5 pb-10">
+
+            <nav id="item-anchor-nav" class="sticky top-2 self-start w-11 flex flex-col gap-1.5 shrink-0 pt-3 hidden"></nav>
+
+            <div class="flex-1 min-w-0 pt-4">
+                <form id="item-form" class="flex flex-col gap-5 pb-20" onsubmit="event.preventDefault();">
+                    <input type="hidden" id="item-id" value="0">
+                    <div class="flex flex-col items-center justify-center py-16 text-slate-600 gap-3">
+                        <i class="fa-solid fa-utensils text-2xl opacity-20"></i>
+                        <span class="text-[10px] font-black uppercase tracking-widest">Wybierz danie z drzewa menu</span>
+                    </div>
+                </form>
             </div>
 
-            <div class="grid grid-cols-2 gap-4">
-                <div class="flex flex-col gap-1.5">
-                    <label class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Kategoria</label>
-                    <select id="item-category-id" class="bg-black/50 border border-white/10 text-white rounded p-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition cursor-pointer">
-                        <option value="0">Wybierz kategorię...</option>
-                    </select>
+            <div id="food-cost-panel" class="w-[420px] shrink-0 pt-4 hidden">
+                <div class="sticky top-2">
+                    <div class="bg-[#0a0a0f]/60 border border-white/10 rounded-2xl p-6 shadow-2xl flex flex-col gap-6">
+                        <div class="border-b border-white/5 pb-3">
+                            <h2 class="text-white text-sm font-black tracking-wide uppercase flex items-center gap-2"><i class="fa-solid fa-dna text-purple-400"></i> Bliźniak Cyfrowy (Food Cost)</h2>
+                            <p class="text-slate-500 text-[9px] uppercase mt-1 tracking-wider">Receptury i zużycie magazynowe</p>
+                        </div>
+                        <div class="flex flex-col gap-5">
+                            <div class="flex flex-col gap-3 bg-black/40 p-4 rounded-xl border border-white/5">
+                                <label class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">AutoScan (Food Cost AI)</label>
+                                <textarea id="insp-desc" rows="2" class="bg-black/50 border border-white/10 text-white rounded-lg p-3 text-sm focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none transition resize-none" placeholder="Wpisz opis lub składniki..."></textarea>
+                                <button type="button" onclick="if(window.RecipeMapper && window.RecipeMapper.autoScan) window.RecipeMapper.autoScan();" class="w-full bg-purple-600/80 hover:bg-purple-500 text-white font-bold text-[10px] uppercase tracking-wider py-2 px-4 rounded-lg transition border border-purple-500/50 shadow-[0_0_10px_rgba(147,51,234,0.2)]">
+                                    <i class="fa-solid fa-wand-magic-sparkles mr-2"></i> AutoScan
+                                </button>
+                            </div>
+                            <div class="flex flex-col gap-3 bg-black/40 p-4 rounded-xl border border-white/5">
+                                <div class="flex items-center justify-between">
+                                    <label class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Dodaj Składnik</label>
+                                    <button type="button" onclick="window.RecipeMapper.openBulkAdd()" class="text-[9px] font-black uppercase text-cyan-400 hover:text-cyan-300 px-2 py-1 rounded border border-cyan-500/30 hover:bg-cyan-900/20 transition">
+                                        <i class="fa-solid fa-layer-group mr-1"></i> Bulk Add
+                                    </button>
+                                </div>
+                                <div class="relative">
+                                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 text-[11px]"></i>
+                                    <input type="text" id="ingredient-search" autocomplete="off" placeholder="Szukaj po nazwie lub aliasie (np. 'moz' → Mozzarella)..."
+                                           class="w-full bg-black/50 border border-white/10 text-white rounded-lg pl-9 pr-3 py-2 text-[11px] focus:border-blue-500 focus:outline-none transition">
+                                    <div id="ingredient-search-results" class="hidden absolute top-full left-0 right-0 mt-1 bg-[#0a0a0f] border border-white/10 rounded-lg shadow-2xl max-h-72 overflow-y-auto z-50"></div>
+                                </div>
+                                <div id="ingredient-quickadd" class="hidden flex items-center gap-2 bg-black/40 p-2 rounded-lg border border-blue-500/30">
+                                    <div class="flex-1 min-w-0">
+                                        <div id="quickadd-name" class="text-[11px] font-black text-white truncate"></div>
+                                        <div id="quickadd-sku" class="text-[8px] font-mono text-slate-500 truncate"></div>
+                                    </div>
+                                    <input type="number" id="quickadd-qty" step="0.001" min="0" class="w-20 bg-black/50 border border-white/10 text-white rounded p-1.5 text-[11px] text-center focus:border-blue-500 outline-none" placeholder="100">
+                                    <select id="quickadd-unit" class="bg-black/50 border border-white/10 text-white rounded p-1.5 text-[11px] focus:border-blue-500 outline-none cursor-pointer">
+                                        <option value="g" selected>g</option><option value="ml">ml</option><option value="kg">kg</option><option value="l">l</option><option value="szt">szt</option><option value="por">por</option><option value="opak">opak</option>
+                                    </select>
+                                    <button type="button" onclick="window.RecipeMapper.confirmQuickAdd()" class="bg-green-600 hover:bg-green-500 text-white font-black text-[10px] uppercase py-1.5 px-3 rounded transition shrink-0">
+                                        <i class="fa-solid fa-plus"></i>
+                                    </button>
+                                    <button type="button" onclick="window.RecipeMapper.cancelQuickAdd()" class="bg-slate-700 hover:bg-slate-600 text-white text-[10px] py-1.5 px-2 rounded transition shrink-0">
+                                        <i class="fa-solid fa-xmark"></i>
+                                    </button>
+                                </div>
+                                <select id="manual-ingredient-select" class="hidden"><option value=""></option></select>
+                                <input type="hidden" id="manual-ingredient-qty">
+                                <input type="hidden" id="add-ingredient-unit" value="g">
+                            </div>
+                            <div id="recipe-ingredients-list" class="flex flex-col gap-2"></div>
+                        </div>
+                    </div>
+                    <div id="margin-container" class="p-4 mt-4 bg-[#0a0a0f] bg-opacity-95 backdrop-blur-md border-t border-gray-800 shadow-2xl rounded-xl transition-all duration-300"></div>
                 </div>
-                <div class="flex items-center gap-3 pt-6 pl-2">
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="item-is-active" class="sr-only peer" checked>
-                        <div class="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500 shadow-inner"></div>
-                        <span class="ml-3 text-xs font-bold text-slate-300 uppercase tracking-wide">Aktywne na POS</span>
-                    </label>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-2 gap-4">
-                <div class="flex flex-col gap-1.5">
-                    <label class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Cena Brutto (PLN)</label>
-                    <input type="number" id="item-price" step="0.01" min="0" class="bg-black/50 border border-white/10 text-white rounded p-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition" placeholder="0.00">
-                </div>
-                <div class="flex flex-col gap-1.5">
-                    <label class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Stawka VAT</label>
-                    <select id="item-vat-rate" class="bg-black/50 border border-white/10 text-white rounded p-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition cursor-pointer">
-                        <option value="23">23%</option>
-                        <option value="8">8%</option>
-                        <option value="5">5%</option>
-                        <option value="0">0%</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 gap-4">
-                <div class="flex flex-col gap-1.5">
-                    <label class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Stacja Drukująca (Bony Kuchenne)</label>
-                    <select id="item-printer-station" class="bg-black/50 border border-white/10 text-white rounded p-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition cursor-pointer">
-                        <option value="KITCHEN_1">Kuchnia Główna (KITCHEN_1)</option>
-                        <option value="BAR">Bar (BAR)</option>
-                        <option value="NONE">Brak (Nie drukuj)</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="pt-5 mt-2 border-t border-white/5">
-                <button type="button" onclick="window.ItemEditor.saveItem()" class="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-black text-xs uppercase tracking-widest py-3 px-4 rounded transition shadow-[0_0_15px_rgba(37,99,235,0.3)] hover:shadow-[0_0_25px_rgba(37,99,235,0.5)]">
-                    <i class="fa-solid fa-floppy-disk mr-2"></i> Zapisz Danie
-                </button>
-            </div>
-        </form>
-    </div>
-
-    <div class="bg-[#0a0a0f]/60 border border-white/10 rounded-xl p-6 shadow-2xl flex flex-col gap-6">
-        <div class="border-b border-white/5 pb-3">
-            <h2 class="text-white text-lg font-black tracking-wide uppercase">Bliźniak Cyfrowy Dania (Food Cost)</h2>
-            <p class="text-slate-500 text-[10px] uppercase mt-1 tracking-wider">Zarządzanie recepturami i zużyciem magazynowym</p>
-        </div>
-        
-        <div class="flex flex-col gap-6">
-            
-            <div class="flex flex-col gap-3 bg-black/40 p-4 rounded-lg border border-white/5">
-                <label class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Magia Food Costu (AutoScan)</label>
-                <textarea id="insp-desc" rows="3" class="bg-black/50 border border-white/10 text-white rounded p-3 text-sm focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none transition resize-none" placeholder="Wpisz krótki opis dania lub listę składników (np. mąka, sos pomidorowy, ser mozzarella)"></textarea>
-                <button type="button" onclick="if(window.RecipeMapper && window.RecipeMapper.autoScan) window.RecipeMapper.autoScan();" class="w-full bg-purple-600/80 hover:bg-purple-500 text-white font-bold text-xs uppercase tracking-wider py-2 px-4 rounded transition border border-purple-500/50 shadow-[0_0_10px_rgba(147,51,234,0.2)]">
-                    <i class="fa-solid fa-wand-magic-sparkles mr-2"></i> Uruchom AutoScan
-                </button>
-            </div>
-
-            <div class="flex flex-col gap-3 bg-black/40 p-4 rounded-lg border border-white/5">
-                <label class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Ręczne Dodawanie Składnika</label>
-                <div class="flex items-center gap-2">
-                    <select id="manual-ingredient-select" class="flex-1 bg-black/50 border border-white/10 text-white rounded p-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition cursor-pointer">
-                        <option value="">Wybierz surowiec z magazynu...</option>
-                    </select>
-                    <input type="number" id="manual-ingredient-qty" step="0.001" min="0" class="w-24 bg-black/50 border border-white/10 text-white rounded p-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition text-center" placeholder="Ilość">
-                    <select id="add-ingredient-unit" class="bg-black/50 border border-white/10 text-white rounded p-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition cursor-pointer">
-                        <option value="g" selected>g</option>
-                        <option value="ml">ml</option>
-                        <option value="kg">kg</option>
-                        <option value="l">l</option>
-                        <option value="szt">szt</option>
-                        <option value="por">por</option>
-                        <option value="opak">opak</option>
-                    </select>
-                    <button type="button" onclick="window.RecipeMapper.addManual(document.getElementById('manual-ingredient-select').value, document.getElementById('manual-ingredient-qty').value, document.getElementById('add-ingredient-unit').value)" class="bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs uppercase tracking-wider py-2 px-4 rounded transition border border-slate-500/50 shrink-0">
-                        <i class="fa-solid fa-plus"></i> Dodaj
-                    </button>
-                </div>
-            </div>
-
-            <div id="recipe-ingredients-list" class="flex flex-col gap-2 mt-2">
             </div>
 
         </div>
-
-        <div id="margin-container" class="sticky bottom-0 z-50 p-4 mt-8 bg-[#0a0a0f] bg-opacity-95 backdrop-blur-md border-t border-gray-800 shadow-2xl rounded-t-xl transition-all duration-300"></div>
     </div>
 </div>
 
@@ -233,7 +199,7 @@
             </header>
             
             <div class="p-10 max-w-4xl mx-auto w-full space-y-10 pb-32">
-                
+
                 <div class="bg-[#0a0a0f]/60 backdrop-blur-md border border-blue-500/20 p-8 rounded-3xl space-y-6 relative overflow-hidden shadow-[0_0_20px_rgba(59,130,246,0.05)] hover:border-blue-500/40 transition-colors group">
                     <div class="absolute top-0 left-0 w-1.5 h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]"></div>
                     <h3 class="text-[12px] font-black uppercase text-blue-400 tracking-widest relative z-10"><i class="fa-solid fa-truck-fast mr-3"></i> Logistyka</h3>
@@ -242,53 +208,71 @@
                             <option value="">-- VAT (Ignoruj) --</option><option value="1">VAT 5%</option><option value="2">VAT 8%</option><option value="3">VAT 23%</option><option value="4">VAT 0%</option>
                         </select>
                         <select id="bulk-printer" class="w-full bg-[#050508] border border-white/10 rounded-xl p-5 text-[12px] font-bold text-white outline-none focus:border-blue-500 focus:shadow-[0_0_15px_rgba(59,130,246,0.2)] transition-all">
-                            <option value="">-- Drukarka (Ignoruj) --</option><option value="KITCHEN_1">Główna Kuchnia</option><option value="BAR">Bar Zimny</option><option value="NONE">Brak</option>
+                            <option value="">-- KDS Station (Ignoruj) --</option><option value="KITCHEN_1">Kuchnia Glowna</option><option value="BAR">Bar Zimny</option><option value="NONE">Brak</option>
                         </select>
                     </div>
                 </div>
 
-                <div class="bg-[#0a0a0f]/60 backdrop-blur-md border border-yellow-500/20 p-8 rounded-3xl space-y-6 relative overflow-hidden shadow-[0_0_20px_rgba(234,179,8,0.05)] hover:border-yellow-500/40 transition-colors group">
-                    <div class="absolute top-0 left-0 w-1.5 h-full bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.8)]"></div>
-                    <h3 class="text-[12px] font-black uppercase text-yellow-500 tracking-widest relative z-10"><i class="fa-solid fa-money-bill-trend-up mr-3"></i> Cennik Masowy</h3>
-                    <div class="grid grid-cols-2 gap-8 relative z-10">
-                        <select id="bulk-price-action" class="w-full bg-[#050508] border border-white/10 rounded-xl p-5 text-[12px] font-bold text-white outline-none focus:border-yellow-500 focus:shadow-[0_0_15px_rgba(234,179,8,0.2)] transition-all">
-                            <option value="">-- Akcja (Ignoruj) --</option><option value="add">Zwiększ (+)</option><option value="sub">Obniż (-)</option><option value="set">Ustaw Sztywno (=)</option>
+                <div class="bg-[#0a0a0f]/60 backdrop-blur-md border border-cyan-500/20 p-8 rounded-3xl space-y-6 relative overflow-hidden shadow-[0_0_20px_rgba(6,182,212,0.08)] hover:border-cyan-500/40 transition-colors group">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.8)]"></div>
+                    <h3 class="text-[12px] font-black uppercase text-cyan-400 tracking-widest relative z-10"><i class="fa-solid fa-calendar-days mr-3"></i> Panel Harmonogramu Masowego</h3>
+                    <div class="grid grid-cols-3 gap-4 relative z-10">
+                        <select id="bulk-publication-status" class="w-full bg-[#050508] border border-white/10 rounded-xl p-5 text-[12px] font-bold text-white outline-none focus:border-cyan-500 transition-all">
+                            <option value="NO_CHANGE">Bez Zmian</option>
+                            <option value="Draft">Draft</option>
+                            <option value="Live">Live</option>
+                            <option value="Archived">Archived</option>
                         </select>
-                        <div class="relative">
-                            <input type="number" id="bulk-price-value" step="0.01" placeholder="Wartość (PLN)" class="w-full bg-[#050508] border border-white/10 rounded-xl p-5 text-[12px] font-black text-white outline-none focus:border-yellow-500 focus:shadow-[0_0_15px_rgba(234,179,8,0.2)] transition-all">
-                            <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-500 pointer-events-none">PLN</span>
-                        </div>
+                        <input type="datetime-local" id="bulk-valid-from" class="w-full bg-[#050508] border border-white/10 rounded-xl p-5 text-[12px] font-bold text-white outline-none focus:border-cyan-500 transition-all">
+                        <input type="datetime-local" id="bulk-valid-to" class="w-full bg-[#050508] border border-white/10 rounded-xl p-5 text-[12px] font-bold text-white outline-none focus:border-cyan-500 transition-all">
+                    </div>
+                </div>
+
+                <div class="bg-[#0a0a0f]/60 backdrop-blur-md border border-yellow-500/20 p-8 rounded-3xl space-y-6 relative overflow-hidden shadow-[0_0_20px_rgba(234,179,8,0.08)] hover:border-yellow-500/40 transition-colors group">
+                    <div class="absolute top-0 left-0 w-1.5 h-full bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.8)]"></div>
+                    <h3 class="text-[12px] font-black uppercase text-yellow-500 tracking-widest relative z-10"><i class="fa-solid fa-layer-group mr-3"></i> Masowy Modyfikator Omnichannel</h3>
+                    <div class="grid grid-cols-3 gap-4 relative z-10">
+                        <select id="bulk-channel-target" class="w-full bg-[#050508] border border-white/10 rounded-xl p-5 text-[12px] font-bold text-white outline-none focus:border-yellow-500 transition-all">
+                            <option value="POS">POS</option>
+                            <option value="Takeaway">Takeaway</option>
+                            <option value="Delivery">Delivery</option>
+                        </select>
+                        <select id="bulk-omni-price-op" class="w-full bg-[#050508] border border-white/10 rounded-xl p-5 text-[12px] font-bold text-white outline-none focus:border-yellow-500 transition-all">
+                            <option value="set_amount">Ustaw sztywna kwote</option>
+                            <option value="increase_percent">Zwieksz o %</option>
+                            <option value="increase_pln">Zwieksz o PLN</option>
+                        </select>
+                        <input type="number" id="bulk-omni-price-value" step="0.01" placeholder="Wartosc operacji" class="w-full bg-[#050508] border border-white/10 rounded-xl p-5 text-[12px] font-black text-white outline-none focus:border-yellow-500 transition-all">
                     </div>
                 </div>
 
                 <div class="bg-[#0a0a0f]/60 backdrop-blur-md border border-purple-500/20 p-8 rounded-3xl space-y-6 relative overflow-hidden shadow-[0_0_20px_rgba(168,85,247,0.05)] hover:border-purple-500/40 transition-colors group">
                     <div class="absolute top-0 left-0 w-1.5 h-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.8)]"></div>
-                    <h3 class="text-[12px] font-black uppercase text-purple-400 tracking-widest relative z-10"><i class="fa-solid fa-bullseye mr-3"></i> Marketing & Status</h3>
+                    <h3 class="text-[12px] font-black uppercase text-purple-400 tracking-widest relative z-10"><i class="fa-solid fa-bullseye mr-3"></i> Marketing</h3>
                     <div class="grid grid-cols-2 gap-8 relative z-10">
                         <select id="bulk-badge" class="w-full bg-[#050508] border border-white/10 rounded-xl p-5 text-[12px] font-bold text-white outline-none focus:border-purple-500 focus:shadow-[0_0_15px_rgba(168,85,247,0.2)] transition-all">
-                            <option value="">-- Odznaka (Ignoruj) --</option><option value="none">Usuń Odznaki</option><option value="new">NOWOŚĆ</option><option value="bestseller">BESTSELLER ⭐️</option>
+                            <option value="">-- Odznaka (Ignoruj) --</option><option value="none">Usuń Odznaki</option><option value="new">NOWOSC</option><option value="bestseller">BESTSELLER</option>
                         </select>
                         <select id="bulk-secret" class="w-full bg-[#050508] border border-white/10 rounded-xl p-5 text-[12px] font-bold text-white outline-none focus:border-purple-500 focus:shadow-[0_0_15px_rgba(168,85,247,0.2)] transition-all">
                             <option value="">-- Tajne Menu (Ignoruj) --</option><option value="1">Ustaw jako Tajne (Tylko QR)</option><option value="0">Zdejmij Tajne (Publiczne)</option>
                         </select>
-                        <div class="col-span-2">
-                            <select id="bulk-active" class="w-full bg-[#050508] border border-white/10 rounded-xl p-5 text-[12px] font-bold text-white outline-none focus:border-purple-500 focus:shadow-[0_0_15px_rgba(168,85,247,0.2)] transition-all">
-                                <option value="">-- Status (Ignoruj) --</option><option value="1">Aktywuj na POS (Włącz sprzedaż)</option><option value="0">Status 86 (Zdejmij z menu)</option>
-                            </select>
-                        </div>
                     </div>
                 </div>
             </div>
         </div>
+
     </main>
 
     <script src="../../core/js/api_client.js"></script>
+    <script src="../warehouse/js/warehouse_api.js"></script>
     <script src="../../core/js/core_validator.js"></script>
     <script src="js/studio_core.js"></script>
     <script src="js/studio_item.js"></script>
     <script src="js/studio_bulk.js"></script>
     <script src="js/studio_modifiers.js"></script>
+    <script src="js/studio_category_table.js"></script>
     <script src="js/studio_recipe.js"></script>
+    <script src="../../core/js/neon_pizza_engine.js"></script>
     <script src="js/studio_ui.js"></script>
     <script src="js/studio_margin.js"></script>
 </body>

@@ -5,8 +5,313 @@ window.StudioState.modifierGroups = window.StudioState.modifierGroups || [];
 window.StudioState.products = window.StudioState.products || [];
 window.StudioState.warehouseItems = window.StudioState.warehouseItems || [];
 window.StudioState.activeModGroupId = null;
+window.StudioState.compactAssets = window.StudioState.compactAssets || null;
 
 window.ModifierInspector = {
+    _esc(s) {
+        const t = document.createElement('div');
+        t.textContent = s == null ? '' : String(s);
+        return t.innerHTML;
+    },
+
+    async loadCompactAssets() {
+        if (window.StudioState.compactAssets !== null) return window.StudioState.compactAssets;
+        const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'list_assets_compact' });
+        if (r.success && r.data && Array.isArray(r.data.assets)) {
+            window.StudioState.compactAssets = r.data.assets;
+        } else {
+            window.StudioState.compactAssets = [];
+            console.warn('[ModifierInspector] list_assets_compact:', r.message || 'empty');
+        }
+        return window.StudioState.compactAssets;
+    },
+
+    _buildAssetSelectOptions(selectedId) {
+        const assets = window.StudioState.compactAssets || [];
+        let html = '<option value="">— brak —</option>';
+        const sid = selectedId ? parseInt(selectedId, 10) : 0;
+        for (const a of assets) {
+            const id = parseInt(a.id, 10);
+            const sel = sid > 0 && id === sid ? 'selected' : '';
+            const lab = `${a.asciiKey || ''}${a.category ? ' · ' + a.category : ''}`;
+            html += `<option value="${id}" ${sel}>${this._esc(lab)}</option>`;
+        }
+        return html;
+    },
+
+    // ─────────────────────────────────────────────────────────────────────
+    // M1 · Connect-dots — Asset Picker (modal grid) + Live Preview + Badge
+    // Podmiana na thumbnailowy picker zamiast surowego <select>.
+    // Backend bez zmian: czytamy z `StudioState.compactAssets` (list_assets_compact).
+    // Role są filtrowane po `roleHint` z sh_assets (layer_top_down / modifier_hero).
+    // ─────────────────────────────────────────────────────────────────────
+
+    _findAssetById(id) {
+        const aid = parseInt(id, 10) || 0;
+        if (!aid) return null;
+        const assets = window.StudioState.compactAssets || [];
+        return assets.find(a => parseInt(a.id, 10) === aid) || null;
+    },
+
+    _roleHintsForSlot(role) {
+        // Jakie role_hint w sh_assets akceptujemy dla danego slotu w modyfikatorze.
+        // Permisywnie — pozwalamy managerowi użyć assetu z dowolnym role_hint
+        // (preferujemy dopasowane, ale nie blokujemy).
+        if (role === 'layer_top_down') return ['layer_top_down', 'layer', 'topping', 'scatter'];
+        if (role === 'modifier_hero')  return ['modifier_hero', 'hero', 'product', 'companion'];
+        return [];
+    },
+
+    _buildPickerButtonHtml(role, assetId) {
+        const a = this._findAssetById(assetId);
+        const hiddenClass = role === 'layer_top_down' ? 'opt-asset-layer-id' : 'opt-asset-hero-id';
+        const roleLabel = role === 'layer_top_down' ? 'layer_top_down' : 'modifier_hero';
+        const slotTitle = role === 'layer_top_down' ? 'Warstwa rzut z góry' : 'Hero dodatku';
+
+        const thumbHtml = a && a.previewUrl
+            ? `<img src="${this._esc(a.previewUrl)}" alt="" class="w-full h-full object-cover" loading="lazy">`
+            : `<i class="fa-solid fa-image text-slate-700 text-xl"></i>`;
+
+        const title = a ? (a.asciiKey || '—') : '— kliknij aby wybrać —';
+        const sub = a ? (a.category ? a.category.toUpperCase() : 'asset') : 'brak wybranego';
+
+        return `
+            <label class="block text-[8px] font-black uppercase text-slate-500 mb-1">${slotTitle} <span class="text-violet-500">(${roleLabel})</span></label>
+            <button type="button" class="opt-asset-picker w-full bg-black/50 border border-white/10 rounded-xl p-2 flex items-center gap-3 hover:border-violet-500/50 hover:bg-black/60 transition min-h-[72px] text-left" data-role="${role}">
+                <div class="asset-thumb w-14 h-14 bg-black/60 rounded-lg flex items-center justify-center overflow-hidden border border-white/5 shrink-0">
+                    ${thumbHtml}
+                </div>
+                <div class="asset-meta flex-1 overflow-hidden">
+                    <div class="asset-title text-[10px] font-black text-white truncate">${this._esc(title)}</div>
+                    <div class="asset-sub text-[8px] text-slate-500 uppercase truncate">${this._esc(sub)}</div>
+                </div>
+                <i class="fa-solid fa-chevron-right text-slate-700 text-[9px] shrink-0"></i>
+            </button>
+            <input type="hidden" class="${hiddenClass}" value="${a ? parseInt(a.id, 10) : 0}">
+        `;
+    },
+
+    _refreshPickerButton(row, role) {
+        if (!row) return;
+        const hiddenCls = role === 'layer_top_down' ? '.opt-asset-layer-id' : '.opt-asset-hero-id';
+        const hidden = row.querySelector(hiddenCls);
+        const assetId = hidden ? parseInt(hidden.value, 10) || 0 : 0;
+        const btn = row.querySelector(`.opt-asset-picker[data-role="${role}"]`);
+        if (!btn) return;
+        const a = this._findAssetById(assetId);
+        const thumbEl = btn.querySelector('.asset-thumb');
+        const titleEl = btn.querySelector('.asset-title');
+        const subEl   = btn.querySelector('.asset-sub');
+        if (thumbEl) {
+            thumbEl.innerHTML = a && a.previewUrl
+                ? `<img src="${this._esc(a.previewUrl)}" alt="" class="w-full h-full object-cover" loading="lazy">`
+                : `<i class="fa-solid fa-image text-slate-700 text-xl"></i>`;
+        }
+        if (titleEl) titleEl.textContent = a ? (a.asciiKey || '—') : '— kliknij aby wybrać —';
+        if (subEl)   subEl.textContent   = a ? (a.category ? a.category.toUpperCase() : 'asset') : 'brak wybranego';
+    },
+
+    _computeRowBadge(row) {
+        if (!row) return { cls: '', label: '', tone: '' };
+        const impact = !!row.querySelector('.opt-visual-impact')?.checked;
+        const layer  = parseInt(row.querySelector('.opt-asset-layer-id')?.value, 10) || 0;
+        const hero   = parseInt(row.querySelector('.opt-asset-hero-id')?.value, 10) || 0;
+
+        if (!impact) {
+            return { label: 'text only', tone: 'bg-slate-800 text-slate-500 border-white/10', icon: 'fa-circle' };
+        }
+        if (layer && hero) {
+            return { label: 'surface ready', tone: 'bg-green-900/30 text-green-400 border-green-500/40', icon: 'fa-check-circle' };
+        }
+        if (layer || hero) {
+            return { label: 'incomplete', tone: 'bg-yellow-900/30 text-yellow-400 border-yellow-500/40', icon: 'fa-triangle-exclamation' };
+        }
+        return { label: 'flag · brak assetów', tone: 'bg-red-900/30 text-red-400 border-red-500/40', icon: 'fa-circle-exclamation' };
+    },
+
+    _refreshRowBadge(row) {
+        if (!row) return;
+        const badge = row.querySelector('.vis-status-badge');
+        if (!badge) return;
+        const b = this._computeRowBadge(row);
+        badge.className = `vis-status-badge text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-full border inline-flex items-center gap-1 ${b.tone}`;
+        badge.innerHTML = `<i class="fa-solid ${b.icon} text-[8px]"></i> ${this._esc(b.label)}`;
+    },
+
+    _refreshRowPreview(row) {
+        if (!row) return;
+        const box = row.querySelector('.vis-preview-box');
+        if (!box) return;
+        const impact = !!row.querySelector('.opt-visual-impact')?.checked;
+        const layerId = parseInt(row.querySelector('.opt-asset-layer-id')?.value, 10) || 0;
+        const heroId  = parseInt(row.querySelector('.opt-asset-hero-id')?.value, 10) || 0;
+        const layer = this._findAssetById(layerId);
+        const hero  = this._findAssetById(heroId);
+
+        const dim = impact ? '' : 'opacity-30 grayscale';
+        const layerImg = (impact && layer && layer.previewUrl)
+            ? `<img src="${this._esc(layer.previewUrl)}" alt="" class="absolute inset-0 w-full h-full object-contain ${dim}" loading="lazy">`
+            : '';
+        const heroImg = (impact && hero && hero.previewUrl)
+            ? `<img src="${this._esc(hero.previewUrl)}" alt="" class="absolute bottom-1 right-1 w-8 h-8 object-contain rounded-full bg-black/60 border border-white/20 shadow-lg ${dim}" loading="lazy">`
+            : '';
+
+        box.innerHTML = `
+            <div class="absolute inset-0 rounded-full bg-gradient-to-br from-amber-900/30 via-orange-950/40 to-black border border-white/5"></div>
+            ${layerImg}
+            ${heroImg}
+            ${!impact ? '<div class="absolute inset-0 flex items-center justify-center text-[8px] text-slate-600 font-black uppercase tracking-widest">text only</div>' : ''}
+            ${impact && !layerId && !heroId ? '<div class="absolute inset-0 flex items-center justify-center text-[8px] text-slate-600 font-black uppercase tracking-widest opacity-60">brak assetów</div>' : ''}
+        `;
+    },
+
+    _refreshRowVisual(row) {
+        this._refreshPickerButton(row, 'layer_top_down');
+        this._refreshPickerButton(row, 'modifier_hero');
+        this._refreshRowBadge(row);
+        this._refreshRowPreview(row);
+    },
+
+    openAssetPickerModal(row, role) {
+        if (!row) return;
+        const hiddenCls = role === 'layer_top_down' ? '.opt-asset-layer-id' : '.opt-asset-hero-id';
+        const hidden = row.querySelector(hiddenCls);
+        const currentId = hidden ? parseInt(hidden.value, 10) || 0 : 0;
+
+        const preferred = this._roleHintsForSlot(role);
+        const assets = (window.StudioState.compactAssets || []).slice();
+
+        assets.sort((a, b) => {
+            const aPref = preferred.includes(String(a.roleHint || '').toLowerCase()) ? 0 : 1;
+            const bPref = preferred.includes(String(b.roleHint || '').toLowerCase()) ? 0 : 1;
+            if (aPref !== bPref) return aPref - bPref;
+            return (a.asciiKey || '').localeCompare(b.asciiKey || '');
+        });
+
+        const categories = Array.from(new Set(assets.map(a => a.category).filter(Boolean))).sort();
+
+        let host = document.getElementById('sh-asset-picker-modal');
+        if (host) host.remove();
+        host = document.createElement('div');
+        host.id = 'sh-asset-picker-modal';
+        host.className = 'fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4';
+        host.innerHTML = `
+            <div class="bg-[#0a0a0f] border border-white/10 rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
+                <header class="flex items-center justify-between px-6 py-4 border-b border-white/5 shrink-0">
+                    <div>
+                        <div class="text-[9px] font-black uppercase text-violet-400 tracking-widest">Asset Picker</div>
+                        <div class="text-[14px] font-black text-white">${role === 'layer_top_down' ? 'Warstwa rzut z góry (scatter)' : 'Hero dodatku'}</div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <button type="button" class="picker-clear text-[9px] font-black uppercase text-red-400 hover:text-red-300 px-3 py-2 rounded-lg border border-red-500/30 hover:bg-red-900/20 transition">
+                            <i class="fa-solid fa-ban mr-1"></i> Wyczyść slot
+                        </button>
+                        <button type="button" class="picker-close text-slate-500 hover:text-white w-9 h-9 rounded-lg hover:bg-white/5 transition flex items-center justify-center">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                </header>
+                <div class="px-6 py-4 border-b border-white/5 flex flex-wrap gap-3 items-center shrink-0">
+                    <div class="flex-1 min-w-[220px] relative">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 text-[11px]"></i>
+                        <input type="text" class="picker-search w-full bg-black/50 border border-white/10 rounded-xl pl-9 pr-3 py-2.5 text-white text-[11px] outline-none focus:border-violet-500 transition" placeholder="Szukaj po nazwie, kategorii lub SKU...">
+                    </div>
+                    <select class="picker-cat bg-black/50 border border-white/10 rounded-xl px-3 py-2.5 text-white text-[11px] outline-none focus:border-violet-500 transition">
+                        <option value="">Wszystkie kategorie</option>
+                        ${categories.map(c => `<option value="${this._esc(c)}">${this._esc(c.toUpperCase())}</option>`).join('')}
+                    </select>
+                    <label class="flex items-center gap-2 text-[10px] font-black uppercase text-slate-400 cursor-pointer">
+                        <input type="checkbox" class="picker-only-matching w-4 h-4 rounded border-white/10 bg-black/50" checked>
+                        Tylko pasujące role
+                    </label>
+                </div>
+                <div class="picker-grid flex-1 overflow-y-auto p-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3"></div>
+                <footer class="px-6 py-3 border-t border-white/5 text-[9px] font-black uppercase text-slate-600 tracking-wider shrink-0">
+                    <span class="picker-count">0</span> assetów · kliknij aby przypisać
+                </footer>
+            </div>
+        `;
+        document.body.appendChild(host);
+
+        const gridEl = host.querySelector('.picker-grid');
+        const searchEl = host.querySelector('.picker-search');
+        const catEl = host.querySelector('.picker-cat');
+        const onlyMatchingEl = host.querySelector('.picker-only-matching');
+        const countEl = host.querySelector('.picker-count');
+
+        const renderGrid = () => {
+            const q = (searchEl.value || '').trim().toLowerCase();
+            const cat = catEl.value || '';
+            const onlyMatching = !!onlyMatchingEl.checked;
+            const filtered = assets.filter(a => {
+                if (cat && a.category !== cat) return false;
+                if (q) {
+                    const hay = `${a.asciiKey || ''} ${a.category || ''} ${a.subType || ''} ${a.roleHint || ''}`.toLowerCase();
+                    if (!hay.includes(q)) return false;
+                }
+                if (onlyMatching) {
+                    const hint = String(a.roleHint || '').toLowerCase();
+                    if (!preferred.includes(hint)) return false;
+                }
+                return true;
+            });
+            countEl.textContent = String(filtered.length);
+            if (filtered.length === 0) {
+                gridEl.innerHTML = `
+                    <div class="col-span-full text-center py-16 text-slate-600 text-[10px] uppercase font-black tracking-widest">
+                        <i class="fa-solid fa-inbox text-3xl mb-3 opacity-40"></i>
+                        <div>Brak pasujących assetów.</div>
+                        <div class="text-slate-700 mt-2 text-[9px]">Odznacz "Tylko pasujące role" lub wyczyść filtry.</div>
+                    </div>
+                `;
+                return;
+            }
+            gridEl.innerHTML = filtered.map(a => {
+                const isSel = parseInt(a.id, 10) === currentId;
+                const thumb = a.previewUrl
+                    ? `<img src="${this._esc(a.previewUrl)}" alt="" class="w-full h-full object-cover" loading="lazy">`
+                    : `<div class="w-full h-full flex items-center justify-center"><i class="fa-solid fa-image text-slate-700 text-2xl"></i></div>`;
+                return `
+                    <button type="button" class="picker-card group relative bg-black/40 border ${isSel ? 'border-violet-500' : 'border-white/5'} rounded-2xl overflow-hidden hover:border-violet-500/70 transition flex flex-col text-left" data-asset-id="${parseInt(a.id, 10)}">
+                        <div class="aspect-square bg-black/60 overflow-hidden">${thumb}</div>
+                        <div class="p-2.5 flex-1">
+                            <div class="text-[10px] font-black text-white truncate">${this._esc(a.asciiKey || '—')}</div>
+                            <div class="text-[8px] text-slate-500 uppercase truncate mt-0.5">${this._esc((a.category || '').toUpperCase())}${a.subType ? ' · ' + this._esc(a.subType) : ''}</div>
+                            <div class="text-[7px] text-violet-500/70 uppercase truncate mt-1 tracking-widest">${this._esc((a.roleHint || '').toLowerCase())}</div>
+                        </div>
+                        ${isSel ? '<div class="absolute top-2 right-2 w-6 h-6 bg-violet-500 rounded-full flex items-center justify-center shadow-lg"><i class="fa-solid fa-check text-white text-[10px]"></i></div>' : ''}
+                    </button>
+                `;
+            }).join('');
+        };
+
+        const close = () => host.remove();
+        const apply = (assetId) => {
+            if (hidden) hidden.value = String(parseInt(assetId, 10) || 0);
+            this._refreshRowVisual(row);
+            close();
+        };
+
+        host.addEventListener('click', (e) => {
+            if (e.target === host) close();
+            const closeBtn = e.target.closest('.picker-close');
+            if (closeBtn) { close(); return; }
+            const clearBtn = e.target.closest('.picker-clear');
+            if (clearBtn) { apply(0); return; }
+            const card = e.target.closest('.picker-card');
+            if (card) { apply(card.dataset.assetId); return; }
+        });
+        searchEl.addEventListener('input', renderGrid);
+        catEl.addEventListener('change', renderGrid);
+        onlyMatchingEl.addEventListener('change', renderGrid);
+        document.addEventListener('keydown', function escHandler(ev) {
+            if (ev.key === 'Escape') { close(); document.removeEventListener('keydown', escHandler); }
+        });
+
+        renderGrid();
+        setTimeout(() => searchEl.focus(), 50);
+    },
+
     toAutoSlug(value, prefix) {
         const polishMap = {
             'ą': 'a', 'ć': 'c', 'ę': 'e', 'ł': 'l', 'ń': 'n', 'ó': 'o', 'ś': 's', 'ź': 'z', 'ż': 'z',
@@ -61,7 +366,7 @@ window.ModifierInspector = {
             }
         }
         if (window.StudioState.warehouseItems.length === 0) {
-            const whResult = await window.ApiClient.post('../../api/api_warehouse.php', { action: 'GET_STOCK' });
+            const whResult = await window.WarehouseApi.stockList();
             if (whResult.success && Array.isArray(whResult.data)) {
                 window.StudioState.warehouseItems = whResult.data;
             } else {
@@ -69,6 +374,7 @@ window.ModifierInspector = {
             }
         }
         await this.loadModifiersFromDB();
+        await this.loadCompactAssets();
     },
 
     async loadModifiersFromDB() {
@@ -188,20 +494,20 @@ window.ModifierInspector = {
         const groups = window.StudioState.modifierGroups || [];
         
         if(groups.length === 0) {
-            container.innerHTML = `<button onclick="window.ModifierInspector.createNewGroup()" class="w-full mb-4 py-3 bg-green-900/40 text-green-400 border border-green-500/30 rounded flex items-center justify-center hover:bg-green-600 hover:text-white transition text-[10px] font-black uppercase"><i class="fa-solid fa-plus mr-2"></i> Nowa Grupa</button>` + 
+            container.innerHTML = `<button onclick="window.ModifierInspector.createNewGroup().catch(()=>{})" class="w-full mb-4 py-3 bg-green-900/40 text-green-400 border border-green-500/30 rounded flex items-center justify-center hover:bg-green-600 hover:text-white transition text-[10px] font-black uppercase"><i class="fa-solid fa-plus mr-2"></i> Nowa Grupa</button>` + 
             '<div class="text-center mt-10 text-slate-500 font-bold text-[10px] uppercase">Brak zapisanych grup w bazie.</div>'; 
             return; 
         }
 
-        container.innerHTML = `<button onclick="window.ModifierInspector.createNewGroup()" class="w-full mb-4 py-3 bg-green-900/40 text-green-400 border border-green-500/30 rounded flex items-center justify-center hover:bg-green-600 hover:text-white transition text-[10px] font-black uppercase"><i class="fa-solid fa-plus mr-2"></i> Nowa Grupa</button>` + 
+        container.innerHTML = `<button onclick="window.ModifierInspector.createNewGroup().catch(()=>{})" class="w-full mb-4 py-3 bg-green-900/40 text-green-400 border border-green-500/30 rounded flex items-center justify-center hover:bg-green-600 hover:text-white transition text-[10px] font-black uppercase"><i class="fa-solid fa-plus mr-2"></i> Nowa Grupa</button>` + 
         groups.map(g => `
-            <div onclick="window.ModifierInspector.selectGroup(${g.id})" class="p-4 bg-white/5 border border-white/5 rounded-xl mb-2 cursor-pointer hover:border-blue-500/50 transition flex justify-between items-center group ${g.id === window.StudioState.activeModGroupId ? 'border-blue-500 bg-blue-900/10' : ''}">
+            <div onclick="window.ModifierInspector.selectGroup(${g.id}).catch(()=>{})" class="p-4 bg-white/5 border border-white/5 rounded-xl mb-2 cursor-pointer hover:border-blue-500/50 transition flex justify-between items-center group ${g.id === window.StudioState.activeModGroupId ? 'border-blue-500 bg-blue-900/10' : ''}">
                 <div><h3 class="text-[11px] font-black uppercase text-white group-hover:text-blue-400 transition">${g.name}</h3></div>
                 <i class="fa-solid fa-chevron-right text-[10px] text-slate-700"></i>
             </div>`).join('');
     },
 
-    createNewGroup() {
+    async createNewGroup() {
         window.StudioState.activeModGroupId = 0;
         this.renderGroupList(); 
         
@@ -226,12 +532,12 @@ window.ModifierInspector = {
         document.getElementById('mod-valid-to').value = "";
         document.getElementById('btn-save-modifier').classList.remove('opacity-50', 'cursor-not-allowed');
         
-        this.renderModifierItems([]);
+        await this.renderModifierItems([]);
         this.addOptionRow(); 
         this.applyFranchiseShieldForGroup(false);
     },
 
-    selectGroup(id) {
+    async selectGroup(id) {
         window.StudioState.activeModGroupId = id;
         this.renderGroupList(); 
 
@@ -265,11 +571,12 @@ window.ModifierInspector = {
         document.getElementById('btn-save-modifier').classList.remove('opacity-50', 'cursor-not-allowed');
 
         const itemsToRender = group.options || [];
-        this.renderModifierItems(itemsToRender);
+        await this.renderModifierItems(itemsToRender);
         this.applyFranchiseShieldForGroup(!!group.isLockedByHq);
     },
 
-    renderModifierItems(items) {
+    async renderModifierItems(items) {
+        await this.loadCompactAssets();
         const list = document.getElementById('modifier-items-list');
         let html = `
             <div class="flex items-center justify-between bg-blue-900/20 border border-blue-500/30 p-4 rounded-2xl mb-4 shadow-lg">
@@ -320,6 +627,15 @@ window.ModifierInspector = {
         const priceTakeaway = takeawayTier ? parseFloat(takeawayTier.price).toFixed(2) : (opt.priceTakeaway !== undefined ? parseFloat(opt.priceTakeaway).toFixed(2) : '0.00');
         const priceDelivery = deliveryTier ? parseFloat(deliveryTier.price).toFixed(2) : (opt.priceDelivery !== undefined ? parseFloat(opt.priceDelivery).toFixed(2) : '0.00');
         const isEdit = id > 0;
+
+        const hasVisualImpact = opt.hasVisualImpact !== undefined ? !!opt.hasVisualImpact : true;
+        const layerAid = opt.layerTopDownAssetId ? parseInt(opt.layerTopDownAssetId, 10) : 0;
+        const heroAid = opt.modifierHeroAssetId ? parseInt(opt.modifierHeroAssetId, 10) : 0;
+        const layerPickerHtml = this._buildPickerButtonHtml('layer_top_down', layerAid);
+        const heroPickerHtml  = this._buildPickerButtonHtml('modifier_hero', heroAid);
+        const mapperHref = asciiKey
+            ? `../online_studio/index.html?tab=magic&modifier=${encodeURIComponent(asciiKey)}`
+            : '#';
 
         const isDefault = opt.isDefault ? 'checked' : '';
         const actionType = opt.actionType || 'NONE';
@@ -397,10 +713,52 @@ window.ModifierInspector = {
                     <label class="block text-[8px] font-black uppercase text-slate-500 mb-1">linkedQuantity (ułamek)</label>
                     <input type="number" step="0.001" class="opt-qty w-full bg-black/50 border border-white/10 text-white text-[9px] rounded p-2 outline-none text-center ${actionType!=='ADD' ? 'opacity-30 cursor-not-allowed' : ''}" placeholder="0.000" value="${qty}" ${actionType!=='ADD' ? 'disabled' : ''}>
                 </div>
+
+                <div class="col-span-12 pt-4 mt-2 border-t border-violet-500/25 visual-mod-panel lock-opt-visual">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="text-[9px] font-black uppercase text-violet-400 tracking-wider"><i class="fa-solid fa-layer-group mr-2"></i>Surface — wizualne sloty</div>
+                        <span class="vis-status-badge text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-full border inline-flex items-center gap-1 bg-slate-800 text-slate-500 border-white/10"><i class="fa-solid fa-circle text-[8px]"></i> —</span>
+                    </div>
+                    <label class="flex items-center gap-3 mb-4 cursor-pointer">
+                        <input type="checkbox" class="opt-visual-impact w-4 h-4 rounded border-white/10 bg-black/50" ${hasVisualImpact ? 'checked' : ''}>
+                        <span class="text-[8px] font-black uppercase text-slate-400">Ma wpływ wizualny (The Surface / warstwy)</span>
+                    </label>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="asset-picker-slot">${layerPickerHtml}</div>
+                        <div class="asset-picker-slot">${heroPickerHtml}</div>
+                        <div class="flex flex-col items-center justify-center">
+                            <label class="block text-[8px] font-black uppercase text-slate-500 mb-1 self-start">Podgląd LIVE</label>
+                            <div class="vis-preview-wrap w-full bg-black/30 border border-white/5 rounded-xl p-2 flex items-center justify-center">
+                                <div class="vis-preview-box relative w-full aspect-square max-w-[120px] rounded-full overflow-hidden shadow-inner"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-[7px] text-slate-600 mt-3 leading-relaxed">
+                        Zapis: przycisk <strong class="text-slate-500">Zapisz Grupę</strong>.
+                        ${asciiKey ? `<a href="${mapperHref}" target="_blank" rel="noopener" class="text-violet-400 hover:text-violet-300 ml-2 font-bold uppercase">Modifier Mapper (Online Studio) →</a>` : '<span class="text-slate-700 ml-2">(SKU opcji — wtedy link do Mapper)</span>'}
+                    </p>
+                </div>
             </div>
         `;
         list.appendChild(row);
         this.bindOptionAutoSlug(row);
+
+        row.querySelectorAll('.opt-asset-picker').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const role = btn.dataset.role;
+                window.ModifierInspector.openAssetPickerModal(row, role);
+            });
+        });
+        const impactBox = row.querySelector('.opt-visual-impact');
+        if (impactBox) {
+            impactBox.addEventListener('change', () => {
+                window.ModifierInspector._refreshRowBadge(row);
+                window.ModifierInspector._refreshRowPreview(row);
+            });
+        }
+        this._refreshRowVisual(row);
+
         const group = window.StudioState.modifierGroups.find(g => g.id === window.StudioState.activeModGroupId);
         if (group && group.isLockedByHq) this.applyFranchiseShieldForGroup(true);
     },
@@ -456,12 +814,12 @@ window.ModifierInspector = {
         });
 
         document.querySelectorAll('.mod-option-row').forEach(row => {
-            row.querySelectorAll('.lock-opt-name, .lock-opt-warehouse').forEach(block => {
+            row.querySelectorAll('.lock-opt-name, .lock-opt-warehouse, .lock-opt-visual').forEach(block => {
                 if (isLocked) block.classList.add('pointer-events-none', 'opacity-50');
                 else block.classList.remove('pointer-events-none', 'opacity-50');
             });
 
-            row.querySelectorAll('.opt-name, .opt-ascii, .opt-action, .opt-sku, .opt-qty, .opt-default').forEach(input => {
+            row.querySelectorAll('.opt-name, .opt-ascii, .opt-action, .opt-sku, .opt-qty, .opt-default, .opt-visual-impact, .opt-asset-picker').forEach(input => {
                 if (input) input.disabled = !!isLocked;
             });
         });
@@ -694,7 +1052,7 @@ window.ModifierInspector = {
             : null;
 
         const payload = {
-            action:    'SAVE_MODIFIER',
+            action:    'save_modifier_quick',
             groupName: groupInput ? groupInput.value.trim() : '',
             name,
             asciiKey:  this.toAutoSlug(name, 'OPT_'),
@@ -720,7 +1078,7 @@ window.ModifierInspector = {
         }
 
         try {
-            const result = await window.ApiClient.post('../../api/api_modifiers.php', payload);
+            const result = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', payload);
 
             if (!result.success) {
                 throw new Error(result.message || 'Błąd API.');
@@ -756,8 +1114,8 @@ window.ModifierInspector = {
             if(type === 'set') current = val;
             
             if (typeof window.SliceValidator !== 'undefined') {
-                const valResult = window.SliceValidator.validatePrice(current);
-                if (valResult && valResult.error) current = 0; 
+                const validated = window.SliceValidator.validatePrice(current);
+                if (validated === null) current = 0;
             }
 
             input.value = current.toFixed(2);
@@ -809,10 +1167,11 @@ window.ModifierInspector = {
             if (!name || !cleanAscii) return; 
 
             if (typeof window.SliceValidator !== 'undefined') {
-                [pricePos, priceTakeaway, priceDelivery].forEach(channelPrice => {
-                    const valResult = window.SliceValidator.validatePrice(channelPrice);
-                    if (valResult && valResult.error) {
-                        alert(`Błąd ceny w opcji "${name}": ` + valResult.message);
+                const channelLabels = ['POS', 'Takeaway', 'Delivery'];
+                [pricePos, priceTakeaway, priceDelivery].forEach((channelPrice, idx) => {
+                    const validated = window.SliceValidator.validatePrice(channelPrice);
+                    if (validated === null) {
+                        alert(`Błąd ceny w opcji "${name}" (${channelLabels[idx]}): wartość musi być liczbą >= 0.`);
                         hasValidationError = true;
                     }
                 });
@@ -823,6 +1182,11 @@ window.ModifierInspector = {
                 hasValidationError = true;
             }
 
+            const layerHidden = row.querySelector('.opt-asset-layer-id');
+            const heroHidden  = row.querySelector('.opt-asset-hero-id');
+            const vImpact = row.querySelector('.opt-visual-impact');
+            const layerTopDownAssetId = layerHidden && layerHidden.value ? parseInt(layerHidden.value, 10) : null;
+            const modifierHeroAssetId = heroHidden  && heroHidden.value  ? parseInt(heroHidden.value, 10)  : null;
             options.push({ 
                 id,
                 name,
@@ -835,7 +1199,10 @@ window.ModifierInspector = {
                 isDefault,
                 actionType,
                 linkedWarehouseSku: linkedSku,
-                linkedQuantity: parseFloat(linkedQty)
+                linkedQuantity: parseFloat(linkedQty),
+                hasVisualImpact: vImpact ? !!vImpact.checked : true,
+                layerTopDownAssetId: layerTopDownAssetId && layerTopDownAssetId > 0 ? layerTopDownAssetId : null,
+                modifierHeroAssetId: modifierHeroAssetId && modifierHeroAssetId > 0 ? modifierHeroAssetId : null
             });
         });
 

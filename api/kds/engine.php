@@ -1,0 +1,240 @@
+<?php
+declare(strict_types=1);
+
+header('Content-Type: application/json; charset=utf-8');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
+
+function kdsResponse(bool $ok, $data = null, ?string $msg = null): void {
+    echo json_encode(['success' => $ok, 'data' => $data, 'message' => $msg], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+try {
+    require_once __DIR__ . '/../../core/db_config.php';
+    require_once __DIR__ . '/../../core/auth_guard.php';
+
+    $raw   = file_get_contents('php://input');
+    $input = json_decode($raw ?: '{}', true) ?? [];
+    $action = trim((string)($input['action'] ?? ''));
+
+    // Auto-migration: driver_action_type on sh_order_lines
+    try { $pdo->query("SELECT driver_action_type FROM sh_order_lines LIMIT 0"); }
+    catch (\Throwable $e) {
+        try { $pdo->exec("ALTER TABLE sh_order_lines ADD COLUMN driver_action_type ENUM('none','pack_cold','pack_separate','check_id') NOT NULL DEFAULT 'none' AFTER comment"); }
+        catch (\Throwable $ignore) {}
+    }
+
+    // =========================================================================
+    // ACTION: get_board — Returns active orders with lines for KDS display
+    //
+    // Canonical status dictionary (single source of truth across system):
+    //   new → accepted → preparing → ready → in_delivery → completed
+    //   (+ cancelled)
+    //
+    // KDS shows statuses that still need kitchen action:
+    //   new       — just received, awaiting acceptance
+    //   accepted  — accepted, queued for prep
+    //   preparing — currently being prepared
+    // Ready tickets leave the board (handed off to driver/pickup flow).
+    // =========================================================================
+    if ($action === 'get_board') {
+        $stationFilter = trim((string)($input['station'] ?? ''));
+
+        $orders = $pdo->prepare(
+            "SELECT o.id, o.order_number, o.order_type, o.status, o.source,
+                    o.delivery_address, o.customer_name, o.customer_phone,
+                    o.payment_method, o.payment_status, o.grand_total,
+                    o.promised_time, o.created_at,
+                    COALESCE(o.kitchen_ticket_printed, 0) AS kitchen_ticket_printed
+             FROM sh_orders o
+             WHERE o.tenant_id = :tid
+               AND o.status IN ('new','accepted','preparing')
+             ORDER BY
+               CASE o.status
+                 WHEN 'new'       THEN 0
+                 WHEN 'accepted'  THEN 1
+                 WHEN 'preparing' THEN 2
+                 ELSE 9
+               END,
+               o.created_at ASC"
+        );
+        $orders->execute([':tid' => $tenant_id]);
+        $rows = $orders->fetchAll(PDO::FETCH_ASSOC);
+
+        $oids = array_column($rows, 'id');
+        $lmap = [];
+        if (count($oids) > 0) {
+            $ph = []; $prm = [];
+            foreach ($oids as $i => $oid) { $k = ":o{$i}"; $ph[] = $k; $prm[$k] = $oid; }
+            $ls = $pdo->prepare(
+                "SELECT order_id, id AS line_id, snapshot_name, quantity, comment,
+                        modifiers_json, removed_ingredients_json,
+                        COALESCE(driver_action_type,'none') AS driver_action_type
+                 FROM sh_order_lines
+                 WHERE order_id IN (" . implode(',', $ph) . ")
+                 ORDER BY id ASC"
+            );
+            $ls->execute($prm);
+            foreach ($ls->fetchAll(PDO::FETCH_ASSOC) as $l) {
+                $lmap[$l['order_id']][] = $l;
+            }
+        }
+
+        foreach ($rows as &$r) { $r['lines'] = $lmap[$r['id']] ?? []; }
+        unset($r);
+
+        kdsResponse(true, ['orders' => $rows]);
+    }
+
+    // =========================================================================
+    // ACTION: bump_order — Advance order status along canonical pipeline.
+    // Allowed transitions (kitchen scope):
+    //   new       → accepted
+    //   accepted  → preparing
+    //   preparing → ready
+    // Also writes sh_order_audit row (old/new status, user_id).
+    // =========================================================================
+    if ($action === 'bump_order') {
+        $orderId   = trim((string)($input['order_id'] ?? ''));
+        $newStatus = trim((string)($input['new_status'] ?? ''));
+
+        $validTransitions = [
+            'new'       => ['accepted'],
+            'accepted'  => ['preparing'],
+            'preparing' => ['ready'],
+        ];
+
+        if (!$orderId || !in_array($newStatus, ['accepted','preparing','ready'], true)) {
+            kdsResponse(false, null, 'Invalid order_id or new_status (expected: accepted|preparing|ready)');
+        }
+
+        $cur = $pdo->prepare("SELECT status FROM sh_orders WHERE id = :oid AND tenant_id = :tid");
+        $cur->execute([':oid' => $orderId, ':tid' => $tenant_id]);
+        $currentStatus = $cur->fetchColumn();
+
+        if (!$currentStatus) {
+            kdsResponse(false, null, 'Order not found');
+        }
+
+        if (!in_array($newStatus, $validTransitions[$currentStatus] ?? [], true)) {
+            kdsResponse(false, null, "Cannot transition from '{$currentStatus}' to '{$newStatus}'");
+        }
+
+        try {
+            $pdo->beginTransaction();
+
+            // Ustaw timestamp lifecycle dla danego przejścia
+            $tsExtra = '';
+            if ($newStatus === 'accepted') $tsExtra = ', accepted_at = NOW()';
+            elseif ($newStatus === 'ready')    $tsExtra = ', ready_at = NOW()';
+
+            $pdo->prepare(
+                "UPDATE sh_orders SET status = :ns, updated_at = NOW() {$tsExtra}
+                 WHERE id = :oid AND tenant_id = :tid"
+            )->execute([':ns' => $newStatus, ':oid' => $orderId, ':tid' => $tenant_id]);
+
+            $pdo->prepare(
+                "INSERT INTO sh_order_audit (order_id, user_id, old_status, new_status, timestamp)
+                 VALUES (:oid, :uid, :os, :ns, NOW())"
+            )->execute([
+                ':oid' => $orderId,
+                ':uid' => $user_id ?? null,
+                ':os'  => $currentStatus,
+                ':ns'  => $newStatus,
+            ]);
+
+            // [m026] Publish lifecycle event przed commitem.
+            $publisherPath = __DIR__ . '/../../core/OrderEventPublisher.php';
+            if (file_exists($publisherPath)) {
+                require_once $publisherPath;
+                if (class_exists('OrderEventPublisher')) {
+                    $eventMap = [
+                        'accepted'  => 'order.accepted',
+                        'preparing' => 'order.preparing',
+                        'ready'     => 'order.ready',
+                    ];
+                    $eventType = $eventMap[$newStatus] ?? null;
+                    if ($eventType) {
+                        OrderEventPublisher::publishOrderLifecycle(
+                            $pdo, $tenant_id, $eventType, $orderId,
+                            ['from_status' => $currentStatus, 'to_status' => $newStatus],
+                            [
+                                'source'         => 'kds',
+                                'actorType'      => 'staff',
+                                'actorId'        => (string)($user_id ?? ''),
+                                'idempotencyKey' => $orderId . ':' . $eventType . ':' . $currentStatus,
+                            ]
+                        );
+                    }
+                }
+            }
+
+            $pdo->commit();
+        } catch (\Throwable $tx) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('[KDS bump] ' . $tx->getMessage());
+            kdsResponse(false, null, 'Transition failed');
+        }
+
+        kdsResponse(true, ['order_id' => $orderId, 'status' => $newStatus, 'previous' => $currentStatus]);
+    }
+
+    // =========================================================================
+    // ACTION: recall_order — rollback ready→preparing (mistake recovery).
+    // Used e.g. gdy kucharz kliknął "GOTOWE" przedwcześnie.
+    // =========================================================================
+    if ($action === 'recall_order') {
+        $orderId = trim((string)($input['order_id'] ?? ''));
+        if (!$orderId) kdsResponse(false, null, 'Invalid order_id');
+
+        $cur = $pdo->prepare("SELECT status FROM sh_orders WHERE id = :oid AND tenant_id = :tid");
+        $cur->execute([':oid' => $orderId, ':tid' => $tenant_id]);
+        $currentStatus = $cur->fetchColumn();
+        if ($currentStatus !== 'ready') {
+            kdsResponse(false, null, "Cannot recall from '{$currentStatus}'. Only 'ready' may be recalled.");
+        }
+
+        try {
+            $pdo->beginTransaction();
+            $pdo->prepare("UPDATE sh_orders SET status='preparing', updated_at=NOW() WHERE id=:oid AND tenant_id=:tid")
+                ->execute([':oid'=>$orderId,':tid'=>$tenant_id]);
+            $pdo->prepare("INSERT INTO sh_order_audit (order_id, user_id, old_status, new_status, timestamp) VALUES (:oid,:uid,'ready','preparing',NOW())")
+                ->execute([':oid'=>$orderId,':uid'=>$user_id ?? null]);
+
+            $publisherPath = __DIR__ . '/../../core/OrderEventPublisher.php';
+            if (file_exists($publisherPath)) {
+                require_once $publisherPath;
+                if (class_exists('OrderEventPublisher')) {
+                    OrderEventPublisher::publishOrderLifecycle(
+                        $pdo, $tenant_id, 'order.recalled', $orderId,
+                        ['from_status' => 'ready', 'to_status' => 'preparing'],
+                        [
+                            'source'         => 'kds',
+                            'actorType'      => 'staff',
+                            'actorId'        => (string)($user_id ?? ''),
+                            'idempotencyKey' => $orderId . ':order.recalled:' . date('YmdHis'),
+                        ]
+                    );
+                }
+            }
+
+            $pdo->commit();
+        } catch (\Throwable $tx) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            kdsResponse(false, null, 'Recall failed');
+        }
+
+        kdsResponse(true, ['order_id' => $orderId, 'status' => 'preparing']);
+    }
+
+    kdsResponse(false, null, "Unknown action: {$action}");
+
+} catch (\Throwable $e) {
+    error_log('[KDS Engine] ' . $e->getMessage());
+    http_response_code(500);
+    kdsResponse(false, null, 'Internal server error');
+}

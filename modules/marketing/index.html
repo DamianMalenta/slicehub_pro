@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="sh-tenant-id" content="1">
+    <title>SliceHub — Marketing SMS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: Inter, system-ui, sans-serif; background: #f8fafc; color: #1e293b; min-height: 100vh; }
+        .topbar { display: flex; align-items: center; gap: 14px; padding: 14px 24px;
+                  background: #0f172a; color: #f8fafc; border-bottom: 1px solid rgba(255,255,255,.1); }
+        .topbar h1 { font-size: 17px; font-weight: 700; }
+        .topbar a { color: #94a3b8; text-decoration: none; font-size: 13px; }
+        .topbar a:hover { color: #f8fafc; }
+        .main { max-width: 960px; margin: 0 auto; padding: 28px 20px; display: flex; flex-direction: column; gap: 24px; }
+        .card { background: #fff; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,.06); padding: 24px; }
+        .card__title { font-size: 15px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+        .card__title i { color: #c2410c; }
+        .wizard-step { display: none; }
+        .wizard-step.active { display: block; }
+        .step-indicator { display: flex; gap: 0; margin-bottom: 24px; }
+        .step-dot { flex: 1; height: 4px; background: #e2e8f0; border-radius: 2px; transition: background .2s; }
+        .step-dot.done { background: #22c55e; }
+        .step-dot.active { background: #c2410c; }
+        label.form-label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500; color: #475569; margin-bottom: 12px; }
+        label.form-label input, label.form-label select, label.form-label textarea {
+            padding: 10px 12px; font-size: 14px; border: 1px solid #cbd5e1;
+            border-radius: 8px; font-family: inherit; background: #f8fafc;
+            transition: border-color .15s; }
+        label.form-label input:focus, label.form-label select:focus { outline: none; border-color: #c2410c; background: #fff; }
+        .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px;
+               font-size: 14px; font-weight: 600; border-radius: 10px; border: none;
+               cursor: pointer; transition: opacity .15s, transform .12s; }
+        .btn:hover { opacity: .87; }
+        .btn--primary { background: #c2410c; color: #fff; }
+        .btn--ghost { background: #f1f5f9; color: #475569; }
+        .btn--green { background: #16a34a; color: #fff; }
+        .btn--danger { background: #dc2626; color: #fff; }
+        .btn-row { display: flex; gap: 10px; margin-top: 16px; }
+        .audience-preview { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 16px; margin-top: 12px; }
+        .audience-preview h3 { font-size: 24px; font-weight: 800; color: #15803d; }
+        .audience-preview p  { font-size: 13px; color: #166534; margin-top: 2px; }
+        .sample-list { list-style: none; margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
+        .sample-list li { font-size: 12px; color: #374151; background: #fff; padding: 4px 10px; border-radius: 6px; }
+        .checkbox-group { display: flex; flex-direction: column; gap: 8px; }
+        .checkbox-group label { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+        .campaign-list { display: flex; flex-direction: column; gap: 10px; }
+        .camp-item { display: flex; align-items: center; gap: 14px; padding: 14px;
+                     border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
+        .camp-item__body { flex: 1; }
+        .camp-item__name { font-weight: 600; font-size: 14px; }
+        .camp-item__meta { font-size: 12px; color: #64748b; margin-top: 2px; }
+        .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px;
+                 border-radius: 20px; font-size: 11px; font-weight: 600; }
+        .badge--green   { background: #dcfce7; color: #166534; }
+        .badge--amber   { background: #fef3c7; color: #92400e; }
+        .badge--red     { background: #fee2e2; color: #991b1b; }
+        .badge--neutral { background: #f1f5f9; color: #64748b; }
+        .progress-bar { height: 6px; background: #e2e8f0; border-radius: 3px; margin-top: 6px; overflow: hidden; }
+        .progress-bar__fill { height: 100%; background: #22c55e; border-radius: 3px; transition: width .3s; }
+        .hint { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+        .toast-root { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 8px; z-index: 9999; }
+        .toast { padding: 12px 18px; border-radius: 10px; font-size: 13px; font-weight: 600;
+                 animation: toast-in .25s ease; box-shadow: 0 4px 16px rgba(0,0,0,.15); }
+        .toast--ok  { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+        .toast--err { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+        @keyframes toast-in { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+    </style>
+</head>
+<body>
+
+<header class="topbar">
+    <i class="fa-solid fa-bullhorn" style="color:#f97316;font-size:20px"></i>
+    <h1>Marketing SMS</h1>
+    <span style="flex:1"></span>
+    <a href="../settings/index.html" title="Kanały, routing, szablony (m.in. marketing.campaign)"><i class="fa-solid fa-sliders"></i> Ustawienia → Powiadomienia</a>
+</header>
+
+<main class="main">
+
+    <!-- Kreator kampanii -->
+    <div class="card" id="wizard-card">
+        <h2 class="card__title"><i class="fa-solid fa-wand-magic-sparkles"></i> Nowa kampania</h2>
+
+        <div class="step-indicator">
+            <div class="step-dot active" id="sd-1"></div>
+            <div class="step-dot" id="sd-2"></div>
+            <div class="step-dot" id="sd-3"></div>
+            <div class="step-dot" id="sd-4"></div>
+        </div>
+
+        <!-- Krok 1: Audiencja -->
+        <div class="wizard-step active" id="step-1">
+            <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">Krok 1: Kogo chcesz powiadomić?</h3>
+            <div class="checkbox-group">
+                <label><input type="checkbox" id="f-mkt-consent" checked> Tylko osoby ze zgodą marketingową</label>
+                <label><input type="checkbox" id="f-sms-consent" checked> Tylko osoby ze zgodą SMS</label>
+                <label><input type="checkbox" id="f-opted-sms"> Wyklucz STOP (opt-out)</label>
+            </div>
+            <div style="display:flex;gap:12px;margin-top:12px">
+                <label class="form-label" style="flex:1">Min. zamówień
+                    <input type="number" id="f-min-orders" value="1" min="0" placeholder="0 = wszyscy">
+                </label>
+                <label class="form-label" style="flex:1">Ostatnio aktywni (dni)
+                    <input type="number" id="f-days-since" value="" min="1" placeholder="puste = wszyscy">
+                </label>
+            </div>
+            <button class="btn btn--ghost" id="btn-preview" style="margin-top:8px">
+                <i class="fa-solid fa-magnifying-glass"></i> Sprawdź audiencję
+            </button>
+            <div id="audience-preview-area"></div>
+            <div class="btn-row">
+                <button class="btn btn--primary" id="btn-step1-next" disabled>Dalej: Co wysłać? <i class="fa-solid fa-arrow-right"></i></button>
+            </div>
+        </div>
+
+        <!-- Krok 2: Kanał i szablon -->
+        <div class="wizard-step" id="step-2">
+            <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">Krok 2: Co i przez jaki kanał?</h3>
+            <p class="hint" style="margin:-4px 0 12px;line-height:1.45">
+                Lista szablonów pochodzi z <strong>Ustawienia → Powiadomienia → Szablony</strong>
+                (zdarzenie <code>marketing.campaign</code> + ten sam typ kanału). Treść musi być zapisana (chip „Skonfigurowany”, nie „Brak”).
+                W <strong>Routing</strong> włącz to samo zdarzenie na wybranym kanale oraz worker <code>worker_notifications.php</code>.
+            </p>
+            <label class="form-label">Kanał
+                <select id="f-channel"></select>
+            </label>
+            <label class="form-label">Szablon wiadomości
+                <select id="f-template"></select>
+            </label>
+            <div id="template-preview" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-top:8px;font-size:13px;color:#374151;white-space:pre-wrap;min-height:48px"></div>
+            <div class="btn-row">
+                <button class="btn btn--ghost" id="btn-step2-back"><i class="fa-solid fa-arrow-left"></i> Wstecz</button>
+                <button class="btn btn--primary" id="btn-step2-next">Dalej: Kiedy? <i class="fa-solid fa-arrow-right"></i></button>
+            </div>
+        </div>
+
+        <!-- Krok 3: Nazwa i termin -->
+        <div class="wizard-step" id="step-3">
+            <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">Krok 3: Kiedy i pod jaką nazwą?</h3>
+            <label class="form-label">Nazwa kampanii
+                <input type="text" id="f-campaign-name" placeholder="np. Piątkowa promocja Margherita" maxlength="100">
+            </label>
+            <label class="form-label">Zaplanuj na (puste = natychmiast)
+                <input type="datetime-local" id="f-schedule">
+            </label>
+            <label class="form-label">Limit SMS/h dla personal_phone (max 30 — operator-safe)
+                <input type="number" id="f-rate-limit" value="30" min="1" max="30">
+            </label>
+            <div class="btn-row">
+                <button class="btn btn--ghost" id="btn-step3-back"><i class="fa-solid fa-arrow-left"></i> Wstecz</button>
+                <button class="btn btn--primary" id="btn-step3-next">Dalej: Podsumowanie <i class="fa-solid fa-arrow-right"></i></button>
+            </div>
+        </div>
+
+        <!-- Krok 4: Podsumowanie -->
+        <div class="wizard-step" id="step-4">
+            <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">Krok 4: Podsumowanie</h3>
+            <div id="summary-box" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;font-size:13px;line-height:1.8"></div>
+            <div class="btn-row">
+                <button class="btn btn--ghost" id="btn-step4-back"><i class="fa-solid fa-arrow-left"></i> Wstecz</button>
+                <button class="btn btn--green" id="btn-launch"><i class="fa-solid fa-rocket"></i> Uruchom kampanię</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista kampanii -->
+    <div class="card">
+        <h2 class="card__title"><i class="fa-solid fa-list-check"></i> Kampanie <button class="btn btn--ghost" id="btn-refresh-list" style="margin-left:auto;padding:6px 12px;font-size:12px"><i class="fa-solid fa-rotate"></i></button></h2>
+        <div id="campaigns-list" class="campaign-list"><p class="hint">Ładowanie…</p></div>
+    </div>
+
+</main>
+
+<div class="toast-root" id="toast-root"></div>
+
+<script>
+(async () => {
+    'use strict';
+
+    const meta = document.querySelector('meta[name="sh-tenant-id"]');
+    const tenantId = meta ? parseInt(meta.content, 10) : 1;
+    // Relatywnie do modules/marketing/ — działa przy dowolnej ścieżce (jak settings/notifications.js)
+    const API = '../../api/marketing/engine.php';
+    const SETTINGS_API = '../../api/settings/engine.php';
+
+    function toast(msg, ok = true) {
+        const root = document.getElementById('toast-root');
+        const t = document.createElement('div');
+        t.className = `toast toast--${ok ? 'ok' : 'err'}`;
+        t.textContent = msg;
+        root.appendChild(t);
+        setTimeout(() => t.remove(), 3500);
+    }
+
+    function e(s) {
+        const d = document.createElement('div');
+        d.textContent = s ?? '';
+        return d.innerHTML;
+    }
+
+    async function api(endpoint, action, data = {}) {
+        const r = await fetch(endpoint, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, tenantId, ...data }),
+        });
+        const text = await r.text();
+        const t = text.trim();
+        if (!t.startsWith('{') && !t.startsWith('[')) {
+            console.error('[marketing] Non-JSON', endpoint, action, r.status, t.slice(0, 200));
+            return { success: false, message: `Błąd API (${r.status}). Sprawdź ścieżkę do engine.php i sesję logowania.` };
+        }
+        try { return JSON.parse(t); } catch (e) {
+            return { success: false, message: 'Niepoprawna odpowiedź serwera.' };
+        }
+    }
+
+    // ── State ──────────────────────────────────────────────────────────────
+    const state = {
+        step: 1,
+        audienceTotal: 0,
+        filters: {},
+        channelId: null,
+        channelType: null,
+        templateId: null,
+        templateBody: '',
+        campaignName: '',
+        scheduledAt: '',
+        rateLimit: 30,
+    };
+
+    let channels = [];
+    let templates = [];
+
+    // ── Step navigation ────────────────────────────────────────────────────
+    function gotoStep(n) {
+        state.step = n;
+        document.querySelectorAll('.wizard-step').forEach((s, i) => s.classList.toggle('active', i + 1 === n));
+        document.querySelectorAll('.step-dot').forEach((d, i) => {
+            d.classList.remove('active', 'done');
+            if (i + 1 === n) d.classList.add('active');
+            else if (i + 1 < n) d.classList.add('done');
+        });
+    }
+
+    // ── Step 1: Audiencja ──────────────────────────────────────────────────
+    document.getElementById('btn-preview').addEventListener('click', previewAudience);
+
+    async function previewAudience() {
+        const filters = buildFilters();
+        const area = document.getElementById('audience-preview-area');
+        area.innerHTML = '<p class="hint"><i class="fa-solid fa-spinner fa-spin"></i> Sprawdzam…</p>';
+        const r = await api(API, 'audience_preview', { filters });
+        if (!r.success) { area.innerHTML = `<p style="color:red">${e(r.message)}</p>`; return; }
+
+        state.audienceTotal = r.data.total;
+        state.filters = filters;
+
+        const sample = (r.data.sample || []).map(c =>
+            `<li>📱 ${e(c.phone)} ${c.name ? '— ' + e(c.name) : ''} (${c.order_count} zam.)</li>`
+        ).join('');
+
+        area.innerHTML = `
+            <div class="audience-preview">
+                <h3>${r.data.total}</h3>
+                <p>klientów spełnia kryteria</p>
+                ${r.data.total > 0 ? `<ul class="sample-list">${sample}</ul>` : ''}
+            </div>`;
+
+        document.getElementById('btn-step1-next').disabled = r.data.total === 0;
+    }
+
+    function buildFilters() {
+        const f = {};
+        if (document.getElementById('f-mkt-consent').checked) f.requires_marketing_consent = true;
+        if (document.getElementById('f-sms-consent').checked) f.requires_sms_consent = true;
+        if (document.getElementById('f-opted-sms').checked)   f.opted_in_sms = true;
+        const minOrd = parseInt(document.getElementById('f-min-orders').value, 10);
+        if (!isNaN(minOrd) && minOrd > 0) f.min_orders = minOrd;
+        const days = parseInt(document.getElementById('f-days-since').value, 10);
+        if (!isNaN(days) && days > 0) f.days_since_last = days;
+        return f;
+    }
+
+    document.getElementById('btn-step1-next').addEventListener('click', async () => {
+        await loadChannelsAndTemplates();
+        gotoStep(2);
+    });
+
+    // ── Step 2: Kanał i szablon ────────────────────────────────────────────
+    async function loadChannelsAndTemplates() {
+        const [cRes, tRes] = await Promise.all([
+            api(SETTINGS_API, 'notifications_channels_list'),
+            api(SETTINGS_API, 'notifications_templates_get'),
+        ]);
+        if (!cRes.success && cRes.message) toast(cRes.message, false);
+        if (!tRes.success && tRes.message) toast(tRes.message, false);
+
+        channels = (cRes.data || []).filter(c => c.is_active);
+        templates = (tRes.data || []).filter(t => t.event_type === 'marketing.campaign');
+
+        const chSel = document.getElementById('f-channel');
+        chSel.innerHTML = channels.map(c =>
+            `<option value="${c.id}" data-type="${e(c.channel_type)}">${e(c.name)} (${e(c.channel_type)})</option>`
+        ).join('') || '<option value="">Brak aktywnych kanałów</option>';
+        chSel.onchange = updateTemplates;
+        updateTemplates();
+    }
+
+    function updateTemplates() {
+        const chSel = document.getElementById('f-channel');
+        const opt = chSel.selectedOptions[0];
+        const chType = opt?.dataset?.type || '';
+        state.channelId = parseInt(chSel.value, 10) || null;
+        state.channelType = chType;
+
+        const available = templates.filter(t => t.channel_type === chType && (t.body || '').trim() !== '');
+        const tSel = document.getElementById('f-template');
+        tSel.innerHTML = available.map(t =>
+            `<option value="${t.id}">${e(t.event_type)} (${e(t.channel_type)})</option>`
+        ).join('') || '<option value="">Brak szablonu — zapisz treść w Ustawienia → Powiadomienia → Szablony</option>';
+
+        tSel.onchange = updateTemplatePreview;
+        updateTemplatePreview();
+    }
+
+    function updateTemplatePreview() {
+        const tSel = document.getElementById('f-template');
+        const tid = parseInt(tSel.value, 10);
+        state.templateId = tid || null;
+        const tpl = templates.find(t => t.id === tid);
+        const preview = document.getElementById('template-preview');
+        state.templateBody = tpl?.body || '';
+        preview.textContent = tpl?.body || '— brak szablonu —';
+    }
+
+    document.getElementById('btn-step2-back').addEventListener('click', () => gotoStep(1));
+    document.getElementById('btn-step2-next').addEventListener('click', () => {
+        if (!state.channelId) { toast('Wybierz kanał.', false); return; }
+        if (!state.templateId || !(state.templateBody || '').trim()) {
+            toast('Wybierz szablon z treścią (najpierw zapisz szablon w Ustawienia → Powiadomienia → Szablony).', false);
+            return;
+        }
+        gotoStep(3);
+    });
+
+    // ── Step 3: Nazwa i termin ─────────────────────────────────────────────
+    document.getElementById('btn-step3-back').addEventListener('click', () => gotoStep(2));
+    document.getElementById('btn-step3-next').addEventListener('click', () => {
+        state.campaignName = document.getElementById('f-campaign-name').value.trim();
+        state.scheduledAt  = document.getElementById('f-schedule').value;
+        state.rateLimit    = parseInt(document.getElementById('f-rate-limit').value, 10) || 30;
+        if (!state.campaignName) { toast('Wpisz nazwę kampanii.', false); return; }
+        renderSummary();
+        gotoStep(4);
+    });
+
+    // ── Step 4: Podsumowanie ───────────────────────────────────────────────
+    document.getElementById('btn-step4-back').addEventListener('click', () => gotoStep(3));
+
+    function renderSummary() {
+        const ch = channels.find(c => c.id == state.channelId);
+        document.getElementById('summary-box').innerHTML = `
+            <strong>Nazwa:</strong> ${e(state.campaignName)}<br>
+            <strong>Kanał:</strong> ${e(ch?.name || '—')} (${e(ch?.channel_type || '')})<br>
+            <strong>Audiencja:</strong> ${state.audienceTotal} kontaktów<br>
+            <strong>Szablon:</strong> ${e(state.templateBody.slice(0, 100))}${state.templateBody.length > 100 ? '…' : ''}<br>
+            <strong>Termin:</strong> ${state.scheduledAt || 'Natychmiast'}<br>
+            <strong>Rate limit:</strong> ${state.rateLimit} SMS/h (personal_phone)
+        `;
+    }
+
+    document.getElementById('btn-launch').addEventListener('click', async () => {
+        const btn = document.getElementById('btn-launch');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uruchamianie…';
+
+        const r = await api(API, 'campaign_create', {
+            name:             state.campaignName,
+            channel_id:       state.channelId,
+            template_id:      state.templateId,
+            filters:          state.filters,
+            scheduled_at:     state.scheduledAt || '',
+            rate_limit_per_hour: state.rateLimit,
+        });
+
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-rocket"></i> Uruchom kampanię';
+
+        toast(r.message || (r.success ? 'Kampania uruchomiona!' : 'Błąd'), r.success);
+        if (r.success) { gotoStep(1); loadCampaignList(); }
+    });
+
+    // ── Campaigns list ─────────────────────────────────────────────────────
+    const BADGE = {
+        draft:     ['neutral', 'Szkic'],
+        scheduled: ['amber',   'Zaplanowana'],
+        running:   ['amber',   'Wysyłanie'],
+        completed: ['green',   'Zakończona'],
+        cancelled: ['red',     'Anulowana'],
+    };
+
+    async function loadCampaignList() {
+        const el = document.getElementById('campaigns-list');
+        el.innerHTML = '<p class="hint"><i class="fa-solid fa-spinner fa-spin"></i> Ładowanie…</p>';
+        const r = await api(API, 'campaigns_list');
+        if (!r.success || !r.data?.length) {
+            el.innerHTML = '<p class="hint">Brak kampanii. Stwórz pierwszą powyżej!</p>';
+            return;
+        }
+        el.innerHTML = r.data.map(c => {
+            const [badgeCls, badgeLabel] = BADGE[c.status] || ['neutral', c.status];
+            const sent   = c.sent_count   || 0;
+            const total  = c.total_audience || 0;
+            const pct    = total > 0 ? Math.round(sent / total * 100) : 0;
+            return `
+                <div class="camp-item">
+                    <i class="fa-solid fa-bullhorn" style="color:#c2410c;font-size:20px"></i>
+                    <div class="camp-item__body">
+                        <div class="camp-item__name">${e(c.name)}</div>
+                        <div class="camp-item__meta">
+                            <span class="badge badge--${badgeCls}">${badgeLabel}</span>
+                            · ${e(c.channel_name || c.channel_type || '—')}
+                            · Audiencja: ${total}
+                            · Wysłano: ${sent}
+                        </div>
+                        ${total > 0 && (c.status === 'running' || c.status === 'completed') ? `
+                        <div class="progress-bar" style="margin-top:6px">
+                            <div class="progress-bar__fill" style="width:${pct}%"></div>
+                        </div>
+                        <div class="hint">${pct}% dostarczono</div>` : ''}
+                        ${c.scheduled_at ? `<div class="hint">Zaplanowana: ${e(c.scheduled_at)}</div>` : ''}
+                    </div>
+                    ${['scheduled','running'].includes(c.status) ? `
+                    <button class="btn btn--danger" style="padding:6px 12px;font-size:12px" data-cancel="${e(c.id)}">
+                        <i class="fa-solid fa-xmark"></i> Anuluj
+                    </button>` : ''}
+                </div>
+            `;
+        }).join('');
+
+        el.querySelectorAll('[data-cancel]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                if (!confirm('Anulować kampanię? Niewyslane wiadomości zostaną zatrzymane.')) return;
+                const r = await api(API, 'campaign_cancel', { campaign_id: btn.dataset.cancel });
+                toast(r.message || (r.success ? 'Anulowano' : 'Błąd'), r.success);
+                if (r.success) loadCampaignList();
+            });
+        });
+    }
+
+    document.getElementById('btn-refresh-list').addEventListener('click', loadCampaignList);
+    loadCampaignList();
+})();
+</script>
+</body>
+</html>

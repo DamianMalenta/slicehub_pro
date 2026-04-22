@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SliceHub — test api/online/engine.php</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 1.5rem auto; padding: 0 1rem; line-height: 1.5; }
+    code, pre { background: #f1f5f9; padding: 0.2em 0.4em; border-radius: 4px; font-size: 13px; }
+    pre { padding: 1rem; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+    textarea { width: 100%; min-height: 140px; font-family: ui-monospace, monospace; font-size: 13px; box-sizing: border-box; }
+    button { margin: 0.5rem 0.5rem 0.5rem 0; padding: 0.5rem 1rem; cursor: pointer; }
+    .ok { color: #15803d; }
+    .bad { color: #b91c1c; }
+    h1 { font-size: 1.25rem; }
+  </style>
+</head>
+<body>
+  <h1>Test <code>api/online/engine.php</code></h1>
+  <p><strong>Dlaczego sam adres URL w pasku pokazuje błąd?</strong> Przeglądarka robi żądanie <strong>GET</strong> bez treści. Ten endpoint czyta dane z <strong>POST + JSON</strong> (pole <code>tenantId</code> musi być w ciele żądania). Stąd komunikat <code>tenantId is required</code> — to normalne.</p>
+
+  <p><strong>tenantId</strong> — zwykle <code>1</code> na środowisku demo (tabela <code>sh_tenant</code>).</p>
+
+  <label for="payload"><strong>JSON (body POST):</strong></label>
+  <textarea id="payload" spellcheck="false">{
+  "action": "get_storefront_settings",
+  "tenantId": 1,
+  "channel": "Delivery"
+}</textarea>
+
+  <div>
+    <button type="button" id="send">Wyślij POST</button>
+    <strong style="font-size:12px; margin-left:12px; color:#475569;">Legacy:</strong>
+    <button type="button" id="preset-menu">get_menu</button>
+    <button type="button" id="preset-popular">get_popular</button>
+    <br>
+    <strong style="font-size:12px; color:#7c3aed;">Canonical (Faza 3.0):</strong>
+    <button type="button" id="preset-bootstrap">bootstrap</button>
+    <button type="button" id="preset-category">category_contract</button>
+    <button type="button" id="preset-dish">dish_contract</button>
+  </div>
+
+  <p><strong>Odpowiedź serwera:</strong></p>
+  <pre id="out">(jeszcze brak)</pre>
+
+  <script>
+    const out = document.getElementById('out');
+    const ta = document.getElementById('payload');
+
+    document.getElementById('send').onclick = async () => {
+      out.textContent = 'Ładowanie…';
+      let body;
+      try {
+        body = JSON.parse(ta.value);
+      } catch (e) {
+        out.textContent = 'Błąd: niepoprawny JSON w polu tekstowym.\n' + e.message;
+        return;
+      }
+      try {
+        const r = await fetch('engine.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          body: JSON.stringify(body),
+        });
+        const text = await r.text();
+        out.textContent = text;
+        try {
+          const j = JSON.parse(text);
+          out.className = j.success ? 'ok' : 'bad';
+        } catch (_) {
+          out.className = '';
+        }
+      } catch (e) {
+        out.textContent = 'Błąd sieci: ' + e.message;
+        out.className = 'bad';
+      }
+    };
+
+    document.getElementById('preset-menu').onclick = () => {
+      ta.value = JSON.stringify({
+        action: 'get_menu',
+        tenantId: 1,
+        channel: 'Delivery'
+      }, null, 2);
+    };
+
+    document.getElementById('preset-popular').onclick = () => {
+      ta.value = JSON.stringify({
+        action: 'get_popular',
+        tenantId: 1,
+        channel: 'Delivery',
+        limit: 8
+      }, null, 2);
+    };
+
+    document.getElementById('preset-bootstrap').onclick = () => {
+      ta.value = JSON.stringify({
+        action: 'bootstrap',
+        tenantId: 1,
+        channel: 'Delivery'
+      }, null, 2);
+    };
+
+    document.getElementById('preset-category').onclick = () => {
+      ta.value = JSON.stringify({
+        action: 'category_contract',
+        tenantId: 1,
+        channel: 'Delivery',
+        categoryId: 1
+      }, null, 2);
+    };
+
+    document.getElementById('preset-dish').onclick = () => {
+      ta.value = JSON.stringify({
+        action: 'dish_contract',
+        tenantId: 1,
+        channel: 'Delivery',
+        itemSku: 'PIZZA_MARGHERITA'
+      }, null, 2);
+    };
+  </script>
+</body>
+</html>

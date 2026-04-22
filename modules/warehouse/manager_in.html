@@ -2,17 +2,18 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>SliceHub - Inwentaryzacja IN (Ultimate)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <script src="../../core/core_validator.js"></script>
+    <script src="../../core/js/core_validator.js"></script>
 
     <style>
-        body { font-family: 'Montserrat', sans-serif; background-color: #050505; color: white; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Montserrat', sans-serif; background-color: #050505; color: white; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+        input, textarea, select, [contenteditable] { user-select: text; -webkit-user-select: text; }
         .glass { background: rgba(255, 255, 255, 0.02); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.05); }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         
@@ -39,7 +40,10 @@
             <div class="inline-flex items-center gap-2 bg-amber-900/20 text-amber-400 px-4 py-2 rounded-xl border border-amber-500/30 text-[10px] font-bold uppercase tracking-widest" id="validator-status">
                 <i class="fa-solid fa-microchip animate-pulse"></i> Validator Aktywny
             </div>
-            <button onclick="window.location.href='settings_magazyn.html'" class="glass px-6 py-2 rounded-xl text-xs font-bold uppercase tracking-widest text-slate-300 hover:text-white transition hover:bg-white/5 border border-white/10">
+            <button type="button" onclick="window.location.href='index.html'" class="glass px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest text-slate-300 hover:text-white transition hover:bg-white/5 border border-white/10">
+                <i class="fa-solid fa-warehouse mr-2"></i> Hub
+            </button>
+            <button type="button" onclick="window.location.href='settings_magazyn.html'" class="glass px-6 py-2 rounded-xl text-xs font-bold uppercase tracking-widest text-slate-300 hover:text-white transition hover:bg-white/5 border border-white/10">
                 <i class="fa-solid fa-arrow-left mr-2"></i> Matryca
             </button>
         </div>
@@ -96,7 +100,7 @@
                     <table class="w-full text-left border-collapse" id="in-table">
                         <thead>
                             <tr class="border-b border-white/10 text-[10px] uppercase text-slate-500 tracking-widest">
-                                <th class="pb-4 pr-4">Produkt (UTF-8)</th>
+                                <th class="pb-4 pr-4">Surowiec (sys_items)</th>
                                 <th class="pb-4 pr-4 text-center sys-qty">Stan Systemowy</th>
                                 <th class="pb-4 pr-4 text-center">Stan Faktyczny (Półka)</th>
                                 <th class="pb-4 pr-4 text-center">J.m.</th>
@@ -123,6 +127,8 @@
         <i class="fa-solid fa-circle-notch fa-spin text-6xl text-amber-500 mb-6"></i>
         <p class="font-black tracking-[0.3em] uppercase text-amber-500 text-sm animate-pulse">Przeliczanie Matrycy Magazynowej...</p>
     </div>
-<script src="js/warehouse_in.js"></script>
+    <script src="../../core/js/api_client.js"></script>
+    <script src="js/warehouse_api.js"></script>
+    <script src="js/warehouse_in.js"></script>
 </body>
 </html>

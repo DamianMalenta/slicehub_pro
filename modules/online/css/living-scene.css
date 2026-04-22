@@ -1,0 +1,200 @@
+/* ============================================================================
+ * Storefront — LIVING SCENE (G6) atmospheric effects
+ * ----------------------------------------------------------------------------
+ * Renderowane jako overlay nad pizza-scene (pointer-events: none).
+ * Wszystkie animacje respektują `prefers-reduced-motion`.
+ *
+ * Efekty wg `atmospheric_effects_json` z sh_scene_templates (m022/m023):
+ *   steam_rising            — unosząca się para (danie gorące)
+ *   dust_particles_golden   — złote drobinki / pyłki (kinowa atmosfera)
+ *   condensation_drops      — krople na napoju (zimno)
+ *   sauce_drip              — powolna kropla sosu (burger)
+ *   candle_glow             — pulsujące światło świecy (wieczór)
+ *   sun_rays                — miękkie promienie (dzień)
+ *
+ * Prawo VII: są to prawdziwe, żywe efekty wpisane w scenę — a nie filtr.
+ * ========================================================================== */
+
+.pizza-scene,
+.scene-surface,
+.sc-surface {
+    position: relative;
+}
+
+.scene-effects {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 5;
+    mix-blend-mode: screen;
+}
+
+.scene-effects > * {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+/* ── steam_rising ─────────────────────────────────────────────── */
+.scene-effect--steam {
+    mix-blend-mode: screen;
+}
+.scene-effect--steam::before,
+.scene-effect--steam::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 35%;
+    width: 120px;
+    height: 140px;
+    transform: translateX(-50%);
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(255,255,255,.55), rgba(255,255,255,0) 70%);
+    filter: blur(14px);
+    opacity: 0;
+    animation: scene-steam 5.6s ease-in-out infinite;
+}
+.scene-effect--steam::after {
+    left: 42%;
+    width: 90px;
+    height: 120px;
+    animation-delay: 1.9s;
+    animation-duration: 6.8s;
+}
+@keyframes scene-steam {
+    0%   { transform: translate(-50%, 0) scale(.6);   opacity: 0; }
+    25%  { opacity: .7; }
+    55%  { opacity: .55; }
+    100% { transform: translate(-40%, -90%) scale(1.4); opacity: 0; }
+}
+
+/* ── dust_particles_golden ──────────────────────────────────── */
+.scene-effect--dust {
+    background-image:
+        radial-gradient(1.5px 1.5px at 12% 22%, rgba(253,224,71,.85), transparent 60%),
+        radial-gradient(1.5px 1.5px at 78% 18%, rgba(253,224,71,.75), transparent 60%),
+        radial-gradient(2px   2px   at 34% 72%, rgba(253,224,71,.9),  transparent 65%),
+        radial-gradient(1.5px 1.5px at 61% 55%, rgba(253,224,71,.7),  transparent 60%),
+        radial-gradient(1.5px 1.5px at 88% 80%, rgba(253,224,71,.8),  transparent 60%),
+        radial-gradient(1px   1px   at 22% 88%, rgba(253,224,71,.6),  transparent 60%),
+        radial-gradient(2px   2px   at 49% 10%, rgba(253,224,71,.85), transparent 65%),
+        radial-gradient(1px   1px   at 70% 40%, rgba(253,224,71,.55), transparent 60%);
+    animation: scene-dust 9.4s ease-in-out infinite;
+    opacity: .7;
+}
+@keyframes scene-dust {
+    0%, 100% { transform: translate(0, 0);       opacity: .55; }
+    35%      { transform: translate(-6px, -10px);opacity: .75; }
+    70%      { transform: translate(8px, -6px);  opacity: .6;  }
+}
+
+/* ── condensation_drops ───────────────────────────────────── */
+.scene-effect--condensation {
+    background-image:
+        radial-gradient(circle at 18% 32%, rgba(255,255,255,.9) 0 1.5px, transparent 2.5px),
+        radial-gradient(circle at 30% 18%, rgba(255,255,255,.75) 0 2px,   transparent 3px),
+        radial-gradient(circle at 72% 28%, rgba(255,255,255,.85) 0 1.5px, transparent 2.5px),
+        radial-gradient(circle at 81% 61%, rgba(255,255,255,.8)  0 2.5px, transparent 3.5px),
+        radial-gradient(circle at 23% 72%, rgba(255,255,255,.7)  0 1.5px, transparent 2.5px),
+        radial-gradient(circle at 55% 47%, rgba(255,255,255,.9)  0 1.5px, transparent 2.5px);
+    filter: blur(.2px);
+    animation: scene-condensation 3.2s ease-in-out infinite;
+}
+@keyframes scene-condensation {
+    0%, 100% { opacity: .85; }
+    50%      { opacity: .55; }
+}
+
+/* ── sauce_drip ────────────────────────────────────────────── */
+.scene-effect--drip::before {
+    content: '';
+    position: absolute;
+    left: 52%;
+    top: 12%;
+    width: 6px;
+    height: 18px;
+    background: radial-gradient(closest-side, rgba(220,38,38,.9), rgba(220,38,38,.5) 70%, transparent);
+    border-radius: 6px 6px 80% 80% / 4px 4px 100% 100%;
+    filter: blur(.3px);
+    animation: scene-drip 7.8s ease-in infinite;
+    opacity: 0;
+}
+@keyframes scene-drip {
+    0%, 60%  { transform: translateY(0);    opacity: 0; }
+    65%      { opacity: 1; }
+    100%     { transform: translateY(45vh); opacity: 0; }
+}
+
+/* ── candle_glow ───────────────────────────────────────────── */
+.scene-effect--candle {
+    background: radial-gradient(ellipse at 50% 58%,
+                                rgba(253,186,116,.22) 0%,
+                                rgba(251,146,60,.10) 25%,
+                                transparent          60%);
+    mix-blend-mode: overlay;
+    animation: scene-candle 4.6s ease-in-out infinite;
+}
+@keyframes scene-candle {
+    0%, 100% { opacity: .6;  transform: scale(1);   }
+    35%      { opacity: .85; transform: scale(1.02);}
+    55%      { opacity: .7;  transform: scale(.99); }
+    80%      { opacity: .9;  transform: scale(1.03);}
+}
+
+/* ── sun_rays ──────────────────────────────────────────────── */
+.scene-effect--rays {
+    background:
+        conic-gradient(from 210deg at 75% -10%,
+            rgba(255,247,205,0)   0deg,
+            rgba(255,247,205,.25) 30deg,
+            rgba(255,247,205,0)   60deg,
+            rgba(255,247,205,.20) 90deg,
+            rgba(255,247,205,0)   120deg,
+            rgba(255,247,205,.15) 150deg,
+            rgba(255,247,205,0)   180deg,
+            rgba(255,247,205,0)   360deg);
+    mix-blend-mode: screen;
+    animation: scene-rays 12.2s linear infinite;
+    opacity: .75;
+}
+@keyframes scene-rays {
+    0%   { transform: rotate(0);    }
+    100% { transform: rotate(360deg);}
+}
+
+/* ── breath (subtle scale breathing — generic living) ──────── */
+.scene-effect--breath {
+    animation: scene-breath 5.2s ease-in-out infinite;
+    transform-origin: 50% 60%;
+}
+@keyframes scene-breath {
+    0%, 100% { transform: scale(1);    }
+    50%      { transform: scale(1.012);}
+}
+
+/* ── Reduced motion — wyciszamy wszystko, zostaje lekka statyka */
+@media (prefers-reduced-motion: reduce) {
+    .scene-effects,
+    .scene-effects > *,
+    .scene-effects *::before,
+    .scene-effects *::after {
+        animation: none !important;
+    }
+    .scene-effect--steam::before,
+    .scene-effect--steam::after,
+    .scene-effect--drip::before {
+        opacity: 0 !important;
+    }
+    .scene-effect--dust      { opacity: .35; }
+    .scene-effect--candle    { opacity: .55; }
+    .scene-effect--rays      { opacity: .3;  }
+}
+
+/* ── Wariant „tile" (menu-ticket mini-scene) — mniej intensywnie */
+.pizza-scene-root--tile .scene-effects {
+    opacity: .55;
+}
+.pizza-scene-root--tile .scene-effect--steam::before,
+.pizza-scene-root--tile .scene-effect--steam::after { filter: blur(8px); }
+.pizza-scene-root--tile .scene-effect--dust         { opacity: .45; }

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="sh-tenant-id" content="1">
+    <title>SliceHub — Plan Sali</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <!-- ===== PIN LOGIN ===== -->
+    <div id="pin-screen">
+        <div class="pin-logo">SH</div>
+        <div class="pin-title">Wprowadź PIN</div>
+        <div id="pin-dots"></div>
+        <div class="pin-grid">
+            <button class="pin-btn" data-pin="1">1</button>
+            <button class="pin-btn" data-pin="2">2</button>
+            <button class="pin-btn" data-pin="3">3</button>
+            <button class="pin-btn" data-pin="4">4</button>
+            <button class="pin-btn" data-pin="5">5</button>
+            <button class="pin-btn" data-pin="6">6</button>
+            <button class="pin-btn" data-pin="7">7</button>
+            <button class="pin-btn" data-pin="8">8</button>
+            <button class="pin-btn" data-pin="9">9</button>
+            <button class="pin-btn pin-action" data-pin="clear">C</button>
+            <button class="pin-btn" data-pin="0">0</button>
+            <button class="pin-btn pin-action" data-pin="back">&#9003;</button>
+        </div>
+    </div>
+
+    <!-- ===== MAIN APP ===== -->
+    <div id="tables-app" class="hidden">
+
+        <!-- UNIVERSAL NAVIGATION BAR (Micro-Frontend Header) -->
+        <nav class="shell-nav" id="shell-nav">
+            <div class="nav-brand">
+                <div class="nav-logo">SH</div>
+                <span class="nav-title">SliceHub</span>
+            </div>
+            <div class="nav-tabs" id="nav-tabs">
+                <button class="nav-tab" data-href="../pos/index.html"><span class="nav-tab-icon"><i class="fa-solid fa-receipt"></i></span> <span class="nav-tab-label">Zamówienia</span></button>
+                <button class="nav-tab active"><span class="nav-tab-icon"><i class="fa-solid fa-chair"></i></span> <span class="nav-tab-label">Sala</span></button>
+                <button class="nav-tab" data-href="../courses/index.html"><span class="nav-tab-icon"><i class="fa-solid fa-motorcycle"></i></span> <span class="nav-tab-label">Kursy</span></button>
+                <button class="nav-tab" data-href="../courses/index.html#map"><span class="nav-tab-icon"><i class="fa-solid fa-map-location-dot"></i></span> <span class="nav-tab-label">Mapa</span></button>
+            </div>
+            <div class="nav-meta">
+                <span class="nav-user" id="nav-user-badge">KELNER</span>
+                <button class="nav-btn" id="btn-logout" title="Wyloguj"><i class="fa-solid fa-right-from-bracket"></i></button>
+            </div>
+        </nav>
+
+        <!-- FLOOR PLAN TOP BAR -->
+        <header class="topbar">
+            <nav class="zone-tabs" id="zone-tabs">
+                <button class="zone-tab active" data-zone="all">Wszystkie</button>
+            </nav>
+            <div class="topbar-spacer"></div>
+            <div class="status-legend" id="status-legend">
+                <span class="legend-dot legend-free"></span><span class="legend-label">Wolny</span>
+                <span class="legend-dot legend-occupied"></span><span class="legend-label">Zajęty</span>
+                <span class="legend-dot legend-ready"></span><span class="legend-label">Gotowy</span>
+                <span class="legend-dot legend-dirty"></span><span class="legend-label">Brudny</span>
+            </div>
+            <div class="topbar-spacer"></div>
+            <button class="topbar-settings hidden" id="btn-settings" title="Ustawienia układu"><i class="fa-solid fa-gear"></i> <span class="settings-label">Ustawienia</span></button>
+        </header>
+
+        <!-- FLOOR PLAN CANVAS -->
+        <main class="floor-canvas" id="floor-canvas">
+            <div class="floor-grid" id="floor-grid"></div>
+        </main>
+
+        <!-- STATUS BAR (Live Mode) -->
+        <footer class="status-bar" id="status-bar">
+            <div class="floor-stats">
+                <span class="stat"><span class="stat-val" id="stat-free">0</span> wolnych</span>
+                <span class="stat-sep">·</span>
+                <span class="stat"><span class="stat-val" id="stat-occupied">0</span> zajętych</span>
+                <span class="stat-sep">·</span>
+                <span class="stat"><span class="stat-val" id="stat-guests">0</span> gości</span>
+            </div>
+            <div class="sb-spacer"></div>
+            <button class="sb-btn" id="btn-refresh"><i class="fa-solid fa-arrows-rotate"></i> Odśwież</button>
+        </footer>
+
+        <!-- EDIT MODE FLOATING TOOLBAR (hidden by default) -->
+        <div class="edit-toolbar hidden" id="edit-toolbar">
+            <button class="etb-btn" id="btn-add-table"><i class="fa-solid fa-plus"></i> Stolik</button>
+            <button class="etb-btn" id="btn-add-obstacle"><i class="fa-solid fa-shapes"></i> Element</button>
+            <div class="etb-sep"></div>
+            <span class="etb-badge"><i class="fa-solid fa-pen-ruler"></i> EDYCJA</span>
+            <div class="etb-sep"></div>
+            <button class="etb-btn save" id="btn-save-layout"><i class="fa-solid fa-floppy-disk"></i> Zapisz</button>
+            <button class="etb-btn exit" id="btn-exit-edit"><i class="fa-solid fa-check"></i> Gotowe</button>
+        </div>
+    </div>
+
+    <!-- ===== CENTERED MODAL (forms, confirmations) ===== -->
+    <div class="modal-overlay hidden" id="modal-overlay">
+        <div class="glass-modal" id="glass-modal"></div>
+    </div>
+
+    <!-- ===== TOAST CONTAINER ===== -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- ===== SCRIPTS ===== -->
+    <script src="../../core/js/api_client.js"></script>
+    <script src="js/tables_api.js"></script>
+    <script src="js/tables_ui.js"></script>
+    <script src="js/tables_app.js"></script>
+</body>
+</html>

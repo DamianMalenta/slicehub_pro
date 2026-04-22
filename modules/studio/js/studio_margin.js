@@ -3,7 +3,7 @@
  * Moduł: Food Cost & Gross Margin Calculator
  *
  * Zależności:
- *   - api/api_warehouse.php (action=GET_AVCO_DICT)
+ *   - WarehouseApi.avcoDict() → api/warehouse/avco_dict.php
  *
  * Użycie:
  *   await window.MarginGuardian.init();
@@ -21,8 +21,6 @@ window.MarginGuardian = (() => {
         initialized: false
     };
 
-    const API_WAREHOUSE = '../../api/api_warehouse.php';
-
     // -------------------------------------------------------------------------
     // Formatters
     // -------------------------------------------------------------------------
@@ -39,7 +37,7 @@ window.MarginGuardian = (() => {
     // 1. INIT — pobiera słownik AVCO z magazynu
     // -------------------------------------------------------------------------
     async function init() {
-        const json = await window.ApiClient.get(API_WAREHOUSE, { action: 'GET_AVCO_DICT' });
+        const json = await window.WarehouseApi.avcoDict();
 
         if (!json.success) {
             console.error('[MarginGuardian] API error:', json.message);

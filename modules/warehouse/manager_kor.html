@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>SliceHub — KOR Korekta WZ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Montserrat', sans-serif; background-color: #050505; color: white; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+        input, textarea, select, [contenteditable] { user-select: text; -webkit-user-select: text; }
+        .glass { background: rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.05); backdrop-filter:blur(10px); }
+    </style>
+</head>
+<body class="p-6 md:p-10 overflow-x-hidden">
+
+    <header class="mb-10 flex justify-between items-end">
+        <div>
+            <h2 class="text-4xl font-black italic uppercase tracking-tighter">
+                <i class="fa-solid fa-rotate-left mr-3 text-orange-400"></i>KOR — Korekta WZ
+            </h2>
+            <p class="text-[11px] font-bold text-slate-500 uppercase tracking-widest mt-2">Cofnięcie wydania (WZ) do magazynu · KorEngine V2</p>
+        </div>
+        <a href="index.html" class="glass px-4 py-3 rounded-xl text-xs font-bold uppercase text-slate-400 hover:text-white transition border border-white/10"><i class="fa-solid fa-warehouse mr-2"></i> Hub</a>
+    </header>
+
+    <div class="glass p-8 rounded-3xl mb-8 max-w-2xl">
+        <div class="space-y-6">
+            <div>
+                <label class="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">ID Zamówienia (order_id / UUID)</label>
+                <input type="text" id="kor-order-id" placeholder="np. 550e8400-e29b-41d4-a716-446655440000"
+                       class="w-full bg-black border border-white/10 rounded-xl p-4 text-sm font-mono text-orange-300 outline-none focus:border-orange-500 transition">
+            </div>
+            <div>
+                <label class="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Powód korekty</label>
+                <select id="kor-reason" class="w-full bg-black border border-white/10 rounded-xl p-4 text-sm font-bold text-white outline-none focus:border-orange-500 appearance-none transition">
+                    <option value="Anulowanie zamówienia">Anulowanie zamówienia</option>
+                    <option value="Błąd operatora">Błąd operatora</option>
+                    <option value="Zamiana dania">Zamiana dania</option>
+                    <option value="Reklamacja klienta">Reklamacja klienta</option>
+                    <option value="Test / dev">Test / dev</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Dodatkowa notatka (opcjonalnie)</label>
+                <textarea id="kor-note" rows="2" placeholder="np. klient zmienił zdanie przed wydaniem"
+                          class="w-full bg-black border border-white/10 rounded-xl p-4 text-sm text-white outline-none focus:border-orange-500 transition resize-none"></textarea>
+            </div>
+        </div>
+    </div>
+
+    <div id="kor-preview" class="glass p-8 rounded-3xl mb-8 max-w-2xl hidden">
+        <h3 class="text-sm font-black uppercase tracking-widest text-slate-400 mb-4">Podgląd — linie do zwrotu</h3>
+        <table class="w-full text-left"><thead><tr class="border-b border-white/10 text-[10px] uppercase text-slate-500 tracking-widest">
+            <th class="pb-2">SKU</th><th class="pb-2 text-center">Ilość zwrotu</th><th class="pb-2 text-right">AVCO org.</th>
+        </tr></thead><tbody id="kor-lines"></tbody></table>
+    </div>
+
+    <button type="button" onclick="window.submitKOR()" id="btn-kor" class="max-w-2xl w-full bg-orange-600 hover:bg-orange-500 text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] shadow-lg transition flex justify-center items-center gap-3">
+        <i class="fa-solid fa-rotate-left"></i> Wykonaj Korektę
+    </button>
+
+    <div id="loading-overlay" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 hidden flex flex-col justify-center items-center">
+        <i class="fa-solid fa-circle-notch fa-spin text-6xl text-orange-400 mb-6"></i>
+        <p class="font-black tracking-[0.3em] uppercase text-orange-400 text-sm animate-pulse">Cofanie WZ…</p>
+    </div>
+
+    <script src="../../core/js/api_client.js"></script>
+    <script src="js/warehouse_api.js"></script>
+    <script src="js/warehouse_correction.js"></script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SliceHub Settings — Integrations, Webhooks & API</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="st-topbar">
+    <div class="st-logo"><i class="fa-solid fa-sliders"></i></div>
+    <h1 class="st-title">Settings · Integrations & API</h1>
+    <div class="st-spacer"></div>
+    <div id="st-vault-badge" class="st-badge st-badge--muted" title="Encryption status">
+        <i class="fa-solid fa-lock"></i> <span>vault?</span>
+    </div>
+    <button class="st-btn st-btn--ghost" id="st-refresh-btn"><i class="fa-solid fa-rotate"></i> Refresh</button>
+</header>
+
+<nav class="st-tabs" id="st-tabs">
+    <button class="st-tab st-tab--active" data-tab="integrations"><i class="fa-solid fa-plug"></i> Integrations</button>
+    <button class="st-tab"                 data-tab="webhooks"    ><i class="fa-solid fa-satellite-dish"></i> Webhooks</button>
+    <button class="st-tab"                 data-tab="api_keys"    ><i class="fa-solid fa-key"></i> API Keys</button>
+    <button class="st-tab"                 data-tab="dlq"         ><i class="fa-solid fa-skull-crossbones"></i> Dead Letters</button>
+    <button class="st-tab"                 data-tab="health"      ><i class="fa-solid fa-heart-pulse"></i> Health</button>
+    <button class="st-tab"                 data-tab="notifications"><i class="fa-solid fa-bell"></i> Powiadomienia</button>
+</nav>
+
+<main id="st-main" class="st-main">
+    <section id="st-pane-integrations"  class="st-pane st-pane--active"></section>
+    <section id="st-pane-webhooks"      class="st-pane"></section>
+    <section id="st-pane-api_keys"      class="st-pane"></section>
+    <section id="st-pane-dlq"           class="st-pane"></section>
+    <section id="st-pane-health"        class="st-pane"></section>
+    <section id="st-pane-notifications" class="st-pane"></section>
+</main>
+
+<div id="st-modal-root" class="st-modal-root"></div>
+<div id="st-toast-root" class="st-toast-root"></div>
+
+<meta name="sh-tenant-id" content="1">
+<script src="js/settings_app.js"></script>
+<script src="js/notifications.js"></script>
+</body>
+</html>

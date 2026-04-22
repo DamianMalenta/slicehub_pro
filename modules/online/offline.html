@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a0806">
+  <title>SliceHub Offline</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0a0806;
+      --panel: #17120f;
+      --text: #f6eee4;
+      --muted: #b9a89a;
+      --accent: #e8b04b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background:
+        radial-gradient(circle at top, rgba(232,176,75,.2), transparent 42%),
+        var(--bg);
+      color: var(--text);
+      font: 16px/1.5 Inter, Arial, sans-serif;
+    }
+    .offline {
+      width: min(100%, 460px);
+      padding: 28px;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 24px;
+      background: rgba(23,18,15,.92);
+      box-shadow: 0 20px 60px rgba(0,0,0,.35);
+    }
+    h1 { margin: 0 0 10px; font-size: 28px; }
+    p { margin: 0 0 12px; color: var(--muted); }
+    a {
+      display: inline-block;
+      margin-top: 10px;
+      color: #111;
+      background: var(--accent);
+      padding: 12px 16px;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <main class="offline">
+    <h1>Brak połączenia</h1>
+    <p>Nie udało się załadować sceny online. Gdy internet wróci, storefront wznowi normalne działanie.</p>
+    <p>Jeśli część zasobów była już odwiedzona wcześniej, niektóre ekrany mogą nadal działać z pamięci podręcznej.</p>
+    <a href="/slicehub/modules/online/index.html">Spróbuj ponownie</a>
+  </main>
+</body>
+</html>

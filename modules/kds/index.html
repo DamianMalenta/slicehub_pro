@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="sh-tenant-id" content="1">
+    <title>SliceHub KDS — Kitchen Display</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="kds-topbar">
+    <div class="kds-logo"><i class="fa-solid fa-fire-burner"></i></div>
+    <h1 class="kds-title">KDS — KUCHNIA</h1>
+    <div class="kds-spacer"></div>
+    <div class="kds-clock" id="kds-clock">00:00</div>
+    <button class="kds-refresh" onclick="KdsApp.refresh()"><i class="fa-solid fa-rotate"></i></button>
+</header>
+
+<main id="kds-board" class="kds-board"></main>
+
+<div id="toast-container"></div>
+
+<script src="js/kds_app.js"></script>
+</body>
+</html>

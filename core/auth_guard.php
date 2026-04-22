@@ -21,19 +21,59 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// =============================================================================
-// !! DEVELOPMENT MOCK — REMOVE BEFORE PRODUCTION !!
-// Provides a fallback session so endpoints work before the login UI is wired.
-// =============================================================================
-$_SESSION['tenant_id'] = $_SESSION['tenant_id'] = 1;
-$_SESSION['user_id']   = $_SESSION['user_id'] = 2;
-// =============================================================================
+// JWT takes precedence over session — critical for multi-tab scenarios where
+// Dispatcher (manager session) and Driver App (driver JWT) share the same browser.
+$authHeader = $_SERVER['HTTP_AUTHORIZATION']
+    ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
+    ?? '';
 
-if (empty($_SESSION['user_id']) || empty($_SESSION['tenant_id'])) {
+if ($authHeader === '' && function_exists('apache_request_headers')) {
+    $apacheHeaders = apache_request_headers();
+    $authHeader = $apacheHeaders['Authorization'] ?? $apacheHeaders['authorization'] ?? '';
+}
+
+$_authFromJwt = false;
+
+if ($authHeader !== '') {
+    $token = $authHeader;
+    if (str_starts_with($token, 'Bearer ')) {
+        $token = substr($token, 7);
+    }
+    $token = trim($token);
+
+    if ($token !== '') {
+        try {
+            require_once __DIR__ . '/JwtProvider.php';
+            $payload = JwtProvider::decode($token, JWT_SECRET);
+
+            $tid = (int)($payload['tenant_id'] ?? 0);
+            $uid = (int)($payload['user_id'] ?? 0);
+
+            if ($tid <= 0 || $uid <= 0) {
+                throw new \Exception('Invalid token payload');
+            }
+
+            $_SESSION['tenant_id'] = $tid;
+            $_SESSION['user_id']   = $uid;
+            $_authFromJwt = true;
+        } catch (\Throwable $e) {
+            header('Content-Type: application/json; charset=utf-8');
+            http_response_code(401);
+            die(json_encode([
+                'success' => false,
+                'message' => 'Invalid or expired token.',
+                'data'    => null,
+            ]));
+        }
+    }
+}
+
+if (!$_authFromJwt && (empty($_SESSION['user_id']) || empty($_SESSION['tenant_id']))) {
     header('Content-Type: application/json; charset=utf-8');
+    http_response_code(401);
     die(json_encode([
         'success' => false,
-        'message' => 'Unauthorized access. Session expired or invalid.',
+        'message' => 'Unauthorized access. No token provided.',
         'data'    => null,
     ]));
 }

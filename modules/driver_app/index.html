@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#050508">
+    <title>SliceHub — Driver</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="manifest" href="manifest.json">
+</head>
+<body>
+
+<!-- EMERGENCY RECALL OVERLAY -->
+<div id="emergency-overlay">
+    <i class="fa-solid fa-triangle-exclamation emergency-icon"></i>
+    <div class="emergency-text">Wracaj do bazy!</div>
+    <p style="color:rgba(255,255,255,0.8); font-size:14px; font-weight:700">Dyspozytor wzywa Cię natychmiast</p>
+    <button class="emergency-btn" onclick="DriverApp.acknowledgeRecall()">POTWIERDZAM — WRACAM</button>
+</div>
+
+<!-- PIN LOGIN -->
+<div id="pin-screen">
+    <div class="pin-logo"><i class="fa-solid fa-motorcycle"></i></div>
+    <div class="pin-title">Aplikacja Kierowcy</div>
+    <div id="pin-dots">
+        <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+    </div>
+    <div class="pin-grid">
+        <button class="pin-btn" onclick="DriverApp.pinDigit('1')">1</button>
+        <button class="pin-btn" onclick="DriverApp.pinDigit('2')">2</button>
+        <button class="pin-btn" onclick="DriverApp.pinDigit('3')">3</button>
+        <button class="pin-btn" onclick="DriverApp.pinDigit('4')">4</button>
+        <button class="pin-btn" onclick="DriverApp.pinDigit('5')">5</button>
+        <button class="pin-btn" onclick="DriverApp.pinDigit('6')">6</button>
+        <button class="pin-btn" onclick="DriverApp.pinDigit('7')">7</button>
+        <button class="pin-btn" onclick="DriverApp.pinDigit('8')">8</button>
+        <button class="pin-btn" onclick="DriverApp.pinDigit('9')">9</button>
+        <button class="pin-btn pin-action" onclick="DriverApp.pinClear()"><i class="fa-solid fa-delete-left"></i></button>
+        <button class="pin-btn" onclick="DriverApp.pinDigit('0')">0</button>
+        <button class="pin-btn pin-action" onclick="DriverApp.pinSubmit()"><i class="fa-solid fa-arrow-right"></i></button>
+    </div>
+</div>
+
+<!-- APP -->
+<div id="app-root" class="hidden">
+    <!-- TOPBAR -->
+    <div class="topbar">
+        <div class="topbar-logo"><i class="fa-solid fa-motorcycle"></i></div>
+        <div class="topbar-info">
+            <div id="topbar-name" class="topbar-name">Kierowca</div>
+            <div id="topbar-status" class="topbar-status">Online</div>
+        </div>
+        <button class="topbar-btn" onclick="DriverApp.poll()"><i class="fa-solid fa-rotate"></i></button>
+        <button class="topbar-btn" onclick="DriverApp.logout()" style="border-color:rgba(239,68,68,0.3); color:var(--accent-red)"><i class="fa-solid fa-right-from-bracket"></i></button>
+    </div>
+
+    <!-- MAIN SCROLL AREA -->
+    <div class="main-scroll">
+        <!-- TAB: RUNS -->
+        <div id="tab-runs" class="tab-content active">
+            <div id="runs-list"></div>
+        </div>
+
+        <!-- TAB: WALLET -->
+        <div id="tab-wallet" class="tab-content">
+            <div id="wallet-content"></div>
+        </div>
+    </div>
+
+    <!-- BOTTOM TAB BAR -->
+    <div class="tab-bar">
+        <button class="tab-bar-btn active" data-tab="runs" onclick="DriverApp.switchTab('runs')">
+            <i class="fa-solid fa-route"></i>
+            <span>Kursy</span>
+        </button>
+        <button class="tab-bar-btn" data-tab="wallet" onclick="DriverApp.switchTab('wallet')">
+            <i class="fa-solid fa-wallet"></i>
+            <span>Portfel</span>
+        </button>
+    </div>
+</div>
+
+<!-- PRE-FLIGHT CHECKLIST MODAL -->
+<div id="preflight-overlay">
+    <div class="pf-card">
+        <div class="pf-header">
+            <div class="pf-icon">🛡️</div>
+            <div class="pf-title">Kontrola Przed Kursem</div>
+            <div class="pf-subtitle">Sprawdź, że masz wszystkie specjalne pozycje</div>
+        </div>
+        <div id="pf-groups"></div>
+        <button class="pf-hold-btn" id="pf-hold-btn">
+            <div class="pf-hold-fill" id="pf-hold-fill"></div>
+            <span class="pf-hold-label"><i class="fa-solid fa-hand"></i> PRZYTRZYMAJ ABY POTWIERDZIĆ</span>
+        </button>
+    </div>
+</div>
+
+<!-- CANCEL ORDER MODAL -->
+<div id="modal-cancel" class="modal-overlay">
+    <div class="modal-backdrop" onclick="DriverApp.closeCancelModal()"></div>
+    <div class="modal-card">
+        <div class="cancel-icon"><i class="fa-solid fa-ban"></i></div>
+        <div class="modal-title">Anuluj zamówienie</div>
+        <div class="cancel-text">Podaj powód anulowania. Informacja zostanie zapisana w systemie.</div>
+        <textarea id="cancel-reason-input" class="cancel-input" placeholder="Powód anulowania (np. klient nieobecny, błędny adres...)" rows="3" maxlength="500"></textarea>
+        <div class="cancel-actions">
+            <button class="modal-btn secondary" onclick="DriverApp.closeCancelModal()">Wróć</button>
+            <button id="cancel-confirm-btn" class="modal-btn danger" onclick="DriverApp.confirmCancelOrder()"><i class="fa-solid fa-ban"></i> Potwierdź anulowanie</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="js/driver_api.js"></script>
+<script src="js/driver_app.js"></script>
+</body>
+</html>

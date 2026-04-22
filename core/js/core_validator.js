@@ -1,84 +1,147 @@
 /**
- * 🛡️ SLICEHUB CORE VALIDATOR v1.0 (Ultimate)
- * Cel: Jedno źródło prawdy dla konwersji jednostek i czystości danych (ASCII).
+ * SliceHub — SliceValidator (globalny walidator / konwerter jednostek).
+ * Załaduj przed warehouse_*.js / studio_*.js.
  */
+(function () {
+    'use strict';
 
-const SliceValidator = {
-    // 1. Twardy słownik jednostek bazowych
-    units: {
-        'kg':  { type: 'weight', ratio: 1,      label: 'Kilogram' },
-        'g':   { type: 'weight', ratio: 0.001,  label: 'Gram' },
-        'l':   { type: 'volume', ratio: 1,      label: 'Litr' },
-        'ml':  { type: 'volume', ratio: 0.001,  label: 'Mililitr' },
-        'szt': { type: 'count',  ratio: 1,      label: 'Sztuka' },
-        'por': { type: 'count',  ratio: 1,      label: 'Porcja' },
-        'opak':{ type: 'count',  ratio: 1,      label: 'Opakowanie' } // Gotowe pod KSeF
-    },
+    const UNITS_CANON = {
+        kg:   { base: 'kg', factor: 1 },
+        g:    { base: 'kg', factor: 0.001 },
+        dag:  { base: 'kg', factor: 0.01 },
+        l:    { base: 'l',  factor: 1 },
+        ml:   { base: 'l',  factor: 0.001 },
+        szt:  { base: 'szt', factor: 1 },
+        pcs:  { base: 'szt', factor: 1 },
+        op:   { base: 'op',  factor: 1 },
+    };
 
-    // 2. Strażnik ASCII - Zamienia "Mąka pszenna" na "MAKA_PSZENNA" do celów technicznych
-    sanitizeKey: function(str) {
-        if (typeof str !== 'string') return '';
-        return str.normalize("NFD")
-                  .replace(/[\u0300-\u036f]/g, "") // Usuwanie polskich znaków (diakrytyków)
-                  .replace(/\s+/g, '_')            // Spacje na podkreślenia
-                  .replace(/[^a-zA-Z0-9_]/g, '')   // Usuwanie znaków specjalnych
-                  .toUpperCase();
-    },
-
-    // 3. Inteligentny Konwerter Jednostek
-    convert: function(value, fromUnit, toUnit) {
-        const val = parseFloat(value.toString().replace(',', '.'));
-        if (isNaN(val) || val < 0) return { error: 'Nieprawidłowa wartość liczbowa.' };
-
-        const unitFrom = this.units[fromUnit.toLowerCase()];
-        const unitTo   = this.units[toUnit.toLowerCase()];
-
-        // Flaga do Szybkiej Naprawy (Inline Fix) jeśli jednostki nie ma w słowniku
-        if (!unitFrom || !unitTo) {
-            return { 
-                needsFix: true, 
-                msg: `Brak przelicznika dla: ${!unitFrom ? fromUnit : toUnit}`,
-                originalValue: val 
-            };
-        }
-
-        // Blokada mieszania typów (np. waga na sztuki) bez dodatkowego przelicznika
-        if (unitFrom.type !== unitTo.type) {
-            return { 
-                error: 'Konflikt typów', 
-                msg: `Nie można bezpośrednio przeliczyć ${unitFrom.type} na ${unitTo.type}. Wymagany przelicznik dedykowany.` 
-            };
-        }
-
-        // Operacja matematyczna sprowadzająca do bazy
-        const baseValue = val * unitFrom.ratio;
-        const finalValue = baseValue / unitTo.ratio;
-
-        return { 
-            success: true, 
-            value: finalValue, 
-            baseValue: baseValue,
-            formatted: `${finalValue.toFixed(3)} ${toUnit}`
-        };
-    },
-
-    // 4. Moduł Receptur (Strażnik do studio_recipe.js)
-    validateRecipeRow: function(qty, userUnit, stockUnit) {
-        const result = this.convert(qty, userUnit, stockUnit);
-        
-        if (result.needsFix) {
-            console.warn("🚨 [Core Validator] Wykryto nieznaną jednostkę. Gotowość do wywołania Inline Fix.");
-            return { status: 'fix_required', data: result };
-        }
-
-        if (result.error) {
-            console.error("🚨 [Core Validator] Błąd krytyczny: ", result.msg);
-            return { status: 'error', msg: result.msg };
-        }
-
-        return { status: 'ok', value: result.value };
+    function sanitizeKey(value) {
+        return String(value || '')
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/\s+/g, '_')
+            .replace(/[^A-Za-z0-9_/-]/g, '')
+            .toUpperCase();
     }
-};
 
-// Zabezpieczenie przed nadpisaniem logiki przez inne skrypty
-Object.freeze(SliceValidator);
+    function standardizeUnit(qty, fromUnit) {
+        const from = String(fromUnit || '').toLowerCase().trim();
+        const map = UNITS_CANON[from];
+        if (!map) return { value: qty, unit: from };
+        return { value: qty * map.factor, unit: map.base };
+    }
+
+    function convertUnit(qty, fromUnit, toUnit) {
+        const from = String(fromUnit || '').toLowerCase().trim();
+        const to   = String(toUnit || '').toLowerCase().trim();
+        const fMap = UNITS_CANON[from];
+        const tMap = UNITS_CANON[to];
+        if (!fMap || !tMap || fMap.base !== tMap.base) return null;
+        return (qty * fMap.factor) / tMap.factor;
+    }
+
+    function validatePrice(val) {
+        const n = parseFloat(val);
+        return Number.isFinite(n) && n >= 0 ? n : null;
+    }
+
+    function generateSku(name) {
+        return sanitizeKey(name).replace(/-/g, '_').slice(0, 32);
+    }
+
+    function escapeHtml(s) {
+        const d = document.createElement('div');
+        d.textContent = s == null ? '' : String(s);
+        return d.innerHTML;
+    }
+
+    /**
+     * Safe numeric parser — handles comma decimals, empty strings, NaN.
+     * Returns a finite number or null.
+     */
+    function safeParse(raw) {
+        if (raw == null || raw === '') return null;
+        const n = parseFloat(String(raw).replace(',', '.'));
+        return Number.isFinite(n) ? n : null;
+    }
+
+    /**
+     * convert(qty, fromUnit, toUnit)
+     *
+     * High-level unit converter used by recipe / food-cost UI.
+     * Parses user input defensively (comma→dot, NaN guard), converts via
+     * UNITS_CANON, and returns a structured result safe for downstream math.
+     *
+     * @returns {{ success: boolean, value: number, msg?: string }}
+     */
+    function convert(qty, fromUnit, toUnit) {
+        const parsed = safeParse(qty);
+        if (parsed === null) {
+            return { success: false, value: 0, msg: `Nieprawidłowa wartość liczbowa: "${qty}"` };
+        }
+
+        const from = String(fromUnit || '').toLowerCase().trim();
+        const to   = String(toUnit   || '').toLowerCase().trim();
+
+        if (from === to) {
+            return { success: true, value: parsed };
+        }
+
+        const fMap = UNITS_CANON[from];
+        const tMap = UNITS_CANON[to];
+
+        if (!fMap || !tMap) {
+            const unknown = !fMap ? from : to;
+            return { success: false, value: 0, msg: `Nieznana jednostka: "${unknown}"` };
+        }
+
+        if (fMap.base !== tMap.base) {
+            return { success: false, value: 0, msg: `Niezgodne grupy jednostek: "${from}" (${fMap.base}) → "${to}" (${tMap.base})` };
+        }
+
+        const result = (parsed * fMap.factor) / tMap.factor;
+        return { success: true, value: result };
+    }
+
+    /**
+     * validateRecipeRow(qty, usageUnit, baseUnit)
+     *
+     * Pre-flight check before adding / updating a recipe ingredient row.
+     * Verifies that usageUnit can be converted to baseUnit.
+     *
+     * @returns {{ status: 'ok'|'error', msg?: string }}
+     */
+    function validateRecipeRow(qty, usageUnit, baseUnit) {
+        const parsed = safeParse(qty);
+        if (parsed === null || parsed < 0) {
+            return { status: 'error', msg: `Nieprawidłowa ilość: "${qty}"` };
+        }
+
+        const from = String(usageUnit || '').toLowerCase().trim();
+        const to   = String(baseUnit  || '').toLowerCase().trim();
+
+        if (from === to) return { status: 'ok' };
+
+        const fMap = UNITS_CANON[from];
+        const tMap = UNITS_CANON[to];
+
+        if (!fMap || !tMap || fMap.base !== tMap.base) {
+            return { status: 'error', msg: `Niezgodność jednostek: "${from}" → "${to}"` };
+        }
+
+        return { status: 'ok' };
+    }
+
+    window.SliceValidator = Object.freeze({
+        UNITS_CANON,
+        sanitizeKey,
+        standardizeUnit,
+        convertUnit,
+        convert,
+        validateRecipeRow,
+        safeParse,
+        validatePrice,
+        generateSku,
+        escapeHtml,
+    });
+})();

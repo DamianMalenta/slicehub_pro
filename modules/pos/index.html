@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="sh-tenant-id" content="1">
+    <title>SliceHub POS V2</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <!-- ===== PIN LOGIN ===== -->
+    <div id="pin-screen">
+        <div class="pin-logo">SH</div>
+        <div class="pin-title">Wprowadź PIN</div>
+        <div id="pin-dots"></div>
+        <div class="pin-grid">
+            <button class="pin-btn" onclick="_pinHandler('1')">1</button>
+            <button class="pin-btn" onclick="_pinHandler('2')">2</button>
+            <button class="pin-btn" onclick="_pinHandler('3')">3</button>
+            <button class="pin-btn" onclick="_pinHandler('4')">4</button>
+            <button class="pin-btn" onclick="_pinHandler('5')">5</button>
+            <button class="pin-btn" onclick="_pinHandler('6')">6</button>
+            <button class="pin-btn" onclick="_pinHandler('7')">7</button>
+            <button class="pin-btn" onclick="_pinHandler('8')">8</button>
+            <button class="pin-btn" onclick="_pinHandler('9')">9</button>
+            <button class="pin-btn pin-action" onclick="_pinHandler('clear')">C</button>
+            <button class="pin-btn" onclick="_pinHandler('0')">0</button>
+            <button class="pin-btn pin-action" onclick="_pinHandler('back')">&#9003;</button>
+        </div>
+    </div>
+
+    <!-- ===== MAIN POS ===== -->
+    <div id="pos-app" class="hidden">
+
+        <!-- UNIVERSAL NAVIGATION BAR (Micro-Frontend Header) -->
+        <nav class="shell-nav" id="shell-nav">
+            <div class="nav-brand">
+                <div class="nav-logo">SH</div>
+                <span class="nav-title">SliceHub</span>
+            </div>
+            <div class="nav-tabs" id="nav-tabs">
+                <button class="nav-tab active"><span class="nav-tab-icon"><i class="fa-solid fa-receipt"></i></span> <span class="nav-tab-label">Zamówienia</span></button>
+                <button class="nav-tab" data-href="../tables/index.html"><span class="nav-tab-icon"><i class="fa-solid fa-chair"></i></span> <span class="nav-tab-label">Sala</span></button>
+                <button class="nav-tab" data-href="../courses/index.html"><span class="nav-tab-icon"><i class="fa-solid fa-motorcycle"></i></span> <span class="nav-tab-label">Kursy</span></button>
+                <button class="nav-tab" data-href="../courses/index.html#map"><span class="nav-tab-icon"><i class="fa-solid fa-map-location-dot"></i></span> <span class="nav-tab-label">Mapa</span></button>
+            </div>
+            <div class="nav-meta">
+                <span class="nav-user" id="nav-user-badge">POS</span>
+                <button class="nav-btn" id="btn-logout" title="Wyloguj"><i class="fa-solid fa-right-from-bracket"></i></button>
+            </div>
+        </nav>
+
+        <!-- POS ACTION BAR -->
+        <header class="pos-topbar">
+            <button class="topbar-btn accent" id="btn-new-order"><i class="fa-solid fa-plus" style="font-size:10px"></i> NOWE</button>
+            <button class="topbar-btn" id="btn-show-battlefield"><i class="fa-solid fa-grip" style="font-size:10px"></i> PULPIT</button>
+            <div class="topbar-spacer"></div>
+            <button class="topbar-btn danger-subtle" id="btn-panic"><i class="fa-solid fa-triangle-exclamation" style="font-size:9px"></i> PANIC (+20M)</button>
+            <div class="topbar-spacer"></div>
+            <button class="topbar-btn" id="btn-view-routes"><i class="fa-solid fa-route" style="font-size:10px"></i> KURSY <span id="fcnt-routes" style="font-size:8px;background:rgba(255,255,255,0.1);padding:1px 5px;border-radius:8px;margin-left:2px">0</span></button>
+        </header>
+
+        <!-- ===== VIEW: BATTLEFIELD (Kanban) ===== -->
+        <div id="view-battlefield" class="pos-view">
+            <div class="bf-layout">
+                <!-- Left: Online Pulse Sidebar -->
+                <aside class="pulse-sidebar">
+                    <div class="pulse-header">
+                        <span>NOWE ONLINE</span>
+                        <span class="pulse-count" id="pulse-count">0</span>
+                    </div>
+                    <div class="pulse-scroll">
+                        <div class="pulse-section"><h5><i class="fa-solid fa-motorcycle" style="font-size:9px"></i> Dowóz</h5><div id="pulse-delivery"></div></div>
+                        <div class="pulse-section"><h5><i class="fa-solid fa-bag-shopping" style="font-size:9px"></i> Wynos</h5><div id="pulse-takeaway"></div></div>
+                        <div class="pulse-section"><h5><i class="fa-solid fa-chair" style="font-size:9px"></i> Sala</h5><div id="pulse-dinein"></div></div>
+                    </div>
+                </aside>
+
+                <!-- Center: Kanban Board -->
+                <div id="bf-grid" class="bf-center"></div>
+
+                <!-- Right: Fleet Sidebar -->
+                <aside class="fleet-sidebar">
+                    <div class="fleet-section">
+                        <div class="fleet-header"><span><i class="fa-solid fa-motorcycle" style="font-size:10px"></i> Flota</span><div class="fleet-btns"><button class="fleet-action-btn hidden" id="btn-send-route">Wyślij Kurs</button><button class="fleet-action-btn fleet-create-btn hidden" id="btn-create-course">Stwórz Kurs</button></div></div>
+                        <div id="drivers-list" class="fleet-list"></div>
+                    </div>
+                    <div class="fleet-section">
+                        <div class="fleet-header"><span><i class="fa-solid fa-users" style="font-size:10px"></i> Kelnerzy</span></div>
+                        <div id="waiters-list" class="fleet-list"></div>
+                    </div>
+                </aside>
+            </div>
+        </div>
+
+        <!-- ===== VIEW: ORDER CREATOR (Menu + Cart) ===== -->
+        <div id="view-creator" class="pos-view hidden">
+            <div class="creator-layout">
+                <!-- Menu Area -->
+                <div class="pos-menu-area">
+                    <div class="creator-topbar">
+                        <button class="topbar-btn" id="btn-back-to-bf">← Wróć do Pulpitu</button>
+                        <span class="edit-badge hidden" id="edit-mode-badge">✏️ TRYB EDYCJI</span>
+                        <div class="topbar-spacer"></div>
+                        <button class="topbar-btn" id="btn-half">½ + ½</button>
+                    </div>
+                    <div id="cat-tabs"></div>
+                    <div id="item-grid"></div>
+                </div>
+
+                <!-- Cart Sidebar -->
+                <aside class="pos-cart">
+                    <div class="cart-header"><h3>Koszyk</h3><span class="cart-header-count" id="cart-count">0</span></div>
+                    <div id="cart-table-banner" class="hidden" style="display:none;align-items:center;gap:8px;padding:8px 12px;margin:0 8px 4px;border-radius:8px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);font-size:12px;font-weight:700;color:#93c5fd;letter-spacing:0.02em"></div>
+                    <div class="cart-type-bar">
+                        <button class="order-type-btn active" data-type="dine_in">Sala</button>
+                        <button class="order-type-btn" data-type="takeaway">Wynos</button>
+                        <button class="order-type-btn" data-type="delivery">Dostawa</button>
+                    </div>
+                    <div id="delivery-fields" class="delivery-fields hidden">
+                        <input type="text" id="cust-addr" placeholder="Adres dostawy / Stolik" class="field-input">
+                        <input type="text" id="cust-phone" placeholder="Telefon" class="field-input">
+                        <input type="text" id="cust-name" placeholder="Imię klienta" class="field-input">
+                    </div>
+                    <div id="cart-lines"></div>
+                    <div class="cart-footer">
+                        <input type="text" id="cust-nip" placeholder="NIP (opcjonalnie)" class="field-input nip-field">
+                        <div class="cart-total-row">
+                            <span class="cart-total-label">Suma</span>
+                            <span id="cart-total">0.00 zł</span>
+                        </div>
+                        <div class="cart-actions">
+                            <button id="btn-checkout" disabled>Zatwierdź →</button>
+                            <button id="btn-clear-cart" title="Wyczyść">🗑</button>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MODALS ===== -->
+    <div id="order-type-modal" class="modal-overlay"></div>
+    <div id="table-selector-modal" class="modal-overlay"></div>
+    <div id="dish-card-modal" class="modal-overlay"></div>
+    <div id="checkout-modal" class="modal-overlay"></div>
+    <div id="payment-modal" class="modal-overlay"></div>
+    <div id="cancel-modal" class="modal-overlay"></div>
+    <div id="unified-order-modal" class="modal-overlay"></div>
+    <div id="toast-container"></div>
+
+    <audio id="alert-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+    <iframe id="print-frame" style="display:none;"></iframe>
+
+    <script type="module" src="js/pos_app.js"></script>
+</body>
+</html>

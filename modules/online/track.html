@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="sh-tenant-id" content="1">
+    <meta name="theme-color" content="#0a0806">
+    <title>SliceHub — Śledź zamówienie</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:wght@600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/track.css">
+</head>
+<body class="online-body track-body">
+
+    <!-- ═══════════ TOPBAR ═══════════ -->
+    <header class="topbar topbar--compact">
+        <a href="index.html" class="topbar__brand">
+            <span class="topbar__mark" aria-hidden="true">
+                <i class="fa-solid fa-pizza-slice"></i>
+            </span>
+            <div class="topbar__brand-text">
+                <strong id="tenant-label">SliceHub</strong>
+                <span class="topbar__brand-sub">Śledzenie zamówienia</span>
+            </div>
+        </a>
+        <a href="index.html" class="topbar__back">
+            <i class="fa-solid fa-arrow-left"></i>
+            <span>Menu</span>
+        </a>
+    </header>
+
+    <main class="track-main">
+
+        <!-- stan: brak danych (ask form) -->
+        <section id="track-prompt" class="track-card track-card--prompt hidden">
+            <div class="track-card__head">
+                <i class="fa-solid fa-location-crosshairs track-card__icon"></i>
+                <div>
+                    <h1 class="track-card__title">Śledź zamówienie</h1>
+                    <p class="track-card__subtitle">Podaj kod zamówienia i numer telefonu użyty przy składaniu.</p>
+                </div>
+            </div>
+            <form id="track-form" class="track-form" novalidate>
+                <label class="track-label">
+                    <span>Kod zamówienia <em>*</em></span>
+                    <input type="text" name="token" id="track-token" placeholder="16-znakowy kod z potwierdzenia" required minlength="8" maxlength="32">
+                </label>
+                <label class="track-label">
+                    <span>Telefon <em>*</em></span>
+                    <input type="tel" name="phone" id="track-phone" placeholder="+48 …" required minlength="9">
+                </label>
+                <button type="submit" class="track-btn track-btn--primary">
+                    <i class="fa-solid fa-magnifying-glass"></i> Znajdź zamówienie
+                </button>
+                <div id="track-form-err" class="checkout-err"></div>
+            </form>
+        </section>
+
+        <!-- stan: loading -->
+        <div id="track-loading" class="track-loading">
+            <div class="online-loading__spinner"></div>
+            <p>Ładowanie zamówienia…</p>
+        </div>
+
+        <!-- stan: błąd -->
+        <section id="track-error" class="track-card track-card--error hidden" aria-live="polite">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <div>
+                <h2>Nie udało się znaleźć zamówienia</h2>
+                <p id="track-error-msg">Sprawdź token + telefon i spróbuj ponownie.</p>
+                <button type="button" id="track-retry" class="track-btn track-btn--ghost"><i class="fa-solid fa-rotate"></i> Spróbuj ponownie</button>
+            </div>
+        </section>
+
+        <!-- stan: wyświetlenie -->
+        <section id="track-view" class="track-view hidden">
+
+            <!-- order header card with hero stage -->
+            <article class="track-card track-head">
+                <!-- Hero image w tle (jeśli mamy) -->
+                <div id="tr-hero" class="track-hero" aria-hidden="true"></div>
+
+                <div class="track-head__top">
+                    <div>
+                        <p class="track-eyebrow">Zamówienie</p>
+                        <h1 class="track-head__num" id="tr-order-num">—</h1>
+                        <p class="track-head__meta" id="tr-meta">—</p>
+                    </div>
+                    <span class="track-pill" id="tr-status-pill">—</span>
+                </div>
+
+                <!-- Live ETA countdown -->
+                <div id="tr-eta" class="track-eta hidden" aria-live="polite">
+                    <div class="track-eta__label">Szacowany czas</div>
+                    <div class="track-eta__time" id="tr-eta-time">—</div>
+                    <div class="track-eta__sub"  id="tr-eta-sub">—</div>
+                </div>
+
+                <!-- timeline -->
+                <ol class="track-timeline" id="tr-timeline" role="list"></ol>
+
+                <!-- stage banner (emoji + kontekstowy komunikat) -->
+                <div id="tr-stage-banner" class="track-stage-banner hidden" aria-live="polite"></div>
+
+                <!-- SSE live dot + notification badge -->
+                <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;flex-wrap:wrap">
+                    <span class="track-notif-badge" id="tr-notif-badge" style="display:none">
+                        <i class="fa-solid fa-bell"></i>
+                        <span id="tr-notif-badge-text">Powiadomimy Cię SMS-em</span>
+                    </span>
+                    <span title="Status połączenia push" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#a8a29e">
+                        <span class="track-live-dot" id="tr-live-dot"></span>
+                        <span id="tr-live-label">Polling 10s</span>
+                    </span>
+                </div>
+
+                <!-- last update -->
+                <p class="track-head__hint" style="margin-top:10px">
+                    <i class="fa-solid fa-rotate" id="tr-refresh-ic"></i>
+                    <span id="tr-last-update">—</span>
+                </p>
+            </article>
+
+            <!-- items list -->
+            <article id="tr-items-card" class="track-card track-items hidden">
+                <h3><i class="fa-solid fa-list"></i> Pozycje zamówienia</h3>
+                <ul id="tr-items" class="track-items__list"></ul>
+            </article>
+
+            <!-- driver card (visible when in_delivery) -->
+            <article id="tr-driver-card" class="track-card track-driver hidden">
+                <div class="track-driver__head">
+                    <div class="track-driver__avatar"><i class="fa-solid fa-motorcycle"></i></div>
+                    <div>
+                        <p class="track-eyebrow">Twój kurier</p>
+                        <h2 id="tr-driver-name" class="track-driver__name">Kierowca</h2>
+                        <p id="tr-driver-speed" class="track-driver__speed">—</p>
+                    </div>
+                </div>
+                <div id="tr-map" class="track-map" role="img" aria-label="Mapa z pozycją kuriera"></div>
+            </article>
+
+            <!-- order summary card -->
+            <article class="track-card track-summary">
+                <h3><i class="fa-solid fa-receipt"></i> Podsumowanie</h3>
+                <dl id="tr-summary" class="track-summary__dl"></dl>
+            </article>
+
+            <button type="button" id="tr-change" class="track-btn track-btn--ghost track-change">
+                <i class="fa-solid fa-user-pen"></i> Inne zamówienie
+            </button>
+
+        </section>
+
+    </main>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script type="module" src="js/online_track.js"></script>
+</body>
+</html>

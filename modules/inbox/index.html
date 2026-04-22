@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="sh-tenant-id" content="1">
+    <title>SliceHub — Skrzynka SMS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="app">
+
+    <!-- ── Sidebar ─────────────────────────────────────── -->
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <span class="logo-icon">📬</span>
+            <span class="logo-text">Skrzynka SMS</span>
+        </div>
+
+        <nav class="sidebar-nav">
+            <button class="nav-btn active" data-filter="unread" id="btn-unread">
+                <i class="fa fa-envelope"></i>
+                <span>Nieprzeczytane</span>
+                <span class="badge" id="badge-unread">0</span>
+            </button>
+            <button class="nav-btn" data-filter="all" id="btn-all">
+                <i class="fa fa-inbox"></i>
+                <span>Wszystkie</span>
+            </button>
+            <button class="nav-btn danger" data-filter="cancels" id="btn-cancels">
+                <i class="fa fa-ban"></i>
+                <span>Anulowania</span>
+                <span class="badge badge-red" id="badge-cancels">0</span>
+            </button>
+        </nav>
+
+        <div class="sidebar-stats" id="sidebar-stats">
+            <div class="stat-item"><span class="stat-label">Dziś</span><span class="stat-val" id="stat-today">—</span></div>
+            <div class="stat-item"><span class="stat-label">Łącznie</span><span class="stat-val" id="stat-total">—</span></div>
+        </div>
+
+        <div class="sidebar-search">
+            <input type="search" id="search-input" placeholder="Szukaj numeru, treści…">
+        </div>
+    </aside>
+
+    <!-- ── Main panel ──────────────────────────────────── -->
+    <main class="main-panel">
+
+        <!-- List view -->
+        <div id="list-view">
+            <div class="list-header">
+                <h2 id="list-title">Nieprzeczytane</h2>
+                <div class="list-actions">
+                    <button class="btn-ghost" id="btn-mark-all-read">
+                        <i class="fa fa-check-double"></i> Oznacz wszystkie
+                    </button>
+                    <button class="btn-ghost" id="btn-refresh">
+                        <i class="fa fa-refresh"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div id="message-list" class="message-list">
+                <div class="empty-state" id="empty-state">
+                    <i class="fa fa-check-circle"></i>
+                    <p>Brak wiadomości</p>
+                </div>
+            </div>
+
+            <div class="list-footer" id="list-footer" style="display:none">
+                <button class="btn-load-more" id="btn-load-more">Załaduj więcej</button>
+            </div>
+        </div>
+
+        <!-- Detail view -->
+        <div id="detail-view" class="detail-view hidden">
+            <button class="btn-back" id="btn-back">
+                <i class="fa fa-arrow-left"></i> Wróć
+            </button>
+            <div class="detail-header">
+                <div class="detail-phone" id="detail-phone"></div>
+                <div class="detail-contact" id="detail-contact"></div>
+                <div class="detail-time" id="detail-time"></div>
+            </div>
+
+            <div class="detail-intent-badge" id="detail-intent-badge"></div>
+
+            <div class="detail-body" id="detail-body"></div>
+
+            <div class="detail-auto-reply" id="detail-auto-reply-wrap" style="display:none">
+                <div class="auto-reply-label"><i class="fa fa-robot"></i> Auto-odpowiedź</div>
+                <div class="auto-reply-body" id="detail-auto-reply-body"></div>
+            </div>
+
+            <div class="detail-order" id="detail-order-wrap" style="display:none">
+                <i class="fa fa-receipt"></i>
+                <a id="detail-order-link" href="#" target="_blank">Zamówienie</a>
+            </div>
+
+            <div class="reply-box">
+                <textarea id="reply-textarea" placeholder="Napisz odpowiedź SMS…" rows="3"></textarea>
+                <div class="reply-actions">
+                    <span class="reply-char-count" id="reply-chars">0 / 160</span>
+                    <button class="btn-primary" id="btn-send-reply">
+                        <i class="fa fa-paper-plane"></i> Wyślij SMS
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast hidden"></div>
+
+<script src="js/inbox_app.js"></script>
+</body>
+</html>

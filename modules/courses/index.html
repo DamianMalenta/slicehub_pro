@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>SliceHub — Dispatcher</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- PIN LOGIN -->
+<div id="pin-screen">
+    <div class="pin-logo"><i class="fa-solid fa-truck-fast"></i></div>
+    <div class="pin-title">Centrum Logistyki</div>
+    <div id="pin-dots">
+        <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
+    </div>
+    <div class="pin-grid">
+        <button class="pin-btn" onclick="App.pinDigit('1')">1</button>
+        <button class="pin-btn" onclick="App.pinDigit('2')">2</button>
+        <button class="pin-btn" onclick="App.pinDigit('3')">3</button>
+        <button class="pin-btn" onclick="App.pinDigit('4')">4</button>
+        <button class="pin-btn" onclick="App.pinDigit('5')">5</button>
+        <button class="pin-btn" onclick="App.pinDigit('6')">6</button>
+        <button class="pin-btn" onclick="App.pinDigit('7')">7</button>
+        <button class="pin-btn" onclick="App.pinDigit('8')">8</button>
+        <button class="pin-btn" onclick="App.pinDigit('9')">9</button>
+        <button class="pin-btn pin-action" onclick="App.pinClear()"><i class="fa-solid fa-delete-left"></i></button>
+        <button class="pin-btn" onclick="App.pinDigit('0')">0</button>
+        <button class="pin-btn pin-action" onclick="App.pinSubmit()"><i class="fa-solid fa-arrow-right"></i></button>
+    </div>
+</div>
+
+<!-- APP -->
+<div id="app-root" class="hidden">
+    <!-- UNIVERSAL NAVIGATION BAR (Micro-Frontend Header) -->
+    <nav class="shell-nav" id="shell-nav">
+        <div class="nav-brand">
+            <div class="nav-logo">SH</div>
+            <span class="nav-title">SliceHub</span>
+        </div>
+        <div class="nav-tabs" id="nav-tabs">
+            <button class="nav-tab" data-href="../pos/index.html"><span class="nav-tab-icon">🧾</span> <span class="nav-tab-label">Zamówienia</span></button>
+            <button class="nav-tab" data-href="../tables/index.html"><span class="nav-tab-icon">🍽️</span> <span class="nav-tab-label">Sala</span></button>
+            <button class="nav-tab active"><span class="nav-tab-icon">🛵</span> <span class="nav-tab-label">Kursy</span></button>
+            <button class="nav-tab" data-href="../courses/index.html#map"><span class="nav-tab-icon">🗺️</span> <span class="nav-tab-label">Mapa</span></button>
+        </div>
+        <div class="nav-meta">
+            <span class="nav-user" id="nav-user-badge">DISPATCH</span>
+            <button class="nav-btn" onclick="App.logout()" title="Wyloguj"><i class="fa-solid fa-right-from-bracket"></i></button>
+        </div>
+    </nav>
+
+    <!-- DISPATCHER TOPBAR -->
+    <div class="topbar">
+        <div class="topbar-logo"><i class="fa-solid fa-truck-fast" style="font-size:14px"></i></div>
+        <span class="topbar-title">Dispatcher</span>
+        <span id="topbar-user" class="topbar-badge"></span>
+        <div class="topbar-spacer"></div>
+        <span id="topbar-clock" class="topbar-badge" style="font-variant-numeric:tabular-nums"></span>
+        <button class="topbar-btn" onclick="App.poll()"><i class="fa-solid fa-rotate"></i> Odśwież</button>
+    </div>
+
+    <!-- TABS -->
+    <div class="tab-nav">
+        <button class="tab-btn active" data-tab="orders" onclick="App.switchTab('orders')"><i class="fa-solid fa-list-check"></i> Zamówienia</button>
+        <button class="tab-btn" data-tab="map" onclick="App.switchTab('map')"><i class="fa-solid fa-map-location-dot"></i> Mapa</button>
+        <button class="tab-btn" data-tab="courses" onclick="App.switchTab('courses')"><i class="fa-solid fa-route"></i> Aktywne Kursy</button>
+    </div>
+
+    <!-- TAB: ORDERS -->
+    <div class="main-content">
+        <div id="tab-orders" class="tab-panel active">
+            <div class="orders-layout">
+                <div class="orders-sidebar">
+                    <div class="sidebar-header">
+                        <span><i class="fa-solid fa-users"></i> Kierowcy</span>
+                        <span id="drv-count" class="sidebar-count">0</span>
+                    </div>
+                    <div id="drivers-list" class="sidebar-scroll"></div>
+                </div>
+                <div class="orders-main">
+                    <div id="orders-grid" class="order-grid"></div>
+                </div>
+            </div>
+            <div id="dispatch-bar" class="dispatch-bar hidden">
+                <i class="fa-solid fa-paper-plane" style="font-size:18px; color:var(--accent-blue)"></i>
+                <span class="dispatch-info">Kierowca: <strong id="dispatch-driver-name">—</strong> | Zamówienia: <strong id="dispatch-count">0</strong></span>
+                <button class="dispatch-cancel" onclick="App.cancelDispatch()">Anuluj</button>
+                <button id="dispatch-send-btn" class="dispatch-btn" onclick="App.sendDispatch()">Wyślij Kurs</button>
+                <button id="dispatch-create-btn" class="dispatch-btn hidden" style="background:var(--accent-yellow);color:#000" onclick="App.createUnassignedCourse()"><i class="fa-solid fa-boxes-stacked"></i> Stwórz Kurs (bez kierowcy)</button>
+            </div>
+        </div>
+
+        <!-- TAB: MAP -->
+        <div id="tab-map" class="tab-panel">
+            <div id="map-container">
+                <div class="map-placeholder" id="map-placeholder">
+                    <i class="fa-solid fa-earth-europe"></i>
+                    <h3>Mapa Zamówień</h3>
+                    <p>Kliknij aby załadować mapę Leaflet z warstwą Carto Dark</p>
+                    <button class="topbar-btn" onclick="App.initMap()" style="margin-top:12px"><i class="fa-solid fa-map"></i> Załaduj Mapę</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: COURSES -->
+        <div id="tab-courses" class="tab-panel">
+            <div id="courses-grid" class="courses-grid" style="overflow:auto; flex:1;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- MODALS -->
+<div id="modal-cash" class="modal-overlay">
+    <div class="modal-backdrop" onclick="App.closeModal('modal-cash')"></div>
+    <div class="modal-card">
+        <div class="modal-title"><i class="fa-solid fa-wallet" style="color:var(--accent-green)"></i> Pogotowie Kasowe</div>
+        <input id="cash-input" class="modal-input" type="number" step="0.01" min="0" placeholder="0.00 zł">
+        <div class="modal-row">
+            <button class="modal-btn secondary" onclick="App.closeModal('modal-cash')">Anuluj</button>
+            <button class="modal-btn primary" onclick="App.submitInitialCash()">Ustaw</button>
+        </div>
+    </div>
+</div>
+
+<div id="modal-reconcile" class="modal-overlay">
+    <div class="modal-backdrop" onclick="App.closeModal('modal-reconcile')"></div>
+    <div class="modal-card">
+        <div class="modal-title"><i class="fa-solid fa-cash-register" style="color:var(--accent-yellow)"></i> Rozliczenie Zmiany</div>
+        <p style="font-size:10px; color:var(--text-muted); text-align:center; margin-bottom:12px; font-weight:700">Policz gotówkę kierowcy i wpisz kwotę</p>
+        <input id="reconcile-input" class="modal-input" type="number" step="0.01" min="0" placeholder="0.00 zł">
+        <div id="reconcile-result" style="display:none; margin-bottom:12px; text-align:center;"></div>
+        <div class="modal-row">
+            <button class="modal-btn secondary" onclick="App.closeModal('modal-reconcile')">Anuluj</button>
+            <button class="modal-btn primary" onclick="App.submitReconcile()">Rozlicz</button>
+        </div>
+    </div>
+</div>
+
+<!-- RECALL MODAL (Two-Step) -->
+<div id="modal-recall" class="modal-overlay">
+    <div class="modal-backdrop" onclick="App.closeModal('modal-recall')"></div>
+    <div class="modal-card">
+        <div class="recall-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+        <div class="modal-title">Zawróć kierowcę</div>
+        <div class="recall-text">
+            Czy na pewno chcesz zawrócić kierowcę <strong id="recall-driver-name">—</strong> do lokalu?
+            Kierowca otrzyma natychmiastowy alert.
+        </div>
+        <div class="recall-actions">
+            <button class="modal-btn secondary" onclick="App.closeModal('modal-recall')">Anuluj</button>
+            <button id="recall-confirm-btn" class="modal-btn danger" onclick="App.confirmRecall()">Tak, Zawróć</button>
+        </div>
+    </div>
+</div>
+
+<!-- BATCH / ACTION SHEET MODAL -->
+<div id="modal-batch" class="modal-overlay">
+    <div class="modal-backdrop" onclick="App.closeModal('modal-batch')"></div>
+    <div class="modal-card">
+        <div class="batch-header">
+            <div class="batch-icon"><i class="fa-solid fa-layer-group"></i></div>
+            <div class="modal-title">Kierowca w trasie</div>
+            <div class="batch-subtitle">
+                <strong id="batch-driver-name">—</strong> ma aktywny kurs <strong id="batch-course-id">—</strong>.
+                Jak przypisać nowe zamówienia?
+            </div>
+        </div>
+        <div class="batch-options">
+            <div class="batch-opt primary" onclick="App.batchAppend()">
+                <div class="batch-opt-icon"><i class="fa-solid fa-plus-circle"></i></div>
+                <div class="batch-opt-text">
+                    <div class="batch-opt-title">Dodaj do trwającego kursu <span id="batch-append-id"></span></div>
+                    <div class="batch-opt-desc">Zamówienia trafią jako nowe przystanki do aktywnej trasy</div>
+                </div>
+                <div class="batch-opt-badge">Zalecane</div>
+            </div>
+            <div class="batch-opt secondary" onclick="App.batchNewRun()">
+                <div class="batch-opt-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                <div class="batch-opt-text">
+                    <div class="batch-opt-title">Utwórz nowy kurs w kolejce</div>
+                    <div class="batch-opt-desc">Nowy kurs zostanie wysłany gdy kierowca wróci</div>
+                </div>
+            </div>
+        </div>
+        <button class="modal-btn secondary batch-cancel" onclick="App.closeModal('modal-batch')">Anuluj</button>
+    </div>
+</div>
+
+<!-- ASSIGN DRIVER MODAL -->
+<div id="modal-assign-driver" class="modal-overlay">
+    <div class="modal-backdrop" onclick="App.closeModal('modal-assign-driver')"></div>
+    <div class="modal-card">
+        <div class="modal-title"><i class="fa-solid fa-user-plus" style="color:var(--accent-blue)"></i> Przypisz Kierowcę</div>
+        <p style="font-size:10px; color:var(--text-muted); text-align:center; margin-bottom:12px; font-weight:700">Wybierz dostępnego kierowcę z listy</p>
+        <div id="assign-driver-list" style="max-height:300px; overflow-y:auto;"></div>
+        <div class="modal-row" style="margin-top:12px">
+            <button class="modal-btn secondary" onclick="App.closeModal('modal-assign-driver')">Anuluj</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="js/courses_api.js"></script>
+<script src="js/courses_ui.js"></script>
+<script src="js/courses_map.js"></script>
+<script src="js/courses_app.js"></script>
+</body>
+</html>

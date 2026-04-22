@@ -3,16 +3,15 @@
  * Tryb: Control Tower
  */
 
-// Bazowy URL API — ścieżka relatywna względem tego pliku (modules/warehouse/js/)
-const API_BASE = '../../api/api_warehouse.php';
-
-// Globalny Stan Aplikacji (Źródło Prawdy)
 window.WarehouseState = {
     stock: [],
-    activeActionSku: null
+    activeActionSku: null,
+    warehouses: [],
+    refreshTimer: null,
 };
 
-// Formatter Walutowy (PLN)
+const REFRESH_INTERVAL_MS = 30_000;
+
 const formatCurrency = new Intl.NumberFormat('pl-PL', {
     style: 'currency',
     currency: 'PLN'
@@ -22,36 +21,115 @@ document.addEventListener('DOMContentLoaded', () => {
     initControlTower();
 });
 
-function initControlTower() {
+async function initControlTower() {
+    await loadWarehouseList();
     loadStock();
+    startAutoRefresh();
 
-    // Globalny przycisk "Strata (RW)" w nagłówku
     const btnOpenRw = document.getElementById('btn-open-rw');
     if (btnOpenRw) {
         btnOpenRw.addEventListener('click', () => openRWModal());
     }
+
+    const picker = document.getElementById('warehousePicker');
+    if (picker) {
+        picker.addEventListener('change', () => {
+            localStorage.setItem('sh_warehouse_id', picker.value);
+            loadStock();
+        });
+    }
+}
+
+function getActiveWarehouse() {
+    const picker = document.getElementById('warehousePicker');
+    return picker ? picker.value : (localStorage.getItem('sh_warehouse_id') || 'MAIN');
+}
+
+async function loadWarehouseList() {
+    const result = await window.WarehouseApi.getWarehouseList();
+    const picker = document.getElementById('warehousePicker');
+    if (!picker) return;
+
+    if (result.success && Array.isArray(result.data) && result.data.length > 0) {
+        WarehouseState.warehouses = result.data;
+        picker.innerHTML = '';
+        result.data.forEach(wh => {
+            const opt = document.createElement('option');
+            opt.value = wh.warehouse_id || wh.id || wh;
+            opt.textContent = typeof wh === 'string' ? wh : (wh.name || wh.warehouse_id || wh.id);
+            picker.appendChild(opt);
+        });
+    }
+
+    const saved = localStorage.getItem('sh_warehouse_id');
+    if (saved) {
+        const exists = Array.from(picker.options).some(o => o.value === saved);
+        if (exists) picker.value = saved;
+    }
+    localStorage.setItem('sh_warehouse_id', picker.value);
+}
+
+function startAutoRefresh() {
+    if (WarehouseState.refreshTimer) clearInterval(WarehouseState.refreshTimer);
+    WarehouseState.refreshTimer = setInterval(() => loadStock(), REFRESH_INTERVAL_MS);
+}
+
+function updateTimestamp() {
+    const el = document.getElementById('lastUpdated');
+    if (el) el.textContent = 'Odświeżono: ' + new Date().toLocaleTimeString('pl-PL');
 }
 
 /**
  * 1. POBIERANIE DANYCH (API CALL)
  */
 async function loadStock() {
-    const result = await window.ApiClient.get(API_BASE, { action: 'GET_STOCK' });
+    const warehouseId = getActiveWarehouse();
+    const result = await window.WarehouseApi.stockList(warehouseId);
 
     if (result.success) {
         WarehouseState.stock = result.data;
         calculateDashboard(WarehouseState.stock);
         renderMatrix(WarehouseState.stock);
+        updateTimestamp();
     } else {
-        console.warn('Backend niedostępny, ładuję tryb symulacji (Mock Data)...');
-        WarehouseState.stock = [
-            { sku: 'MKA_01',  name: 'Mąka Typ 00',           base_unit: 'kg', quantity: 25.5, unit_net_cost: 3.20,  current_avco_price: 3.45  },
-            { sku: 'SER_MOZ', name: 'Ser Mozzarella',         base_unit: 'kg', quantity: 0,    unit_net_cost: 15.00, current_avco_price: 15.00 },
-            { sku: 'SOS_POM', name: 'Sos Pomidorowy Mutti',   base_unit: 'l',  quantity: 12,   unit_net_cost: 8.50,  current_avco_price: 8.90  }
-        ];
-        calculateDashboard(WarehouseState.stock);
-        renderMatrix(WarehouseState.stock);
+        WarehouseState.stock = [];
+        renderMatrix([]);
+        showConnectionError(result.message);
     }
+
+    loadDraftCount();
+}
+
+async function loadDraftCount() {
+    const res = await window.WarehouseApi.getDocumentsList({ status: 'draft' });
+    const el = document.getElementById('dashDrafts');
+    if (!el) return;
+    if (res.success && res.data) {
+        el.textContent = res.data.total ?? (res.data.documents || []).length;
+    } else {
+        el.textContent = '—';
+    }
+}
+
+function showConnectionError(msg) {
+    const container = document.getElementById('matrixBody');
+    container.innerHTML = `
+        <div class="flex flex-col items-center justify-center h-full text-center p-10">
+            <svg class="w-12 h-12 text-red-500/60 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+            </svg>
+            <p class="text-red-400 font-semibold mb-1">Brak połączenia z serwerem</p>
+            <p class="text-gray-600 text-sm max-w-md">${_esc(msg || 'Nie udało się pobrać danych magazynowych. Sprawdź połączenie i spróbuj ponownie.')}</p>
+            <button onclick="loadStock()"
+                    class="mt-4 px-4 py-2 text-sm bg-white/5 border border-white/10 rounded-lg text-gray-400
+                           hover:bg-white/10 hover:text-white transition-all">
+                Spróbuj ponownie
+            </button>
+        </div>
+    `;
+    document.getElementById('dashAlert86').textContent = '—';
+    document.getElementById('dashTotalValue').textContent = '—';
 }
 
 /**
@@ -64,21 +142,15 @@ function calculateDashboard(data) {
     data.forEach(item => {
         const qty = parseFloat(item.quantity) || 0;
         const avco = parseFloat(item.current_avco_price) || 0;
-        
-        // Alert 86 (Sold out / Brak)
         if (qty <= 0) alert86Count++;
-        
-        // Matematyka Zamrożonej Gotówki
         if (qty > 0) totalFrozenValue += (qty * avco);
     });
 
-    document.getElementById('dashAlert86').innerText = alert86Count;
+    const el86 = document.getElementById('dashAlert86');
+    el86.innerText = alert86Count;
+    el86.classList.toggle('text-red-400', alert86Count > 0);
+
     document.getElementById('dashTotalValue').innerText = formatCurrency.format(totalFrozenValue);
-    
-    // Dodajemy mały efekt wizualny jeśli braki rosną
-    if(alert86Count > 0) {
-        document.getElementById('dashAlert86').classList.add('text-red-400');
-    }
 }
 
 /**
@@ -88,8 +160,8 @@ function renderMatrix(data) {
     const container = document.getElementById('matrixBody');
     container.innerHTML = '';
 
-    if(data.length === 0) {
-        container.innerHTML = `<div class="p-6 text-center text-gray-500">Brak surowców w bazie.</div>`;
+    if (data.length === 0) {
+        container.innerHTML = `<div class="p-6 text-center text-gray-500">Brak surowców w bazie dla tego magazynu.</div>`;
         return;
     }
 
@@ -100,10 +172,8 @@ function renderMatrix(data) {
         const baseUnit   = _esc(item.base_unit || '');
         const stockValue = qty * avco;
 
-        // Alert 86: qty <= 0 → czerwony, pozytywny → szary/biały
         const qtyClass = qty <= 0 ? 'text-red-500 font-bold' : 'text-gray-200';
 
-        // Pasek stanu półki (wizualizacja DOH uproszczona; 50 j. = 100%)
         let statusPercent = Math.min((qty / 50) * 100, 100);
         let barColor      = 'bg-emerald-500';
 
@@ -111,7 +181,6 @@ function renderMatrix(data) {
         else if (qty <= 5)  { barColor = 'bg-red-500';    statusPercent = Math.max(statusPercent, 5); }
         else if (qty <= 15) { barColor = 'bg-yellow-400'; }
 
-        // Wyszarzenie wierszy z zerowym stanem (widoczne, ale stonowane)
         const rowDim = qty <= 0 ? 'opacity-50 hover:opacity-80' : '';
 
         const row = document.createElement('div');
@@ -160,31 +229,27 @@ function renderMatrix(data) {
  * 4. OBSŁUGA SMART ACTION PANEL (STREFA C)
  */
 window.triggerActionPanel = function(sku) {
-    // Aktualizacja Stanu
     WarehouseState.activeActionSku = sku;
     const item = WarehouseState.stock.find(i => i.sku === sku);
 
-    // Oczyszczanie starych podświetleń
     document.querySelectorAll('#matrixBody > div').forEach(el => {
         el.classList.remove('row-active');
         el.style.borderLeft = "none";
     });
 
-    // Podświetlenie aktywnego wiersza
     const activeRow = document.getElementById(`row-${sku}`);
-    if(activeRow) {
+    if (activeRow) {
         activeRow.classList.add('row-active');
         activeRow.style.borderLeft = "4px solid #8b5cf6";
     }
 
-    // Wstrzykiwanie widoku do Prawego Panelu
     const panel = document.getElementById('actionPanelContent');
-    
+
     panel.innerHTML = `
         <div class="animate-fade-in-up">
             <div class="bg-black/30 rounded-lg p-4 mb-6 border border-white/5">
-                <div class="text-xs text-gray-500 font-mono mb-1">${item.sku}</div>
-                <h3 class="text-xl font-bold text-white">${item.name}</h3>
+                <div class="text-xs text-gray-500 font-mono mb-1">${_esc(item.sku)}</div>
+                <h3 class="text-xl font-bold text-white">${_esc(item.name)}</h3>
                 <div class="mt-2 flex items-center justify-between">
                     <span class="text-sm text-gray-400">Stan obecny:</span>
                     <span class="text-lg font-bold ${item.quantity <= 0 ? 'text-red-500' : 'text-gray-200'}">${item.quantity}</span>
@@ -192,7 +257,7 @@ window.triggerActionPanel = function(sku) {
             </div>
 
             <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Wybierz Protokół</h4>
-            
+
             <div class="grid grid-cols-1 gap-3">
                 <button onclick="openPZModal('${item.sku}')"
                         class="w-full bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 border border-blue-500/30 rounded-lg p-4 flex items-center justify-between transition-all group active:scale-95">
@@ -204,8 +269,8 @@ window.triggerActionPanel = function(sku) {
                     </div>
                 </button>
 
-                <button onclick="openRWModal('${item.sku}')" 
-                        class="w-full bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30 rounded-lg p-4 flex items-center justify-between transition-all group">
+                <button onclick="openRWModal('${item.sku}')"
+                        class="w-full bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30 rounded-lg p-4 flex items-center justify-between transition-all group active:scale-95">
                     <div class="flex items-center gap-3">
                         <div class="bg-red-500/20 p-2 rounded-md group-hover:bg-red-500 transition-colors">
                             <svg class="w-5 h-5 text-red-400 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path></svg>
@@ -213,17 +278,21 @@ window.triggerActionPanel = function(sku) {
                         <span class="font-semibold tracking-wide">- Strata / Rozchód (RW)</span>
                     </div>
                 </button>
-                
-                <button onclick="alert('TODO: Inwentaryzacja Ślepa')" 
-                        class="w-full bg-gray-600/20 hover:bg-gray-600/40 text-gray-300 border border-gray-500/30 rounded-lg p-4 flex items-center justify-between transition-all group mt-4">
-                    <span class="font-semibold tracking-wide">Inwentaryzacja (INW)</span>
+
+                <button onclick="window.location.href='manager_in.html'"
+                        class="w-full bg-amber-600/20 hover:bg-amber-600/40 text-amber-300 border border-amber-500/30 rounded-lg p-4 flex items-center justify-between transition-all group active:scale-95 mt-4">
+                    <div class="flex items-center gap-3">
+                        <div class="bg-amber-500/20 p-2 rounded-md group-hover:bg-amber-500 transition-colors">
+                            <svg class="w-5 h-5 text-amber-300 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                        </div>
+                        <span class="font-semibold tracking-wide">Inwentaryzacja (INW)</span>
+                    </div>
                 </button>
             </div>
         </div>
     `;
 };
 
-// Pomocnicza animacja z Tailwind (dodana w locie via JS styl)
 if (!document.getElementById('animStyles')) {
     const style = document.createElement('style');
     style.id = 'animStyles';
@@ -240,9 +309,6 @@ if (!document.getElementById('animStyles')) {
 // 5. MODAL PZ — SILNIK (Przyjęcie Zewnętrzne)
 // =============================================================================
 
-/**
- * Otwiera modal PZ. Opcjonalnie pre-selektuje konkretne SKU w pierwszym wierszu.
- */
 window.openPZModal = function(skuPreselect = null) {
     const modal = document.getElementById('pzModal');
     document.getElementById('pzNotes').value = '';
@@ -266,14 +332,9 @@ window.closePZModal = function() {
     document.body.style.overflow = '';
 };
 
-/**
- * Dodaje nowy wiersz pozycji dostawy do listy w modalu.
- * @param {string} skuPreselect - opcjonalne SKU do pre-selekcji w dropdownie
- */
 window.addPZRow = function(skuPreselect = '') {
     const container = document.getElementById('pzItemsContainer');
 
-    // Budujemy opcje selecta z aktualnego stanu magazynu
     const options = WarehouseState.stock
         .map(s => `<option value="${_esc(s.sku)}" ${s.sku === skuPreselect ? 'selected' : ''}>
                        ${_esc(s.name)} (${_esc(s.sku)})
@@ -330,18 +391,12 @@ window.addPZRow = function(skuPreselect = '') {
     updatePZSummary();
 };
 
-/**
- * Usuwa wiersz pozycji klikając ikonę kosza.
- */
 window.removePZRow = function(btn) {
     btn.closest('.pz-row').remove();
     _pzSyncEmptyState();
     updatePZSummary();
 };
 
-/**
- * Przelicza i wyświetla sumę wartości dostawy w stopce modalu.
- */
 window.updatePZSummary = function() {
     let total = 0;
     document.querySelectorAll('#pzItemsContainer .pz-row').forEach(row => {
@@ -352,9 +407,6 @@ window.updatePZSummary = function() {
     document.getElementById('pzTotalValue').textContent = formatCurrency.format(total);
 };
 
-/**
- * Wysyła formularz PZ do backendu i obsługuje odpowiedź.
- */
 window.submitPZ = async function() {
     const notes = document.getElementById('pzNotes').value.trim();
     const rows  = document.querySelectorAll('#pzItemsContainer .pz-row');
@@ -383,7 +435,6 @@ window.submitPZ = async function() {
 
     if (hasError) return;
 
-    // UI: stan ładowania przycisku
     const btn = document.getElementById('pzSubmitBtn');
     btn.disabled = true;
     btn.innerHTML = `
@@ -395,7 +446,16 @@ window.submitPZ = async function() {
     `;
 
     try {
-        const result = await window.ApiClient.post(API_BASE, { action: 'PROCESS_PZ', notes, items });
+        const result = await window.WarehouseApi.postReceipt({
+            warehouse_id:       getActiveWarehouse(),
+            supplier_name:      notes || 'PZ — Control Tower',
+            supplier_invoice:   '',
+            lines: items.map((row) => ({
+                resolved_sku:   row.sku,
+                quantity:       row.qty,
+                unit_net_cost:  row.unit_net_cost,
+            })),
+        });
 
         if (result.success) {
             closePZModal();
@@ -417,13 +477,11 @@ window.submitPZ = async function() {
     }
 };
 
-/** Pokazuje/ukrywa placeholder "brak pozycji" zależnie od zawartości listy. */
 function _pzSyncEmptyState() {
     const hasRows = document.querySelectorAll('#pzItemsContainer .pz-row').length > 0;
     document.getElementById('pzEmptyState').classList.toggle('hidden', hasRows);
 }
 
-/** Mini-helper: escapuje tekst przed wstawieniem do innerHTML. */
 function _esc(str) {
     const d = document.createElement('div');
     d.appendChild(document.createTextNode(String(str)));
@@ -467,7 +525,6 @@ function showToast(type, message) {
     toast.dataset.toast = '1';
     container.appendChild(toast);
 
-    // Auto-dismiss po 5s z płynnym wyjściem
     setTimeout(() => {
         toast.style.transition = 'opacity 0.35s ease, transform 0.35s ease';
         toast.style.opacity    = '0';
@@ -480,21 +537,15 @@ function showToast(type, message) {
 // 7. SILNIK MODALU RW — Rozchód Wewnętrzny / Strata
 // =============================================================================
 
-/**
- * Otwiera modal RW. Zaludnia select surowcami z WarehouseState.stock.
- * Opcjonalnie pre-selektuje przekazane SKU (wywołanie z Action Panel).
- */
 window.openRWModal = function(skuPreselect = null) {
     const modal  = document.getElementById('rwModal');
     const select = document.getElementById('rw-item-select');
     const qty    = document.getElementById('rw-qty');
     const reason = document.getElementById('rw-reason');
 
-    // Reset formularza
     qty.value    = '';
     reason.value = reason.options[0]?.value ?? '';
 
-    // Zaludnienie selecta aktualnymi surowcami
     select.innerHTML = '<option value="">— wybierz surowiec —</option>';
     WarehouseState.stock.forEach(item => {
         const opt      = document.createElement('option');
@@ -559,9 +610,14 @@ window.saveNewItem = async function() {
         return;
     }
 
-    // Auto-generowanie SKU z nazwy jeśli pole pozostało puste
     if (!sku) {
-        sku = SliceValidator.sanitizeKey(name);
+        sku = (typeof SliceValidator !== 'undefined' && SliceValidator.sanitizeKey)
+            ? SliceValidator.sanitizeKey(name)
+            : String(name || '')
+                  .replace(/\s+/g, '_')
+                  .replace(/[^A-Za-z0-9_]/g, '')
+                  .toUpperCase()
+                  .slice(0, 64);
     }
 
     const btn = document.getElementById('btn-save-new-item');
@@ -575,13 +631,10 @@ window.saveNewItem = async function() {
     `;
 
     try {
-        const result = await window.ApiClient.post(API_BASE, {
-            action:             'ADD_ITEM',
+        const result = await window.WarehouseApi.postAddItem({
             name,
-            base_unit:          unit,
-            vat_rate_purchase:  parseInt(vat, 10),
+            base_unit: unit,
             sku,
-            ksef_code:          ksefCode,
         });
 
         if (result.success) {
@@ -604,9 +657,6 @@ window.saveNewItem = async function() {
     }
 };
 
-/**
- * Waliduje dane, wysyła POST action=PROCESS_RW, obsługuje odpowiedź.
- */
 window.submitRW = async function() {
     const sku    = document.getElementById('rw-item-select').value;
     const qty    = parseFloat(document.getElementById('rw-qty').value);
@@ -626,7 +676,12 @@ window.submitRW = async function() {
     `;
 
     try {
-        const result = await window.ApiClient.post(API_BASE, { action: 'PROCESS_RW', sku, qty, reason });
+        const result = await window.WarehouseApi.postInternalRw({
+            warehouse_id: getActiveWarehouse(),
+            sku,
+            qty,
+            reason,
+        });
 
         if (result.success) {
             closeRWModal();
