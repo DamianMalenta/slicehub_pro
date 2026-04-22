@@ -359,7 +359,7 @@ Wszystkie orphan/planned endpointy mają w nagłówku komentarz `// STATUS: …`
 
 `/_KOPALNIA_WIEDZY_LEGACY/` — **ARCHIWUM OFFLINE (od 2026-04-22)** — przeniesione poza repo na dysk backupowy właściciela, wpis w `.gitignore`. Stary kod (108 plików PHP/HTML), w tym dawny moduł `pos_kelner_STARY/`. Inwentarz historyczny: `_docs/03_MAPA_KOPALNI.md`.
 
-`/_archive/` — Niezintegrowane HTML-e magazynowe (manager_in/pz/rw, settings_*).
+`/_archive/` — **ARCHIWUM OFFLINE (od 2026-04-22)** — przeniesione poza repo (`.gitignore`). Stare monolity warehouse (manager_in/pz/rw, settings_magazyn, settings_mapping, warehouse_*.js z 9-10.04) + 3 stare API (`api_inventory.php`, `api_mapping.php` → zastąpione przez `api/warehouse/*`; `api_manager.php` → HR/finanse kadry, nie zmigrowane, patrz backlog w `00_PAMIEC_SYSTEMU.md` §15.9). Kluczowy dokument `ustalenia_2026-04-16.md` przeniesiony do `_docs/ARCHIWUM/`.
 
 **ZASADY DLA AI:**
 1. Oba foldery = **STRICTLY READ-ONLY**

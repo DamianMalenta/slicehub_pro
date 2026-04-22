@@ -6,6 +6,7 @@
 # Legacy / archiwa (trzymane offline na dysku, poza repo)
 # -----------------------------------------------------------------------------
 _KOPALNIA_WIEDZY_LEGACY/
+_archive/
 
 # -----------------------------------------------------------------------------
 # Środowisko / sekrety

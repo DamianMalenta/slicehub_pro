@@ -140,7 +140,7 @@ slicehub/
 │   ├── 05_INSTRUKCJA_FOTO_UPLOAD.md    # Limity, walidacja, brief fotograficzny
 │   └── ustalenia.md                    # Bieżący dokument roboczy (Online + Studio)
 ├── _KOPALNIA_WIEDZY_LEGACY/            # [ARCHIWUM OFFLINE — poza repo, .gitignore]
-├── _archive/                           # Zarchiwizowany stary kod (RO)
+├── _archive/                           # [ARCHIWUM OFFLINE — poza repo, .gitignore]
 ├── api/
 │   ├── auth/login.php                  # Logowanie (system / kiosk)
 │   ├── online/engine.php               # Storefront (get_menu, get_dish, cart_calculate)
@@ -757,6 +757,18 @@ Braki do uzupełnienia (z `ustalenia.md` §10):
 
 **POWIĄZANE (osobna sprawa, Faza 3)**
 - `modules/admin_hub/` — unified super-admin dashboard łączący POS/KDS/Courses/Warehouse/Settings/Tables/Studio/Online Studio. Nie blokuje Fazy 2.
+
+---
+
+## 15.9. BACKLOG — Funkcjonalności znane, nie zaimplementowane
+
+Rejestr rzeczy które istniały w legacy albo były projektowane, ale **nie są w obecnym `slicehub_pro_v2`**. Przed implementacją wymagają decyzji architektonicznej (gdzie, jaki kontrakt, jak integruje z resztą).
+
+### Moduł HR / Finanse kadry (brak w `slicehub_pro_v2`)
+- **Funkcjonalności:** wnioski finansowe (premie / zaliczki / kary), rejestr kadry (`get_team` bez ownera), powiązanie z `sh_users`.
+- **Tabela:** `sh_finance_requests` (istniała w `baza_slicehub`, nie została zmigrowana).
+- **Wzorzec historyczny:** `api_manager.php` (akcje: `get_team`, `submit_finance`) — zachowany w archiwum offline (`_archive/api_manager.php` — poza repo od 2026-04-22).
+- **Status:** oczekuje na decyzję architektoniczną. Przy reimplementacji: dedykowany moduł `api/hr/engine.php` + tabela `sh_finance_requests` zgodna z kanonem (tenant_id, idempotent migrations, audit log). Powiązanie z `core/Notifications/` (zatwierdzenie wniosku → notyfikacja).
 
 ---
 
