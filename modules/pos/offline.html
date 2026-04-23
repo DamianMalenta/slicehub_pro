@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0a0806">
+    <title>SliceHub POS — Offline</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="icon.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body {
+            height: 100%;
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: radial-gradient(ellipse at 50% 20%, #1a140d 0%, #0a0806 70%);
+            color: #f4e7d2;
+            overflow: hidden;
+        }
+        .wrap {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 32px;
+            text-align: center;
+        }
+        .mark {
+            width: 96px;
+            height: 96px;
+            border-radius: 22px;
+            background: linear-gradient(135deg, #f3c76d, #d96b3b);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            font-weight: 900;
+            color: #0a0806;
+            box-shadow: 0 10px 40px rgba(243, 199, 109, 0.25);
+            margin-bottom: 28px;
+            letter-spacing: -1px;
+        }
+        .pulse {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(234, 179, 8, 0.1);
+            border: 1px solid rgba(234, 179, 8, 0.35);
+            padding: 8px 18px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: #fde68a;
+            margin-bottom: 20px;
+        }
+        .pulse::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #fde68a;
+            animation: pulse 1.4s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(1.3); }
+        }
+        h1 {
+            font-size: 42px;
+            font-weight: 900;
+            letter-spacing: -1px;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, #f3c76d, #f4e7d2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        p.lead {
+            font-size: 18px;
+            color: rgba(244, 231, 210, 0.75);
+            max-width: 560px;
+            line-height: 1.5;
+            margin-bottom: 36px;
+        }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 14px;
+            width: 100%;
+            max-width: 720px;
+            margin-bottom: 32px;
+        }
+        .status-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(243, 199, 109, 0.15);
+            border-radius: 14px;
+            padding: 16px 14px;
+            backdrop-filter: blur(12px);
+        }
+        .status-card strong {
+            display: block;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: rgba(243, 199, 109, 0.8);
+            margin-bottom: 6px;
+        }
+        .status-card span {
+            font-size: 13px;
+            color: rgba(244, 231, 210, 0.6);
+            line-height: 1.4;
+        }
+        .actions {
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        button {
+            font-family: inherit;
+            font-weight: 800;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            padding: 14px 28px;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        button.primary {
+            background: linear-gradient(135deg, #f3c76d, #d96b3b);
+            color: #0a0806;
+            box-shadow: 0 8px 24px rgba(217, 107, 59, 0.4);
+        }
+        button.primary:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(217, 107, 59, 0.5); }
+        button.ghost {
+            background: transparent;
+            color: #f4e7d2;
+            border: 1.5px solid rgba(243, 199, 109, 0.3);
+        }
+        button.ghost:hover { border-color: #f3c76d; color: #f3c76d; }
+        .footer {
+            position: fixed;
+            bottom: 16px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 10px;
+            color: rgba(244, 231, 210, 0.35);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+        #net-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(244, 231, 210, 0.15);
+            border-radius: 100px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #f87171;
+        }
+        #net-indicator.online { color: #4ade80; border-color: rgba(74, 222, 128, 0.3); }
+        #net-indicator::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            box-shadow: 0 0 8px currentColor;
+        }
+    </style>
+</head>
+<body>
+    <div id="net-indicator">Offline</div>
+
+    <div class="wrap">
+        <div class="mark">SH</div>
+        <div class="pulse">Tryb offline</div>
+        <h1>POS jest gotowy. Czeka na sieć.</h1>
+        <p class="lead">
+            Nie widzisz tego ekranu często. Pojawia się tylko wtedy, gdy POS stracił
+            kontakt z serwerem, a cache przeglądarki nie zawiera jeszcze aplikacji.
+        </p>
+
+        <div class="status-grid">
+            <div class="status-card">
+                <strong>Zamówienia</strong>
+                <span>Dane w lokalnym buforze — zobaczysz je po powrocie sieci.</span>
+            </div>
+            <div class="status-card">
+                <strong>Płatności</strong>
+                <span>Wszystkie transakcje są zachowane — nie zostanie utracona żadna kwota.</span>
+            </div>
+            <div class="status-card">
+                <strong>Paragon</strong>
+                <span>Wydruk możliwy po przywróceniu łączności z drukarką fiskalną.</span>
+            </div>
+            <div class="status-card">
+                <strong>Magazyn</strong>
+                <span>Ostatni snapshot cen i stanów — aktualizacja po połączeniu.</span>
+            </div>
+        </div>
+
+        <div class="actions">
+            <button class="primary" onclick="location.reload()">Spróbuj ponownie</button>
+            <button class="ghost" onclick="history.back()">Wróć</button>
+        </div>
+    </div>
+
+    <div class="footer">SliceHub POS · Local-first, Cloud-synced</div>
+
+    <script>
+        const ind = document.getElementById('net-indicator');
+        function updateNet() {
+            if (navigator.onLine) {
+                ind.textContent = 'Online';
+                ind.classList.add('online');
+                setTimeout(() => location.reload(), 1200);
+            } else {
+                ind.textContent = 'Offline';
+                ind.classList.remove('online');
+            }
+        }
+        window.addEventListener('online', updateNet);
+        window.addEventListener('offline', updateNet);
+        updateNet();
+    </script>
+</body>
+</html>

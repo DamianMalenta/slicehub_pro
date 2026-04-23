@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 844" width="390" height="844">
+  <defs>
+    <linearGradient id="sNBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#120d08"/>
+      <stop offset="1" stop-color="#0a0806"/>
+    </linearGradient>
+    <linearGradient id="sNAccent" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f3c76d"/>
+      <stop offset="1" stop-color="#d96b3b"/>
+    </linearGradient>
+    <linearGradient id="sNGreen" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#16a34a"/>
+      <stop offset="1" stop-color="#15803d"/>
+    </linearGradient>
+    <radialGradient id="sNGlow" cx="0.5" cy="0.2" r="0.7">
+      <stop offset="0" stop-color="#f3c76d" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#0a0806" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="390" height="844" fill="url(#sNBg)"/>
+  <rect width="390" height="844" fill="url(#sNGlow)"/>
+
+  <!-- Status bar -->
+  <rect x="0" y="0" width="390" height="44" fill="#0a0806"/>
+  <text x="24" y="28" font-family="Inter, sans-serif" font-size="14" font-weight="700" fill="#f4e7d2">09:42</text>
+  <g transform="translate(330 16)">
+    <circle cx="0" cy="6" r="3" fill="#4ade80"/>
+    <text x="10" y="10" font-family="Inter, sans-serif" font-size="9" font-weight="800" fill="#4ade80">ONLINE</text>
+  </g>
+
+  <!-- Topbar -->
+  <rect x="0" y="44" width="390" height="60" fill="#0a0806" opacity=".7"/>
+  <rect x="0" y="103" width="390" height="1" fill="#f3c76d" opacity=".25"/>
+  <g transform="translate(16 58)">
+    <rect width="32" height="32" rx="8" fill="url(#sNAccent)"/>
+    <text x="16" y="22" text-anchor="middle" font-family="Inter, sans-serif" font-size="15" font-weight="900" fill="#0a0806">SH</text>
+  </g>
+  <text x="60" y="82" font-family="Inter, sans-serif" font-size="18" font-weight="800" fill="#f4e7d2">SliceHub POS</text>
+
+  <!-- Big CTA -->
+  <g transform="translate(16 124)">
+    <rect width="358" height="60" rx="14" fill="url(#sNGreen)"/>
+    <text x="179" y="38" text-anchor="middle" font-family="Inter, sans-serif" font-size="17" font-weight="900" fill="#fff" letter-spacing="1.5">+ NOWE ZAMÓWIENIE</text>
+  </g>
+
+  <!-- Outbox status -->
+  <g transform="translate(16 200)">
+    <rect width="358" height="50" rx="10" fill="rgba(255,255,255,0.03)" stroke="rgba(243,199,109,0.2)" stroke-width="1"/>
+    <circle cx="24" cy="25" r="5" fill="#4ade80"/>
+    <text x="40" y="22" font-family="Inter, sans-serif" font-size="11" font-weight="800" fill="#f4e7d2">Outbox: 0 pending</text>
+    <text x="40" y="37" font-family="Inter, sans-serif" font-size="9" fill="#f4e7d2" opacity=".5">Wszystko zsynchronizowane</text>
+    <text x="340" y="30" text-anchor="end" font-family="Inter, sans-serif" font-size="9" font-weight="700" fill="#f3c76d" opacity=".7">SYNC</text>
+  </g>
+
+  <!-- Section: nowe online -->
+  <text x="24" y="284" font-family="Inter, sans-serif" font-size="11" font-weight="800" fill="#f3c76d" letter-spacing="1.5">ZAMÓWIENIA</text>
+
+  <!-- Card 1 -->
+  <g transform="translate(16 300)">
+    <rect width="358" height="130" rx="12" fill="rgba(255,255,255,0.05)" stroke="#16a34a" stroke-width="1.5"/>
+    <text x="14" y="22" font-family="Inter, sans-serif" font-size="11" font-weight="800" fill="#f4e7d2">21.04 #T4</text>
+    <g transform="translate(80 6)">
+      <rect width="64" height="20" rx="4" fill="#16a34a" opacity=".25"/>
+      <text x="32" y="14" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" font-weight="800" fill="#4ade80">GOTOWE</text>
+    </g>
+    <text x="340" y="22" text-anchor="end" font-family="Inter, sans-serif" font-size="10" font-weight="800" fill="#fbbf24">WYNOS</text>
+    <text x="14" y="48" font-family="Inter, sans-serif" font-size="14" font-weight="800" fill="#f4e7d2">Klient Online</text>
+    <text x="14" y="68" font-family="Inter, sans-serif" font-size="11" fill="#f4e7d2" opacity=".6">1x Pepperoni, 1x Cola 0.5L</text>
+    <text x="14" y="100" font-family="Inter, sans-serif" font-size="10" font-weight="800" fill="#ef4444">-3329min</text>
+    <text x="344" y="100" text-anchor="end" font-family="Inter, sans-serif" font-size="22" font-weight="900" fill="#f4e7d2">35.00 zB</text>
+    <g transform="translate(14 112)">
+      <rect width="330" height="24" rx="6" fill="#f3c76d" opacity=".15"/>
+      <text x="165" y="16" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" font-weight="800" fill="#f3c76d">DO ZAPAATY</text>
+    </g>
+  </g>
+
+  <!-- Card 2 -->
+  <g transform="translate(16 446)">
+    <rect width="358" height="130" rx="12" fill="rgba(255,255,255,0.05)" stroke="#16a34a" stroke-width="1.5"/>
+    <text x="14" y="22" font-family="Inter, sans-serif" font-size="11" font-weight="800" fill="#f4e7d2">21.04 #S2</text>
+    <g transform="translate(80 6)">
+      <rect width="64" height="20" rx="4" fill="#16a34a" opacity=".25"/>
+      <text x="32" y="14" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" font-weight="800" fill="#4ade80">GOTOWE</text>
+    </g>
+    <text x="340" y="22" text-anchor="end" font-family="Inter, sans-serif" font-size="10" font-weight="800" fill="#f3c76d">SALA</text>
+    <text x="14" y="48" font-family="Inter, sans-serif" font-size="14" font-weight="800" fill="#f4e7d2">Go[ · Stolik 2</text>
+    <text x="14" y="68" font-family="Inter, sans-serif" font-size="11" fill="#f4e7d2" opacity=".6">1x Frytki, 2x Cheese Burger</text>
+    <text x="14" y="100" font-family="Inter, sans-serif" font-size="10" font-weight="800" fill="#ef4444">-3359min</text>
+    <text x="344" y="100" text-anchor="end" font-family="Inter, sans-serif" font-size="22" font-weight="900" fill="#f4e7d2">57.00 zB</text>
+    <g transform="translate(14 112)">
+      <rect width="330" height="24" rx="6" fill="#f3c76d" opacity=".15"/>
+      <text x="165" y="16" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" font-weight="800" fill="#f3c76d">DO ZAPAATY</text>
+    </g>
+  </g>
+
+  <!-- Card 3 -->
+  <g transform="translate(16 592)">
+    <rect width="358" height="130" rx="12" fill="rgba(255,255,255,0.05)" stroke="rgba(243,199,109,0.2)" stroke-width="1.5"/>
+    <text x="14" y="22" font-family="Inter, sans-serif" font-size="11" font-weight="800" fill="#f4e7d2">21.04 #D7</text>
+    <g transform="translate(80 6)">
+      <rect width="72" height="20" rx="4" fill="#fbbf24" opacity=".25"/>
+      <text x="36" y="14" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" font-weight="800" fill="#fbbf24">W KUCHNI</text>
+    </g>
+    <text x="340" y="22" text-anchor="end" font-family="Inter, sans-serif" font-size="10" font-weight="800" fill="#a78bfa">DOWÓZ</text>
+    <text x="14" y="48" font-family="Inter, sans-serif" font-size="14" font-weight="800" fill="#f4e7d2">+48 501 234 567</text>
+    <text x="14" y="68" font-family="Inter, sans-serif" font-size="11" fill="#f4e7d2" opacity=".6">ul. DBuga 42/8, 80-001 GdaDsk</text>
+    <text x="344" y="100" text-anchor="end" font-family="Inter, sans-serif" font-size="22" font-weight="900" fill="#f4e7d2">89.00 zB</text>
+  </g>
+
+  <!-- Bottom caption -->
+  <text x="195" y="820" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" font-weight="700" fill="#f3c76d" opacity=".4" letter-spacing="2">LOCAL-FIRST · CLOUD-SYNCED</text>
+</svg>

@@ -1,0 +1,28 @@
+# SliceHub POS — MIME types dla PWA assetów.
+# Bez tego Chrome potrafi marudzić w Console o "unexpected MIME type" przy
+# manifeście i service workerze, a niektóre przeglądarki mobilne w ogóle
+# odmawiają instalacji PWA, jeśli manifest nie ma poprawnego Content-Type.
+
+<IfModule mod_mime.c>
+    AddType application/manifest+json .webmanifest
+    AddType image/svg+xml             .svg
+    AddType text/javascript           .js
+    AddType text/cache-manifest       .appcache
+</IfModule>
+
+# Service worker MUSI być serwowany bez agresywnego cache'u, inaczej
+# browser nie zobaczy nowej wersji sw.js przez godziny.
+<IfModule mod_headers.c>
+    <FilesMatch "^sw\.js$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+        Header set Service-Worker-Allowed "/slicehub/modules/pos/"
+    </FilesMatch>
+
+    # Manifest też lepiej bez twardego cache — zmiany w shortcuts/screenshots
+    # powinny się propagować szybko.
+    <FilesMatch "\.webmanifest$">
+        Header set Cache-Control "no-cache, must-revalidate"
+    </FilesMatch>
+</IfModule>

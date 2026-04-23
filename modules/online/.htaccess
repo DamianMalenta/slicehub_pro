@@ -1,0 +1,22 @@
+# SliceHub Online — MIME types dla PWA assetów.
+# Analogicznie jak w modules/pos. Chrome i Safari chcą prawidłowych Content-Type
+# dla manifestu i service workera, inaczej instalacja PWA się blokuje.
+
+<IfModule mod_mime.c>
+    AddType application/manifest+json .webmanifest
+    AddType image/svg+xml             .svg
+    AddType text/javascript           .js
+</IfModule>
+
+<IfModule mod_headers.c>
+    <FilesMatch "^sw\.js$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+        Header set Service-Worker-Allowed "/slicehub/modules/online/"
+    </FilesMatch>
+
+    <FilesMatch "\.webmanifest$">
+        Header set Cache-Control "no-cache, must-revalidate"
+    </FilesMatch>
+</IfModule>

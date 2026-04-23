@@ -4,8 +4,22 @@
 > Jeśli coś jest tu napisane — to jest prawda. Jeśli nie ma — idź do `_docs/`, `database/migrations/` lub `core/`.
 > **NIGDY nie zgaduj.** Nigdy nie wymyślaj tabel, kolumn, akcji API. Nigdy nie zmieniaj struktury bazy bez wyraźnej zgody użytkownika.
 
-**Kompilacja:** 2026-04-19
-**Źródła:** `START_TUTAJ.md`, `01_KONSTYTUCJA.md`, `02_ARCHITEKTURA.md`, `04_BAZA_DANYCH.md`, `05_INSTRUKCJA_FOTO_UPLOAD.md`, `ustalenia.md`, `LEGACY_BUSINESS_LOGIC_EXTRACTION.md`, `OPTIMIZED_CORE_LOGIC_V2.md`, `.cursorrules`, migracje 001–032.
+**Kompilacja:** 2026-04-23
+**Źródła:** `START_TUTAJ.md`, `01_KONSTYTUCJA.md`, `02_ARCHITEKTURA.md`, `04_BAZA_DANYCH.md`, `05_INSTRUKCJA_FOTO_UPLOAD.md`, `ustalenia.md`, `LEGACY_BUSINESS_LOGIC_EXTRACTION.md`, `OPTIMIZED_CORE_LOGIC_V2.md`, `.cursorrules`, migracje 001–040.
+
+---
+
+## 🧊 FREEZE NOTICE — OFFLINE-FIRST POS (2026-04-23)
+
+> **UWAGA:** Moduł **Offline-First POS jest zamrożony w połowie prac** (ukończono P1, P2, P3, **P3.5 i P4**). AI ma **kategoryczny zakaz** refaktoryzacji, usuwania plików SW oraz edycji tabel offline (`sh_pos_terminals`, `sh_pos_sync_cursors`, `sh_pos_op_log`, `sh_pos_server_events`). **Instrukcja wznowienia prac** znajduje się w dokumencie [`17_OFFLINE_POS_BACKLOG.md`](./17_OFFLINE_POS_BACKLOG.md).
+>
+> **Pliki pod ochroną** (pełna lista w §2 backlogu): `api/pos/sync.php`, `database/migrations/039_resilient_pos.sql`, `database/migrations/040_pos_server_events.sql`, `modules/pos/sw.js`, `modules/pos/manifest.webmanifest`, `modules/pos/offline.html`, `modules/pos/.htaccess`, `modules/pos/js/pos_sw_register.js`, `modules/pos/js/PosLocalStore.js`, `modules/pos/js/PosSyncEngine.js`, `modules/pos/js/PosApiOutbox.js`, wszystkie ikony/screenshoty POS + `modules/online/sw.js`, `modules/online/manifest.webmanifest`, `modules/online/.htaccess`.
+>
+> **Zamrożone fazy** (NIE implementować bez jawnego rozmrożenia): P4.5 (worker_pos_fanout), P5 (multi-device), P6 (conflict UI + fantom cards), P7 (offline PIN auth), P8 (SSE + demo).
+>
+> **Zakaz dotyczy też** dodawania nowych akcji do `api/pos/sync.php` oraz bezpośredniego `INSERT INTO sh_pos_server_events` z `api/online/*`, `api/kds/*`, `api/backoffice/*`. Gdy wznowimy — producenci pójdą przez `sh_event_outbox` + nowy `scripts/worker_pos_fanout.php` (Anti-Corruption Layer), co chroni Prawo VI § 4 Konstytucji (Klocki Lego) i izolację domen.
+>
+> **Kto rozmraża:** wyłącznie właściciel produktu, jawną decyzją w chacie. AI nie rozmraża samodzielnie.
 
 ---
 
@@ -252,7 +266,7 @@ slicehub/
 | WH | `sh_product_mapping` | | external_name → sku (AutoScan faktur) |
 | WH | `sh_doc_sequences` | `(tenant_id, doc_type, doc_date)` | numerator dokumentów |
 
-### Migracje (stan 038)
+### Migracje (stan 040 · 🧊 039/040 freeze — patrz `17_OFFLINE_POS_BACKLOG.md`)
 
 | Nr | Co |
 |----|-----|
@@ -290,6 +304,8 @@ slicehub/
 | 036 | **Asset Display Name backfill** (wcześniej numerowane 032_asset_display_name) — UPDATE na `sh_assets.display_name`: mapowanie ascii_key → polska nazwa dla istniejących rekordów. Kolumna jest tworzona przez m032_asset_library_organizer; ta migracja to wyłącznie backfill. |
 | 037 | **POS / Dine-In Foundation** — `sh_zones`, `sh_tables` (floor-plan coords, QR, merging), `sh_order_logs` (audit trail używany przez `OrderStateMachine`). Rozszerzenia: `sh_order_payments` +created_at/+payment_method/+user_id; `sh_orders` +table_id/+waiter_id/+guest_count/+split_type/+qr_session_token +2 FK; `sh_order_lines` +course_number/+fired_at (multi-course pacing). Anti-ghosting: generated column `_active_table_guard` + UNIQUE INDEX (max 1 aktywne zamówienie per stolik). Wcześniej ta logika była wyłącznie w `scripts/setup_enterprise_tables.php` (uruchamianym ręcznie); od m037 jest w kanonicznym chain migracji. Skrypt PHP zostaje jako awaryjny helper. |
 | 038 | **Drop Legacy Inventory Docs** — DROP `wh_inventory_docs` + `wh_inventory_doc_items`. Obie tabele były martwe od m001 (nigdy nie referencowane w kodzie PHP, zero wierszy w bazie). Kanon inwentaryzacji: `wh_documents` (type=INW) + `wh_document_lines`. |
+| 039 | 🧊 **Resilient POS Foundation (P1–P3)** — `sh_pos_terminals` (rejestracja urządzeń per tenant), `sh_pos_sync_cursors` (stan synchronizacji per terminal), `sh_pos_op_log` (idempotent log operacji z UUID v7 PK). Obsługuje push klient→serwer. **FREEZE 2026-04-23** — edycja tylko przez rozmrożenie + nowa migracja. Spec: `_docs/16_RESILIENT_POS.md`. |
+| 040 | 🧊 **Resilient POS · Phase 3.5 — Server→Client delta stream** — `sh_pos_server_events` (append-only log eventów serwer→POS, retention 7 dni) + rozszerzenie `sh_pos_sync_cursors` o `pull_events_total` / `pull_last_count` / `pull_last_fetched_at`. **FREEZE 2026-04-23.** Po rozmrożeniu — producenci publikują przez `sh_event_outbox` (m026) + nowy `scripts/worker_pos_fanout.php` (P4.5). Zakaz bezpośredniego `INSERT` z innych modułów. |
 
 ---
 
@@ -679,6 +695,8 @@ Braki do uzupełnienia (z `ustalenia.md` §10):
 12. ❌ **ZAKAZ** silent tenant default (`$tenant_id ?? 1`) — musi być jawny.
 13. ❌ **ZAKAZ** interpolacji zmiennych do SQL — tylko prepared statements.
 14. ❌ **ZAKAZ** JOIN-a / UPDATE-a po numerycznym `id` między silosami prefiksowymi (`sh_` ↔ `sys_` ↔ `wh_`). Cross-silo most WYŁĄCZNIE przez `sku` / `ascii_key` + `tenant_id` po obu stronach. Wewnątrz jednego silosu numeryczne FK są OK. Patrz `.cursorrules §9`.
+15. 🧊 **ZAKAZ** refaktoryzacji / edycji plików Offline-First POS zamrożonych 2026-04-23. Pełna lista w `_docs/17_OFFLINE_POS_BACKLOG.md` §2. Rozmraża wyłącznie właściciel produktu.
+16. 🧊 **ZAKAZ** bezpośredniego `INSERT INTO sh_pos_server_events` z modułów spoza POS (storefront, KDS, admin, gateway). Producenci publikują event do `sh_event_outbox` (m026); translator `worker_pos_fanout.php` (P4.5 — zamrożone) mapuje na stream POS. Monolit ≠ architektura.
 
 ---
 

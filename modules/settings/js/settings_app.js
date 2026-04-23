@@ -16,16 +16,77 @@
     // ─── API client ──────────────────────────────────────────────────────
     const API_URL = '../../api/settings/engine.php';
 
+    // Akcje read-only — backend (settings_csrfCheck) nie wymaga od nich
+    // headera X-CSRF-Token. Trzymamy to zsynchronizowane z listą w engine.php.
+    const CSRF_READONLY = new Set([
+        'csrf_token',
+        'integrations_list', 'webhooks_list', 'api_keys_list',
+        'dlq_list', 'inbound_list', 'health_summary',
+        'notifications_channels_list', 'notifications_routes_get',
+        'notifications_templates_get',
+    ]);
+
+    let _csrfToken = null;
+
+    async function fetchCsrfToken() {
+        const resp = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ action: 'csrf_token' }),
+        });
+        const data = await resp.json();
+        if (!resp.ok || data.success === false) {
+            throw new Error(data?.message || `CSRF bootstrap failed (HTTP ${resp.status})`);
+        }
+        _csrfToken = data.data?.token || null;
+        return _csrfToken;
+    }
+
+    async function ensureCsrfToken() {
+        if (_csrfToken) return _csrfToken;
+        return fetchCsrfToken();
+    }
+
     async function callApi(action, payload = {}) {
         const body = Object.assign({ action }, payload);
+        const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+
+        if (!CSRF_READONLY.has(action)) {
+            try {
+                const tok = await ensureCsrfToken();
+                if (tok) headers['X-CSRF-Token'] = tok;
+            } catch (e) {
+                console.warn('[settings] CSRF bootstrap failed, mutation may 403', e);
+            }
+        }
+
+        const doFetch = async () => fetch(API_URL, {
+            method: 'POST',
+            headers,
+            credentials: 'same-origin',
+            body: JSON.stringify(body),
+        });
+
         try {
-            const resp = await fetch(API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                credentials: 'same-origin',
-                body: JSON.stringify(body),
-            });
-            const data = await resp.json();
+            let resp = await doFetch();
+            let data = await resp.json();
+
+            // Retry raz, jeśli token wygasł/sesja wymieniona (403 z komunikatem CSRF).
+            const csrfFail = resp.status === 403
+                && !CSRF_READONLY.has(action)
+                && typeof data?.message === 'string'
+                && /csrf/i.test(data.message);
+            if (csrfFail) {
+                _csrfToken = null;
+                const freshTok = await fetchCsrfToken();
+                if (freshTok) {
+                    headers['X-CSRF-Token'] = freshTok;
+                    resp = await doFetch();
+                    data = await resp.json();
+                }
+            }
+
             if (!resp.ok || data.success === false) {
                 const err = new Error(data.message || `HTTP ${resp.status}`);
                 err.httpCode = resp.status;
@@ -112,6 +173,7 @@
             case 'webhooks':      return renderWebhooks();
             case 'api_keys':      return renderApiKeys();
             case 'dlq':           return renderDlq();
+            case 'inbound':       return renderInbound();
             case 'health':        return renderHealth();
             case 'notifications': return renderNotificationsPane();
         }
@@ -755,6 +817,93 @@
     }
 
     // ═══════════════════════════════════════════════════════════════════
+    // INBOUND PANE (m029: sh_inbound_callbacks)
+    // ═══════════════════════════════════════════════════════════════════
+
+    async function renderInbound() {
+        const pane = $('#st-pane-inbound');
+        pane.innerHTML = '<div class="st-empty"><i class="fa-solid fa-spinner fa-spin"></i><p>Loading…</p></div>';
+
+        try {
+            const data = await callApi('inbound_list', { limit: 100 });
+
+            pane.innerHTML = '';
+
+            const counts = data.counts_24h || {};
+            const countsStr = ['processed','pending','rejected','ignored','error']
+                .map(k => `${k}: ${counts[k] || 0}`)
+                .join(' · ');
+
+            pane.appendChild(el('div', { class: 'st-section-head' },
+                el('h2', {}, 'Inbound Callbacks'),
+                el('span', { class: 'st-subtitle' },
+                    `3rd-party → api/integrations/inbound.php — ostatnie 100 · 24h: ${countsStr}`)
+            ));
+
+            if (data.table_ready === false) {
+                pane.appendChild(el('div', { class: 'st-empty' },
+                    el('i', { class: 'fa-solid fa-database' }),
+                    el('p', {}, data.note || 'Tabela sh_inbound_callbacks nie istnieje.'),
+                    el('p', { class: 'st-subtitle' }, 'Uruchom: php scripts/apply_migrations_chain.php (m029_infrastructure_completion).')
+                ));
+                return;
+            }
+
+            if (!data.rows.length) {
+                pane.appendChild(el('div', { class: 'st-empty' },
+                    el('i', { class: 'fa-solid fa-inbox' }),
+                    el('p', {}, 'Brak inbound callbacków.'),
+                    el('p', { class: 'st-subtitle' }, 'Gdy 3rd-party (Papu/Dotykacka/…) zacznie pushować status-update, pojawi się tutaj.')
+                ));
+                return;
+            }
+
+            data.rows.forEach(r => pane.appendChild(renderInboundCard(r)));
+        } catch (e) {
+            pane.innerHTML = '';
+            pane.appendChild(el('div', { class: 'st-empty' },
+                el('i', { class: 'fa-solid fa-triangle-exclamation' }),
+                el('p', {}, 'Failed to load: ' + e.message)));
+        }
+    }
+
+    function renderInboundCard(r) {
+        const statusClass = {
+            processed: 'st-chip--ok',
+            pending:   'st-chip--warn',
+            rejected:  'st-chip--err',
+            error:     'st-chip--err',
+            ignored:   'st-chip',
+        }[r.status] || 'st-chip';
+
+        const sigChip = r.signature_verified == 1
+            ? el('span', { class: 'st-chip st-chip--ok', title: 'HMAC/OAuth signature verified by adapter' }, '🔏 signed')
+            : el('span', { class: 'st-chip st-chip--err', title: 'Signature NOT verified — potential bad-sig attack' }, '⚠ unsigned');
+
+        return el('div', { class: 'st-card' },
+            el('div', { class: 'st-card__main' },
+                el('h3', {},
+                    el('i', { class: 'fa-solid fa-inbox' }),
+                    ' ', (r.event_type || 'unknown'),
+                    el('span', { class: 'st-chip st-chip--accent' }, r.provider || '?'),
+                    el('span', { class: `st-chip ${statusClass}` }, r.status),
+                    sigChip
+                ),
+                el('div', { class: 'st-meta', html:
+                    (r.external_ref ? `Ext ref: <code>${escHtml(r.external_ref)}</code>` : 'Ext ref: —') +
+                    (r.external_event_id ? ` · Ext evt: <code>${escHtml(r.external_event_id)}</code>` : '') +
+                    (r.mapped_order_id ? ` · Mapped: <code>sh_orders#${r.mapped_order_id}</code>` : '') +
+                    `<br>Received: ${fmtDate(r.received_at)}` +
+                    (r.processed_at ? ` · Processed: ${fmtDate(r.processed_at)}` : '') +
+                    (r.remote_ip ? ` · IP: <code>${escHtml(r.remote_ip)}</code>` : '') +
+                    (r.error_message ? `<br>Error: <code>${escHtml(r.error_message.substring(0, 300))}</code>` : '') +
+                    (r.raw_body_preview ? `<br>Body: <code>${escHtml((r.raw_body_preview || '').substring(0, 240))}${(r.raw_body_preview||'').length>=240?'…':''}</code>` : '')
+                })
+            )
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
     // HEALTH PANE
     // ═══════════════════════════════════════════════════════════════════
 
@@ -764,6 +913,7 @@
         try {
             const s = await callApi('health_summary');
             updateVaultBadge(s.vault_ready);
+            updatePlaintextBanner(s.plaintext);
 
             pane.innerHTML = '';
             pane.appendChild(el('div', { class: 'st-section-head' },
@@ -812,6 +962,33 @@
             ));
 
             pane.appendChild(grid);
+
+            // Inbound snapshot (24h)
+            const inb = s.inbound;
+            if (inb && !inb.error) {
+                pane.appendChild(el('h3', { style: 'margin-top:24px' }, 'Inbound Callbacks (24h)'));
+
+                const tots = inb.totals || {};
+                const allZero = Object.values(tots).every(v => !v);
+                const badSig = inb.bad_signature_count || 0;
+
+                pane.appendChild(el('div', { class: 'st-card' },
+                    el('div', { class: 'st-card__main' },
+                        el('h3', {},
+                            el('i', { class: 'fa-solid fa-inbox' }), ' Last 24h',
+                            badSig > 0
+                                ? el('span', { class: 'st-chip st-chip--err', title: 'Requests z niezweryfikowaną sygnaturą — patrz tab Inbound' }, `${badSig} unsigned`)
+                                : el('span', { class: 'st-chip st-chip--ok' }, 'signatures ok')
+                        ),
+                        el('div', { class: 'st-meta', html: allZero
+                            ? '<span class="st-subtitle">Żadnych callbacków w ostatnich 24h.</span>'
+                            : ['processed','pending','rejected','ignored','error']
+                                .map(k => `<span class="st-chip st-chip--${k==='processed'?'ok':(k==='rejected'||k==='error'?'err':(k==='pending'?'warn':''))}">${k}: ${tots[k] || 0}</span>`)
+                                .join(' ')
+                        })
+                    )
+                ));
+            }
 
             // Integrations table
             pane.appendChild(el('h3', { style: 'margin-top:24px' }, 'Integrations Health'));
@@ -878,6 +1055,53 @@
             : 'CredentialVault DISABLED — credentials stored as plaintext. Set SLICEHUB_VAULT_KEY or install libsodium.';
     }
 
+    /**
+     * Banner „X plaintext credentials — uruchom rotate_credentials_to_vault.php".
+     * Wstrzykiwany nad <main>. Zero = ukryty; >0 = sticky warning do czasu rotacji.
+     */
+    function updatePlaintextBanner(plaintext) {
+        const host = $('#st-global-banners');
+        if (!host) return;
+        host.innerHTML = '';
+        if (!plaintext || plaintext.error) return;
+
+        const total = (plaintext.total | 0);
+        if (total <= 0) return;
+
+        const cmd = plaintext.rotate_cmd || 'php scripts/rotate_credentials_to_vault.php';
+        const parts = [];
+        if (plaintext.integrations) parts.push(`${plaintext.integrations} integration${plaintext.integrations > 1 ? 's' : ''}`);
+        if (plaintext.webhooks)     parts.push(`${plaintext.webhooks} webhook${plaintext.webhooks > 1 ? 's' : ''}`);
+
+        const banner = el('div', { class: 'st-banner st-banner--warn', role: 'alert' },
+            el('div', { class: 'st-banner__main' },
+                el('i', { class: 'fa-solid fa-triangle-exclamation' }),
+                ' ',
+                el('b', {}, `${total} plaintext credential${total > 1 ? 's' : ''} w bazie`),
+                ' — ',
+                parts.join(' + '),
+                '. Zaszyfruj przez: ',
+                el('code', {}, cmd)
+            ),
+            el('div', { class: 'st-banner__actions' },
+                el('button', { class: 'st-btn st-btn--sm', onClick: async () => {
+                    try { await navigator.clipboard.writeText(cmd); toast('Komenda skopiowana.', 'ok'); }
+                    catch { toast('Copy failed — skopiuj ręcznie.', 'err'); }
+                }}, el('i', { class: 'fa-solid fa-copy' }), ' Copy cmd')
+            )
+        );
+        host.appendChild(banner);
+    }
+
+    /** Lekki healthcheck odpalany raz przy boot — tylko żeby zaktualizować banner plaintext. */
+    async function bootHealthCheck() {
+        try {
+            const s = await callApi('health_summary');
+            updateVaultBadge(s.vault_ready);
+            updatePlaintextBanner(s.plaintext);
+        } catch { /* cicho — banner po prostu nie wskoczy */ }
+    }
+
     // ─── Boot ───────────────────────────────────────────────────────────
     document.addEventListener('DOMContentLoaded', () => {
         // Expose globals for sub-modules (notifications.js)
@@ -889,6 +1113,13 @@
 
         $$('.st-tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
         $('#st-refresh-btn').addEventListener('click', () => loadTab(state.activeTab));
+
+        // Prefetch CSRF tokena — tanie, znika race przy pierwszym save/toggle.
+        fetchCsrfToken().catch(() => { /* zostawiamy — callApi ma retry */ });
+
+        // Global snapshot: plaintext banner + vault badge bez czekania na tab Health.
+        bootHealthCheck();
+
         switchTab('integrations');
     });
 

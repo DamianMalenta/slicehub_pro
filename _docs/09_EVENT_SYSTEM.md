@@ -349,3 +349,193 @@ Po uruchomieniu `scripts/setup_database.php` migracja 026 się wykona. Wtedy:
 2. Sprawdź `SELECT * FROM sh_event_outbox ORDER BY id DESC LIMIT 10;`.
 3. Bump order w KDS — każdy bump tworzy nowy event.
 4. Do momentu uruchomienia worker'a (Sesja 7.3) wszystkie eventy zostają w status='pending' — to oczekiwane zachowanie.
+
+---
+
+## 13. Cron / worker deployment (PROD)
+
+> **Dopisane w Hotfix 7.6.1 (W-2).** Wcześniej workery istniały, ale nie było jednego miejsca, które mówi **jak je uruchomić na świeżym deployu**. Bez crona / systemd eventy gniją w `sh_event_outbox` (status='pending' na zawsze) → KDS nie dostanie ticketów, 3rd-party nie dostanie pushów, klient nie dostanie SMSa.
+
+### 13.1. Przegląd workerów
+
+| Worker | Co konsumuje | Co robi | Zalecana częstotliwość |
+|---|---|---|---|
+| `scripts/worker_webhooks.php` | `sh_event_outbox` | HMAC-signed HTTP POST do `sh_webhook_endpoints` (generic subskrybenci) | co 1 min (cron) lub `--loop --sleep=5` (systemd) |
+| `scripts/worker_integrations.php` | `sh_event_outbox` | dispatch do adapterów 3rd-party (Papu/Dotykacka/GastroSoft) | co 1 min lub `--loop --sleep=10` |
+| `scripts/worker_notifications.php` | `sh_notification_deliveries` | SMS/email/push (m033 Notification Director) | co 1 min lub `--loop --sleep=5` |
+
+Wszystkie trzy wspierają ten sam zestaw flag:
+
+```
+--loop           continuous loop (exit tylko na SIGTERM/SIGINT)
+--sleep=N        sekundy między batchami w loop mode (default: 5–10)
+--batch=N        max eventów/rekordów per batch (default: 50)
+-v               verbose (debug output)
+--dry-run        symulacja bez HTTP / SMS / push
+```
+
+Wszystkie mają **PID-file lock** → dwóch równoległych instancji tego samego workera się nie uruchomi (patrz exit code `2`). Dzięki temu można bezpiecznie wpiąć do crona co minutę + trzymać loop w systemd — kolizja nie zdupluje dispatchu.
+
+### 13.2. Wymagane zmienne środowiskowe
+
+CLI nie ma sesji PHP, więc konfiguracja musi być w ENV albo `.env` ładowanym przez `db_config.php`:
+
+```
+# Encryption key dla CredentialVault (XChaCha20-Poly1305). 32 bajty, base64.
+# Wygeneruj raz: php scripts/bootstrap_vault.php
+SLICEHUB_VAULT_KEY=<base64-32-bytes>
+
+# DB (standard)
+SLICEHUB_DB_HOST=localhost
+SLICEHUB_DB_NAME=slicehub_pro_v2
+SLICEHUB_DB_USER=slicehub
+SLICEHUB_DB_PASS=<secret>
+```
+
+**Bez `SLICEHUB_VAULT_KEY`** workery wystartują, ale:
+- `worker_integrations.php` nie rozszyfruje credentials → adaptery polecą w 401/403 z providerem
+- `worker_webhooks.php` nie odszyfruje `sh_webhook_endpoints.secret` → HMAC będzie liczony na placeholderze → subskrybent odrzuci signature.
+
+Panel Settings pokaże `vault_ready: false` (badge „PLAINTEXT" w topbarze) + banner „X plaintext credentials — uruchom rotate_credentials_to_vault.php" (tab Health / boot).
+
+### 13.3. Wariant A — crontab (minimalny deploy)
+
+Najprostsze, działa na każdym hostingu z PHP CLI. Plik `/etc/cron.d/slicehub`:
+
+```cron
+# SliceHub — event workers (co 1 min)
+# User = właściciel katalogu (nie root!). SHELL/PATH konieczne dla composera/PHP.
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+
+# Outbound webhooks (sh_event_outbox → sh_webhook_endpoints)
+*  *  *  *  *  slicehub  cd /var/www/slicehub && /usr/bin/php scripts/worker_webhooks.php     >> logs/webhooks.log 2>&1
+
+# Integrations (sh_event_outbox → 3rd-party adapters)
+*  *  *  *  *  slicehub  cd /var/www/slicehub && /usr/bin/php scripts/worker_integrations.php >> logs/integrations.log 2>&1
+
+# Notifications (m033: sh_notification_deliveries → SMS/email/push)
+*  *  *  *  *  slicehub  cd /var/www/slicehub && /usr/bin/php scripts/worker_notifications.php >> logs/notifications.log 2>&1
+
+# Rotacja kredków ciszej (raz dziennie check, runner robi dry-run bez flagi --apply)
+17 3  *  *  *  slicehub  cd /var/www/slicehub && /usr/bin/php scripts/rotate_credentials_to_vault.php --dry-run >> logs/rotate-check.log 2>&1
+```
+
+> **Uwaga:** `logs/` musi istnieć i być writable dla usera `slicehub`. Utwórz raz: `mkdir -p logs && chown slicehub:slicehub logs`.
+
+**Rotacja logów** (`/etc/logrotate.d/slicehub`):
+
+```
+/var/www/slicehub/logs/*.log {
+    daily
+    rotate 14
+    compress
+    missingok
+    notifempty
+    copytruncate
+}
+```
+
+### 13.4. Wariant B — systemd (rekomendowany PROD)
+
+Lepszy niż cron gdy: chcesz niższe opóźnienie (loop co 5s zamiast 1 min), health-check przez `systemctl status`, automatyczny restart po crashu, structured journald logi.
+
+Trzy unity (jeden per worker) + wspólny drop-in z ENV.
+
+**`/etc/systemd/system/slicehub-webhooks.service`**:
+
+```ini
+[Unit]
+Description=SliceHub Webhook Worker (sh_event_outbox → HTTP POST)
+After=network.target mariadb.service
+Wants=mariadb.service
+
+[Service]
+Type=simple
+User=slicehub
+Group=slicehub
+WorkingDirectory=/var/www/slicehub
+EnvironmentFile=/etc/slicehub/env
+ExecStart=/usr/bin/php /var/www/slicehub/scripts/worker_webhooks.php --loop --sleep=5
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/www/slicehub/logs/webhooks.log
+StandardError=append:/var/www/slicehub/logs/webhooks.log
+
+# Hardening — worker nie potrzebuje niczego poza katalogiem projektu.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/www/slicehub/logs /var/www/slicehub/tmp
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**`/etc/systemd/system/slicehub-integrations.service`** (kopia powyższego, zmień `ExecStart` + paths):
+
+```ini
+ExecStart=/usr/bin/php /var/www/slicehub/scripts/worker_integrations.php --loop --sleep=10
+StandardOutput=append:/var/www/slicehub/logs/integrations.log
+StandardError=append:/var/www/slicehub/logs/integrations.log
+```
+
+**`/etc/systemd/system/slicehub-notifications.service`** (analogicznie):
+
+```ini
+ExecStart=/usr/bin/php /var/www/slicehub/scripts/worker_notifications.php --loop --sleep=5
+StandardOutput=append:/var/www/slicehub/logs/notifications.log
+StandardError=append:/var/www/slicehub/logs/notifications.log
+```
+
+**`/etc/slicehub/env`** (0600, owner=root):
+
+```
+SLICEHUB_VAULT_KEY=<base64-32-bytes>
+SLICEHUB_DB_HOST=localhost
+SLICEHUB_DB_NAME=slicehub_pro_v2
+SLICEHUB_DB_USER=slicehub
+SLICEHUB_DB_PASS=<secret>
+```
+
+**Aktywacja:**
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now slicehub-webhooks slicehub-integrations slicehub-notifications
+sudo systemctl status slicehub-webhooks
+journalctl -u slicehub-webhooks -f
+```
+
+### 13.5. Health monitoring
+
+Po uruchomieniu weryfikuj raz dziennie (albo w Settings → Health):
+
+```sql
+-- Nie powinno rosnąć bez kontroli — jeśli rośnie, worker nie biegnie.
+SELECT status, COUNT(*) FROM sh_event_outbox
+WHERE created_at > NOW() - INTERVAL 1 HOUR
+GROUP BY status;
+-- Oczekiwane: delivered >> pending, dead = 0 lub stałe.
+```
+
+```bash
+# Żywotność workera (systemd):
+systemctl is-active slicehub-webhooks slicehub-integrations slicehub-notifications
+# Powinno zwrócić 3x "active".
+```
+
+Settings Panel → tab **Health** pokazuje:
+- `Outbox Events (7d)` — rozbicie per status (`delivered`/`failed`/`dead`/`pending`)
+- `Inbound Callbacks (24h)` — liczniki + `bad_signature_count` (atak / zła konfig)
+- `Credential Vault` — badge `Ready` / `Disabled`
+
+### 13.6. Troubleshooting
+
+| Objaw | Przyczyna | Fix |
+|---|---|---|
+| `sh_event_outbox.status='pending'` rośnie, nic się nie dispatchuje | Worker nie biegnie | `systemctl status slicehub-webhooks` lub sprawdź cron log |
+| `sh_webhook_deliveries.http_code=401` u wszystkich subskrybentów | `SLICEHUB_VAULT_KEY` nie ustawiony → HMAC liczony na placeholderze | Ustaw ENV + restart workera |
+| `worker_webhooks` exit code `2` w logu | Inna instancja workera ciągle biegnie (PID-lock) | Normalne przy cronie co minutę + loop w systemd — wybierz **jedno** źródło uruchamiania |
+| Banner „X plaintext credentials" w panelu | W DB są integracje/webhooki zapisane zanim vault był dostępny | `php scripts/rotate_credentials_to_vault.php --apply` (po dry-run) |
+| Tab Inbound pusty, `table_ready: false` | Migracja `029_infrastructure_completion.sql` niezaaplikowana | `php scripts/apply_migrations_chain.php` |

@@ -4,15 +4,70 @@
   "start_url": "/slicehub/modules/online/index.html",
   "scope": "/slicehub/modules/online/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
   "background_color": "#0a0806",
   "theme_color": "#0a0806",
-  "description": "Cinematic storefront for SliceHub online orders.",
+  "description": "SliceHub Online — zamów ulubioną pizzę, śledź kuriera na żywo, zapisz ulubione na przyszłość.",
+  "lang": "pl-PL",
+  "dir": "ltr",
+  "categories": ["food", "lifestyle", "shopping"],
+  "id": "/slicehub/modules/online/",
+  "prefer_related_applications": false,
   "icons": [
+    {
+      "src": "/slicehub/modules/online/icon.svg",
+      "sizes": "192x192 256x256 384x384 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
     {
       "src": "/slicehub/modules/online/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/slicehub/modules/online/icon-maskable.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/slicehub/modules/online/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Nowe zamówienie",
+      "short_name": "Zamów",
+      "description": "Przejdź od razu do menu i zamów pizzę",
+      "url": "/slicehub/modules/online/index.html?intent=order"
+    },
+    {
+      "name": "Śledź zamówienie",
+      "short_name": "Śledź",
+      "description": "Pokaż status i kuriera na mapie",
+      "url": "/slicehub/modules/online/track.html"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/slicehub/modules/online/screenshots/wide.svg",
+      "sizes": "1280x720",
+      "type": "image/svg+xml",
+      "form_factor": "wide",
+      "label": "SliceHub Online — ekran powitalny z CTA do zamówienia i śledzenia kuriera."
+    },
+    {
+      "src": "/slicehub/modules/online/screenshots/narrow.svg",
+      "sizes": "390x844",
+      "type": "image/svg+xml",
+      "form_factor": "narrow",
+      "label": "SliceHub Online — widok mobilny: hero, przyciski i lista benefitów."
     }
   ]
 }

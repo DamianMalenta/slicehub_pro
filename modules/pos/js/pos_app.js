@@ -2,7 +2,11 @@
  * SLICEHUB POS V2 — Main Application Orchestrator
  * Full Battlefield + Order Creator with all legacy business logic.
  */
-import PosAPI from './pos_api.js';
+// P4: PosApiOutbox wrapper (domyślny export = proxy z identycznym API jak PosAPI).
+// Mutacje (processOrder, accept, settle, cancel, ...) lecą przez outbox gdy offline
+// lub sieć padnie mid-live — UI dostaje response z { queued: true } i może zachować
+// spójność. Reads (getOrders, getInitData, ...) idą bez zmian przez oryginalny PosAPI.
+import PosAPI from './PosApiOutbox.js';
 import PosCart from './pos_cart.js';
 import PosUI from './pos_ui.js';
 
@@ -284,6 +288,24 @@ const PosApp = (() => {
     function _startPolling() {
         if (_pollTimer) clearInterval(_pollTimer);
         _pollTimer = setInterval(_fetchOrders, POLL_INTERVAL);
+
+        // P4: po udanym replayu outboxu (offline → online) UI refetchuje listę,
+        // żeby pokazać realne server-side IDs i statusy zamiast optymistycznych.
+        window.addEventListener('slicehub-pos:outbox-replayed', () => {
+            _fetchOrders();
+        });
+
+        // P3.5: gdy serwer wypchnie nowe zdarzenie przez pull_since (np. storefront
+        // utworzył zamówienie, KDS zmienił status), odświeżamy listę.
+        window.addEventListener('slicehub-pos:server-event', (e) => {
+            const ev = e.detail || {};
+            if (!ev.event_type) return;
+            // Order-related events — reaguj tylko na ten typ, żeby nie robić
+            // niepotrzebnych fetchów przy menu.updated czy system.test.
+            if (ev.event_type === 'order.created' || ev.event_type === 'order.status') {
+                _fetchOrders();
+            }
+        });
     }
 
     // =========================================================================

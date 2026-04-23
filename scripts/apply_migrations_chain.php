@@ -64,6 +64,8 @@ $chain = [
     '036_asset_display_name.sql',
     '037_pos_foundation.sql',
     '038_drop_legacy_inventory_docs.sql',
+    '039_resilient_pos.sql',
+    '040_pos_server_events.sql',
 ];
 
 if ($include015) {

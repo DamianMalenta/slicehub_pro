@@ -1,0 +1,205 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+  <defs>
+    <linearGradient id="sWBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#120d08"/>
+      <stop offset="1" stop-color="#0a0806"/>
+    </linearGradient>
+    <linearGradient id="sWAccent" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f3c76d"/>
+      <stop offset="1" stop-color="#d96b3b"/>
+    </linearGradient>
+    <linearGradient id="sWGreen" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#16a34a"/>
+      <stop offset="1" stop-color="#15803d"/>
+    </linearGradient>
+    <linearGradient id="sWRed" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ef4444"/>
+      <stop offset="1" stop-color="#b91c1c"/>
+    </linearGradient>
+    <radialGradient id="sWGlow" cx="0.5" cy="0.2" r="0.7">
+      <stop offset="0" stop-color="#f3c76d" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#0a0806" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1280" height="720" fill="url(#sWBg)"/>
+  <rect width="1280" height="720" fill="url(#sWGlow)"/>
+
+  <!-- Topbar -->
+  <rect x="0" y="0" width="1280" height="64" fill="#0a0806" opacity=".7"/>
+  <rect x="0" y="63" width="1280" height="1" fill="#f3c76d" opacity=".25"/>
+  <g transform="translate(24 16)">
+    <rect width="32" height="32" rx="8" fill="url(#sWAccent)"/>
+    <text x="16" y="22" text-anchor="middle" font-family="Inter, sans-serif" font-size="15" font-weight="900" fill="#0a0806">SH</text>
+  </g>
+  <text x="72" y="38" font-family="Inter, sans-serif" font-size="17" font-weight="800" fill="#f4e7d2">SliceHub</text>
+  <g transform="translate(520 16)">
+    <rect width="120" height="32" rx="8" fill="#f3c76d" opacity=".15"/>
+    <rect width="4" height="32" rx="2" fill="url(#sWAccent)"/>
+    <text x="60" y="22" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" font-weight="700" fill="#f3c76d">Zamówienia</text>
+  </g>
+  <g transform="translate(660 16)" opacity=".5">
+    <text x="0" y="22" font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#f4e7d2">Sala</text>
+  </g>
+  <g transform="translate(720 16)" opacity=".5">
+    <text x="0" y="22" font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#f4e7d2">Kursy</text>
+  </g>
+  <g transform="translate(780 16)" opacity=".5">
+    <text x="0" y="22" font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#f4e7d2">Mapa</text>
+  </g>
+
+  <!-- Connectivity pill -->
+  <g transform="translate(1160 14)">
+    <rect width="90" height="22" rx="11" fill="rgba(0,0,0,0.5)" stroke="#4ade80" stroke-width="1" stroke-opacity=".4"/>
+    <circle cx="12" cy="11" r="3" fill="#4ade80"/>
+    <text x="52" y="15" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" font-weight="800" fill="#4ade80" letter-spacing="1">ONLINE</text>
+  </g>
+
+  <!-- Row 2: Actions -->
+  <g transform="translate(24 80)">
+    <rect width="90" height="36" rx="10" fill="url(#sWGreen)"/>
+    <text x="45" y="23" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" font-weight="800" fill="#fff">+ NOWE</text>
+  </g>
+  <g transform="translate(130 80)">
+    <rect width="90" height="36" rx="10" fill="none" stroke="#f3c76d" stroke-width="1.5" stroke-opacity=".4"/>
+    <text x="45" y="23" text-anchor="middle" font-family="Inter, sans-serif" font-size="12" font-weight="700" fill="#f4e7d2">PULPIT</text>
+  </g>
+  <g transform="translate(545 80)">
+    <rect width="170" height="36" rx="10" fill="url(#sWRed)"/>
+    <text x="85" y="23" text-anchor="middle" font-family="Inter, sans-serif" font-size="12" font-weight="900" fill="#fff" letter-spacing="1">PANIC (+20M)</text>
+  </g>
+  <g transform="translate(1155 80)">
+    <rect width="95" height="36" rx="10" fill="none" stroke="#f3c76d" stroke-width="1.5" stroke-opacity=".4"/>
+    <text x="47" y="23" text-anchor="middle" font-family="Inter, sans-serif" font-size="12" font-weight="800" fill="#f3c76d">KURSY <tspan font-weight="900">3</tspan></text>
+  </g>
+
+  <!-- Sidebar Left: Online orders -->
+  <g transform="translate(16 140)">
+    <rect width="220" height="560" rx="14" fill="rgba(255,255,255,0.03)" stroke="rgba(243,199,109,0.15)" stroke-width="1"/>
+    <text x="16" y="28" font-family="Inter, sans-serif" font-size="10" font-weight="800" fill="#f3c76d" letter-spacing="1.2">NOWE ONLINE</text>
+    <g transform="translate(12 48)" opacity=".55">
+      <rect width="196" height="28" rx="6" fill="rgba(255,255,255,0.03)"/>
+      <text x="14" y="18" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="#f4e7d2">DOWÓZ</text>
+    </g>
+    <g transform="translate(12 84)" opacity=".55">
+      <rect width="196" height="28" rx="6" fill="rgba(255,255,255,0.03)"/>
+      <text x="14" y="18" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="#f4e7d2">WYNOS</text>
+    </g>
+    <g transform="translate(12 120)" opacity=".55">
+      <rect width="196" height="28" rx="6" fill="rgba(255,255,255,0.03)"/>
+      <text x="14" y="18" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="#f4e7d2">SALA</text>
+    </g>
+  </g>
+
+  <!-- Columns: DOWÓZ -->
+  <g transform="translate(256 140)">
+    <rect width="220" height="560" rx="14" fill="rgba(255,255,255,0.03)" stroke="rgba(243,199,109,0.15)" stroke-width="1"/>
+    <g transform="translate(16 20)">
+      <text font-family="Inter, sans-serif" font-size="14" font-weight="800" fill="#f4e7d2">DOWÓZ</text>
+      <rect x="60" y="-12" width="20" height="18" rx="9" fill="#f3c76d" opacity=".2"/>
+      <text x="70" y="2" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" font-weight="800" fill="#f3c76d">0</text>
+    </g>
+    <g transform="translate(40 240)" opacity=".5">
+      <text font-family="Inter, sans-serif" font-size="14" font-weight="600" fill="#f4e7d2" text-anchor="middle" x="70">BRAK</text>
+    </g>
+  </g>
+
+  <!-- Column: WYNOS -->
+  <g transform="translate(496 140)">
+    <rect width="220" height="560" rx="14" fill="rgba(255,255,255,0.03)" stroke="rgba(243,199,109,0.15)" stroke-width="1"/>
+    <g transform="translate(16 20)">
+      <text font-family="Inter, sans-serif" font-size="14" font-weight="800" fill="#f4e7d2">WYNOS</text>
+      <rect x="70" y="-12" width="20" height="18" rx="9" fill="#f3c76d" opacity=".2"/>
+      <text x="80" y="2" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" font-weight="800" fill="#f3c76d">3</text>
+    </g>
+    <!-- card 1 -->
+    <g transform="translate(12 52)">
+      <rect width="196" height="150" rx="10" fill="rgba(255,255,255,0.05)" stroke="#16a34a" stroke-width="1.5"/>
+      <text x="12" y="20" font-family="Inter, sans-serif" font-size="11" font-weight="800" fill="#f4e7d2">21.04 #T4</text>
+      <g transform="translate(80 6)">
+        <rect width="52" height="18" rx="4" fill="#16a34a" opacity=".25"/>
+        <text x="26" y="12" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" font-weight="800" fill="#4ade80">GOTOWE</text>
+      </g>
+      <text x="140" y="20" font-family="Inter, sans-serif" font-size="9" font-weight="700" fill="#fbbf24">WD</text>
+      <text x="12" y="42" font-family="Inter, sans-serif" font-size="12" font-weight="700" fill="#f4e7d2">Klient Online</text>
+      <text x="12" y="58" font-family="Inter, sans-serif" font-size="9" fill="#f4e7d2" opacity=".6">1x Pepperoni, 1x Cola 0.5L</text>
+      <text x="184" y="82" text-anchor="end" font-family="Inter, sans-serif" font-size="10" font-weight="800" fill="#ef4444">-3329min</text>
+      <text x="184" y="104" text-anchor="end" font-family="Inter, sans-serif" font-size="18" font-weight="900" fill="#f4e7d2">35.00 zB</text>
+      <g transform="translate(12 120)">
+        <rect width="172" height="22" rx="5" fill="#f3c76d" opacity=".15"/>
+        <text x="86" y="15" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" font-weight="800" fill="#f3c76d">DO ZAPAATY</text>
+      </g>
+    </g>
+    <!-- card 2 -->
+    <g transform="translate(12 216)">
+      <rect width="196" height="150" rx="10" fill="rgba(255,255,255,0.05)" stroke="#16a34a" stroke-width="1.5"/>
+      <text x="12" y="20" font-family="Inter, sans-serif" font-size="11" font-weight="800" fill="#f4e7d2">21.04 #T5</text>
+      <g transform="translate(80 6)">
+        <rect width="52" height="18" rx="4" fill="#16a34a" opacity=".25"/>
+        <text x="26" y="12" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" font-weight="800" fill="#4ade80">GOTOWE</text>
+      </g>
+      <text x="12" y="42" font-family="Inter, sans-serif" font-size="12" font-weight="700" fill="#f4e7d2">Klient Online</text>
+      <text x="12" y="58" font-family="Inter, sans-serif" font-size="9" fill="#f4e7d2" opacity=".6">2x Zestaw Burger+Frytki+Napój</text>
+      <text x="184" y="82" text-anchor="end" font-family="Inter, sans-serif" font-size="10" font-weight="800" fill="#ef4444">-3329min</text>
+      <text x="184" y="104" text-anchor="end" font-family="Inter, sans-serif" font-size="18" font-weight="900" fill="#f4e7d2">32.00 zB</text>
+      <g transform="translate(12 120)">
+        <rect width="172" height="22" rx="5" fill="#ef4444" opacity=".2"/>
+        <text x="86" y="15" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" font-weight="800" fill="#f87171">OPAACONE ONLINE</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Column: SALA -->
+  <g transform="translate(736 140)">
+    <rect width="220" height="560" rx="14" fill="rgba(255,255,255,0.03)" stroke="rgba(243,199,109,0.15)" stroke-width="1"/>
+    <g transform="translate(16 20)">
+      <text font-family="Inter, sans-serif" font-size="14" font-weight="800" fill="#f4e7d2">SALA</text>
+      <rect x="52" y="-12" width="20" height="18" rx="9" fill="#f3c76d" opacity=".2"/>
+      <text x="62" y="2" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" font-weight="800" fill="#f3c76d">3</text>
+    </g>
+    <g transform="translate(12 52)">
+      <rect width="196" height="150" rx="10" fill="rgba(255,255,255,0.05)" stroke="#16a34a" stroke-width="1.5"/>
+      <text x="12" y="20" font-family="Inter, sans-serif" font-size="11" font-weight="800" fill="#f4e7d2">21.04 #S2</text>
+      <g transform="translate(80 6)">
+        <rect width="52" height="18" rx="4" fill="#16a34a" opacity=".25"/>
+        <text x="26" y="12" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" font-weight="800" fill="#4ade80">GOTOWE</text>
+      </g>
+      <text x="12" y="42" font-family="Inter, sans-serif" font-size="12" font-weight="700" fill="#f4e7d2">Go[</text>
+      <text x="12" y="58" font-family="Inter, sans-serif" font-size="9" fill="#f4e7d2" opacity=".6">1x Frytki, 2x Cheese Burger</text>
+      <text x="184" y="82" text-anchor="end" font-family="Inter, sans-serif" font-size="10" font-weight="800" fill="#ef4444">-3359min</text>
+      <text x="184" y="104" text-anchor="end" font-family="Inter, sans-serif" font-size="18" font-weight="900" fill="#f4e7d2">57.00 zB</text>
+      <g transform="translate(12 120)">
+        <rect width="172" height="22" rx="5" fill="#f3c76d" opacity=".15"/>
+        <text x="86" y="15" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" font-weight="800" fill="#f3c76d">DO ZAPAATY</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Sidebar Right: Flota -->
+  <g transform="translate(976 140)">
+    <rect width="288" height="560" rx="14" fill="rgba(255,255,255,0.03)" stroke="rgba(243,199,109,0.15)" stroke-width="1"/>
+    <text x="16" y="28" font-family="Inter, sans-serif" font-size="10" font-weight="800" fill="#f3c76d" letter-spacing="1.2">FLOTA</text>
+    <g transform="translate(16 44)">
+      <rect width="256" height="40" rx="8" fill="rgba(255,255,255,0.03)"/>
+      <circle cx="20" cy="20" r="8" fill="#ef4444"/>
+      <text x="36" y="18" font-family="Inter, sans-serif" font-size="12" font-weight="700" fill="#f4e7d2">Kierowca Tomek</text>
+      <text x="36" y="32" font-family="Inter, sans-serif" font-size="9" fill="#f87171" opacity=".8">BUSY</text>
+    </g>
+    <g transform="translate(16 92)">
+      <rect width="256" height="40" rx="8" fill="rgba(255,255,255,0.03)"/>
+      <circle cx="20" cy="20" r="8" fill="#4ade80"/>
+      <text x="36" y="18" font-family="Inter, sans-serif" font-size="12" font-weight="700" fill="#f4e7d2">Kierowca Ania</text>
+      <text x="36" y="32" font-family="Inter, sans-serif" font-size="9" fill="#4ade80" opacity=".8">AVAILABLE</text>
+    </g>
+    <text x="16" y="184" font-family="Inter, sans-serif" font-size="10" font-weight="800" fill="#f3c76d" letter-spacing="1.2">KELNERZY</text>
+    <g transform="translate(16 200)">
+      <rect width="256" height="40" rx="8" fill="rgba(255,255,255,0.03)"/>
+      <circle cx="20" cy="20" r="8" fill="#fbbf24"/>
+      <text x="36" y="18" font-family="Inter, sans-serif" font-size="12" font-weight="700" fill="#f4e7d2">Kelner Marek</text>
+      <text x="36" y="32" font-family="Inter, sans-serif" font-size="9" fill="#fbbf24" opacity=".8">PRZERWA</text>
+    </g>
+  </g>
+
+  <!-- Bottom caption -->
+  <text x="640" y="700" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="#f3c76d" opacity=".4" letter-spacing="3">SLICEHUB POS · LOCAL-FIRST, CLOUD-SYNCED</text>
+</svg>

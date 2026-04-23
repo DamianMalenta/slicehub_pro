@@ -87,7 +87,7 @@ function settings_csrfCheck(string $action): void
 {
     $readOnly = [
         'integrations_list', 'webhooks_list', 'api_keys_list',
-        'dlq_list', 'health_summary', 'csrf_token',
+        'dlq_list', 'inbound_list', 'health_summary', 'csrf_token',
         'notifications_channels_list', 'notifications_routes_get',
         'notifications_templates_get',
     ];
@@ -811,6 +811,8 @@ try {
                 'webhooks' => null,
                 'integrations' => null,
                 'api_keys' => null,
+                'inbound' => null,
+                'plaintext' => null,
             ];
 
             // Outbox stats
@@ -859,7 +861,148 @@ try {
                 $summary['api_keys'] = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
             } catch (PDOException $e) {}
 
+            // Inbound callbacks (m029) — 24h snapshot per provider+status + signature failures.
+            // Tabela może być jeszcze niezmigrowana na starych środowiskach → graceful fallback.
+            try {
+                $stmt = $pdo->prepare(
+                    "SELECT provider, status, COUNT(*) AS n
+                     FROM sh_inbound_callbacks
+                     WHERE tenant_id = :tid AND received_at > NOW() - INTERVAL 24 HOUR
+                     GROUP BY provider, status"
+                );
+                $stmt->execute([':tid' => $tenant_id]);
+                $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+                $byProvider = [];
+                $totals = ['pending' => 0, 'processed' => 0, 'rejected' => 0, 'ignored' => 0, 'error' => 0];
+                foreach ($rows as $r) {
+                    $p = (string)$r['provider'];
+                    $s = (string)$r['status'];
+                    $n = (int)$r['n'];
+                    $byProvider[$p] = $byProvider[$p] ?? [];
+                    $byProvider[$p][$s] = $n;
+                    if (isset($totals[$s])) $totals[$s] += $n;
+                }
+
+                // Niezweryfikowane signature w ostatnich 24h — wczesny sygnał ataku / złej konfiguracji.
+                $stmt2 = $pdo->prepare(
+                    "SELECT COUNT(*) FROM sh_inbound_callbacks
+                     WHERE tenant_id = :tid
+                       AND received_at > NOW() - INTERVAL 24 HOUR
+                       AND signature_verified = 0"
+                );
+                $stmt2->execute([':tid' => $tenant_id]);
+                $badSig = (int)$stmt2->fetchColumn();
+
+                $summary['inbound'] = [
+                    'window_hours'         => 24,
+                    'totals'               => $totals,
+                    'by_provider'          => $byProvider,
+                    'bad_signature_count'  => $badSig,
+                ];
+            } catch (PDOException $e) {
+                $summary['inbound'] = ['error' => 'table_missing_or_legacy'];
+            }
+
+            // Plaintext credentials counter — driver banneru „rotate now".
+            // Liczy integracje + webhooki gdzie credential/secret nie jest w formacie vault:v1:...
+            // (pusty sekret = nie liczymy, niektóre webhooki nie mają secretu).
+            try {
+                // Wire-level prefix zdefiniowany w CredentialVault::encrypt() ("vault:v1:<base64>").
+                // Stała sama jest private → duplikujemy format tutaj zgodnie z kontraktem klasy.
+                $vaultPrefix = 'vault:v1:';
+
+                $q1 = $pdo->prepare(
+                    "SELECT COUNT(*) FROM sh_tenant_integrations
+                     WHERE tenant_id = :tid
+                       AND credentials IS NOT NULL AND credentials <> ''
+                       AND credentials NOT LIKE :pfx"
+                );
+                $q1->execute([':tid' => $tenant_id, ':pfx' => $vaultPrefix . '%']);
+                $intPlain = (int)$q1->fetchColumn();
+
+                $q2 = $pdo->prepare(
+                    "SELECT COUNT(*) FROM sh_webhook_endpoints
+                     WHERE tenant_id = :tid
+                       AND secret IS NOT NULL AND secret <> ''
+                       AND secret NOT LIKE :pfx"
+                );
+                $q2->execute([':tid' => $tenant_id, ':pfx' => $vaultPrefix . '%']);
+                $whPlain = (int)$q2->fetchColumn();
+
+                $summary['plaintext'] = [
+                    'integrations' => $intPlain,
+                    'webhooks'     => $whPlain,
+                    'total'        => $intPlain + $whPlain,
+                    'rotate_cmd'   => 'php scripts/rotate_credentials_to_vault.php',
+                ];
+            } catch (PDOException $e) {
+                $summary['plaintext'] = ['error' => 'query_failed'];
+            }
+
             settings_respond(true, $summary);
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        // INBOUND CALLBACKS (m029) — read-only observability
+        // ════════════════════════════════════════════════════════════════
+
+        case 'inbound_list': {
+            // Brak wymogu audytu — read-only. Tabela może nie istnieć na
+            // środowiskach bez m029 → graceful "empty".
+            $limit    = max(1, min(500, (int)($input['limit'] ?? 100)));
+            $provider = trim((string)($input['provider'] ?? ''));
+            $status   = trim((string)($input['status'] ?? ''));
+
+            $where = ['tenant_id = :tid OR tenant_id IS NULL'];
+            $params = [':tid' => $tenant_id];
+            if ($provider !== '') {
+                $where[] = 'provider = :prov';
+                $params[':prov'] = $provider;
+            }
+            if ($status !== '' && in_array($status, ['pending','processed','rejected','ignored','error'], true)) {
+                $where[] = 'status = :st';
+                $params[':st'] = $status;
+            }
+
+            try {
+                $sql = "SELECT id, tenant_id, integration_id, provider, external_event_id,
+                               external_ref, event_type, mapped_order_id,
+                               signature_verified, status, error_message,
+                               remote_ip, received_at, processed_at,
+                               LEFT(COALESCE(raw_body, ''), 400) AS raw_body_preview
+                        FROM sh_inbound_callbacks
+                        WHERE " . implode(' AND ', $where) . "
+                        ORDER BY received_at DESC
+                        LIMIT " . $limit;
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute($params);
+                $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+                // Count per status dla headera UI.
+                $cnt = $pdo->prepare(
+                    "SELECT status, COUNT(*) AS n
+                     FROM sh_inbound_callbacks
+                     WHERE tenant_id = :tid
+                       AND received_at > NOW() - INTERVAL 24 HOUR
+                     GROUP BY status"
+                );
+                $cnt->execute([':tid' => $tenant_id]);
+                $counts24h = $cnt->fetchAll(PDO::FETCH_KEY_PAIR) ?: [];
+
+                settings_respond(true, [
+                    'rows'       => $rows,
+                    'counts_24h' => $counts24h,
+                    'table_ready'=> true,
+                ]);
+            } catch (PDOException $e) {
+                settings_respond(true, [
+                    'rows'       => [],
+                    'counts_24h' => [],
+                    'table_ready'=> false,
+                    'note'       => 'Tabela sh_inbound_callbacks niedostępna — uruchom migration 029.',
+                ]);
+            }
         }
 
         // ════════════════════════════════════════════════════════════════

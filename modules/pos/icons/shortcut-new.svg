@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <defs>
+    <linearGradient id="bgShortcutNew" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#16a34a"/>
+      <stop offset="1" stop-color="#15803d"/>
+    </linearGradient>
+    <filter id="shNewGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2"/>
+    </filter>
+  </defs>
+  <rect width="96" height="96" rx="20" fill="url(#bgShortcutNew)"/>
+  <circle cx="48" cy="48" r="28" fill="#ffffff" opacity=".12"/>
+  <g stroke="#ffffff" stroke-width="8" stroke-linecap="round">
+    <line x1="48" y1="28" x2="48" y2="68"/>
+    <line x1="28" y1="48" x2="68" y2="48"/>
+  </g>
+</svg>

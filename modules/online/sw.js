@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'slicehub-online-v1';
+const CACHE_VERSION = 'slicehub-online-v2';
 const OFFLINE_URL = '/slicehub/modules/online/offline.html';
 const PRECACHE = [
   '/slicehub/modules/online/index.html',
@@ -6,6 +6,9 @@ const PRECACHE = [
   '/slicehub/modules/online/offline.html',
   '/slicehub/modules/online/manifest.webmanifest',
   '/slicehub/modules/online/icon.svg',
+  '/slicehub/modules/online/icon-maskable.svg',
+  '/slicehub/modules/online/screenshots/wide.svg',
+  '/slicehub/modules/online/screenshots/narrow.svg',
   '/slicehub/modules/online/css/style.css',
   '/slicehub/modules/online/css/track.css',
   '/slicehub/modules/online/css/doorway.css',

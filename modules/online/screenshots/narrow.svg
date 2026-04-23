@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 844" width="390" height="844">
+  <defs>
+    <linearGradient id="oNBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a110a"/>
+      <stop offset="1" stop-color="#0a0806"/>
+    </linearGradient>
+    <linearGradient id="oNAccent" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f3c76d"/>
+      <stop offset="1" stop-color="#d96b3b"/>
+    </linearGradient>
+    <radialGradient id="oNGlow" cx="0.5" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#f3c76d" stop-opacity=".14"/>
+      <stop offset="1" stop-color="#0a0806" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="390" height="844" fill="url(#oNBg)"/>
+  <rect width="390" height="844" fill="url(#oNGlow)"/>
+
+  <!-- Status bar -->
+  <rect x="0" y="0" width="390" height="44" fill="#0a0806"/>
+  <text x="24" y="28" font-family="Inter, sans-serif" font-size="14" font-weight="700" fill="#f4e7d2">09:42</text>
+
+  <!-- Topbar -->
+  <rect x="0" y="44" width="390" height="60" fill="#0a0806" opacity=".85"/>
+  <g transform="translate(24 58)">
+    <circle cx="16" cy="16" r="16" fill="url(#oNAccent)"/>
+    <text x="48" y="22" font-family="Inter, sans-serif" font-size="16" font-weight="900" fill="#f4e7d2">SliceHub</text>
+  </g>
+
+  <!-- Pizza art -->
+  <g transform="translate(105 140)">
+    <circle cx="90" cy="90" r="90" fill="#0a0806" opacity=".4"/>
+    <circle cx="90" cy="90" r="82" fill="#f3c76d"/>
+    <path d="M90 22a68 68 0 0 1 68 68H22a68 68 0 0 1 68-68Z" fill="#d96b3b"/>
+    <circle cx="62" cy="72" r="8" fill="#8f2f1c"/>
+    <circle cx="116" cy="60" r="8" fill="#8f2f1c"/>
+    <circle cx="102" cy="110" r="8" fill="#8f2f1c"/>
+    <path d="M90 34 22 144h136L90 34Z" fill="none" stroke="#fff3d4" stroke-width="10" stroke-linejoin="round" opacity=".8"/>
+  </g>
+
+  <!-- Hero text -->
+  <g transform="translate(40 360)">
+    <text font-family="Inter, serif" font-size="34" font-weight="900" fill="#f4e7d2">Pizza, kt�ra</text>
+    <text y="40" font-family="Inter, serif" font-size="34" font-weight="900" fill="#f3c76d">przyjedzie</text>
+    <text y="80" font-family="Inter, serif" font-size="34" font-weight="900" fill="#f3c76d">do Ciebie.</text>
+    <text y="125" font-family="Inter, sans-serif" font-size="13" fill="#f4e7d2" opacity=".7">CiepBa. Punktualna. Z wBasnych rk</text>
+    <text y="142" font-family="Inter, sans-serif" font-size="13" fill="#f4e7d2" opacity=".7">kucharza.</text>
+  </g>
+
+  <!-- CTA -->
+  <g transform="translate(40 540)">
+    <rect width="310" height="56" rx="14" fill="url(#oNAccent)"/>
+    <text x="155" y="36" text-anchor="middle" font-family="Inter, sans-serif" font-size="15" font-weight="900" fill="#0a0806" letter-spacing="1.5">ROZPOCZNIJ ZAM�WIENIE</text>
+  </g>
+  <g transform="translate(40 612)">
+    <rect width="310" height="44" rx="12" fill="none" stroke="#f3c76d" stroke-width="1.5" stroke-opacity=".4"/>
+    <text x="155" y="29" text-anchor="middle" font-family="Inter, sans-serif" font-size="12" font-weight="700" fill="#f4e7d2" letter-spacing="1">ZLEDy DOSTAW</text>
+  </g>
+
+  <!-- Features -->
+  <g transform="translate(40 700)">
+    <g>
+      <text font-family="Inter, sans-serif" font-size="9" font-weight="800" fill="#f3c76d" letter-spacing="1.5">TEMPO</text>
+      <text y="16" font-family="Inter, sans-serif" font-size="12" font-weight="700" fill="#f4e7d2">35 min do drzwi</text>
+    </g>
+    <g transform="translate(0 40)">
+      <text font-family="Inter, sans-serif" font-size="9" font-weight="800" fill="#f3c76d" letter-spacing="1.5">TRASA NA {YWO</text>
+      <text y="16" font-family="Inter, sans-serif" font-size="12" font-weight="700" fill="#f4e7d2">Widzisz kuriera na mapie</text>
+    </g>
+    <g transform="translate(0 80)">
+      <text font-family="Inter, sans-serif" font-size="9" font-weight="800" fill="#f3c76d" letter-spacing="1.5">PAMITAMY</text>
+      <text y="16" font-family="Inter, sans-serif" font-size="12" font-weight="700" fill="#f4e7d2">Ulubione w 2 klikach</text>
+    </g>
+  </g>
+</svg>

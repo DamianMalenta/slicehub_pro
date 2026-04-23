@@ -1,0 +1,75 @@
+{
+  "name": "SliceHub POS",
+  "short_name": "SH POS",
+  "start_url": "/slicehub/modules/pos/index.html",
+  "scope": "/slicehub/modules/pos/",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone", "minimal-ui"],
+  "orientation": "landscape",
+  "background_color": "#0a0806",
+  "theme_color": "#0a0806",
+  "description": "SliceHub Resilient POS — lokalny-pierwszy, online-drugi. Przyjmuje zamówienia nawet bez sieci.",
+  "lang": "pl-PL",
+  "dir": "ltr",
+  "categories": ["business", "productivity", "food"],
+  "id": "/slicehub/modules/pos/",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/slicehub/modules/pos/icon.svg",
+      "sizes": "192x192 256x256 384x384 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/slicehub/modules/pos/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/slicehub/modules/pos/icon-maskable.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/slicehub/modules/pos/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Nowe zamówienie",
+      "short_name": "Nowe",
+      "description": "Utwórz nowe zamówienie sala/wynos/dowóz",
+      "url": "/slicehub/modules/pos/index.html?intent=new_order",
+      "icons": [
+        {
+          "src": "/slicehub/modules/pos/icons/shortcut-new.svg",
+          "sizes": "96x96",
+          "type": "image/svg+xml",
+          "purpose": "any"
+        }
+      ]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/slicehub/modules/pos/screenshots/wide.svg",
+      "sizes": "1280x720",
+      "type": "image/svg+xml",
+      "form_factor": "wide",
+      "label": "SliceHub POS — widok zamówień (sala, wynos, dowóz) z pasem floty i kelnerów."
+    },
+    {
+      "src": "/slicehub/modules/pos/screenshots/narrow.svg",
+      "sizes": "390x844",
+      "type": "image/svg+xml",
+      "form_factor": "narrow",
+      "label": "SliceHub POS — widok mobilny z dużym przyciskiem nowego zamówienia i statusem outbox."
+    }
+  ]
+}

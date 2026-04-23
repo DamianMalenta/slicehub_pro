@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="posBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#120d08"/>
+      <stop offset="1" stop-color="#0a0806"/>
+    </linearGradient>
+    <linearGradient id="posAccent" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f3c76d"/>
+      <stop offset="1" stop-color="#d96b3b"/>
+    </linearGradient>
+    <radialGradient id="posGlow" cx="0.5" cy="0.42" r="0.58">
+      <stop offset="0" stop-color="#f3c76d" stop-opacity=".35"/>
+      <stop offset="1" stop-color="#0a0806" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#posBg)"/>
+  <rect width="512" height="512" rx="96" fill="url(#posGlow)"/>
+  <g transform="translate(88 96)">
+    <rect x="0" y="64" width="336" height="240" rx="24" fill="#1a140d" stroke="url(#posAccent)" stroke-width="6"/>
+    <rect x="22" y="86" width="292" height="132" rx="12" fill="#0a0806"/>
+    <rect x="40" y="104" width="70" height="14" rx="4" fill="url(#posAccent)"/>
+    <rect x="40" y="128" width="130" height="10" rx="3" fill="#f3c76d" opacity=".55"/>
+    <rect x="40" y="148" width="90" height="10" rx="3" fill="#f3c76d" opacity=".4"/>
+    <rect x="40" y="178" width="170" height="18" rx="5" fill="url(#posAccent)"/>
+    <g transform="translate(38 236)">
+      <circle cx="18" cy="18" r="14" fill="#f3c76d" opacity=".7"/>
+      <circle cx="58" cy="18" r="14" fill="#f3c76d" opacity=".5"/>
+      <circle cx="98" cy="18" r="14" fill="#f3c76d" opacity=".35"/>
+      <rect x="140" y="4" width="152" height="28" rx="8" fill="url(#posAccent)"/>
+      <text x="216" y="24" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="18" font-weight="800" fill="#0a0806">ENTER</text>
+    </g>
+  </g>
+  <g transform="translate(72 358)">
+    <text x="0" y="40" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="54" font-weight="900" fill="url(#posAccent)" letter-spacing="-1">SH</text>
+    <text x="115" y="40" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="34" font-weight="700" fill="#f3c76d" opacity=".85" letter-spacing="2">POS</text>
+  </g>
+</svg>
