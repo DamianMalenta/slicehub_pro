@@ -204,9 +204,9 @@ Panel ustawień tenanta, konfiguracja integracji, webhooków, stawek VAT, zmiano
 | Ścieżka | Status |
 |---------|--------|
 | `payments/settle.php` | 🟡 ORPHAN — split-tender settlement, dubluje `pos/engine.php#settle_and_close` |
-| `staff/clock.php` | 🟡 PLANNED — clock-in/out (ClockEngine) |
-| `staff/payroll.php` | 🟡 PLANNED — payroll single user (PayrollEngine) |
-| `dashboard/team_payroll.php` | 🟡 PLANNED — team payroll (TeamPayrollEngine) |
+| `backoffice/hr/engine.php` | ✅ **LIVE** — action router HR: `clock_in` / `clock_out` / `clock_status` (Faza 3A, m041–m044). Kanoniczny endpoint silosu HR. |
+| `staff/payroll.php` | 🟡 PLANNED — payroll single user (PayrollEngine). *TODO Faza 3B:* przenieść do `api/backoffice/hr/engine.php` jako akcja `payroll_user`. |
+| `dashboard/team_payroll.php` | 🟡 PLANNED — team payroll (TeamPayrollEngine). *TODO Faza 3B:* akcja `payroll_team` w `api/backoffice/hr/engine.php`. |
 | `reports/food_cost.php` | 🟡 PLANNED — food cost + margin (FoodCostEngine) |
 
 #### Gateway / Integrations (m026–m029)
@@ -258,12 +258,14 @@ Wszystkie orphan/planned endpointy mają w nagłówku komentarz `// STATUS: …`
 | `KorEngine.php` | Korekta |
 | `MmEngine.php` | Międzymagazynowe |
 
-#### Payroll & staff
+#### Backoffice HR & Payroll (Faza 3A)
 | Plik | Rola |
 |------|------|
-| `ClockEngine.php` | Clock-in/out, kalkulacja godzin |
-| `PayrollEngine.php` | Payroll jednostkowy |
-| `TeamPayrollEngine.php` | Payroll agregatowy |
+| `HrClockEngine.php` | ✅ **Jedyny kanon** clock-in/out. `employee_id`-first, PIN bcrypt, terminal/source/geo, event outbox, snapshot stawki. Konsolidacja 2026-04-23 (stary `ClockEngine.php` usunięty). |
+| `PayrollEngine.php` | Payroll jednostkowy. *TODO Faza 3B:* reader z `sh_payroll_ledger`. |
+| `TeamPayrollEngine.php` | Payroll agregatowy. *TODO Faza 3B:* ten sam refactor. |
+| `AdvanceEngine.php` | 🔜 Faza 3B — workflow zaliczek (`sh_advances` lifecycle). |
+| `PayrollLedger.php` | 🔜 Faza 3B — writer do `sh_payroll_ledger` (append-only). |
 
 #### Visual & assets
 | Plik | Rola |

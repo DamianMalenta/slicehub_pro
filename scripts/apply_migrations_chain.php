@@ -66,6 +66,10 @@ $chain = [
     '038_drop_legacy_inventory_docs.sql',
     '039_resilient_pos.sql',
     '040_pos_server_events.sql',
+    '041_hr_employees_foundation.sql',
+    '042_hr_work_sessions_extend.sql',
+    '043_hr_payroll_ledger.sql',
+    '044_hr_advances.sql',
 ];
 
 if ($include015) {

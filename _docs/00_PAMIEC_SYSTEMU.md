@@ -183,7 +183,10 @@ slicehub/
 │   ├── OrderStateMachine.php           # Statusy zamówień
 │   ├── SequenceEngine.php              # Atomic doc numbering
 │   ├── PromisedTimeEngine.php          # ASAP estimation
-│   ├── PayrollEngine.php / ClockEngine.php / TeamPayrollEngine.php
+│   ├── HrClockEngine.php               # HR clock-in/out (m041-m044, Faza 3A)
+│   ├── PayrollLedger.php               # Append-only writer (Faza 3B, Krok 4) — record/reverse/readers
+│   ├── AdvanceEngine.php               # Workflow zaliczki (Faza 3B, Krok 4) — request/approve/pay/repay/settle
+│   ├── PayrollEngine.php / TeamPayrollEngine.php  # TODO Faza 3C: readery na `sh_payroll_ledger`
 │   ├── FoodCostEngine.php
 │   ├── AsciiKeyEngine.php              # ASCII key generation (Polish → a-z0-9_)
 │   ├── Integrations/PapuClient.php     # Papu/Pyszne (integracja)
@@ -306,6 +309,10 @@ slicehub/
 | 038 | **Drop Legacy Inventory Docs** — DROP `wh_inventory_docs` + `wh_inventory_doc_items`. Obie tabele były martwe od m001 (nigdy nie referencowane w kodzie PHP, zero wierszy w bazie). Kanon inwentaryzacji: `wh_documents` (type=INW) + `wh_document_lines`. |
 | 039 | 🧊 **Resilient POS Foundation (P1–P3)** — `sh_pos_terminals` (rejestracja urządzeń per tenant), `sh_pos_sync_cursors` (stan synchronizacji per terminal), `sh_pos_op_log` (idempotent log operacji z UUID v7 PK). Obsługuje push klient→serwer. **FREEZE 2026-04-23** — edycja tylko przez rozmrożenie + nowa migracja. Spec: `_docs/16_RESILIENT_POS.md`. |
 | 040 | 🧊 **Resilient POS · Phase 3.5 — Server→Client delta stream** — `sh_pos_server_events` (append-only log eventów serwer→POS, retention 7 dni) + rozszerzenie `sh_pos_sync_cursors` o `pull_events_total` / `pull_last_count` / `pull_last_fetched_at`. **FREEZE 2026-04-23.** Po rozmrożeniu — producenci publikują przez `sh_event_outbox` (m026) + nowy `scripts/worker_pos_fanout.php` (P4.5). Zakaz bezpośredniego `INSERT` z innych modułów. |
+| 041 | **Backoffice HR · Employees Foundation (Faza 3A)** — `sh_employees` (profil kadrowy 1:1 z `sh_users`, NULLABLE; agregat główny dla całego silosu HR), `sh_employee_rates` (temporalne stawki `effective_from/to`, grosze + currency). Backfill z `sh_users` (8/8 profili w dev) + z `sh_users.hourly_rate` (tylko `>0`). `sh_users.hourly_rate` oznaczona `DEPRECATED_HR_M041` — DROP dopiero po 2× zamknięciu okresu (Expand-Contract). Rozwiązania: HR-2 (historia stawek), HR-10 (tożsamość HR), HR-12 (bcrypt `auth_pin_hash`). Spec: `_docs/18_BACKOFFICE_HR_LOGIC.md`. |
+| 042 | **Backoffice HR · Work Sessions extend (Faza 3A)** — rozszerzenie `sh_work_sessions` o `employee_id` (FK → `sh_employees`), `terminal_id`, `clock_in_source` / `clock_out_source` (ASCII: kiosk/pos/mobile/manager_override/system_auto), `adjusted_by_user_id` + `adjustment_reason`, `geo_lat_in/out` + `geo_lon_in/out`. Hardware-level idempotency: generated column `open_guard` + UNIQUE INDEX `uq_ws_single_open(tenant_id, employee_id, open_guard)` — max 1 otwarta sesja per pracownik (HR-5). Backfill `employee_id` dla istniejących wierszy. |
+| 043 | **Backoffice HR · Payroll Ledger (Faza 3A)** — `sh_payroll_ledger` (append-only księga finansowa, SIGNED `amount_minor`: + zarobki / − potrącenia; typy: work_earnings, meal_deduction, advance_payment, advance_repayment, adjustment, reversal, bonus), idempotencja przez `entry_uuid` + `(employee_id, ref_work_session_id, entry_type)` UNIQUE, kolumny `is_locked/locked_at` (preparacja pod Fazę 3C — twardy lock księgowy po zamknięciu okresu). FK → sh_meals. Zasada: zero UPDATE po zapisie (tylko reversal przez `reverses_entry_id`). |
+| 044 | **Backoffice HR · Advances Lifecycle (Faza 3A)** — `sh_advances` (zaliczki z pełnym workflow: requested → approved → paid → settled + rejection/void), `sh_advance_installments` (harmonogram spłat per okres rozliczeniowy, `status`: pending/applied/waived/void, `applied_ledger_entry_id` FK). Domknięcie FK-ów w `sh_payroll_ledger` do `sh_advances` i `sh_advance_installments`. Rozwiązanie HR-8 (brak workflow zatwierdzania) + HR-9 (brak harmonogramu spłat). |
 
 ---
 
@@ -482,6 +489,18 @@ Prosty wrapper fetch POST → JSON, obsługa błędów i auth header. Powinien b
 - Metody: `publicUrl()`, `batchHeroUrls()`, `injectHeros()`, `resolveHero()`, `isReady()`.
 - **Zawsze cicho** (no exceptions). Cache per-request. Używane w `api/online/engine.php`, `api/backoffice/api_menu_studio.php`, `api/pos/engine.php`.
 - *Metody `batchModifierIcons`/`injectModifierIcons` + rola `modifier_icon` usunięte w m025 — modyfikatory nie mają dedykowanych ikon; wizualizacja przez `SceneResolver::resolveModifierVisuals` (role `layer_top_down` + `modifier_hero`).*
+
+### `core/HrClockEngine.php` — HR clock-in/clock-out (m041–m044, Faza 3A)
+- **Cel:** autorytatywny silnik rejestracji czasu pracy oparty o `sh_employees.id` (nie `sh_users.id`).
+- Publiczne metody:
+  - `clockIn(pdo, tenantId, employeeId, opts)` — start zmiany, zwraca `session_uuid`, snapshot stawki, rolę.
+  - `clockOut(pdo, tenantId, employeeId, opts)` — koniec zmiany, zwraca `total_hours` + `preview_earnings` (hours×rate).
+  - `status(pdo, tenantId, employeeId?)` — lista otwartych sesji (operator Dashboard, KDS header).
+  - `resolveEmployeeByPin(pdo, tenantId, pin)` — kiosk mode (bcrypt verify po `auth_pin_hash`).
+  - `resolveEmployeeByUser(pdo, tenantId, userId)` — session mode (sh_users.id → sh_employees).
+- **Opts:** `source` (kiosk|pos|mobile|manager_override|system_auto), `terminal_id`, `geo_lat/geo_lon`, `user_id` (actor), `allow_long_session` (manager_override dla sesji >24h).
+- **Gwarancje:** hardware-level idempotency przez `uq_ws_single_open` (m042); driver z aktywną dostawą nie może zrobić clock-out (`ERR_ACTIVE_DELIVERIES`); eventy publikowane do `sh_event_outbox` (aggregate_type='shift', event_types: `employee.clocked_in` / `employee.clocked_out`).
+- **API:** `api/backoffice/hr/engine.php` (akcje: `clock_in`, `clock_out`, `clock_status`; dwa tryby auth pracownika: `auth.self`, `auth.pin`, `auth.employee_id` + manager_override gate).
 
 ### `core/SceneResolver.php` — resolver pełnego kontraktu sceny (m022, Faza 1)
 - **Cel:** pełny wizualny kontrakt dania (hero + scene_spec + layers + companions + promotions + meta) dla Menu Studio, The Table, integracji zewnętrznych.
@@ -782,11 +801,15 @@ Braki do uzupełnienia (z `ustalenia.md` §10):
 
 Rejestr rzeczy które istniały w legacy albo były projektowane, ale **nie są w obecnym `slicehub_pro_v2`**. Przed implementacją wymagają decyzji architektonicznej (gdzie, jaki kontrakt, jak integruje z resztą).
 
-### Moduł HR / Finanse kadry (brak w `slicehub_pro_v2`)
-- **Funkcjonalności:** wnioski finansowe (premie / zaliczki / kary), rejestr kadry (`get_team` bez ownera), powiązanie z `sh_users`.
-- **Tabela:** `sh_finance_requests` (istniała w `baza_slicehub`, nie została zmigrowana).
-- **Wzorzec historyczny:** `api_manager.php` (akcje: `get_team`, `submit_finance`) — zachowany w archiwum offline (`_archive/api_manager.php` — poza repo od 2026-04-22).
-- **Status:** oczekuje na decyzję architektoniczną. Przy reimplementacji: dedykowany moduł `api/hr/engine.php` + tabela `sh_finance_requests` zgodna z kanonem (tenant_id, idempotent migrations, audit log). Powiązanie z `core/Notifications/` (zatwierdzenie wniosku → notyfikacja).
+### Moduł HR / Finanse kadry — Faza 3A + 3B (Krok 4) ZROBIONE ✅ (2026-04-23)
+- **Fundament bazodanowy:** migracje 041–044 (`sh_employees`, `sh_employee_rates`, rozszerzenia `sh_work_sessions`, `sh_payroll_ledger`, `sh_advances` + `sh_advance_installments`). Szczegóły: `_docs/18_BACKOFFICE_HR_LOGIC.md`.
+- **Silnik kadrowy:** `core/HrClockEngine.php` — `clockIn / clockOut / status / resolveEmployeeByPin / resolveEmployeeByUser`. Dwa tryby auth pracownika: **kiosk** (PIN bcrypt) oraz **session** (user logged-in on POS) + **manager_override**.
+- **API:** `api/backoffice/hr/engine.php` z akcjami `clock_in / clock_out / clock_status`. Kontrakt zgodny z konwencją (JSON action-based, POST), eventy publikowane do `sh_event_outbox` (`aggregate_type='shift'`).
+- **Ledger pieniężny (Faza 3B, Krok 4):** `core/PayrollLedger.php` — append-only writer dla `sh_payroll_ledger`. Zero `update()` / `delete()`. Korekta = `reverse()` (nowy wpis kompensujący). STRICT int grosze (float rejected → `ERR_INVALID_AMOUNT`), whitelist `entry_type`, sign-per-type, idempotency po `entry_uuid`, cross-tenant ref guard. **18/18 smoke PASS.**
+- **Zaliczki (Faza 3B, Krok 4):** `core/AdvanceEngine.php` — state machine `requested → approved → paid → settled` (+ `rejected`). `markPaid()` rozbija kwotę na raty z resztą do ostatniej raty + emituje `advance_payment` do ledgera. `recordRepayment()` emituje `advance_repayment` i auto-settluje. Każda transition blokowana przez `UPDATE ... WHERE status=:prev`. **20/20 smoke PASS.**
+- **Konsumer events → drivery (Faza 3B, Krok 4):** `scripts/worker_driver_fanout.php` — subskrybuje `employee.clocked_in/out` (aggregate_type=`shift`) i fluktuuje `sh_drivers.status` pod **FF per-tenant `HR_USE_EVENT_DRIVER_FANOUT`** (w `sh_tenant_settings`, default OFF). Polityka: `busy` NIGDY nie jest nadpisywany (kierowca w trasie kończy kurs). Retry z backoff do `MAX_ATTEMPTS=5`. **9/9 smoke PASS.**
+- **Faza 3C (odłożona):** `PayrollEngine` v2 (readery na `sh_payroll_ledger::sumForPeriod`), `scripts/worker_payroll_accrual.php` (konsument `employee.clocked_out` → `work_earnings` w ledgerze), `AdvanceEngine::voidAdvance()` (reverse + void installments), twarde locki księgowe (`is_locked`/`locked_at`), DROP `sh_users.hourly_rate` po 2× zamknięciu okresu, UI `modules/backoffice/hr/`.
+- **Legacy (usunięte):** dawne wnioski finansowe z `api_manager.php` (`get_team`, `submit_finance`) zastąpione przez `sh_advances` (pełny lifecycle) i `sh_payroll_ledger` (bonus/kara przez `entry_type=bonus|adjustment`).
 
 ---
 
