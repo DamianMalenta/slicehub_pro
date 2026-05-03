@@ -184,9 +184,9 @@ slicehub/
 │   ├── SequenceEngine.php              # Atomic doc numbering
 │   ├── PromisedTimeEngine.php          # ASAP estimation
 │   ├── HrClockEngine.php               # HR clock-in/out (m041-m044, Faza 3A)
-│   ├── PayrollLedger.php               # Append-only writer (Faza 3B, Krok 4) — record/reverse/readers
-│   ├── AdvanceEngine.php               # Workflow zaliczki (Faza 3B, Krok 4) — request/approve/pay/repay/settle
-│   ├── PayrollEngine.php / TeamPayrollEngine.php  # TODO Faza 3C: readery na `sh_payroll_ledger`
+│   ├── PayrollLedger.php               # Append-only writer (Faza 3B/3C) — record/reverse/readers + period locks
+│   ├── AdvanceEngine.php               # Workflow zaliczki (Faza 3B/3C) — request/approve/pay/repay/settle/void
+│   ├── PayrollEngine.php / TeamPayrollEngine.php  # SSOT: rewrite IN-PLACE na readery z `sh_payroll_ledger::sumForPeriod` (Faza 4 — zakaz plików równoległych / sufiksowanych)
 │   ├── FoodCostEngine.php
 │   ├── AsciiKeyEngine.php              # ASCII key generation (Polish → a-z0-9_)
 │   ├── Integrations/PapuClient.php     # Papu/Pyszne (integracja)
@@ -801,14 +801,15 @@ Braki do uzupełnienia (z `ustalenia.md` §10):
 
 Rejestr rzeczy które istniały w legacy albo były projektowane, ale **nie są w obecnym `slicehub_pro_v2`**. Przed implementacją wymagają decyzji architektonicznej (gdzie, jaki kontrakt, jak integruje z resztą).
 
-### Moduł HR / Finanse kadry — Faza 3A + 3B (Krok 4) ZROBIONE ✅ (2026-04-23)
+### Moduł HR / Finanse kadry — Faza 3A + 3B + 3C ZROBIONE ✅ (2026-04-23)
 - **Fundament bazodanowy:** migracje 041–044 (`sh_employees`, `sh_employee_rates`, rozszerzenia `sh_work_sessions`, `sh_payroll_ledger`, `sh_advances` + `sh_advance_installments`). Szczegóły: `_docs/18_BACKOFFICE_HR_LOGIC.md`.
 - **Silnik kadrowy:** `core/HrClockEngine.php` — `clockIn / clockOut / status / resolveEmployeeByPin / resolveEmployeeByUser`. Dwa tryby auth pracownika: **kiosk** (PIN bcrypt) oraz **session** (user logged-in on POS) + **manager_override**.
 - **API:** `api/backoffice/hr/engine.php` z akcjami `clock_in / clock_out / clock_status`. Kontrakt zgodny z konwencją (JSON action-based, POST), eventy publikowane do `sh_event_outbox` (`aggregate_type='shift'`).
-- **Ledger pieniężny (Faza 3B, Krok 4):** `core/PayrollLedger.php` — append-only writer dla `sh_payroll_ledger`. Zero `update()` / `delete()`. Korekta = `reverse()` (nowy wpis kompensujący). STRICT int grosze (float rejected → `ERR_INVALID_AMOUNT`), whitelist `entry_type`, sign-per-type, idempotency po `entry_uuid`, cross-tenant ref guard. **18/18 smoke PASS.**
-- **Zaliczki (Faza 3B, Krok 4):** `core/AdvanceEngine.php` — state machine `requested → approved → paid → settled` (+ `rejected`). `markPaid()` rozbija kwotę na raty z resztą do ostatniej raty + emituje `advance_payment` do ledgera. `recordRepayment()` emituje `advance_repayment` i auto-settluje. Każda transition blokowana przez `UPDATE ... WHERE status=:prev`. **20/20 smoke PASS.**
-- **Konsumer events → drivery (Faza 3B, Krok 4):** `scripts/worker_driver_fanout.php` — subskrybuje `employee.clocked_in/out` (aggregate_type=`shift`) i fluktuuje `sh_drivers.status` pod **FF per-tenant `HR_USE_EVENT_DRIVER_FANOUT`** (w `sh_tenant_settings`, default OFF). Polityka: `busy` NIGDY nie jest nadpisywany (kierowca w trasie kończy kurs). Retry z backoff do `MAX_ATTEMPTS=5`. **9/9 smoke PASS.**
-- **Faza 3C (odłożona):** `PayrollEngine` v2 (readery na `sh_payroll_ledger::sumForPeriod`), `scripts/worker_payroll_accrual.php` (konsument `employee.clocked_out` → `work_earnings` w ledgerze), `AdvanceEngine::voidAdvance()` (reverse + void installments), twarde locki księgowe (`is_locked`/`locked_at`), DROP `sh_users.hourly_rate` po 2× zamknięciu okresu, UI `modules/backoffice/hr/`.
+- **Ledger pieniężny (Faza 3B + 3C):** `core/PayrollLedger.php` — append-only writer dla `sh_payroll_ledger`. Zero `update()` / `delete()`. Korekta = `reverse()` (nowy wpis kompensujący). STRICT int grosze (float rejected → `ERR_INVALID_AMOUNT`), whitelist `entry_type`, sign-per-type, idempotency po `entry_uuid`, cross-tenant ref guard. **Od Fazy 3C:** `lockPeriod()` + `isPeriodLocked()` + enforcement `ERR_PERIOD_LOCKED` w `record`/`reverse` (brak `unlockPeriod` — kontrakt jednokierunkowy). **31/31 smoke PASS (18 append-only + 13 period locks).**
+- **Zaliczki (Faza 3B + 3C):** `core/AdvanceEngine.php` — state machine `requested → approved → paid → settled` (+ `rejected`, `void`). `markPaid()` rozbija kwotę na raty z resztą do ostatniej raty + emituje `advance_payment` do ledgera. `recordRepayment()` emituje `advance_repayment` i auto-settluje. **Od Fazy 3C:** `voidAdvance()` — wycofanie błędnie wypłaconej zaliczki (reverse payment + void pending installments; blokada `ERR_PARTIAL_REPAYMENT` jeśli jakakolwiek rata spłacona). **34/34 smoke PASS (20 lifecycle + 14 void).**
+- **Konsumer events → drivery (Faza 3B):** `scripts/worker_driver_fanout.php` — subskrybuje `employee.clocked_in/out` (aggregate_type=`shift`) i fluktuuje `sh_drivers.status` pod **FF per-tenant `HR_USE_EVENT_DRIVER_FANOUT`** (w `sh_tenant_settings`, default OFF). Polityka: `busy` NIGDY nie jest nadpisywany (kierowca w trasie kończy kurs). Retry z backoff do `MAX_ATTEMPTS=5`. **9/9 smoke PASS.**
+- **Konsumer events → earnings (Faza 3C):** `scripts/worker_payroll_accrual.php` — subskrybuje `employee.clocked_out` i generuje wpisy `work_earnings` w ledgerze. Resolver stawki: (1) snapshot `rate_at_clock_in` z payloadu, (2) fallback do `sh_employee_rates` (temporal). Obliczenia int-safe HALF_UP: `intdiv(rate_minor × hours_milli + 5000, 10000)`. Zero floatów w pieniądzach. Idempotency: `entry_uuid = session_uuid`. **14/14 smoke PASS.**
+- **Faza 4 (następne sesje):** `PayrollEngine` — **rewrite IN-PLACE** (ten sam plik `core/PayrollEngine.php`, **absolutny zakaz plików równoległych / sufiksowanych duplikatów** — SSOT §Konstytucja): readery przepinamy na `sh_payroll_ledger::sumForPeriod`, stara logika z `sh_work_sessions` + `sh_deductions` + `sh_meals` + `sh_users.hourly_rate` znika z code-path w jednym commicie. Do tego: HR-6 midnight-crossing allocation (`fn_allocate_hours` SQL); UI `modules/backoffice/hr/` (Kiosk PIN + Timesheet); DROP `sh_users.hourly_rate` po 2× zamknięciu okresu na przepisanym silniku. Decyzja w `_docs/18_BACKOFFICE_HR_LOGIC.md §13`.
 - **Legacy (usunięte):** dawne wnioski finansowe z `api_manager.php` (`get_team`, `submit_finance`) zastąpione przez `sh_advances` (pełny lifecycle) i `sh_payroll_ledger` (bonus/kara przez `entry_type=bonus|adjustment`).
 
 ---
