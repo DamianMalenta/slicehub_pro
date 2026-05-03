@@ -1,0 +1,25 @@
+-- =============================================================================
+-- SliceHub — przywrócenie rekordów sh_assets z historycznego dumpu SQL
+-- =============================================================================
+--
+-- Planowany plik źródłowy (np. „slicehub_pro_v2 BAZA.sql”) nie jest trzymany
+-- w repozytorium — został usunięty / nie został dodany ponownie.
+--
+-- Przywróć bibliotekę globalnych warstw (.webp w uploads/global_assets/) przez:
+--
+--   php scripts/restore_assets_from_disk.php
+--   php scripts/restore_assets_from_disk.php --dry-run
+--
+-- Lub w przeglądarce (gdy Apache+XAMPP działają):
+--   http://localhost/slicehub/scripts/restore_assets_from_disk.php
+--   http://localhost/slicehub/scripts/restore_assets_from_disk.php?dry_run=1
+--
+-- Skrypt jest idempotentny (INSERT … ON DUPLICATE KEY UPDATE po tenant_id+ascii_key).
+-- Nie usuwa istniejących wpisów — tylko synchronizuje metadane z plikami na dysku.
+--
+-- Opcja ręczna: jeśli masz WŁASNY dump SQL z INSERT INTO `sh_assets`, możesz
+-- wykonać go w phpMyAdmin — upewnij się, że lista kolumn zgadza się z
+-- SHOW COLUMNS FROM sh_assets w Twojej bazie (m031–m036 rozszerzały schemat).
+-- =============================================================================
+
+SELECT 'Use scripts/restore_assets_from_disk.php — see header in this file.' AS hint;
