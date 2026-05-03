@@ -550,4 +550,11 @@ textarea.st-field__input { font-family: var(--mono); font-size: 12px; min-height
     .st-card__actions { justify-content: flex-start; }
     .st-grid-2 { grid-template-columns: 1fr; }
     .st-title { font-size: 15px; }
+    /* Notch / status bar — bez zmiany układu desktop */
+    .st-topbar {
+        padding-top: max(14px, env(safe-area-inset-top, 0px));
+    }
+    .st-main {
+        padding-bottom: max(80px, calc(24px + env(safe-area-inset-bottom, 0px)));
+    }
 }

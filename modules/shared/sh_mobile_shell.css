@@ -1,0 +1,19 @@
+/**
+ * SliceHub — wspólna warstwa mobilna (tylko addytywne reguły).
+ * Ładowana przez moduły z ../shared/sh_mobile_shell.css — nie zastępuje theme’ów.
+ */
+
+/* iOS: nie powiększaj tekstu arbitralnie przy obracie / pinch */
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+/* Bezpieczne marginesy na telefonach z wcięciem (notch / home indicator) */
+@supports (padding: env(safe-area-inset-left)) {
+    body {
+        padding-left: env(safe-area-inset-left, 0px);
+        padding-right: env(safe-area-inset-right, 0px);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+}

@@ -189,3 +189,45 @@ html, body { height: 100%; font-family: var(--font); background: var(--bg-root);
 .toast.success { background: rgba(34,197,94,0.95); color: #fff; }
 .toast.error { background: rgba(239,68,68,0.95); color: #fff; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Telefon / wąski tablet — jedna kolumna, topbar z zawijaniem, scroll na planszy */
+@media (max-width: 640px) {
+    html, body {
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+    }
+    .kds-topbar {
+        flex-wrap: wrap;
+        flex-shrink: 0;
+        height: auto;
+        min-height: 56px;
+        row-gap: 8px;
+        padding-top: max(8px, env(safe-area-inset-top, 0px));
+        padding-left: max(12px, env(safe-area-inset-left, 0px));
+        padding-right: max(12px, env(safe-area-inset-right, 0px));
+        padding-bottom: 8px;
+    }
+    .kds-board {
+        grid-template-columns: 1fr;
+        flex: 1 1 auto;
+        min-height: 0;
+        height: auto;
+        max-height: none;
+        padding: 10px;
+        padding-bottom: max(14px, env(safe-area-inset-bottom, 0px));
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .kds-station-select {
+        max-width: min(100%, 55vw);
+        min-width: 0;
+    }
+    .kds-spacer {
+        display: none;
+    }
+    #toast-container {
+        top: max(12px, env(safe-area-inset-top, 0px));
+        right: max(12px, env(safe-area-inset-right, 0px));
+    }
+}
