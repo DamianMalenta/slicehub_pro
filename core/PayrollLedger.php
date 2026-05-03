@@ -69,6 +69,7 @@ final class PayrollLedger
     public const ERR_ORIGINAL_ALREADY_REVERSED = 'ORIGINAL_ALREADY_REVERSED';
     public const ERR_ORIGINAL_IS_REVERSAL      = 'ORIGINAL_IS_REVERSAL';
     public const ERR_REVERSAL_NOT_ALLOWED      = 'REVERSAL_NOT_ALLOWED';
+    public const ERR_PERIOD_LOCKED             = 'PERIOD_LOCKED';
 
     // =========================================================================
     // PUBLIC API — tylko dwie pisarskie metody: record() i reverse().
@@ -212,6 +213,16 @@ final class PayrollLedger
             return (int)$existing['id'];
         }
 
+        // --- 10.5. Period lock guard -------------------------------------
+        // Nie wolno dodawać nowych wpisów do okresu zamkniętego (is_locked=1).
+        // Korekta po zamknięciu okresu idzie do KOLEJNEGO otwartego okresu
+        // jako `adjustment` z `description` wskazującym na event pierwotny.
+        if (self::isPeriodLocked($pdo, $tenantId, $periodYear, $periodMonth)) {
+            throw new \RuntimeException(
+                self::ERR_PERIOD_LOCKED . " (tenant={$tenantId} period={$periodYear}-" . str_pad((string)$periodMonth, 2, '0', STR_PAD_LEFT) . ")"
+            );
+        }
+
         // --- 11. description sanitacja -----------------------------------
         $description = null;
         if (array_key_exists('description', $payload) && $payload['description'] !== null) {
@@ -301,7 +312,7 @@ final class PayrollLedger
             SELECT id, employee_id, period_year, period_month,
                    entry_type, amount_minor, currency, hours_qty, rate_applied_minor,
                    ref_work_session_id, ref_advance_id, ref_installment_id, ref_meal_id,
-                   reverses_entry_id
+                   reverses_entry_id, is_locked
             FROM sh_payroll_ledger
             WHERE id = :id AND tenant_id = :tid
             LIMIT 1
@@ -311,6 +322,14 @@ final class PayrollLedger
 
         if (!$orig) {
             throw new \RuntimeException(self::ERR_ORIGINAL_NOT_FOUND);
+        }
+
+        // Period lock: nie wolno odwracać wpisu należącego do zamkniętego okresu.
+        // Korekta musi iść jako `adjustment` do następnego otwartego okresu.
+        if ((int)($orig['is_locked'] ?? 0) === 1) {
+            throw new \RuntimeException(
+                self::ERR_PERIOD_LOCKED . " (original entry #{$originalId} is in locked period {$orig['period_year']}-" . str_pad((string)$orig['period_month'], 2, '0', STR_PAD_LEFT) . ")"
+            );
         }
 
         // Blokuj chain-reverse: odwrotność odwrotności
@@ -350,6 +369,67 @@ final class PayrollLedger
             'description'         => $description,
             'created_by_user_id'  => $actorUserId,
         ]);
+    }
+
+    // =========================================================================
+    // PERIOD LOCKS — zamknięcie okresu rozliczeniowego
+    //
+    // KONTRAKT:
+    //   - `lockPeriod` jest JEDNOKIERUNKOWE. Brak metody `unlockPeriod` — po zamknięciu
+    //     księgi NIE można jej otworzyć. Korekty idą jako nowe wpisy typu `adjustment`
+    //     do następnego otwartego okresu (standard księgowy, GAAP §606, MSR 8).
+    //   - Lock = UPDATE is_locked=1, locked_at=NOW() dla wszystkich wpisów w okresie.
+    //   - Po locku: `record()` rzuca ERR_PERIOD_LOCKED przy próbie wpisu do zamkniętego
+    //     okresu; `reverse()` rzuca ERR_PERIOD_LOCKED gdy oryginał ma is_locked=1.
+    //   - `isPeriodLocked` określa lock okresu przez EXISTS jakiegokolwiek zablokowanego
+    //     wpisu (tenant + year + month). Pusty okres = otwarty (nie ma nic do zablokowania).
+    // =========================================================================
+
+    /**
+     * Sprawdza, czy okres rozliczeniowy jest zamknięty (ma przynajmniej jeden wpis `is_locked=1`).
+     */
+    public static function isPeriodLocked(PDO $pdo, int $tenantId, int $year, int $month): bool
+    {
+        if ($tenantId <= 0) return false;
+        $stmt = $pdo->prepare("
+            SELECT 1 FROM sh_payroll_ledger
+             WHERE tenant_id = :tid AND period_year = :py AND period_month = :pm AND is_locked = 1
+             LIMIT 1
+        ");
+        $stmt->execute([':tid' => $tenantId, ':py' => $year, ':pm' => $month]);
+        return (bool)$stmt->fetchColumn();
+    }
+
+    /**
+     * Zamyka (lockuje) okres rozliczeniowy: wszystkie wpisy `(tenant, year, month)`
+     * z `is_locked=0` → `is_locked=1` + `locked_at=NOW()`.
+     *
+     * OPERACJA JEDNOKIERUNKOWA. Brak odpowiedniej metody `unlockPeriod`.
+     *
+     * @return int liczba zablokowanych wpisów
+     */
+    public static function lockPeriod(PDO $pdo, int $tenantId, int $year, int $month): int
+    {
+        if ($tenantId <= 0) {
+            throw new \InvalidArgumentException('tenant_id must be positive.');
+        }
+        if ($year < 2000 || $year > 2099) {
+            throw new \RuntimeException(self::ERR_INVALID_PERIOD);
+        }
+        if ($month < 1 || $month > 12) {
+            throw new \RuntimeException(self::ERR_INVALID_PERIOD);
+        }
+
+        $stmt = $pdo->prepare("
+            UPDATE sh_payroll_ledger
+               SET is_locked = 1, locked_at = NOW()
+             WHERE tenant_id = :tid
+               AND period_year = :py
+               AND period_month = :pm
+               AND is_locked = 0
+        ");
+        $stmt->execute([':tid' => $tenantId, ':py' => $year, ':pm' => $month]);
+        return (int)$stmt->rowCount();
     }
 
     // =========================================================================

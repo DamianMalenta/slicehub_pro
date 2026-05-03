@@ -48,16 +48,18 @@ final class AdvanceEngine
     public const PAID_METHODS = [self::METHOD_CASH, self::METHOD_TRANSFER, self::METHOD_OTHER];
 
     // === ERROR CODES (ASCII) ==================================================
-    public const ERR_INVALID_AMOUNT       = 'INVALID_AMOUNT';
-    public const ERR_INVALID_CURRENCY     = 'INVALID_CURRENCY';
-    public const ERR_INVALID_PLAN         = 'INVALID_PLAN';
-    public const ERR_INVALID_INSTALLMENTS = 'INVALID_INSTALLMENTS';
-    public const ERR_INVALID_METHOD       = 'INVALID_METHOD';
-    public const ERR_EMPLOYEE_NOT_FOUND   = 'EMPLOYEE_NOT_FOUND';
-    public const ERR_ADVANCE_NOT_FOUND    = 'ADVANCE_NOT_FOUND';
-    public const ERR_INSTALLMENT_NOT_FOUND= 'INSTALLMENT_NOT_FOUND';
-    public const ERR_INVALID_TRANSITION   = 'INVALID_TRANSITION';
-    public const ERR_ALREADY_PAID         = 'INSTALLMENT_ALREADY_PAID';
+    public const ERR_INVALID_AMOUNT        = 'INVALID_AMOUNT';
+    public const ERR_INVALID_CURRENCY      = 'INVALID_CURRENCY';
+    public const ERR_INVALID_PLAN          = 'INVALID_PLAN';
+    public const ERR_INVALID_INSTALLMENTS  = 'INVALID_INSTALLMENTS';
+    public const ERR_INVALID_METHOD        = 'INVALID_METHOD';
+    public const ERR_EMPLOYEE_NOT_FOUND    = 'EMPLOYEE_NOT_FOUND';
+    public const ERR_ADVANCE_NOT_FOUND     = 'ADVANCE_NOT_FOUND';
+    public const ERR_INSTALLMENT_NOT_FOUND = 'INSTALLMENT_NOT_FOUND';
+    public const ERR_INVALID_TRANSITION    = 'INVALID_TRANSITION';
+    public const ERR_ALREADY_PAID          = 'INSTALLMENT_ALREADY_PAID';
+    public const ERR_PARTIAL_REPAYMENT     = 'VOID_BLOCKED_PARTIAL_REPAYMENT';
+    public const ERR_PAYMENT_LEDGER_MISSING= 'PAYMENT_LEDGER_MISSING';
 
     private const MAX_INSTALLMENTS = 24; // 2 lata — sanity cap
     private const MAX_AMOUNT_MINOR = 100_000_000; // 1 000 000.00 PLN — sanity cap (zapobiega error-inputs)
@@ -473,6 +475,122 @@ final class AdvanceEngine
             ':prev' => self::STATUS_PAID,
         ]);
         return $upd->rowCount() > 0;
+    }
+
+    // =========================================================================
+    // 7) VOID ADVANCE — wycofanie błędnie wypłaconej zaliczki (paid → void)
+    //
+    // POLITYKA:
+    //   - Dozwolone TYLKO gdy status='paid' ORAZ żadna rata nie została spłacona (pending only).
+    //   - Jeśli jakakolwiek rata ma status='paid' → `ERR_PARTIAL_REPAYMENT` (korekta
+    //     musi iść inną ścieżką: adjustment + ręczna konsultacja księgowa).
+    //   - Wycofanie = transakcja:
+    //       1. PayrollLedger::reverse(advance_payment entry)  — append-only reverse
+    //       2. UPDATE sh_advance_installments SET status='void' WHERE status='pending'
+    //       3. UPDATE sh_advances SET status='void', void_at=NOW()
+    //   - `status='approved'` → blokada (nie ma czego wycofywać, jeszcze nie wypłacono).
+    //     W tym wypadku caller powinien użyć `reject()`.
+    // =========================================================================
+
+    /**
+     * Wycofuje błędnie wypłaconą zaliczkę (status 'paid' → 'void').
+     *
+     * @throws \RuntimeException z ERR_INVALID_TRANSITION / ERR_PARTIAL_REPAYMENT /
+     *                          ERR_ADVANCE_NOT_FOUND / ERR_PAYMENT_LEDGER_MISSING
+     * @return int id wpisu-kompensującego (reversal) w `sh_payroll_ledger`
+     */
+    public static function voidAdvance(PDO $pdo, int $tenantId, int $advanceId, int $actorUserId, string $reason): int
+    {
+        $reason = trim($reason);
+        if ($reason === '') {
+            throw new \InvalidArgumentException('reason is required for voidAdvance (audit trail).');
+        }
+
+        $adv = self::loadAdvance($pdo, $tenantId, $advanceId);
+        self::assertTransition($adv['status'], self::STATUS_PAID, self::STATUS_VOID);
+
+        // Blokada: żadna rata nie może być spłacona
+        $paidCount = (int)(function() use ($pdo, $tenantId, $advanceId) {
+            $s = $pdo->prepare("
+                SELECT COUNT(*) FROM sh_advance_installments
+                 WHERE tenant_id = :tid AND advance_id = :aid AND status = :paid
+            ");
+            $s->execute([':tid' => $tenantId, ':aid' => $advanceId, ':paid' => self::INST_PAID]);
+            return $s->fetchColumn();
+        })();
+        if ($paidCount > 0) {
+            throw new \RuntimeException(
+                self::ERR_PARTIAL_REPAYMENT . " ({$paidCount} installment(s) already paid — use manual adjustment instead)"
+            );
+        }
+
+        // Znajdź oryginalny wpis `advance_payment` w ledgerze (ten z markPaid)
+        $payStmt = $pdo->prepare("
+            SELECT id FROM sh_payroll_ledger
+             WHERE tenant_id = :tid
+               AND ref_advance_id = :aid
+               AND entry_type = :etype
+               AND reverses_entry_id IS NULL
+             ORDER BY id ASC LIMIT 1
+        ");
+        $payStmt->execute([
+            ':tid'   => $tenantId,
+            ':aid'   => $advanceId,
+            ':etype' => PayrollLedger::TYPE_ADVANCE_PAYMENT,
+        ]);
+        $paymentEntryId = (int)($payStmt->fetchColumn() ?: 0);
+        if ($paymentEntryId <= 0) {
+            throw new \RuntimeException(self::ERR_PAYMENT_LEDGER_MISSING . " (advance #{$advanceId} has no ledger payment)");
+        }
+
+        $ownTx = !$pdo->inTransaction();
+        if ($ownTx) $pdo->beginTransaction();
+
+        try {
+            // 1. Reverse w ledgerze (append-only compensation)
+            $reversalId = PayrollLedger::reverse(
+                $pdo,
+                $tenantId,
+                $paymentEntryId,
+                'Advance #' . $advanceId . ' voided: ' . $reason,
+                $actorUserId > 0 ? $actorUserId : null
+            );
+
+            // 2. Void pozostałych pending installments
+            $voidInst = $pdo->prepare("
+                UPDATE sh_advance_installments
+                   SET status = :v, updated_at = NOW()
+                 WHERE tenant_id = :tid AND advance_id = :aid AND status = :pending
+            ");
+            $voidInst->execute([
+                ':v'       => self::INST_VOID,
+                ':tid'     => $tenantId,
+                ':aid'     => $advanceId,
+                ':pending' => self::INST_PENDING,
+            ]);
+
+            // 3. Flip advance na 'void'
+            $upd = $pdo->prepare("
+                UPDATE sh_advances
+                   SET status = :st, void_at = NOW(), updated_at = NOW()
+                 WHERE id = :id AND tenant_id = :tid AND status = :prev
+            ");
+            $upd->execute([
+                ':st'   => self::STATUS_VOID,
+                ':id'   => $advanceId,
+                ':tid'  => $tenantId,
+                ':prev' => self::STATUS_PAID,
+            ]);
+            if ($upd->rowCount() === 0) {
+                throw new \RuntimeException(self::ERR_INVALID_TRANSITION . ' (concurrent modification on advance)');
+            }
+
+            if ($ownTx) $pdo->commit();
+            return $reversalId;
+        } catch (\Throwable $e) {
+            if ($ownTx && $pdo->inTransaction()) $pdo->rollBack();
+            throw $e;
+        }
     }
 
     // =========================================================================
