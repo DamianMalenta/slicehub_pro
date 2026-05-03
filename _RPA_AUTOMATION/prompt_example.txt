@@ -1,8 +1,0 @@
-Przeczytaj @01_KONSTYTUCJA.md oraz @STATE_PIPELINE.md.
-
-Nastepnie:
-1. Zrob zwiezly raport stanu.
-2. Wypisz ryzyka blokujace.
-3. Zaproponuj kolejne 3 kroki wykonawcze.
-
-Nie pomijaj zaleznosci miedzy plikami.

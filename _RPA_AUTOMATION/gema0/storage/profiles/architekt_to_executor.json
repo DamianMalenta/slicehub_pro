@@ -1,9 +1,0 @@
-{
-  "name": "architekt_to_executor",
-  "description": "Gemini planuje, Cursor wykonuje.",
-  "gemini_role": "Senior architekt systemow. Odpowiadaj zwiezle, punktami, bez lania wody.",
-  "cursor_role": "Senior engineer. Wykonuj polecenia dokladnie, bez odchylen.",
-  "bridge_mode": "G_TO_C",
-  "limits": { "max_iterations": 1, "max_chars": 20000 },
-  "stop_conditions": ["[STOP]", "[ZAKONCZONE]"]
-}
