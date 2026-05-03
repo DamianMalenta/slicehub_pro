@@ -457,6 +457,25 @@ body {
 .st-field__input[type="number"] { appearance: textfield; }
 textarea.st-field__input { font-family: var(--mono); font-size: 12px; min-height: 80px; resize: vertical; }
 
+/* ─── API Key scope picker ─── */
+.st-scope-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 6px;
+}
+.st-scope-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 13px;
+}
+.st-scope-row input[type="checkbox"] {
+    margin-top: 3px;
+}
+
 /* ─── Audit log (Dziennik) ─── */
 .st-audit-wrap { margin-top: 8px; overflow-x: auto; }
 .st-audit-table {

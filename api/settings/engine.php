@@ -8,7 +8,8 @@ declare(strict_types=1);
  * Obsługuje zarządzanie:
  *   • Integration adapters (sh_tenant_integrations)     — CRUD + test_ping
  *   • Webhook endpoints (sh_webhook_endpoints)          — CRUD + rotate_secret + test_ping
- *   • Gateway API keys (sh_gateway_api_keys)            — list + generate + revoke
+ *   • Gateway API keys (sh_gateway_api_keys)            — list + generate + revoke + scopes catalog
+ *   • Webhook delivery inspector (sh_webhook_deliveries) — paginated read-only list
  *   • DLQ management (sh_webhook_deliveries, sh_integration_deliveries) — list + replay
  *   • Health dashboard (outbox/deliveries stats)        — summary
  *
@@ -36,6 +37,7 @@ require_once __DIR__ . '/../../core/Integrations/PapuAdapter.php';
 require_once __DIR__ . '/../../core/Integrations/DotykackaAdapter.php';
 require_once __DIR__ . '/../../core/Integrations/GastroSoftAdapter.php';
 require_once __DIR__ . '/../../core/Integrations/AdapterRegistry.php';
+require_once __DIR__ . '/../../core/SettingsPingLib.php';
 
 use SliceHub\Integrations\AdapterRegistry;
 
@@ -88,6 +90,7 @@ function settings_csrfCheck(string $action): void
     $readOnly = [
         'integrations_list', 'webhooks_list', 'api_keys_list',
         'dlq_list', 'inbound_list', 'health_summary', 'audit_log_list', 'csrf_token',
+        'gateway_scopes_catalog', 'webhook_deliveries_list',
         'notifications_channels_list', 'notifications_routes_get',
         'notifications_templates_get',
     ];
@@ -658,7 +661,7 @@ try {
 
             if ($name === '') settings_respond(false, null, 'name required', 400);
             if (!is_array($scopes)) $scopes = [$scopes];
-            $scopes = array_values(array_filter(array_map('strval', $scopes), fn($s) => $s !== ''));
+            $scopes = GatewayAuth::normalizeGatewayScopes(array_map('strval', $scopes));
 
             $env = (defined('GATEWAY_ENV') ? GATEWAY_ENV : 'live');
             $gen = GatewayAuth::generateKey($env);
@@ -710,6 +713,71 @@ try {
 
             settings_audit($pdo, $tenant_id, $user_id ?? null, 'api_keys_revoke', 'api_key', $id, null, ['revoked' => true]);
             settings_respond(true, ['id' => $id, 'revoked' => true]);
+        }
+
+        case 'gateway_scopes_catalog': {
+            settings_respond(true, ['scopes' => GatewayAuth::gatewayScopeCatalog()]);
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        // WEBHOOK DELIVERY INSPECTOR (sh_webhook_deliveries — historia HTTP)
+        // ════════════════════════════════════════════════════════════════
+
+        case 'webhook_deliveries_list': {
+            settings_requireTableOrFail($pdo, 'sh_webhook_deliveries');
+            settings_requireTableOrFail($pdo, 'sh_webhook_endpoints');
+
+            $limit  = max(1, min(100, (int)($input['limit'] ?? 25)));
+            $offset = max(0, (int)($input['offset'] ?? 0));
+            $endpointFilter = isset($input['endpoint_id']) ? (int)$input['endpoint_id'] : 0;
+
+            $whereEp = 'we.tenant_id = :tid';
+            $params = [':tid' => $tenant_id];
+            if ($endpointFilter > 0) {
+                $whereEp .= ' AND we.id = :eid';
+                $params[':eid'] = $endpointFilter;
+            }
+
+            try {
+                $cntStmt = $pdo->prepare(
+                    "SELECT COUNT(*) FROM sh_webhook_deliveries wd
+                     INNER JOIN sh_webhook_endpoints we ON we.id = wd.endpoint_id AND {$whereEp}"
+                );
+                $cntStmt->execute($params);
+                $total = (int)$cntStmt->fetchColumn();
+            } catch (PDOException $e) {
+                settings_respond(false, null, 'webhook deliveries unavailable', 503);
+            }
+
+            $sql = "SELECT wd.id, wd.event_id, wd.endpoint_id, wd.attempt_number,
+                           wd.http_code, wd.response_body, wd.error_message, wd.duration_ms, wd.attempted_at,
+                           we.name AS endpoint_name,
+                           CASE WHEN LENGTH(we.url) > 80 THEN CONCAT(LEFT(we.url, 77), '…') ELSE we.url END AS endpoint_url_short,
+                           eo.event_type, eo.aggregate_id, eo.status AS outbox_status
+                    FROM sh_webhook_deliveries wd
+                    INNER JOIN sh_webhook_endpoints we ON we.id = wd.endpoint_id AND {$whereEp}
+                    LEFT JOIN sh_event_outbox eo ON eo.id = wd.event_id
+                    ORDER BY wd.id DESC
+                    LIMIT {$limit} OFFSET {$offset}";
+
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+            foreach ($rows as &$r) {
+                $rb = (string)($r['response_body'] ?? '');
+                if (strlen($rb) > 800) {
+                    $r['response_body'] = substr($rb, 0, 800) . '…';
+                }
+            }
+            unset($r);
+
+            settings_respond(true, [
+                'rows'   => $rows,
+                'total'  => $total,
+                'limit'  => $limit,
+                'offset' => $offset,
+            ]);
         }
 
         // ════════════════════════════════════════════════════════════════
@@ -1061,249 +1129,17 @@ try {
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// Helpers dla Test Ping (synthetic event → adapter → transport)
+// Helpers dla Test Ping — delegacja do core/SettingsPingLib.php
 // ────────────────────────────────────────────────────────────────────────
 
-/**
- * Test ping dla integration adaptera — buduje syntetyczny order.created envelope,
- * wywołuje adapter.buildRequest() + wysyła cURL z timeoutem, zwraca raport.
- */
 function settings_testIntegrationPing(array $integrationRow): array
 {
-    $t0 = microtime(true);
-
-    $provider = (string)($integrationRow['provider'] ?? '');
-    $known = AdapterRegistry::availableProviders();
-    if (!isset($known[$provider])) {
-        return [
-            'ok'       => false,
-            'stage'    => 'resolve',
-            'message'  => "No adapter class for provider '{$provider}'",
-            'duration_ms' => (int)((microtime(true) - $t0) * 1000),
-        ];
-    }
-
-    // Wzbogać wiersz o defaulty health columns
-    $row = $integrationRow + [
-        'timeout_seconds' => 8,
-        'max_retries' => 6,
-        'consecutive_failures' => 0,
-    ];
-
-    // Instancjonuj adapter poza AdapterRegistry by nie dotknąć cache.
-    $providerMap = AdapterRegistry::availableProviders();
-    $class = null;
-    foreach ([
-        'SliceHub\\Integrations\\PapuAdapter',
-        'SliceHub\\Integrations\\DotykackaAdapter',
-        'SliceHub\\Integrations\\GastroSoftAdapter',
-    ] as $candidate) {
-        if (class_exists($candidate) && $candidate::providerKey() === $provider) {
-            $class = $candidate;
-            break;
-        }
-    }
-    if ($class === null) {
-        return ['ok' => false, 'stage' => 'resolve', 'message' => "No adapter class matched '{$provider}'",
-                'duration_ms' => (int)((microtime(true) - $t0) * 1000)];
-    }
-
-    $adapter = new $class($row);
-
-    $envelope = settings_buildSyntheticEnvelope((int)$row['tenant_id']);
-
-    try {
-        $req = $adapter->buildRequest($envelope);
-    } catch (Throwable $e) {
-        return [
-            'ok' => false,
-            'stage' => 'buildRequest',
-            'message' => $e->getMessage(),
-            'duration_ms' => (int)((microtime(true) - $t0) * 1000),
-        ];
-    }
-
-    $transportT0 = microtime(true);
-    $http = settings_curlRequest(
-        (string)$req['method'], (string)$req['url'], (array)$req['headers'], (string)$req['body'],
-        max(1, (int)($row['timeout_seconds'] ?? 8))
-    );
-    $transportMs = (int)((microtime(true) - $transportT0) * 1000);
-
-    $verdict = $adapter->parseResponse((int)$http['code'], (string)$http['body'], $http['error']);
-
-    return [
-        'ok'          => (bool)($verdict['ok'] ?? false),
-        'stage'       => ($verdict['ok'] ?? false) ? 'delivered' : 'rejected',
-        'http_code'   => (int)$http['code'],
-        'transport_error' => $http['error'],
-        'transient'   => (bool)($verdict['transient'] ?? false),
-        'external_ref' => $verdict['externalRef'] ?? null,
-        'error'       => $verdict['error'] ?? null,
-        'request_preview' => [
-            'method'  => $req['method'],
-            'url'     => $req['url'],
-            'headers_count' => count($req['headers']),
-            'body_bytes' => strlen($req['body']),
-            'body_preview' => substr($req['body'], 0, 300),
-        ],
-        'response_preview' => substr((string)$http['body'], 0, 500),
-        'duration_ms' => (int)((microtime(true) - $t0) * 1000),
-        'transport_ms' => $transportMs,
-    ];
+    return SettingsPingLib::integrationPing($integrationRow);
 }
 
-/**
- * Test ping dla webhook endpointu — signed HMAC POST z synthetic envelope.
- */
 function settings_testWebhookPing(array $endpointRow, int $tenantId): array
 {
-    $t0 = microtime(true);
-
-    $secret = (string)$endpointRow['secret'];
-    if (class_exists('CredentialVault') && CredentialVault::isEncrypted($secret)) {
-        $decrypted = CredentialVault::decrypt($secret);
-        if ($decrypted === null) {
-            return [
-                'ok'      => false,
-                'stage'   => 'decrypt',
-                'message' => 'secret decrypt failed — check SLICEHUB_VAULT_KEY',
-                'duration_ms' => (int)((microtime(true) - $t0) * 1000),
-            ];
-        }
-        $secret = $decrypted;
-    }
-
-    $envelope = settings_buildSyntheticEnvelope($tenantId, true);
-    $body = json_encode($envelope, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    if ($body === false) {
-        return ['ok' => false, 'stage' => 'encode', 'message' => 'json_encode failed',
-                'duration_ms' => (int)((microtime(true) - $t0) * 1000)];
-    }
-
-    $ts = time();
-    $sig = hash_hmac('sha256', $ts . '.' . $body, $secret);
-
-    $headers = [
-        'Content-Type: application/json; charset=utf-8',
-        'User-Agent: SliceHub-Webhooks/1.0 (test-ping)',
-        "X-Slicehub-Event: {$envelope['event_type']}",
-        "X-Slicehub-Test: 1",
-        "X-Slicehub-Timestamp: {$ts}",
-        "X-Slicehub-Signature: t={$ts},v1={$sig}",
-    ];
-
-    $transportT0 = microtime(true);
-    $http = settings_curlRequest('POST', (string)$endpointRow['url'], $headers, $body,
-        max(1, (int)$endpointRow['timeout_seconds']));
-    $transportMs = (int)((microtime(true) - $transportT0) * 1000);
-
-    $isOk = ($http['code'] >= 200 && $http['code'] < 300);
-
-    return [
-        'ok'          => $isOk,
-        'stage'       => $isOk ? 'delivered' : ($http['error'] ? 'transport' : 'http_error'),
-        'http_code'   => (int)$http['code'],
-        'transport_error' => $http['error'],
-        'response_preview' => substr((string)$http['body'], 0, 500),
-        'signature'   => "t={$ts},v1={$sig}",
-        'duration_ms' => (int)((microtime(true) - $t0) * 1000),
-        'transport_ms' => $transportMs,
-    ];
-}
-
-function settings_buildSyntheticEnvelope(int $tenantId, bool $forWebhook = false): array
-{
-    $now = gmdate('Y-m-d\TH:i:s\Z');
-    $fakeOrderId = 'test-' . bin2hex(random_bytes(6));
-
-    $envelope = [
-        'event_id'       => 'test-' . bin2hex(random_bytes(8)),
-        'event_type'     => 'order.created',
-        'aggregate_id'   => $fakeOrderId,
-        'aggregate_type' => 'order',
-        'tenant_id'      => $tenantId,
-        'source'         => 'test_ping',
-        'actor_type'     => 'system',
-        'actor_id'       => null,
-        'occurred_at'    => $now,
-        'attempt'        => 1,
-        'payload' => [
-            '_test_ping' => true,
-            'order' => [
-                'id'              => $fakeOrderId,
-                'order_number'    => 'TST/' . date('Ymd') . '/0001',
-                'tenant_id'       => $tenantId,
-                'order_type'      => 'takeaway',
-                'channel'         => 'Takeaway',
-                'payment_method'  => 'cash',
-                'payment_status'  => 'unpaid',
-                'customer_name'   => 'Test Ping',
-                'customer_phone'  => '+48 600 000 000',
-                'delivery_address' => null,
-                'subtotal_grosze'     => 3000,
-                'grand_total_grosze'  => 3000,
-                'discount_grosze'     => 0,
-                'delivery_fee_grosze' => 0,
-                'promised_time'   => null,
-                'gateway_source'  => 'test_ping',
-                'gateway_external_id' => null,
-                'lines' => [
-                    [
-                        'item_sku'              => 'TEST_ITEM',
-                        'snapshot_name'         => 'Test Pizza Margherita',
-                        'quantity'              => 1,
-                        'unit_price_grosze'     => 3000,
-                        'line_total_grosze'     => 3000,
-                        'vat_rate'              => 23.0,
-                        'modifiers_json'        => '[]',
-                        'removed_ingredients_json' => '[]',
-                        'comment'               => null,
-                    ],
-                ],
-            ],
-            '_context' => [
-                'test_ping' => true,
-                'gateway_source' => 'test_ping',
-            ],
-        ],
-    ];
-
-    if ($forWebhook) {
-        $envelope['delivery_id'] = 0; // placeholder
-    }
-    return $envelope;
-}
-
-function settings_curlRequest(string $method, string $url, array $headers, string $body, int $timeout): array
-{
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL            => $url,
-        CURLOPT_CUSTOMREQUEST  => $method,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => $timeout,
-        CURLOPT_CONNECTTIMEOUT => min($timeout, 3),
-        CURLOPT_HTTPHEADER     => $headers,
-        CURLOPT_FOLLOWLOCATION => false,
-        CURLOPT_SSL_VERIFYPEER => true,
-        CURLOPT_SSL_VERIFYHOST => 2,
-    ]);
-
-    if ($body !== '' && $method !== 'GET' && $method !== 'DELETE') {
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
-    }
-
-    $respBody = curl_exec($ch);
-    $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $err      = curl_errno($ch) !== 0 ? curl_error($ch) : null;
-    curl_close($ch);
-
-    return [
-        'code'  => $httpCode,
-        'body'  => is_string($respBody) ? $respBody : '',
-        'error' => $err,
-    ];
+    return SettingsPingLib::webhookPing($endpointRow, $tenantId);
 }
 
 // =============================================================================

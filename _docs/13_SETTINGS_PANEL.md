@@ -40,7 +40,7 @@ Panel admina spinający w jedno miejsce całą konfigurację integracji event-sy
 │    ├── integrations_* | webhooks_* | api_keys_* | dlq_*        │
 │    ├── health_summary | inbound_list                           │
 │    ├── csrf_token                                              │
-│    ├── audit_log_list (read-only)                               │
+│    ├── audit_log_list | gateway_scopes_catalog | webhook_deliveries_list (read-only) │
 │    └── notifications_* (channels, routes, templates, test)       │
 │                                                                │
 │  Każdy action:                                                 │
@@ -157,6 +157,7 @@ W responsach pokazuje tylko `credentials_redacted` (`"••••(api_key,cloud
 | `webhooks_toggle`        | `{id, active}`                                                                       | `{id, is_active}`                   |
 | `webhooks_delete`        | `{id}`                                                                               | `{id, deleted}`                     |
 | `webhooks_test_ping`     | `{id}`                                                                               | Full ping report                    |
+| `webhook_deliveries_list`| `{limit?: 1–100, offset?, endpoint_id?}`                                            | `{rows, total, limit, offset}` — historia prób HTTP (`sh_webhook_deliveries`) |
 
 **Secret lifecycle:** przy CREATE endpoint generuje fresh `bin2hex(random_bytes(32))` (64 hex chars),
 szyfruje przez vault, wkłada do DB. Zwraca `new_secret` (plaintext) w response **dokładnie jeden raz** — UI pokazuje modalne
@@ -171,6 +172,9 @@ szyfruje przez vault, wkłada do DB. Zwraca `new_secret` (plaintext) w response 
 | `api_keys_list`          | —                                                                                    | `{api_keys}`                                |
 | `api_keys_generate`      | `{name, source, scopes, rate_limit_per_min, rate_limit_per_day, expires_at?}`        | `{id, full_key, prefix, source, scopes}`    |
 | `api_keys_revoke`        | `{id}`                                                                               | `{id, revoked}`                             |
+| `gateway_scopes_catalog` | —                                                                                    | `{scopes:[{value,label,hint}]}` — picker UI   |
+
+`scopes` przy `api_keys_generate` są **normalizowane** przez `GatewayAuth::normalizeGatewayScopes()` (znane wartości + `*`).
 
 `full_key` format: `sh_live_abc12345.<48-hex-chars>` (patrz `GatewayAuth::generateKey()`).
 Pokazujemy raz, zapisujemy tylko SHA-256 secretu (`key_secret_hash`).
@@ -216,7 +220,7 @@ Worker weźmie event w następnym batchu.
 - **Zero build step** — vanilla JS, FontAwesome via CDN, zero npm deps.
 - **Dark theme** spójne z KDS/POS.
 - **Mobile responsive** (grid-2 collapses, actions wrap).
-- **Dwa pliki JS:** `settings_app.js` (rdzeń + Inbound + Health + Dziennik + CSRF/bootstrap) oraz `notifications.js` (zakładka Powiadomienia); wspólne `callApi` / CSRF w obu ścieżkach.
+- **Dwa pliki JS:** `settings_app.js` (rdzeń + Inbound + Health + Dziennik + podgląd historii webhooków + CSRF/bootstrap) oraz `notifications.js` (zakładka Powiadomienia); wspólne `callApi` / CSRF w obu ścieżkach.
   - API client (`callApi()`)
   - DOM helpers (`el()`, `$()`, `$$()`, `escHtml()`)
   - Toast notifications
@@ -428,11 +432,14 @@ Każdy decrypt patrzy na wersję i wybiera implementację.
 - [x] **Key rotation job** — `scripts/rotate_credentials_to_vault.php` + `scripts/bootstrap_vault.php`.
 - [x] **Inbound callback framework** — `api/integrations/inbound.php` + `BaseAdapter::parseInboundCallback()`. Patrz [`_docs/14_INBOUND_CALLBACKS.md`](14_INBOUND_CALLBACKS.md).
 
-### Jeszcze otwarte (7.7+)
+### ✅ Domknięte w 7.7+ (2026-05-03)
 
-- [ ] **Webhook delivery inspector** — pełna timeline HTTP requestów z paginacją w UI
-- [ ] **Provider test suite** — automatyczne sandbox pingowania wszystkich aktywnych integracji raz na godzinę (alert gdy `consecutive_failures > 0`)
-- [ ] **Scope picker UX** — checkboxy zamiast textbox dla `scopes` w API Keys
+- [x] **Webhook delivery inspector** — akcja `webhook_deliveries_list` + sekcja „Historia dostaw HTTP” pod listą endpointów (paginacja, filtr endpointu, JSON szczegółów).
+- [x] **Provider test suite** — skrypt CLI `scripts/worker_integration_health_ping.php` (sandbox ping aktywnych wierszy `sh_tenant_integrations`; crontab co godzinę rekomendowany; `--tenant=N`, `--quiet`).
+- [x] **Scope picker UX** — checkboxy + `gateway_scopes_catalog`; backend `GatewayAuth::normalizeGatewayScopes()`.
+
+### Jeszcze otwarte (7.8+)
+
 - [ ] **Multi-tenant admin view** — centralny panel dla superadmina przeglądający integracje wszystkich tenantów
 - [ ] **Webhook subscription auto-register** — automatyczny POST naszego inbound URL do providera (Papu/Uber API) zamiast ręcznej konfiguracji
 

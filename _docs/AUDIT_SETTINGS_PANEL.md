@@ -35,6 +35,8 @@ Pełna lista rozszerzeń względem tabeli z §4 dokumentu 13:
 - `csrf_token` — bootstrap sesji (opisane w §13 dokumentu 13).
 - `inbound_list` — lista `sh_inbound_callbacks` + `counts_24h` (Health już agreguje inbound).
 - `audit_log_list` — ostatnie N wpisów z `sh_settings_audit` (read-only, bez CSRF).
+- `gateway_scopes_catalog` — lista znanych scope’ów dla UI API Keys.
+- `webhook_deliveries_list` — paginowana historia `sh_webhook_deliveries` (read-only).
 - `notifications_channels_list` | `notifications_channels_upsert` | `notifications_channels_delete` | `notifications_channels_test`
 - `notifications_routes_get` | `notifications_routes_set`
 - `notifications_templates_get` | `notifications_templates_set`
@@ -72,15 +74,14 @@ Historycznie:
 
 ---
 
-## 6. Roadmapa z dokumentu 13 §12 — status „otwarte”
+## 6. Roadmapa z dokumentu 13 §12 — status
 
-Nadal adekwatne jako **nice-to-have**, nie jako brak MVP Settings:
+**Zamknięte (2026-05-03):** inspector webhooków (`webhook_deliveries_list` + UI), worker `worker_integration_health_ping.php`, picker scope’ów API Keys (`gateway_scopes_catalog` + `GatewayAuth::normalizeGatewayScopes`).
+
+**Nadal otwarte (produktowo większe):**
 
 | Punkt | Opis |
 |-------|------|
-| Webhook delivery inspector | Pełna historia HTTP w UI z paginacją |
-| Provider test suite | Cron/sandbox ping aktywnych integracji |
-| Scope picker dla API Keys | Checkboxy zamiast tekstu |
 | Multi-tenant admin view | Superadmin przeglądający wszystkich tenantów |
 | Auto-register subscription u providera | Papu/Uber API |
 
@@ -104,6 +105,7 @@ Nadal adekwatne jako **nice-to-have**, nie jako brak MVP Settings:
 | 2026-05-03 | 3    | `_docs/13_SETTINGS_PANEL.md`: 7 zakładek, Inbound/Powiadomienia, architektura 2× JS, §8 CSRF/rate limit, rozszerzone `health_summary` i tabele akcji; link do audytu. |
 | 2026-05-03 | 4    | **Dziennik (opcja A):** `api/settings/engine.php` — `audit_log_list`; UI — zakładka Dziennik, `renderAuditLog`, style w `style.css`; dokumentacja 13 i ten audyt zsynchronizowane (8 zakładek). |
 | 2026-05-03 | 5    | **North Star — eventy rozliczenia:** `api/payments/settle.php` — przed `COMMIT` wywołanie `OrderEventPublisher::publishOrderLifecycle`: `order.completed` gdy auto-complete (`ready`→`completed`), w przeciwnym razie `payment.settled` (split tender w `_context`). Zaktualizowano `_docs/02_ARCHITEKTURA.md`, `_docs/09_EVENT_SYSTEM.md`. |
+| 2026-05-03 | 6    | **§12 Settings roadmap:** `webhook_deliveries_list` + UI pod Webhooks; `gateway_scopes_catalog` + checkboxy API Keys; `core/SettingsPingLib.php` + `scripts/worker_integration_health_ping.php`; dokumentacja 13 §12 / ten audyt. |
 
 *Następne priorytety North Star (poza tym commitem): backlog modułowy z `OPTIMIZED_CORE_LOGIC_V2.md` / `_docs/17_OFFLINE_POS_BACKLOG.md` — walidacja we własnym lokalu.*
 

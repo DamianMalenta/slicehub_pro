@@ -39,6 +39,44 @@ final class GatewayAuth
      * }
      */
 
+    /**
+     * Dozwolone wartości scope dla kluczy Gateway (UI picker + walidacja zapisu).
+     * intake.php obecnie wymaga order:create lub * dla tworzenia zamówień.
+     */
+    public const GATEWAY_SCOPE_VALUES = ['order:create', 'order:read', 'menu:read', '*'];
+
+    /**
+     * Katalog do Settings UI (gateway_scopes_catalog).
+     *
+     * @return list<array{value:string,label:string,hint:string}>
+     */
+    public static function gatewayScopeCatalog(): array
+    {
+        return [
+            ['value' => 'order:create', 'label' => 'order:create', 'hint' => 'POST /api/gateway/intake — tworzenie zamówień (wymagane dla intake).'],
+            ['value' => 'order:read', 'label' => 'order:read', 'hint' => 'Przyszłe endpointy odczytu zamówień.'],
+            ['value' => 'menu:read', 'label' => 'menu:read', 'hint' => 'Przyszły odczyt menu / katalogu.'],
+            ['value' => '*', 'label' => '* (wszystkie)', 'hint' => 'Pełny dostęp — używaj oszczędnie.'],
+        ];
+    }
+
+    /**
+     * Normalizuje listę scope z UI: usuwa nieznane, * domina, pusta lista → order:create.
+     *
+     * @param  list<string|mixed> $scopes
+     * @return list<string>
+     */
+    public static function normalizeGatewayScopes(array $scopes): array
+    {
+        $scopes = array_values(array_unique(array_filter(array_map(static fn($s) => trim((string)$s), $scopes), static fn($s) => $s !== '')));
+        if (in_array('*', $scopes, true)) {
+            return ['*'];
+        }
+        $allowed = self::GATEWAY_SCOPE_VALUES;
+        $filtered = array_values(array_filter($scopes, static fn($s) => in_array($s, $allowed, true)));
+        return $filtered !== [] ? $filtered : ['order:create'];
+    }
+
     /** Cache feature-detect per request. */
     private static ?bool $keysTableAvailable = null;
 

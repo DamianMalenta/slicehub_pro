@@ -8,6 +8,7 @@
  *   • Dead Letters (outbox DLQ + integration DLQ) — list + replay
  *   • Health       — vault status, endpoint counts, stats
  *   • Dziennik     — sh_settings_audit (ostatnie mutacje)
+ *   • Webhooks     — + historia dostaw HTTP (sh_webhook_deliveries)
  *
  * Bez frameworków (CSP compliance + rule book).
  */
@@ -23,6 +24,7 @@
         'csrf_token',
         'integrations_list', 'webhooks_list', 'api_keys_list',
         'dlq_list', 'inbound_list', 'health_summary', 'audit_log_list',
+        'gateway_scopes_catalog', 'webhook_deliveries_list',
         'notifications_channels_list', 'notifications_routes_get',
         'notifications_templates_get',
     ]);
@@ -427,6 +429,10 @@
     // WEBHOOKS PANE
     // ═══════════════════════════════════════════════════════════════════
 
+    const WD_PAGE_SIZE = 25;
+    let _wdOffset = 0;
+    let _wdEndpointFilter = 0;
+
     async function renderWebhooks() {
         const pane = $('#st-pane-webhooks');
         pane.innerHTML = '<div class="st-empty"><i class="fa-solid fa-spinner fa-spin"></i><p>Loading…</p></div>';
@@ -449,16 +455,127 @@
                     el('p', {}, 'No webhook endpoints configured.'),
                     el('p', { class: 'st-subtitle' }, 'Generic HTTP webhooks for Slack, Zapier, analytics, custom systems.')
                 ));
-                return;
+            } else {
+                data.endpoints.forEach(wh => pane.appendChild(renderWebhookCard(wh)));
             }
 
-            data.endpoints.forEach(wh => pane.appendChild(renderWebhookCard(wh)));
+            mountWebhookDeliveryInspector(pane, data.endpoints || []);
         } catch (e) {
             pane.innerHTML = '';
             pane.appendChild(el('div', { class: 'st-empty' },
                 el('i', { class: 'fa-solid fa-triangle-exclamation' }),
                 el('p', {}, 'Failed to load: ' + e.message)
             ));
+        }
+    }
+
+    function mountWebhookDeliveryInspector(pane, endpoints) {
+        _wdOffset = 0;
+        _wdEndpointFilter = 0;
+
+        const wrap = el('div', { class: 'st-wd-inspector' });
+        wrap.appendChild(el('h3', { style: 'margin-top:28px;padding-top:16px;border-top:1px solid var(--border)' },
+            el('i', { class: 'fa-solid fa-route' }), ' Historia dostaw HTTP'));
+        wrap.appendChild(el('p', { class: 'st-field__hint' },
+            'Ostatnie próby POST do endpointów (sh_webhook_deliveries). Worker: scripts/worker_webhooks.php'));
+
+        const sel = el('select', { id: 'st-wd-filter', style: 'max-width:320px' },
+            el('option', { value: '' }, 'Wszystkie endpointy'),
+            ...(endpoints || []).map(ep => el('option', { value: String(ep.id) },
+                `${ep.name} (#${ep.id})`))
+        );
+        sel.addEventListener('change', () => {
+            _wdEndpointFilter = parseInt(sel.value, 10) || 0;
+            _wdOffset = 0;
+            loadWdPage(tableHost, navInfo, prevBtn, nextBtn);
+        });
+
+        wrap.appendChild(el('div', { class: 'st-field', style: 'display:flex;gap:12px;align-items:center;flex-wrap:wrap' },
+            el('label', {}, 'Filtr endpointu'),
+            sel
+        ));
+
+        const tableHost = el('div', { id: 'st-wd-host' });
+        const navInfo = el('span', { class: 'st-muted' });
+        const prevBtn = el('button', { class: 'st-btn st-btn--sm', type: 'button' }, '← Poprzednia');
+        const nextBtn = el('button', { class: 'st-btn st-btn--sm', type: 'button' }, 'Następna →');
+        prevBtn.addEventListener('click', () => {
+            _wdOffset = Math.max(0, _wdOffset - WD_PAGE_SIZE);
+            loadWdPage(tableHost, navInfo, prevBtn, nextBtn);
+        });
+        nextBtn.addEventListener('click', () => {
+            _wdOffset += WD_PAGE_SIZE;
+            loadWdPage(tableHost, navInfo, prevBtn, nextBtn);
+        });
+
+        wrap.appendChild(tableHost);
+        wrap.appendChild(el('div', { style: 'display:flex;gap:12px;align-items:center;margin-top:10px;flex-wrap:wrap' },
+            prevBtn, navInfo, nextBtn));
+
+        pane.appendChild(wrap);
+
+        loadWdPage(tableHost, navInfo, prevBtn, nextBtn);
+    }
+
+    async function loadWdPage(tableHost, navInfo, prevBtn, nextBtn) {
+        tableHost.innerHTML = '<div class="st-empty"><i class="fa-solid fa-spinner fa-spin"></i><p>Loading…</p></div>';
+        try {
+            const payload = { limit: WD_PAGE_SIZE, offset: _wdOffset };
+            if (_wdEndpointFilter > 0) payload.endpoint_id = _wdEndpointFilter;
+            const data = await callApi('webhook_deliveries_list', payload);
+            const rows = data.rows || [];
+            const total = data.total ?? 0;
+
+            navInfo.textContent = `Rekordy ${_wdOffset + (rows.length ? 1 : 0)}–${_wdOffset + rows.length} z ${total}`;
+            prevBtn.disabled = _wdOffset <= 0;
+            nextBtn.disabled = _wdOffset + rows.length >= total;
+
+            if (!rows.length) {
+                tableHost.innerHTML = '';
+                tableHost.appendChild(el('div', { class: 'st-empty' }, el('p', {}, 'Brak wpisów dostaw.')));
+                return;
+            }
+
+            const headRow = el('tr', {},
+                ...['ID', 'Czas', 'Endpoint', 'Event', 'HTTP', 'Ms', 'Outbox', ''].map(h => el('th', {}, h)));
+            const tbody = el('tbody', {}, ...rows.map(r => el('tr', {},
+                el('td', { class: 'st-mono st-nowrap' }, String(r.id)),
+                el('td', { class: 'st-nowrap' }, fmtDate(r.attempted_at)),
+                el('td', {},
+                    escHtml(r.endpoint_name || ''),
+                    el('br'),
+                    el('small', { class: 'st-muted' }, escHtml(r.endpoint_url_short || ''))),
+                el('td', {},
+                    el('code', {}, escHtml(r.event_type || '–')),
+                    el('br'),
+                    el('small', { class: 'st-mono' }, escHtml(String(r.aggregate_id || '').slice(0, 40)))),
+                el('td', {}, String(r.http_code ?? '–')),
+                el('td', {}, String(r.duration_ms ?? '–')),
+                el('td', {}, escHtml(r.outbox_status || '–')),
+                el('td', {},
+                    el('button', {
+                        class: 'st-btn st-btn--sm',
+                        type: 'button',
+                        onClick: () => {
+                            const modal = el('div', { class: 'st-modal' },
+                                el('h3', {}, 'Dostawa #' + r.id),
+                                el('pre', { class: 'st-audit-pre' }, JSON.stringify(r, null, 2)),
+                                el('div', { class: 'st-modal__footer' },
+                                    el('button', { class: 'st-btn', onClick: closeModal }, 'Zamknij')));
+                            openModal(modal);
+                        },
+                    }, 'JSON'))
+            )));
+
+            tableHost.innerHTML = '';
+            tableHost.appendChild(el('div', { class: 'st-audit-wrap' },
+                el('table', { class: 'st-audit-table st-wd-table' },
+                    el('thead', {}, headRow),
+                    tbody)));
+        } catch (e) {
+            tableHost.innerHTML = '';
+            tableHost.appendChild(el('div', { class: 'st-empty' },
+                el('p', {}, 'Błąd: ' + escHtml(e.message))));
         }
     }
 
@@ -677,7 +794,20 @@
         );
     }
 
-    function openApiKeyGenerator() {
+    async function openApiKeyGenerator() {
+        let catalog = [];
+        try {
+            const d = await callApi('gateway_scopes_catalog');
+            catalog = d.scopes || [];
+        } catch (e) {
+            catalog = [
+                { value: 'order:create', label: 'order:create', hint: '' },
+                { value: 'order:read', label: 'order:read', hint: '' },
+                { value: 'menu:read', label: 'menu:read', hint: '' },
+                { value: '*', label: '* (wszystkie)', hint: '' },
+            ];
+        }
+
         const modal = el('div', { class: 'st-modal' });
 
         const nameInput = el('input', { type: 'text', id: 'k-name', placeholder: 'np. "Uber Eats Integration"' });
@@ -687,7 +817,27 @@
                 .map(s => el('option', { value: s }, s))
         );
         srcSelect.value = 'public_api';
-        const scopesInput = el('input', { type: 'text', id: 'k-scopes', value: 'order:create' });
+
+        const scopeBoxes = [];
+        const starBox = el('input', { type: 'checkbox', id: 'k-scope-star' });
+        const scopeGrid = el('div', { class: 'st-scope-grid' });
+        catalog.forEach((sc) => {
+            if (sc.value === '*') return;
+            const cb = el('input', { type: 'checkbox', id: `k-scope-${sc.value.replace(/[^a-z0-9]/gi, '-')}` });
+            cb.value = sc.value;
+            if (sc.value === 'order:create') cb.checked = true;
+            cb.addEventListener('change', () => { if (cb.checked) starBox.checked = false; });
+            scopeBoxes.push(cb);
+            scopeGrid.appendChild(el('label', { class: 'st-scope-row' },
+                cb,
+                el('span', {}, escHtml(sc.label)),
+                sc.hint ? el('span', { class: 'st-field__hint', style: 'display:block;width:100%' }, escHtml(sc.hint)) : null
+            ));
+        });
+        starBox.addEventListener('change', () => {
+            if (starBox.checked) scopeBoxes.forEach(b => { b.checked = false; });
+        });
+
         const rpmInput = el('input', { type: 'number', min: '1', id: 'k-rpm', value: 60 });
         const rpdInput = el('input', { type: 'number', min: '1', id: 'k-rpd', value: 10000 });
         const expInput = el('input', { type: 'datetime-local', id: 'k-exp' });
@@ -696,8 +846,13 @@
         modal.appendChild(el('div', { class: 'st-field' }, el('label', {}, 'Name'), nameInput));
         modal.appendChild(el('div', { class: 'st-field' }, el('label', {}, 'Source'), srcSelect,
             el('div', { class: 'st-field__hint' }, 'Key będzie source-bound: klucz "aggregator_uber" nie puszcza zamówień jako "aggregator_glovo".')));
-        modal.appendChild(el('div', { class: 'st-field' }, el('label', {}, 'Scopes'), scopesInput,
-            el('div', { class: 'st-field__hint' }, 'Comma-separated. Dostępne: order:create, order:read, menu:read. "*" = wszystkie.')));
+        modal.appendChild(el('div', { class: 'st-field' }, el('label', {}, 'Scopes'),
+            scopeGrid,
+            el('label', { class: 'st-scope-row', style: 'margin-top:10px' },
+                starBox,
+                el('span', {}, 'Pełny dostęp (*)')
+            ),
+            el('div', { class: 'st-field__hint' }, 'Zaznacz jeden lub więcej zakresów albo *. Gateway intake wymaga order:create lub *.')));
         modal.appendChild(el('div', { class: 'st-grid-2' },
             el('div', { class: 'st-field' }, el('label', {}, 'Rate Limit / min'), rpmInput),
             el('div', { class: 'st-field' }, el('label', {}, 'Rate Limit / day'),  rpdInput)
@@ -705,13 +860,19 @@
         modal.appendChild(el('div', { class: 'st-field' }, el('label', {}, 'Expires At (opcjonalne)'), expInput,
             el('div', { class: 'st-field__hint' }, 'Pusty = never expires. Zalecane do rotacji sekretów w 3rd-party integracjach.')));
 
+        function collectScopes() {
+            if (starBox.checked) return ['*'];
+            const s = scopeBoxes.filter(b => b.checked).map(b => b.value);
+            return s.length ? s : ['order:create'];
+        }
+
         modal.appendChild(el('div', { class: 'st-modal__footer' },
             el('button', { class: 'st-btn', onClick: closeModal }, 'Cancel'),
             el('button', { class: 'st-btn st-btn--primary', onClick: async () => {
                 const payload = {
                     name: nameInput.value.trim(),
                     source: srcSelect.value,
-                    scopes: scopesInput.value.split(',').map(s => s.trim()).filter(Boolean),
+                    scopes: collectScopes(),
                     rate_limit_per_min: parseInt(rpmInput.value, 10),
                     rate_limit_per_day: parseInt(rpdInput.value, 10),
                     expires_at: expInput.value ? expInput.value.replace('T', ' ') + ':00' : null,
