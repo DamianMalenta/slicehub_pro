@@ -682,12 +682,22 @@ const PosApp = (() => {
             onAccept: async (id, mins) => {
                 const t = new Date(); t.setMinutes(t.getMinutes() + mins);
                 const iso = t.toISOString().slice(0, 16);
-                await PosAPI.acceptOrder(id, iso);
+                const r = await PosAPI.acceptOrder(id, iso);
+                if (!r.success) {
+                    PosUI.toast(r.message || 'Nie udało się przyjąć zamówienia', 'error');
+                    return;
+                }
+                PosUI.toast('Zamówienie przyjęte', 'success');
                 _expandedOnlineId = null; _fetchOrders();
             },
             onAcceptDate: async (id, dateStr) => {
                 if (!dateStr) return;
-                await PosAPI.acceptOrder(id, dateStr);
+                const r = await PosAPI.acceptOrder(id, dateStr);
+                if (!r.success) {
+                    PosUI.toast(r.message || 'Nie udało się przyjąć zamówienia', 'error');
+                    return;
+                }
+                PosUI.toast('Zamówienie przyjęte', 'success');
                 _expandedOnlineId = null; _fetchOrders();
             },
         });

@@ -7,6 +7,7 @@
  *   • API Keys     (sh_gateway_api_keys)        — list + generate + revoke
  *   • Dead Letters (outbox DLQ + integration DLQ) — list + replay
  *   • Health       — vault status, endpoint counts, stats
+ *   • Dziennik     — sh_settings_audit (ostatnie mutacje)
  *
  * Bez frameworków (CSP compliance + rule book).
  */
@@ -21,7 +22,7 @@
     const CSRF_READONLY = new Set([
         'csrf_token',
         'integrations_list', 'webhooks_list', 'api_keys_list',
-        'dlq_list', 'inbound_list', 'health_summary',
+        'dlq_list', 'inbound_list', 'health_summary', 'audit_log_list',
         'notifications_channels_list', 'notifications_routes_get',
         'notifications_templates_get',
     ]);
@@ -175,6 +176,7 @@
             case 'dlq':           return renderDlq();
             case 'inbound':       return renderInbound();
             case 'health':        return renderHealth();
+            case 'audit':         return renderAuditLog();
             case 'notifications': return renderNotificationsPane();
         }
     }
@@ -901,6 +903,105 @@
                 })
             )
         );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // AUDIT LOG PANE (sh_settings_audit)
+    // ═══════════════════════════════════════════════════════════════════
+
+    async function renderAuditLog() {
+        const pane = $('#st-pane-audit');
+        pane.innerHTML = '<div class="st-empty"><i class="fa-solid fa-spinner fa-spin"></i><p>Loading…</p></div>';
+        try {
+            const data = await callApi('audit_log_list', { limit: 100 });
+            const rows = data.rows || [];
+
+            pane.innerHTML = '';
+            pane.appendChild(el('div', { class: 'st-section-head' },
+                el('h2', {}, 'Dziennik zmian Settings'),
+                el('span', { class: 'st-subtitle' },
+                    `Ostatnie ${rows.length} wpisów (max ${data.limit || 100}) · ` +
+                    'before/after JSON są redacted po stronie zapisu.'
+                )
+            ));
+
+            if (!rows.length) {
+                pane.appendChild(el('div', { class: 'st-empty' },
+                    el('i', { class: 'fa-solid fa-inbox' }),
+                    el('p', {}, 'Brak wpisów audytu — migracja m029 (`sh_settings_audit`) lub jeszcze nie było mutacji.')
+                ));
+                return;
+            }
+
+            const wrap = el('div', { class: 'st-audit-wrap' });
+            const tbl = el('table', { class: 'st-audit-table' },
+                el('thead', {},
+                    el('tr', {},
+                        ...['ID', 'Czas', 'Akcja', 'Encja', 'ID encji', 'User', 'IP', 'Szczegóły'].map(h =>
+                            el('th', {}, h))
+                    )
+                ),
+                el('tbody', {},
+                    ...rows.map(r => {
+                        const detailId = `audit-detail-${r.id}`;
+                        const beforeS = r.before_json != null ? JSON.stringify(r.before_json, null, 0) : '';
+                        const afterS = r.after_json != null ? JSON.stringify(r.after_json, null, 0) : '';
+                        const hasDetail = beforeS || afterS;
+                        return el('tr', { dataset: { id: String(r.id) } },
+                            el('td', { class: 'st-mono' }, String(r.id)),
+                            el('td', { class: 'st-mono st-nowrap' }, fmtDate(r.created_at)),
+                            el('td', {}, el('code', { class: 'st-code-inline' }, escHtml(r.action || ''))),
+                            el('td', {}, escHtml(r.entity_type || '—')),
+                            el('td', { class: 'st-mono' }, r.entity_id != null ? String(r.entity_id) : '—'),
+                            el('td', { class: 'st-mono' }, r.user_id != null ? String(r.user_id) : '—'),
+                            el('td', { class: 'st-mono st-ip' }, escHtml(r.actor_ip || '—')),
+                            el('td', {},
+                                hasDetail
+                                    ? el('button', {
+                                        type: 'button',
+                                        class: 'st-btn st-btn--sm',
+                                        onClick: () => {
+                                            const row = document.getElementById(detailId);
+                                            if (row) row.classList.toggle('st-audit-detail--open');
+                                        },
+                                    }, el('i', { class: 'fa-solid fa-code' }), ' JSON')
+                                    : el('span', { class: 'st-muted' }, '—')
+                            )
+                        );
+                    })
+                )
+            );
+            wrap.appendChild(tbl);
+
+            rows.forEach(r => {
+                const beforeS = r.before_json != null ? JSON.stringify(r.before_json, null, 2) : '';
+                const afterS = r.after_json != null ? JSON.stringify(r.after_json, null, 2) : '';
+                if (!beforeS && !afterS) return;
+                wrap.appendChild(el('div', {
+                    id: `audit-detail-${r.id}`,
+                    class: 'st-audit-detail',
+                },
+                    el('div', { class: 'st-audit-detail__hdr' }, `Wpis #${r.id} · ${escHtml(r.action || '')}`),
+                    el('div', { class: 'st-audit-detail__grid' },
+                        el('div', {},
+                            el('h4', {}, 'before_json'),
+                            el('pre', { class: 'st-audit-pre' }, beforeS || 'null')
+                        ),
+                        el('div', {},
+                            el('h4', {}, 'after_json'),
+                            el('pre', { class: 'st-audit-pre' }, afterS || 'null')
+                        )
+                    )
+                ));
+            });
+
+            pane.appendChild(wrap);
+        } catch (e) {
+            pane.innerHTML = '';
+            pane.appendChild(el('div', { class: 'st-empty' },
+                el('i', { class: 'fa-solid fa-triangle-exclamation' }),
+                el('p', {}, 'Failed to load: ' + e.message)));
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════

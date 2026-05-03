@@ -777,6 +777,8 @@ try {
             posResponse(false, null, 'order_id is required.');
         }
 
+        require_once __DIR__ . '/../../core/KdsAcceptRouting.php';
+
         $pdo->beginTransaction();
         try {
             $now = date('Y-m-d H:i:s');
@@ -790,6 +792,16 @@ try {
                 posResponse(false, null, $result['message']);
             }
 
+            $kdsTickets = [];
+            if (empty($tenantFlags['disable_kds'])) {
+                try {
+                    $kdsTickets = KdsAcceptRouting::createTicketsForAcceptedOrder($pdo, $tenant_id, $oid);
+                } catch (\InvalidArgumentException $e) {
+                    $pdo->rollBack();
+                    posResponse(false, null, $e->getMessage());
+                }
+            }
+
             // Publish order.accepted event do outboxu (feeds NotificationDispatcher + webhooks)
             require_once __DIR__ . '/../../core/OrderEventPublisher.php';
             OrderEventPublisher::publishOrderLifecycle(
@@ -799,9 +811,15 @@ try {
             );
 
             $pdo->commit();
-            posResponse(true, ['promised_time' => $parsedTime]);
+            $out = ['promised_time' => $parsedTime];
+            if ($kdsTickets !== []) {
+                $out['kds_tickets'] = $kdsTickets;
+            }
+            posResponse(true, $out);
         } catch (\Throwable $e) {
-            $pdo->rollBack();
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             error_log('[POS Engine] accept_order: ' . $e->getMessage());
             posResponse(false, null, 'Accept failed. Please try again.');
         }
@@ -904,6 +922,21 @@ try {
                 posResponse(false, null, $result['message']);
             }
 
+            require_once __DIR__ . '/../../core/OrderEventPublisher.php';
+            OrderEventPublisher::publishOrderLifecycle(
+                $pdo, $tenant_id, 'order.completed', $oid,
+                [
+                    'from_status'    => $result['old_status'],
+                    'payment_method' => $method,
+                    'completed_at'   => date('Y-m-d H:i:s'),
+                ],
+                [
+                    'source'    => 'pos',
+                    'actorType' => 'staff',
+                    'actorId'   => (string)$user_id,
+                ]
+            );
+
             $pdo->commit();
             posResponse(true, ['old_status' => $result['old_status']]);
         } catch (\Throwable $e) {
@@ -947,6 +980,21 @@ try {
                 $pdo->rollBack();
                 posResponse(false, null, $result['message']);
             }
+
+            require_once __DIR__ . '/../../core/OrderEventPublisher.php';
+            OrderEventPublisher::publishOrderLifecycle(
+                $pdo, $tenant_id, 'order.completed', $oid,
+                [
+                    'from_status'    => $result['old_status'],
+                    'payment_method' => $method,
+                    'completed_at'   => date('Y-m-d H:i:s'),
+                ],
+                [
+                    'source'    => 'pos',
+                    'actorType' => 'staff',
+                    'actorId'   => (string)$user_id,
+                ]
+            );
 
             $pdo->commit();
             posResponse(true, [

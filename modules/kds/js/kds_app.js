@@ -5,7 +5,10 @@
 const KdsApp = (() => {
     const ENDPOINT = '/slicehub/api/kds/engine.php';
     const POLL_INTERVAL = 6000;
+    const LS_STATION = 'slicehub_kds_station';
     let _timer = null;
+    /** @type {string} pusty = wszystkie stacje */
+    let _stationFilter = '';
 
     const ACTION_LABELS = {
         pack_cold:     '❄️ ZIMNE — OSOBNO',
@@ -73,10 +76,68 @@ const KdsApp = (() => {
         return { text: `${diff} min`, cls: 'ok' };
     }
 
+    function _initStationFilter() {
+        const params = new URLSearchParams(window.location.search || '');
+        const q = (params.get('station') || '').trim();
+        if (q) {
+            _stationFilter = q;
+            try { localStorage.setItem(LS_STATION, q); } catch (_) {}
+            return;
+        }
+        try {
+            const s = (localStorage.getItem(LS_STATION) || '').trim();
+            _stationFilter = s;
+        } catch (_) {
+            _stationFilter = '';
+        }
+    }
+
+    function _syncStationSelect(stations) {
+        const sel = document.getElementById('kds-station-select');
+        if (!sel) return;
+        const list = Array.isArray(stations) ? stations.slice() : [];
+        const cur = _stationFilter;
+        sel.replaceChildren();
+        const optAll = document.createElement('option');
+        optAll.value = '';
+        optAll.textContent = 'Wszystkie stacje';
+        sel.appendChild(optAll);
+        list.forEach((id) => {
+            const o = document.createElement('option');
+            o.value = String(id);
+            o.textContent = String(id);
+            sel.appendChild(o);
+        });
+        if (cur && !list.includes(cur)) {
+            const o = document.createElement('option');
+            o.value = cur;
+            o.textContent = cur + ' (aktywny)';
+            sel.appendChild(o);
+        }
+        sel.value = cur && [...sel.options].some((op) => op.value === cur) ? cur : '';
+    }
+
     async function refresh() {
-        const r = await _post('get_board');
+        const r = await _post('get_board', _stationFilter ? { station: _stationFilter } : {});
         if (!r.success) return;
-        render(r.data.orders || []);
+        const data = r.data || {};
+        _syncStationSelect(data.stations);
+        render(data.orders || []);
+    }
+
+    function setStation(stationId) {
+        _stationFilter = (stationId || '').trim();
+        try {
+            if (_stationFilter) localStorage.setItem(LS_STATION, _stationFilter);
+            else localStorage.removeItem(LS_STATION);
+        } catch (_) {}
+        const params = new URLSearchParams(window.location.search || '');
+        if (_stationFilter) params.set('station', _stationFilter);
+        else params.delete('station');
+        const qs = params.toString();
+        const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+        window.history.replaceState({}, '', url);
+        refresh();
     }
 
     function render(orders) {
@@ -212,11 +273,16 @@ const KdsApp = (() => {
     }
 
     document.addEventListener('DOMContentLoaded', () => {
+        _initStationFilter();
+        const sel = document.getElementById('kds-station-select');
+        if (sel) {
+            sel.addEventListener('change', () => setStation(sel.value));
+        }
         refresh();
         _timer = setInterval(refresh, POLL_INTERVAL);
         updateClock();
         setInterval(updateClock, 15000);
     });
 
-    return Object.freeze({ refresh, bump, recall });
+    return Object.freeze({ refresh, bump, recall, setStation });
 })();

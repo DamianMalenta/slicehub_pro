@@ -457,6 +457,74 @@ body {
 .st-field__input[type="number"] { appearance: textfield; }
 textarea.st-field__input { font-family: var(--mono); font-size: 12px; min-height: 80px; resize: vertical; }
 
+/* ─── Audit log (Dziennik) ─── */
+.st-audit-wrap { margin-top: 8px; overflow-x: auto; }
+.st-audit-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.st-audit-table th,
+.st-audit-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    vertical-align: top;
+}
+.st-audit-table th {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.st-audit-table tbody tr:hover { background: rgba(255,255,255,.03); }
+.st-mono { font-family: var(--mono); font-size: 12px; }
+.st-nowrap { white-space: nowrap; }
+.st-code-inline { font-size: 12px; background: rgba(0,0,0,.25); padding: 2px 6px; border-radius: 4px; }
+.st-muted { color: var(--muted); font-size: 12px; }
+.st-audit-detail {
+    display: none;
+    margin: 12px 0 20px;
+    padding: 12px 14px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+.st-audit-detail--open { display: block; }
+.st-audit-detail__hdr {
+    font-weight: 700;
+    margin-bottom: 10px;
+    font-size: 13px;
+}
+.st-audit-detail__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+@media (max-width: 900px) {
+    .st-audit-detail__grid { grid-template-columns: 1fr; }
+}
+.st-audit-detail__grid h4 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin-bottom: 6px;
+}
+.st-audit-pre {
+    margin: 0;
+    padding: 10px;
+    background: var(--bg);
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    line-height: 1.45;
+    max-height: 280px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
 /* ─── Responsive ─── */
 @media (max-width: 700px) {
     .st-card { grid-template-columns: 1fr; }

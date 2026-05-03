@@ -35,6 +35,7 @@ Przed m026 moduły SliceHub (POS, KDS, Delivery, Courses, Online, Gateway) komun
 │   api/kds/engine.php#recall_order        → order.recalled           │
 │   api/delivery/dispatch.php              → order.dispatched         │
 │   api/courses/engine.php#update_status   → order.completed/delivered/cancelled │
+│   api/payments/settle.php                  → order.completed | payment.settled   │
 │                         │                                           │
 │                         ▼                                           │
 │   OrderEventPublisher::publishOrderLifecycle()                     │
@@ -84,7 +85,7 @@ W 1:1 z [`_docs/08_ORDER_STATUS_DICTIONARY.md`](./08_ORDER_STATUS_DICTIONARY.md)
 | `order.cancelled` | Anulowane (`status='cancelled'`) | `courses`, `pos`, `admin` | reason, actor_id |
 | `order.edited` | Edytowane po przyjęciu (kuchnia już wie) | `pos` | kitchen_changes |
 | `order.recalled` | KDS rollback (`ready → preparing`) | `kds` | actor_id (kucharz) |
-| `payment.settled` | Płatność zaksięgowana | `payments` | method, amount, reference |
+| `payment.settled` | Płatność zaksięgowana (bez przejścia na `completed`, np. delivery + zapłata przy kasie) | `payments` (`settle.php`) | `_context`: split tender (`payment_lines`, `payment_method_aggregate`, `tip_grosze`, …) |
 | `payment.refunded` | Zwrot wykonany | `payments` | amount, reason |
 
 ### 3.1. Kontrakt payloadu

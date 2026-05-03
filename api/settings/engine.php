@@ -87,7 +87,7 @@ function settings_csrfCheck(string $action): void
 {
     $readOnly = [
         'integrations_list', 'webhooks_list', 'api_keys_list',
-        'dlq_list', 'inbound_list', 'health_summary', 'csrf_token',
+        'dlq_list', 'inbound_list', 'health_summary', 'audit_log_list', 'csrf_token',
         'notifications_channels_list', 'notifications_routes_get',
         'notifications_templates_get',
     ];
@@ -944,6 +944,44 @@ try {
         }
 
         // ════════════════════════════════════════════════════════════════
+        // SETTINGS AUDIT LOG (m029) — read-only
+        // ════════════════════════════════════════════════════════════════
+
+        case 'audit_log_list': {
+            settings_requireTableOrFail($pdo, 'sh_settings_audit');
+            $limit = max(1, min(200, (int)($input['limit'] ?? 100)));
+
+            $stmt = $pdo->prepare(
+                "SELECT id, user_id, actor_ip, action, entity_type, entity_id,
+                        before_json, after_json, created_at
+                 FROM sh_settings_audit
+                 WHERE tenant_id = :tid
+                 ORDER BY id DESC
+                 LIMIT :lim"
+            );
+            $stmt->bindValue(':tid', $tenant_id, PDO::PARAM_INT);
+            $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
+            $stmt->execute();
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+            foreach ($rows as &$r) {
+                foreach (['before_json', 'after_json'] as $jk) {
+                    if (!isset($r[$jk]) || $r[$jk] === null) {
+                        $r[$jk] = null;
+                        continue;
+                    }
+                    if (is_string($r[$jk])) {
+                        $decoded = json_decode($r[$jk], true);
+                        $r[$jk] = $decoded !== null ? $decoded : $r[$jk];
+                    }
+                }
+            }
+            unset($r);
+
+            settings_respond(true, ['rows' => $rows, 'limit' => $limit]);
+        }
+
+        // ════════════════════════════════════════════════════════════════
         // INBOUND CALLBACKS (m029) — read-only observability
         // ════════════════════════════════════════════════════════════════
 
@@ -1151,7 +1189,7 @@ function settings_testWebhookPing(array $endpointRow, int $tenantId): array
         'User-Agent: SliceHub-Webhooks/1.0 (test-ping)',
         "X-Slicehub-Event: {$envelope['event_type']}",
         "X-Slicehub-Test: 1",
-        "X-Slicehup-Timestamp: {$ts}",
+        "X-Slicehub-Timestamp: {$ts}",
         "X-Slicehub-Signature: t={$ts},v1={$sig}",
     ];
 

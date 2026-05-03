@@ -4,11 +4,13 @@
 **Backend:** `api/settings/engine.php` (unified action dispatcher)
 **Krypto:** `core/CredentialVault.php` (transparent AEAD encryption at rest)
 
+> **Zakładki w UI:** 8 — rdzeń sesji 7.5 (pięć pierwszych wierszy) + **Inbound** (read-only callbacks) + **Powiadomienia** (Notification Director / m033) + **Dziennik** (read-only audyt z `sh_settings_audit`). Szczegóły zsynchronizowania z kodem: [`_docs/AUDIT_SETTINGS_PANEL.md`](AUDIT_SETTINGS_PANEL.md).
+
 ---
 
 ## 1. Cel
 
-Panel admina spinający w jedno miejsce całą konfigurację integracji event-system wprowadzoną w sesjach 7.1 – 7.4:
+Panel admina spinający w jedno miejsce całą konfigurację integracji event-system wprowadzoną w sesjach 7.1 – 7.4 oraz późniejsze rozszerzenia (inbound, powiadomienia):
 
 | Zakładka         | Zarządza                                                        | Dodaje w 7.5                                                      |
 |------------------|------------------------------------------------------------------|-------------------------------------------------------------------|
@@ -16,26 +18,30 @@ Panel admina spinający w jedno miejsce całą konfigurację integracji event-sy
 | **Webhooks**     | `sh_webhook_endpoints` (generyczne HMAC-signed HTTP POST)        | UI + Test Ping + rotate_secret + encrypted secret                |
 | **API Keys**     | `sh_gateway_api_keys` (Gateway v2 intake)                        | UI + generate + revoke (klucz pokazywany raz)                    |
 | **Dead Letters** | `sh_event_outbox` + `sh_integration_deliveries` (status='dead')  | Lista + **Replay** (reset do `pending` + `attempts=0`)           |
-| **Health**       | Snapshot: vault status, outbox stats, active endpoints, keys     | Monitoring dashboard                                              |
+| **Health**       | Snapshot: vault, outbox, endpoints, integracje, klucze; rozszerzenie: inbound 24h, licznik plaintext | Monitoring dashboard                                              |
+| **Inbound**      | `sh_inbound_callbacks` (podgląd callbacków 3rd-party → SliceHub) | UI read-only lista + filtry (patrz też [`14_INBOUND_CALLBACKS.md`](14_INBOUND_CALLBACKS.md)) |
+| **Powiadomienia** | `sh_notification_channels` / `routes` / `templates`               | UI: kanały, routing zdarzeń, szablony, test-send (`notifications.js`) |
+| **Dziennik**      | `sh_settings_audit` (ostatnie N wpisów, tenant-scoped)             | UI read-only tabela + szczegóły JSON (`audit_log_list`)             |
 
 ## 2. Architektura
 
 ```
 ┌──────────────────────────┐
 │  modules/settings/       │  Vanilla JS, bez frameworków.
-│  ├── index.html          │  Tabs: Integrations, Webhooks, API Keys, DLQ, Health
+│  ├── index.html          │  8 zakładek: Integrations … Health + Inbound + Powiadomienia + Dziennik
 │  ├── css/style.css       │
-│  └── js/settings_app.js  │  ~600 LoC (API client + DOM renderers + modale)
+│  ├── js/settings_app.js  │  główny panel (API + render zakładek rdzenia + Inbound + Health)
+│  └── js/notifications.js │  zakładka Powiadomienia (kanały / routing / szablony)
 └────────────┬─────────────┘
              │ fetch (POST JSON)
              ▼
 ┌────────────────────────────────────────────────────────────────┐
 │  api/settings/engine.php  (action-based dispatcher)            │
-│    ├── integrations_list / save / toggle / delete / test_ping  │
-│    ├── webhooks_list / save / toggle / delete / test_ping      │
-│    ├── api_keys_list / generate / revoke                       │
-│    ├── dlq_list / dlq_replay                                   │
-│    └── health_summary                                          │
+│    ├── integrations_* | webhooks_* | api_keys_* | dlq_*        │
+│    ├── health_summary | inbound_list                           │
+│    ├── csrf_token                                              │
+│    ├── audit_log_list (read-only)                               │
+│    └── notifications_* (channels, routes, templates, test)       │
 │                                                                │
 │  Każdy action:                                                 │
 │    • auth_guard.php → tenant_id + user_id z sesji/JWT          │
@@ -183,19 +189,39 @@ Worker weźmie event w następnym batchu.
 
 | Action            | Payload | Response                                                                |
 |-------------------|---------|-------------------------------------------------------------------------|
-| `health_summary`  | —       | `{vault_ready, vault_has_sodium, outbox{status:count}, webhooks{total,active,paused}, integrations[], api_keys{total,active}}` |
+| `health_summary`  | —       | m.in. `vault_ready`, `vault_has_sodium`, statystyki `sh_event_outbox` (7 dni), podsumowanie webhooków, lista integracji, `api_keys`, **`inbound`** (24h), **`plaintext`** (licznik legacy credentials) |
+
+#### Inbound (read-only)
+
+| Action           | Payload | Response |
+|------------------|---------|----------|
+| `inbound_list`   | `limit`, opcjonalnie `provider`, `status` | `{rows, counts_24h, table_ready}` |
+
+#### Powiadomienia (Notification Director)
+
+| Akcje (prefiks `notifications_`) | Opis |
+|----------------------------------|------|
+| `channels_list` / `channels_upsert` / `channels_delete` / `channels_test` | Kanały SMS/email/in-app itd. |
+| `routes_get` / `routes_set` | Mapowanie `event_type` → kanał + fallback |
+| `templates_get` / `templates_set` | Szablony treści |
+
+#### Dziennik (read-only audit)
+
+| Action            | Payload                          | Response                                      |
+|-------------------|----------------------------------|-----------------------------------------------|
+| `audit_log_list`  | `{limit?: 1–200}` (domyślnie 100) | `{rows}` — wpisy `sh_settings_audit` dla tenanta |
 
 ## 5. UI — `modules/settings/`
 
 - **Zero build step** — vanilla JS, FontAwesome via CDN, zero npm deps.
 - **Dark theme** spójne z KDS/POS.
 - **Mobile responsive** (grid-2 collapses, actions wrap).
-- **Single-file app** (`settings_app.js`, ~600 LoC):
+- **Dwa pliki JS:** `settings_app.js` (rdzeń + Inbound + Health + Dziennik + CSRF/bootstrap) oraz `notifications.js` (zakładka Powiadomienia); wspólne `callApi` / CSRF w obu ścieżkach.
   - API client (`callApi()`)
   - DOM helpers (`el()`, `$()`, `$$()`, `escHtml()`)
   - Toast notifications
   - Modal dialogs
-  - 5 render functions (per tab)
+  - Render funkcji per zakładka (8)
   - Shared helpers (`showRevealSecret()`, `updateVaultBadge()`)
 
 ### 5.1. Revealed secrets flow
@@ -281,8 +307,10 @@ WHERE id=:id AND tenant_id=:tid AND status='dead';
 - ✅ HTTPS SSL verify = on (cURL w Test Ping)
 - ✅ Cache-Control: no-store na wszystkich responsach
 - ✅ `X-Slicehub-Test: 1` header w test pingach (subscriber widzi że to dry-run)
-- ⚠️ TODO dla produkcji: CSRF token dla mutacji (actualnie tylko cookie-based session)
-- ⚠️ TODO: rate limit na `test_ping` (max 1/min per endpoint) — chroni przed abuse
+- ✅ **CSRF** — token sesyjny + nagłówek `X-CSRF-Token` na mutacjach (szczegół §13). Read-only akcje wyłączone z wymogu.
+- ✅ **Rate limit Test Ping** — max **5** żądań na minutę **per tenant** (liczone przez wpisy `*_test_ping` w `sh_settings_audit`), odpowiedź HTTP 429 przy przekroczeniu.
+
+**Uwaga:** Starsze wersje tego dokumentu miały tu TODO przy CSRF / rate limit — implementacja jest opisana w §12 (DONE) i §13; nie traktuj §8 jako „brakującej funkcji”.
 
 ## 9. Uruchomienie
 
@@ -418,7 +446,7 @@ Każdy decrypt patrzy na wersję i wybiera implementację.
 
 ## 14. Audit log
 
-`sh_settings_audit` — każda mutacja loguje się automatycznie. Przykład:
+`sh_settings_audit` — każda mutacja loguje się automatycznie. W UI zakładka **Dziennik** pobiera ostatnie wpisy przez `audit_log_list` (bez CSRF na odczycie). Przykład SQL:
 
 ```sql
 SELECT id, user_id, action, entity_type, entity_id, created_at
@@ -433,6 +461,7 @@ Kolumny `before_json` / `after_json` zawierają snapshoty (z redact'em secretów
 
 **Powiązane dokumenty:**
 
+- `_docs/AUDIT_SETTINGS_PANEL.md` — audyt zgodności dokumentacja ↔ kod ↔ UI
 - `_docs/10_GATEWAY_API.md` — public API Gateway v2 (m027)
 - `_docs/11_WEBHOOKS.md` — webhook subscribers (m026 + 7.3)
 - `_docs/12_INTEGRATION_ADAPTERS.md` — Papu/Dotykacka/GastroSoft adapters (m028 + 7.4)

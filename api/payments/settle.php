@@ -3,6 +3,8 @@
 // STATUS: ORPHAN (audit 2026-04-19) — not wired from any frontend module.
 // Overlaps with `api/pos/engine.php#settle_and_close`, but this version has
 // richer split-tender logic (integer grosze math, sh_order_payments rows).
+// Events (transactional outbox): `order.completed` when auto-complete triggers;
+// `payment.settled` when payment captured without status→completed (e.g. delivery).
 // DECISION PENDING: promote this to canonical settlement or merge into
 // pos/engine.php. Do NOT delete without moving the split-tender logic.
 // =============================================================================
@@ -253,7 +255,67 @@ try {
             ]);
         }
 
-        // — 5d. COMMIT ————————————————————————————————————————————————————
+        // — 5d. Transactional outbox (same txn as payments + order header) —
+        $publisherPath = __DIR__ . '/../../core/OrderEventPublisher.php';
+        if (file_exists($publisherPath)) {
+            require_once $publisherPath;
+            if (class_exists('OrderEventPublisher')) {
+                $paymentLines = [];
+                foreach ($payments as $p) {
+                    $paymentLines[] = [
+                        'method'         => $p['method'],
+                        'amount'         => $p['amount'] ?? null,
+                        'tendered'       => $p['tendered'] ?? $p['amount'] ?? null,
+                        'transaction_id' => $p['transaction_id'] ?? null,
+                    ];
+                }
+                $splitCtx = [
+                    'split_tender'               => count($payments) > 1,
+                    'payment_method_aggregate'   => $paymentMethod,
+                    'payment_lines'              => $paymentLines,
+                    'tip_grosze'                 => $tipAmountGrosze,
+                    'change_due_grosze'          => $changeDueGrosze,
+                    'settled_at'                 => $now,
+                    'settled_via'                => 'payments_settle',
+                ];
+
+                if ($canAutoComplete) {
+                    OrderEventPublisher::publishOrderLifecycle(
+                        $pdo,
+                        $tenant_id,
+                        'order.completed',
+                        $orderId,
+                        array_merge($splitCtx, [
+                            'from_status' => $oldStatus,
+                            'to_status'   => 'completed',
+                        ]),
+                        [
+                            'source'    => 'payments',
+                            'actorType' => 'staff',
+                            'actorId'   => (string)$user_id,
+                        ]
+                    );
+                } else {
+                    OrderEventPublisher::publishOrderLifecycle(
+                        $pdo,
+                        $tenant_id,
+                        'payment.settled',
+                        $orderId,
+                        array_merge($splitCtx, [
+                            'order_status' => $oldStatus,
+                        ]),
+                        [
+                            'source'         => 'payments',
+                            'actorType'      => 'staff',
+                            'actorId'        => (string)$user_id,
+                            'idempotencyKey' => $orderId . ':payment.settled',
+                        ]
+                    );
+                }
+            }
+        }
+
+        // — 5e. COMMIT ————————————————————————————————————————————————————
         $pdo->commit();
 
     } catch (Throwable $txErr) {

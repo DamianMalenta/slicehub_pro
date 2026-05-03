@@ -155,7 +155,7 @@ Panel ustawień tenanta, konfiguracja integracji, webhooków, stawek VAT, zmiano
 | `pos/engine.php` | Router POS (menu, koszyk, checkout, accept, settle, panic) |
 | `tables/engine.php` | Router Stolików + Waiter (plany sali, rachunki, transfery) |
 | `courses/engine.php` | Router logistyki (dispatch, GPS, reconcile, payment lock, recall) |
-| `kds/engine.php` | Router KDS (get_board, bump_order, recall_order) |
+| `kds/engine.php` | Router KDS (`get_board` z opcjonalnym `station` — filtr linii wg `sh_kds_tickets` / menu; `bump_order`; `recall_order`) |
 | `online/engine.php` | Router publicznej witryny (storefront, `delivery_zones`, `init_checkout`, `guest_checkout`, `track_order`) |
 | `online_studio/engine.php` | Router Studio Online (director, composer, style presets, scene) |
 | `online_studio/library_upload.php` | Multipart upload biblioteki assetów |
@@ -170,7 +170,7 @@ Panel ustawień tenanta, konfiguracja integracji, webhooków, stawek VAT, zmiano
 | `cart/CartEngine.php` | Klasa silnika koszyka (ceny, grosze, half/half) |
 | `cart/calculate.php` | Endpoint kalkulacji koszyka |
 | `orders/checkout.php` | Finalizacja zamówienia (kanoniczna / chroniona; nadal za `auth_guard.php`, nie jest publicznym checkoutem storefrontu) |
-| `orders/accept.php` | 🟡 ORPHAN — KDS ticket router (multi-station split); dubluje `pos/engine.php#accept_order` |
+| `orders/accept.php` | Alias POST przyjęcia zamówienia — logika zsynchronizowana z `pos/engine.php#accept_order` (`core/KdsAcceptRouting.php`, outbox). POS woła engine; endpoint pod integracje zewnętrzne / testy |
 | `orders/edit.php` | 🟡 PLANNED — edycja zamówienia + DeltaEngine (dla admin_hub) |
 | `orders/estimate.php` | 🟡 PLANNED — estymacja promised_time (dla scheduled orders) |
 | `orders/panic.php` | 🟡 LEGACY DUPLICATE — zastąpione przez `pos/engine.php#panic_mode` |
@@ -203,10 +203,10 @@ Panel ustawień tenanta, konfiguracja integracji, webhooków, stawek VAT, zmiano
 #### Payments, Staff, Reports, Dashboard — FAZA 3 (większość PLANNED)
 | Ścieżka | Status |
 |---------|--------|
-| `payments/settle.php` | 🟡 ORPHAN — split-tender settlement, dubluje `pos/engine.php#settle_and_close` |
+| `payments/settle.php` | 🟡 ORPHAN (brak UI) — split-tender + `sh_order_payments`; **outbox:** `order.completed` lub `payment.settled` w tej samej transakcji co zapis (`OrderEventPublisher`). POS zwykle używa `pos/engine.php#settle_and_close`. |
 | `backoffice/hr/engine.php` | ✅ **LIVE** — action router HR: `clock_in` / `clock_out` / `clock_status` (Faza 3A, m041–m044). Kanoniczny endpoint silosu HR. |
-| `staff/payroll.php` | 🟡 PLANNED — payroll single user (PayrollEngine). *TODO Faza 3B:* przenieść do `api/backoffice/hr/engine.php` jako akcja `payroll_user`. |
-| `dashboard/team_payroll.php` | 🟡 PLANNED — team payroll (TeamPayrollEngine). *TODO Faza 3B:* akcja `payroll_team` w `api/backoffice/hr/engine.php`. |
+| `staff/payroll.php` | 🟡 PLANNED — payroll single user (PayrollEngine). *TODO Faza 4:* docelowo akcja `payroll_user` w `api/backoffice/hr/engine.php` — po rewrite `PayrollEngine` IN-PLACE na ledger. Do czasu gotowego UI HR trzymamy HTTP 410 Gone (patrz `_docs/18_BACKOFFICE_HR_LOGIC.md §13`). |
+| `dashboard/team_payroll.php` | 🟡 PLANNED — team payroll (TeamPayrollEngine). *TODO Faza 4:* akcja `payroll_team` w `api/backoffice/hr/engine.php` — analogicznie jak wyżej. |
 | `reports/food_cost.php` | 🟡 PLANNED — food cost + margin (FoodCostEngine) |
 
 #### Gateway / Integrations (m026–m029)
@@ -258,14 +258,14 @@ Wszystkie orphan/planned endpointy mają w nagłówku komentarz `// STATUS: …`
 | `KorEngine.php` | Korekta |
 | `MmEngine.php` | Międzymagazynowe |
 
-#### Backoffice HR & Payroll (Faza 3A)
+#### Backoffice HR & Payroll (Faza 3A + 3B + 3C — DONE 2026-04-23)
 | Plik | Rola |
 |------|------|
-| `HrClockEngine.php` | ✅ **Jedyny kanon** clock-in/out. `employee_id`-first, PIN bcrypt, terminal/source/geo, event outbox, snapshot stawki. Konsolidacja 2026-04-23 (stary `ClockEngine.php` usunięty). |
-| `PayrollEngine.php` | Payroll jednostkowy. *TODO Faza 3B:* reader z `sh_payroll_ledger`. |
-| `TeamPayrollEngine.php` | Payroll agregatowy. *TODO Faza 3B:* ten sam refactor. |
-| `AdvanceEngine.php` | 🔜 Faza 3B — workflow zaliczek (`sh_advances` lifecycle). |
-| `PayrollLedger.php` | 🔜 Faza 3B — writer do `sh_payroll_ledger` (append-only). |
+| `HrClockEngine.php` | ✅ **Jedyny kanon** clock-in/out. `employee_id`-first, PIN bcrypt, terminal/source/geo, event outbox, snapshot stawki. Konsolidacja 2026-04-23 (stary `ClockEngine.php` **usunięty**; `api/staff/clock.php` **usunięty**). |
+| `PayrollLedger.php` | ✅ **Faza 3B + 3C DONE** — append-only writer do `sh_payroll_ledger`. `record()` / `reverse()` + readery (`sumForPeriod`, `listForPeriod`) + `lockPeriod()` / `isPeriodLocked()` (jednokierunkowe zamknięcie księgi, `ERR_PERIOD_LOCKED` w `record`/`reverse`). STRICT int grosze, sign-per-type, cross-tenant ref guard, idempotency po `entry_uuid`. **31/31 smoke PASS**. |
+| `AdvanceEngine.php` | ✅ **Faza 3B + 3C DONE** — cykl życia zaliczki (`requested → approved → paid → settled` + `rejected` + `void`). `markPaid()` rozbija raty + emituje `advance_payment` do ledgera; `recordRepayment()` auto-settluje; `voidAdvance()` (3C) wycofuje błędnie wypłaconą zaliczkę (reverse payment + void pending rat; blokada `ERR_PARTIAL_REPAYMENT`). **34/34 smoke PASS**. |
+| `PayrollEngine.php` | ⏳ Legacy reader (`sh_work_sessions` + `sh_deductions` + `sh_meals` + `sh_users.hourly_rate`). **Faza 4:** rewrite IN-PLACE na readery z `sh_payroll_ledger` — **absolutny zakaz plików równoległych / sufiksowanych duplikatów** (SSOT — patrz `_docs/18_BACKOFFICE_HR_LOGIC.md §13`). |
+| `TeamPayrollEngine.php` | ⏳ Legacy konsument `PayrollEngine`. **Faza 4:** auto-migruje po rewrite `PayrollEngine` (ten sam plik — bez plików równoległych). |
 
 #### Visual & assets
 | Plik | Rola |

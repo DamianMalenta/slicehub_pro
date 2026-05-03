@@ -1,10 +1,8 @@
 <?php
 // =============================================================================
-// STATUS: ORPHAN (audit 2026-04-19) — not wired from any frontend module.
-// Functionally overlaps with `api/pos/engine.php#accept_order`. This variant
-// additionally splits lines into sh_kds_tickets per station. Kept for future
-// multi-station KDS (see sh_menu_items.kds_station_id from m006).
-// DECISION PENDING: merge into pos/engine.php or delete if stations stay flat.
+// HTTP POST alias dla przyjęcia zamówienia — ta sama logika co `api/pos/engine.php`
+// action `accept_order` (KDS routing w core/KdsAcceptRouting.php). Frontend POS
+// woła engine.php; ten endpoint zostaje dla integracji zewnętrznych / testów.
 // =============================================================================
 // SliceHub Enterprise — Order Acceptance & KDS Ticket Router
 // POST /api/orders/accept.php
@@ -36,6 +34,7 @@ try {
     require_once __DIR__ . '/../../core/db_config.php';
     require_once __DIR__ . '/../../core/auth_guard.php';
     require_once __DIR__ . '/../../core/OrderStateMachine.php';
+    require_once __DIR__ . '/../../core/KdsAcceptRouting.php';
 
     if (!isset($pdo)) {
         throw new RuntimeException('Database connection unavailable.');
@@ -102,133 +101,48 @@ try {
     }
 
     // =========================================================================
-    // 3. FETCH ORDER LINES & RESOLVE KDS STATIONS
-    //
-    // [FF-004] When 'disable_kds' flag is active, this section can be
-    // skipped entirely. The order transitions from accepted → pending
-    // without creating KDS tickets. The frontend hides the KDS display.
-    // Implementation: wrap the stationGroups/ticket creation in:
-    //   if (empty($tenantFlags['disable_kds'])) { ... }
+    // 3–4. ATOMIC: transition + KDS tickets (unless disable_kds) + outbox event
     // =========================================================================
-    $stmtLines = $pdo->prepare(
-        "SELECT ol.id          AS line_id,
-                ol.item_sku,
-                ol.snapshot_name,
-                ol.quantity,
-                ol.modifiers_json,
-                ol.removed_ingredients_json,
-                ol.comment,
-                COALESCE(NULLIF(mi.kds_station_id, ''), 'KITCHEN_MAIN') AS station_id
-         FROM sh_order_lines ol
-         LEFT JOIN sh_menu_items mi
-                ON mi.ascii_key = ol.item_sku
-               AND mi.tenant_id = :tid
-         WHERE ol.order_id = :oid"
-    );
-    $stmtLines->execute([':oid' => $orderId, ':tid' => $tenant_id]);
-    $lines = $stmtLines->fetchAll(PDO::FETCH_ASSOC);
-
-    if (count($lines) === 0) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Order has no lines to route.']);
-        exit;
-    }
-
-    // Group line data by station_id
-    $stationGroups = [];
-    foreach ($lines as $line) {
-        $sid = $line['station_id'];
-        if (!isset($stationGroups[$sid])) {
-            $stationGroups[$sid] = [];
-        }
-        $stationGroups[$sid][] = $line;
-    }
-
-    // =========================================================================
-    // 4. ATOMIC TRANSACTION
-    // =========================================================================
-    $generateUuidV4 = function (): string {
-        $data    = random_bytes(16);
-        $data[6] = chr((ord($data[6]) & 0x0f) | 0x40);
-        $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
-        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
-    };
-
     $now = date('Y-m-d H:i:s');
+    $ticketsCreated = [];
 
     $pdo->beginTransaction();
 
     try {
-        // — 4a. Transition order: new → accepted via State Machine ————————
         $transResult = OrderStateMachine::transitionOrder(
             $pdo, $orderId, $tenant_id, $user_id, 'accepted', $tenantFlags,
-            ['promised_time' => $promisedTime]
+            [
+                'promised_time'          => $promisedTime,
+                'kitchen_ticket_printed' => 1,
+                'accepted_at'            => $now,
+            ]
         );
 
         if (!$transResult['success']) {
             throw new RuntimeException($transResult['message']);
         }
 
-        // — 4b. Create KDS tickets & link lines ——————————————————————————
-        // [FF-004] When 'disable_kds' is active, skip ticket creation.
-        // The order still transitions to 'accepted' but without KDS routing.
-        $stmtInsertTicket = $pdo->prepare(
-            "INSERT INTO sh_kds_tickets (id, tenant_id, order_id, station_id, status)
-             VALUES (:id, :tid, :oid, :station, 'pending')"
-        );
-
-        $stmtLinkLine = $pdo->prepare(
-            "UPDATE sh_order_lines SET kds_ticket_id = :ticket_id WHERE id = :line_id AND order_id = :oid"
-        );
-
-        $ticketsCreated = [];
-
-        foreach ($stationGroups as $stationId => $stationLines) {
-            $ticketId = $generateUuidV4();
-
-            $stmtInsertTicket->execute([
-                ':id'      => $ticketId,
-                ':tid'     => $tenant_id,
-                ':oid'     => $orderId,
-                ':station' => $stationId,
-            ]);
-
-            $ticketLines = [];
-            foreach ($stationLines as $sl) {
-                $stmtLinkLine->execute([
-                    ':ticket_id' => $ticketId,
-                    ':line_id'   => $sl['line_id'],
-                    ':oid'       => $orderId,
-                ]);
-
-                $mods    = json_decode($sl['modifiers_json'] ?? '[]', true) ?: [];
-                $removed = json_decode($sl['removed_ingredients_json'] ?? '[]', true) ?: [];
-
-                $ticketLines[] = [
-                    'line_id'              => $sl['line_id'],
-                    'snapshot_name'        => $sl['snapshot_name'],
-                    'quantity'             => (int)$sl['quantity'],
-                    'modifiers_added'      => array_column($mods, 'name'),
-                    'ingredients_removed'  => array_column($removed, 'name'),
-                    'comment'              => $sl['comment'],
-                ];
+        if (empty($tenantFlags['disable_kds'])) {
+            try {
+                $ticketsCreated = KdsAcceptRouting::createTicketsForAcceptedOrder($pdo, $tenant_id, $orderId);
+            } catch (\InvalidArgumentException $e) {
+                throw new RuntimeException($e->getMessage());
             }
-
-            $ticketsCreated[] = [
-                'ticket_id'    => $ticketId,
-                'station_id'   => $stationId,
-                'status'       => 'pending',
-                'lines'        => $ticketLines,
-            ];
         }
 
-        // Audit trail already written by OrderStateMachine::transitionOrder()
+        require_once __DIR__ . '/../../core/OrderEventPublisher.php';
+        OrderEventPublisher::publishOrderLifecycle(
+            $pdo, $tenant_id, 'order.accepted', $orderId,
+            ['promised_time' => $promisedTime, 'accepted_by_user_id' => $user_id],
+            ['source' => 'orders_accept', 'actorType' => 'staff', 'actorId' => (string)$user_id]
+        );
 
-        // — 4c. COMMIT ————————————————————————————————————————————————————
         $pdo->commit();
 
     } catch (Throwable $txErr) {
-        $pdo->rollBack();
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         throw $txErr;
     }
 

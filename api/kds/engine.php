@@ -44,7 +44,36 @@ try {
     if ($action === 'get_board') {
         $stationFilter = trim((string)($input['station'] ?? ''));
 
-        $orders = $pdo->prepare(
+        // Distinct stacji (menu + bilety KDS + domyślna), żeby UI mogło zawęzić tablicę.
+        $stations = [];
+        try {
+            $seen = [];
+            $st1 = $pdo->prepare(
+                "SELECT DISTINCT station_id FROM sh_kds_tickets
+                 WHERE tenant_id = ? AND station_id IS NOT NULL AND TRIM(station_id) <> ''"
+            );
+            $st1->execute([$tenant_id]);
+            foreach ($st1->fetchAll(PDO::FETCH_COLUMN) as $sid) {
+                $sid = (string)$sid;
+                $seen[$sid] = true;
+            }
+            $st2 = $pdo->prepare(
+                "SELECT DISTINCT kds_station_id FROM sh_menu_items
+                 WHERE tenant_id = ? AND kds_station_id IS NOT NULL AND TRIM(kds_station_id) <> ''"
+            );
+            $st2->execute([$tenant_id]);
+            foreach ($st2->fetchAll(PDO::FETCH_COLUMN) as $sid) {
+                $sid = (string)$sid;
+                $seen[$sid] = true;
+            }
+            $seen['KITCHEN_MAIN'] = true;
+            $stations = array_keys($seen);
+            sort($stations, SORT_STRING);
+        } catch (\Throwable $e) {
+            $stations = ['KITCHEN_MAIN'];
+        }
+
+        $orderSql =
             "SELECT o.id, o.order_number, o.order_type, o.status, o.source,
                     o.delivery_address, o.customer_name, o.customer_phone,
                     o.payment_method, o.payment_status, o.grand_total,
@@ -52,42 +81,87 @@ try {
                     COALESCE(o.kitchen_ticket_printed, 0) AS kitchen_ticket_printed
              FROM sh_orders o
              WHERE o.tenant_id = :tid
-               AND o.status IN ('new','accepted','preparing')
-             ORDER BY
+               AND o.status IN ('new','accepted','preparing')";
+
+        $orderParams = [':tid' => $tenant_id];
+
+        if ($stationFilter !== '') {
+            $orderSql .=
+                " AND o.id IN (
+                    SELECT ol.order_id
+                    FROM sh_order_lines ol
+                    LEFT JOIN sh_kds_tickets kt ON kt.id = ol.kds_ticket_id AND kt.tenant_id = :tid_kt
+                    LEFT JOIN sh_menu_items mi ON mi.ascii_key = ol.item_sku AND mi.tenant_id = :tid_mi
+                    WHERE COALESCE(kt.station_id, NULLIF(mi.kds_station_id, ''), 'KITCHEN_MAIN') = :st_f
+                  )";
+            $orderParams[':tid_kt'] = $tenant_id;
+            $orderParams[':tid_mi'] = $tenant_id;
+            $orderParams[':st_f'] = $stationFilter;
+        }
+
+        $orderSql .=
+            " ORDER BY
                CASE o.status
                  WHEN 'new'       THEN 0
                  WHEN 'accepted'  THEN 1
                  WHEN 'preparing' THEN 2
                  ELSE 9
                END,
-               o.created_at ASC"
-        );
-        $orders->execute([':tid' => $tenant_id]);
+               o.created_at ASC";
+
+        $orders = $pdo->prepare($orderSql);
+        $orders->execute($orderParams);
         $rows = $orders->fetchAll(PDO::FETCH_ASSOC);
 
         $oids = array_column($rows, 'id');
         $lmap = [];
         if (count($oids) > 0) {
-            $ph = []; $prm = [];
-            foreach ($oids as $i => $oid) { $k = ":o{$i}"; $ph[] = $k; $prm[$k] = $oid; }
+            $ph = [];
+            $prm = [':tid_l1' => $tenant_id, ':tid_l2' => $tenant_id];
+            foreach ($oids as $i => $oid) {
+                $k = ":o{$i}";
+                $ph[] = $k;
+                $prm[$k] = $oid;
+            }
             $ls = $pdo->prepare(
-                "SELECT order_id, id AS line_id, snapshot_name, quantity, comment,
-                        modifiers_json, removed_ingredients_json,
-                        COALESCE(driver_action_type,'none') AS driver_action_type
-                 FROM sh_order_lines
-                 WHERE order_id IN (" . implode(',', $ph) . ")
-                 ORDER BY id ASC"
+                "SELECT ol.order_id,
+                        ol.id AS line_id,
+                        ol.snapshot_name,
+                        ol.quantity,
+                        ol.comment,
+                        ol.modifiers_json,
+                        ol.removed_ingredients_json,
+                        COALESCE(ol.driver_action_type,'none') AS driver_action_type,
+                        COALESCE(kt.station_id, NULLIF(mi.kds_station_id, ''), 'KITCHEN_MAIN') AS _station_res
+                 FROM sh_order_lines ol
+                 LEFT JOIN sh_kds_tickets kt ON kt.id = ol.kds_ticket_id AND kt.tenant_id = :tid_l1
+                 LEFT JOIN sh_menu_items mi ON mi.ascii_key = ol.item_sku AND mi.tenant_id = :tid_l2
+                 WHERE ol.order_id IN (" . implode(',', $ph) . ")
+                 ORDER BY ol.id ASC"
             );
             $ls->execute($prm);
             foreach ($ls->fetchAll(PDO::FETCH_ASSOC) as $l) {
+                $res = (string)($l['_station_res'] ?? 'KITCHEN_MAIN');
+                unset($l['_station_res']);
+                if ($stationFilter !== '' && $res !== $stationFilter) {
+                    continue;
+                }
                 $lmap[$l['order_id']][] = $l;
             }
         }
 
-        foreach ($rows as &$r) { $r['lines'] = $lmap[$r['id']] ?? []; }
+        if ($stationFilter !== '') {
+            $rows = array_values(array_filter($rows, static function (array $r) use ($lmap): bool {
+                return !empty($lmap[$r['id'] ?? '']);
+            }));
+        }
+
+        foreach ($rows as &$r) {
+            $r['lines'] = $lmap[$r['id']] ?? [];
+        }
         unset($r);
 
-        kdsResponse(true, ['orders' => $rows]);
+        kdsResponse(true, ['orders' => $rows, 'stations' => $stations, 'station_filter' => $stationFilter]);
     }
 
     // =========================================================================
