@@ -45,6 +45,8 @@ try {
     require_once __DIR__ . '/../../core/db_config.php';
     require_once __DIR__ . '/../../core/auth_guard.php';
     require_once __DIR__ . '/../../core/OrderStateMachine.php';
+    require_once __DIR__ . '/../../core/DriverFleetHelper.php';
+    require_once __DIR__ . '/../../core/StaffFleetPresence.php';
 
     if (!isset($pdo)) {
         throw new RuntimeException('Database connection unavailable.');
@@ -938,6 +940,8 @@ try {
         $driverUserId = (string)($input['driver_user_id'] ?? $user_id);
         $initialCash  = isset($input['initial_cash']) ? (int)round((float)$input['initial_cash'] * 100) : 0;
 
+        slicehubEnsureDriverFleetRow($pdo, (int)$tenant_id, (int)$driverUserId, 'offline');
+
         $stmtCheck = $pdo->prepare(
             "SELECT id FROM sh_driver_shifts WHERE driver_id=:did AND tenant_id=:tid AND status='active' LIMIT 1"
         );
@@ -981,6 +985,8 @@ try {
             ':h'=>$input['heading'] ?? null, ':s'=>$input['speed'] ?? null, ':a'=>$input['accuracy'] ?? null,
         ]);
 
+        slicehubTouchStaffPresence($pdo, (int)$tenant_id, (int)$user_id);
+
         coursesResponse(true, ['location_updated' => true]);
     }
 
@@ -989,6 +995,13 @@ try {
     // =========================================================================
     if ($action === 'get_driver_runs') {
         $driverId = (string)($input['driver_id'] ?? $user_id);
+        slicehubEnsureDriverFleetRow($pdo, (int)$tenant_id, (int)$driverId, 'offline');
+        // Aplikacja kierowcy pyta o kursy (poll): tylko offline → available. Nie zmieniamy busy (trasa).
+        $pdo->prepare(
+            "UPDATE sh_drivers SET status = 'available' WHERE user_id = :did AND tenant_id = :tid AND status = 'offline'"
+        )->execute([':did' => $driverId, ':tid' => $tenant_id]);
+
+        slicehubTouchStaffPresence($pdo, (int)$tenant_id, (int)$driverId);
 
         $stmtOrders = $pdo->prepare(
             "SELECT o.id, o.order_number, o.status, o.grand_total, o.payment_status, o.payment_method,
@@ -1150,19 +1163,42 @@ try {
     // ACTION: set_driver_status
     // =========================================================================
     if ($action === 'set_driver_status') {
-        $driverUserId = (string)($input['driver_user_id'] ?? '');
-        $newStatus    = (string)($input['status'] ?? '');
-        $validStatuses = ['available','offline','busy'];
+        $rawTarget = trim((string)($input['driver_user_id'] ?? ''));
+        $newStatus = (string)($input['status'] ?? '');
+        $validStatuses = ['available', 'offline', 'busy'];
 
-        if ($driverUserId === '' || !in_array($newStatus, $validStatuses, true)) {
+        if (!in_array($newStatus, $validStatuses, true)) {
             http_response_code(400);
-            coursesResponse(false, null, 'driver_user_id and valid status required.');
+            coursesResponse(false, null, 'Valid status required: available, offline, or busy.');
         }
 
-        $pdo->prepare("UPDATE sh_drivers SET status=:s WHERE user_id=:did AND tenant_id=:tid")
-            ->execute([':s'=>$newStatus, ':did'=>$driverUserId, ':tid'=>$tenant_id]);
+        $targetUserId = $rawTarget !== '' ? (int)$rawTarget : (int)$user_id;
+        if ($targetUserId <= 0) {
+            http_response_code(400);
+            coursesResponse(false, null, 'Invalid driver user id.');
+        }
 
-        coursesResponse(true, ['driver_status'=>$newStatus]);
+        if ($rawTarget !== '' && $targetUserId !== (int)$user_id) {
+            $stAct = $pdo->prepare(
+                'SELECT LOWER(TRIM(role)) FROM sh_users WHERE id = :id AND tenant_id = :tid LIMIT 1'
+            );
+            $stAct->execute([':id' => $user_id, ':tid' => $tenant_id]);
+            $actorRole = strtolower((string)$stAct->fetchColumn());
+            if (!in_array($actorRole, ['owner', 'manager', 'admin'], true)) {
+                http_response_code(403);
+                coursesResponse(false, null, 'Only owner/manager/admin can change another user\'s driver status.');
+            }
+        }
+
+        slicehubEnsureDriverFleetRow($pdo, (int)$tenant_id, $targetUserId, 'offline');
+        $pdo->prepare('UPDATE sh_drivers SET status=:s WHERE user_id=:did AND tenant_id=:tid')
+            ->execute([':s' => $newStatus, ':did' => $targetUserId, ':tid' => $tenant_id]);
+
+        if ($newStatus === 'offline' && $targetUserId === (int)$user_id) {
+            slicehubClearStaffPresence($pdo, (int)$tenant_id, $targetUserId);
+        }
+
+        coursesResponse(true, ['driver_status' => $newStatus]);
     }
 
     // =========================================================================

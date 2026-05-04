@@ -406,7 +406,7 @@ final class HrClockEngine
     public static function resolveEmployeeByPin(PDO $pdo, int $tenantId, string $pin): ?array
     {
         $pin = trim($pin);
-        if ($pin === '' || !preg_match('/^\d{4,6}$/', $pin)) {
+        if ($pin === '' || !preg_match('/^\d{4}$/', $pin)) {
             throw new \InvalidArgumentException(self::ERR_INVALID_PIN_FORMAT);
         }
 

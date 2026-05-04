@@ -32,6 +32,7 @@ try {
     require_once __DIR__ . '/../../core/auth_guard.php';
     require_once __DIR__ . '/../../core/OrderStateMachine.php';
     require_once __DIR__ . '/../../core/AssetResolver.php';
+    require_once __DIR__ . '/../../core/StaffFleetPresence.php';
 
     $raw   = file_get_contents('php://input');
     $input = json_decode($raw ?: '{}', true) ?? [];
@@ -168,27 +169,39 @@ try {
             $ingredients = $stmtIngredients->fetchAll(PDO::FETCH_ASSOC);
         }
 
-        // -- Drivers --
+        // -- Drivers: tylko zalogowani w aplikacji (last_seen) lub w trasie (busy) —
         $drivers = [];
         try {
+            $ttl = slicehubFleetPresenceTtlSeconds();
             $stmtDrivers = $pdo->prepare(
                 "SELECT u.id, d.status,
                         COALESCE(NULLIF(TRIM(u.name), ''), COALESCE(NULLIF(TRIM(u.first_name),''), u.username)) AS display_name
                  FROM sh_drivers d
                  JOIN sh_users u ON d.user_id = u.id
-                 WHERE u.tenant_id = ? AND u.is_deleted = 0"
+                 WHERE u.tenant_id = ?
+                   AND u.is_deleted = 0
+                   AND (
+                     d.status = 'busy'
+                     OR (u.last_seen IS NOT NULL AND u.last_seen >= DATE_SUB(NOW(), INTERVAL " . (int)$ttl . " SECOND))
+                   )"
             );
             $stmtDrivers->execute([$tenant_id]);
             $drivers = $stmtDrivers->fetchAll(PDO::FETCH_ASSOC);
         } catch (\PDOException $e) {}
 
-        // -- Waiters --
+        // -- Waiters: tylko zalogowani w aplikacji kelnera (ostatni poll / login) --
         $waiters = [];
         try {
+            $ttlW = slicehubFleetPresenceTtlSeconds();
             $stmtWaiters = $pdo->prepare(
                 "SELECT id, COALESCE(NULLIF(TRIM(name),''), COALESCE(NULLIF(TRIM(first_name),''), username)) AS display_name
                  FROM sh_users
-                 WHERE tenant_id = ? AND role = 'waiter' AND is_active = 1 AND is_deleted = 0"
+                 WHERE tenant_id = ?
+                   AND role = 'waiter'
+                   AND is_active = 1
+                   AND is_deleted = 0
+                   AND last_seen IS NOT NULL
+                   AND last_seen >= DATE_SUB(NOW(), INTERVAL " . (int)$ttlW . " SECOND)"
             );
             $stmtWaiters->execute([$tenant_id]);
             $waiters = $stmtWaiters->fetchAll(PDO::FETCH_ASSOC);
@@ -376,12 +389,18 @@ try {
         // Fresh driver statuses (so fleet panel updates on every poll)
         $drivers = [];
         try {
+            $ttlPoll = slicehubFleetPresenceTtlSeconds();
             $stmtDrv = $pdo->prepare(
                 "SELECT u.id, d.status,
                         COALESCE(NULLIF(TRIM(u.name), ''), COALESCE(NULLIF(TRIM(u.first_name),''), u.username)) AS display_name
                  FROM sh_drivers d
                  JOIN sh_users u ON d.user_id = u.id
-                 WHERE u.tenant_id = ? AND u.is_deleted = 0"
+                 WHERE u.tenant_id = ?
+                   AND u.is_deleted = 0
+                   AND (
+                     d.status = 'busy'
+                     OR (u.last_seen IS NOT NULL AND u.last_seen >= DATE_SUB(NOW(), INTERVAL " . (int)$ttlPoll . " SECOND))
+                   )"
             );
             $stmtDrv->execute([$tenant_id]);
             $drivers = $stmtDrv->fetchAll(PDO::FETCH_ASSOC);

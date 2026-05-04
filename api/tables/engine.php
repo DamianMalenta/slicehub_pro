@@ -62,6 +62,7 @@ try {
     require_once __DIR__ . '/../../core/db_config.php';
     require_once __DIR__ . '/../../core/auth_guard.php';
     require_once __DIR__ . '/../../core/OrderStateMachine.php';
+    require_once __DIR__ . '/../../core/StaffFleetPresence.php';
 
     $raw    = file_get_contents('php://input');
     $input  = json_decode($raw ?: '{}', true) ?? [];
@@ -656,6 +657,8 @@ try {
     // =========================================================================
     if ($action === 'get_floor_status') {
         $zoneId = isset($input['zone_id']) ? (int)$input['zone_id'] : null;
+
+        slicehubTouchStaffPresence($pdo, (int)$tenant_id, (int)$user_id);
 
         $sql = "SELECT t.id, t.zone_id, t.table_number, t.seats, t.shape,
                        t.pos_x, t.pos_y, t.parent_table_id,
