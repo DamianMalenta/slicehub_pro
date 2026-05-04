@@ -932,6 +932,47 @@ button {
 .order-list .order-row:nth-child(9)  { animation-delay: 0.18s; }
 .order-list .order-row:nth-child(10) { animation-delay: 0.20s; }
 
+/* Login form (zamiast PIN) */
+.waiter-login-form {
+    width: 100%;
+    max-width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.waiter-ll {
+    font-size: 11px;
+    color: var(--text-hint);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.waiter-inp {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font-size: 16px;
+    margin-bottom: 6px;
+}
+.waiter-inp:focus {
+    border-color: var(--border-focus);
+    outline: none;
+}
+.waiter-login-btn {
+    margin-top: 10px;
+    padding: 14px;
+    border-radius: var(--radius-md);
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+    font-size: 15px;
+}
+.waiter-login-btn:disabled {
+    opacity: 0.5;
+}
+
 /* ============================================================================
    RESPONSIVE
    ============================================================================ */

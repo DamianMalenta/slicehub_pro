@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#050508">
     <title>SliceHub — Driver</title>
     <link rel="stylesheet" href="css/style.css">
-    <link rel="stylesheet" href="../shared/sh_mobile_shell.css">
+    <link rel="stylesheet" href="../ui_shell/sh_mobile_shell.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
@@ -24,27 +24,19 @@
     <button class="emergency-btn" onclick="DriverApp.acknowledgeRecall()">POTWIERDZAM — WRACAM</button>
 </div>
 
-<!-- PIN LOGIN -->
+<!-- LOGIN (login + hasło — telefon) -->
 <div id="pin-screen">
     <div class="pin-logo"><i class="fa-solid fa-motorcycle"></i></div>
     <div class="pin-title">Aplikacja Kierowcy</div>
-    <div id="pin-dots">
-        <div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div><div class="pin-dot"></div>
-    </div>
-    <div class="pin-grid">
-        <button class="pin-btn" onclick="DriverApp.pinDigit('1')">1</button>
-        <button class="pin-btn" onclick="DriverApp.pinDigit('2')">2</button>
-        <button class="pin-btn" onclick="DriverApp.pinDigit('3')">3</button>
-        <button class="pin-btn" onclick="DriverApp.pinDigit('4')">4</button>
-        <button class="pin-btn" onclick="DriverApp.pinDigit('5')">5</button>
-        <button class="pin-btn" onclick="DriverApp.pinDigit('6')">6</button>
-        <button class="pin-btn" onclick="DriverApp.pinDigit('7')">7</button>
-        <button class="pin-btn" onclick="DriverApp.pinDigit('8')">8</button>
-        <button class="pin-btn" onclick="DriverApp.pinDigit('9')">9</button>
-        <button class="pin-btn pin-action" onclick="DriverApp.pinClear()"><i class="fa-solid fa-delete-left"></i></button>
-        <button class="pin-btn" onclick="DriverApp.pinDigit('0')">0</button>
-        <button class="pin-btn pin-action" onclick="DriverApp.pinSubmit()"><i class="fa-solid fa-arrow-right"></i></button>
-    </div>
+    <p style="color:rgba(255,255,255,0.45);font-size:12px;margin:0 16px 18px;text-align:center;max-width:300px;">Zaloguj się kontem kierowcy (login i hasło).</p>
+    <form id="driver-form-login" class="driver-login-form" autocomplete="on">
+        <label class="driver-ll" for="driver-username">Login</label>
+        <input class="driver-inp" id="driver-username" name="username" type="text" autocomplete="username" required>
+        <label class="driver-ll" for="driver-password">Hasło</label>
+        <input class="driver-inp" id="driver-password" name="password" type="password" autocomplete="current-password" required>
+        <p id="driver-login-err" class="driver-login-err" aria-live="polite"></p>
+        <button type="submit" class="driver-login-submit" id="driver-btn-login">Zaloguj</button>
+    </form>
 </div>
 
 <!-- APP -->

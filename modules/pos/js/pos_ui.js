@@ -21,26 +21,42 @@ const PosUI = (() => {
         setTimeout(() => { el.style.transform = 'translateX(120%)'; setTimeout(() => el.remove(), 300); }, 3000);
     }
 
-    // === PIN SCREEN ===
+    // === PIN SCREEN — dokładnie 4 cyfry (zgodnie z Kadry + AuthEngine::loginKiosk) ===
+    const PIN_LEN = 4;
     function renderPinScreen(onSubmit) {
         const screen = $('#pin-screen'); if (!screen) return;
         screen.classList.remove('hidden');
-        $('#pos-app').classList.add('hidden');
+        const mainApp = $('#pos-app'); if (mainApp) mainApp.classList.add('hidden');
         let pin = '';
         function updateDots() {
             const dots = $('#pin-dots'); if (!dots) return;
-            dots.innerHTML = Array.from({length:4}, (_, i) => `<div class="pin-dot ${i < pin.length ? 'filled' : ''}"></div>`).join('');
+            dots.innerHTML = Array.from({ length: PIN_LEN }, (_, i) => `<div class="pin-dot ${i < pin.length ? 'filled' : ''}"></div>`).join('');
         }
         updateDots();
         window._pinHandler = (val) => {
             if (val === 'clear') { pin = ''; updateDots(); return; }
             if (val === 'back') { pin = pin.slice(0, -1); updateDots(); return; }
-            if (pin.length >= 4) return;
-            pin += val; updateDots();
-            if (pin.length === 4) { onSubmit(pin); pin = ''; setTimeout(updateDots, 500); }
+            if (val === 'ok') {
+                if (pin.length !== PIN_LEN) toast(`PIN: dokładnie ${PIN_LEN} cyfry`, 'warn');
+                return;
+            }
+            if (pin.length >= PIN_LEN) return;
+            if (val.length === 1 && /^\d$/.test(val)) {
+                pin += val;
+                updateDots();
+                if (pin.length === PIN_LEN) {
+                    const p = pin;
+                    pin = '';
+                    setTimeout(updateDots, 150);
+                    onSubmit(p);
+                }
+            }
         };
     }
-    function hidePinScreen() { const s = $('#pin-screen'); if (s) s.classList.add('hidden'); $('#pos-app').classList.remove('hidden'); }
+    function hidePinScreen() {
+        const s = $('#pin-screen'); if (s) s.classList.add('hidden');
+        const app = $('#pos-app'); if (app) app.classList.remove('hidden');
+    }
     function renderUserBadge(user) { const b = $('#user-badge'); if (b && user) b.textContent = user.name || user.role || 'POS'; }
 
     // === CATEGORIES ===

@@ -73,6 +73,13 @@
         'notifications_channels_list','notifications_routes_get','notifications_templates_get',
     ]);
 
+    function _authHeaders(base) {
+        const h = Object.assign({}, base);
+        const tok = typeof localStorage !== 'undefined' ? localStorage.getItem('sh_token') : '';
+        if (tok) h['Authorization'] = 'Bearer ' + tok;
+        return h;
+    }
+
     function parseJsonResponse(text, action, status) {
         const t = (text || '').trim();
         if (!t.startsWith('{') && !t.startsWith('[')) {
@@ -94,7 +101,7 @@
         if (_csrf) return _csrf;
         const r = await fetch(API_URL, {
             method: 'POST', credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
+            headers: _authHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ action: 'csrf_token' }),
         });
         const raw = await r.text();
@@ -105,7 +112,7 @@
 
     async function api(action, data = {}) {
         const tid  = window.SLICEHUB_TENANT_ID || 1;
-        const hdrs = { 'Content-Type': 'application/json' };
+        const hdrs = _authHeaders({ 'Content-Type': 'application/json' });
         if (!READ_ONLY.has(action)) {
             const tok = await getToken();
             if (tok) hdrs['X-CSRF-Token'] = tok;

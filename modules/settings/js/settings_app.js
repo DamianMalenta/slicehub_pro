@@ -31,10 +31,17 @@
 
     let _csrfToken = null;
 
+    function _authHeaders(base) {
+        const h = Object.assign({}, base);
+        const tok = typeof localStorage !== 'undefined' ? localStorage.getItem('sh_token') : '';
+        if (tok) h['Authorization'] = 'Bearer ' + tok;
+        return h;
+    }
+
     async function fetchCsrfToken() {
         const resp = await fetch(API_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            headers: _authHeaders({ 'Content-Type': 'application/json', 'Accept': 'application/json' }),
             credentials: 'same-origin',
             body: JSON.stringify({ action: 'csrf_token' }),
         });
@@ -53,7 +60,7 @@
 
     async function callApi(action, payload = {}) {
         const body = Object.assign({ action }, payload);
-        const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+        const headers = _authHeaders({ 'Content-Type': 'application/json', 'Accept': 'application/json' });
 
         if (!CSRF_READONLY.has(action)) {
             try {
@@ -66,7 +73,7 @@
 
         const doFetch = async () => fetch(API_URL, {
             method: 'POST',
-            headers,
+            headers: _authHeaders(headers),
             credentials: 'same-origin',
             body: JSON.stringify(body),
         });

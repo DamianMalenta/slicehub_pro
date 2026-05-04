@@ -1,13 +1,30 @@
 /**
  * SLICEHUB DRIVER APP — Main Application Controller
- * PIN auth, 10s polling, GPS 15s, payment lock enforcement, emergency recall.
+ * Login + hasło (mode: system), 10s polling, GPS 15s, payment lock, emergency recall.
  * 3-Pillar State Machine: payment_status = to_pay | online_unpaid | cash | card | online_paid
  */
+function getDriverApiBase() {
+    if (typeof document !== 'undefined') {
+        const meta = document.querySelector('meta[name="sh-api-base"]');
+        if (meta && meta.content) {
+            const b = String(meta.content).trim().replace(/\/+$/, '');
+            if (b) return b;
+        }
+    }
+    const path = typeof window !== 'undefined' ? (window.location.pathname || '') : '';
+    const marker = '/modules/';
+    const idx = path.indexOf(marker);
+    if (idx > 0) return path.slice(0, idx) + '/api';
+    if (idx === 0) return '/api';
+    const m = path.match(/^\/([^/]+)(?:\/|$)/);
+    if (m && m[1] && m[1] !== 'api') return '/' + m[1] + '/api';
+    return '/slicehub/api';
+}
+
 const DriverApp = (() => {
     const POLL_INTERVAL = 10000;
     const GPS_INTERVAL = 15000;
     const RECALL_CHECK_INTERVAL = 12000;
-    const TENANT_ID = 1;
 
     const LS_DISMISSED = 'sh_dismissed_courses';
     const LS_AGE_VERIFIED = 'sh_age_verified';
@@ -20,8 +37,9 @@ const DriverApp = (() => {
         try { localStorage.setItem(key, JSON.stringify([...set])); } catch {}
     }
 
+    const DRIVER_APP_ROLES = ['driver', 'manager', 'admin', 'owner'];
+
     const state = {
-        pin: '',
         user: null,
         orders: [],
         wallet: null,
@@ -44,38 +62,34 @@ const DriverApp = (() => {
         return ['cash', 'card', 'online_paid'].includes(ps);
     }
 
-    // ── PIN AUTH ──
-    function pinDigit(d) {
-        if (state.pin.length >= 4) return;
-        state.pin += d;
-        updatePinDots();
-        if (state.pin.length === 4) pinSubmit();
+    function roleOkForDriverApp(role) {
+        return DRIVER_APP_ROLES.includes(String(role || '').toLowerCase());
     }
 
-    function pinClear() {
-        state.pin = state.pin.slice(0, -1);
-        updatePinDots();
-    }
-
-    function updatePinDots() {
-        document.querySelectorAll('#pin-dots .pin-dot').forEach((dot, i) => {
-            dot.classList.toggle('filled', i < state.pin.length);
-        });
-    }
-
-    async function pinSubmit() {
-        if (state.pin.length !== 4) return;
-        const res = await DriverAPI.loginPin(TENANT_ID, state.pin);
-        if (res.success && res.data && res.data.token) {
-            DriverAPI.setToken(res.data.token);
-            state.user = res.data.user || res.data;
-            localStorage.setItem('sh_token', res.data.token);
-            localStorage.setItem('sh_user', JSON.stringify(state.user));
-            enterApp();
-        } else {
-            state.pin = '';
-            updatePinDots();
-            toast(res.message || 'Nieprawidłowy PIN', 'error');
+    // ── LOGIN (login + hasło) ──
+    async function submitDriverLogin(username, password) {
+        const errEl = document.getElementById('driver-login-err');
+        if (errEl) errEl.textContent = '';
+        const btn = document.getElementById('driver-btn-login');
+        if (btn) btn.disabled = true;
+        try {
+            const res = await DriverAPI.loginSystem(username, password);
+            if (res.success && res.data && res.data.token) {
+                const u = res.data.user || {};
+                if (!roleOkForDriverApp(u.role)) {
+                    if (errEl) errEl.textContent = 'To konto nie jest uprawnione do aplikacji kierowcy.';
+                    return;
+                }
+                DriverAPI.setToken(res.data.token);
+                state.user = u;
+                localStorage.setItem('sh_token', res.data.token);
+                localStorage.setItem('sh_user', JSON.stringify(state.user));
+                enterApp();
+            } else {
+                if (errEl) errEl.textContent = res.message || 'Błąd logowania';
+            }
+        } finally {
+            if (btn) btn.disabled = false;
         }
     }
 
@@ -83,7 +97,7 @@ const DriverApp = (() => {
         document.getElementById('pin-screen').classList.add('hidden');
         document.getElementById('app-root').classList.remove('hidden');
         const u = state.user;
-        document.getElementById('topbar-name').textContent = u.first_name || u.username || 'Kierowca';
+        document.getElementById('topbar-name').textContent = u.name || u.username || 'Kierowca';
         poll();
         state.pollTimer = setInterval(poll, POLL_INTERVAL);
         startGPS();
@@ -91,9 +105,21 @@ const DriverApp = (() => {
     }
 
     function logout() {
+        const tok = localStorage.getItem('sh_token') || '';
+        void DriverAPI.setDriverStatus('offline');
         clearInterval(state.pollTimer);
         clearInterval(state.gpsTimer);
         clearInterval(state.recallTimer);
+        const h = { 'Content-Type': 'application/json' };
+        if (tok) {
+            h['Authorization'] = 'Bearer ' + tok;
+        }
+        fetch(`${getDriverApiBase()}/auth/logout.php`, {
+            method: 'POST',
+            headers: h,
+            credentials: 'same-origin',
+            body: JSON.stringify({}),
+        }).catch(() => {});
         localStorage.removeItem('sh_token');
         localStorage.removeItem('sh_user');
         localStorage.removeItem(LS_DISMISSED);
@@ -101,8 +127,6 @@ const DriverApp = (() => {
         state.dismissedCourses.clear();
         state.ageVerified.clear();
         state.user = null;
-        state.pin = '';
-        updatePinDots();
         document.getElementById('pin-screen').classList.remove('hidden');
         document.getElementById('app-root').classList.add('hidden');
     }
@@ -113,10 +137,25 @@ const DriverApp = (() => {
         if (token && userData) {
             try {
                 state.user = JSON.parse(userData);
+                if (!roleOkForDriverApp(state.user.role)) {
+                    logout();
+                    return;
+                }
                 DriverAPI.setToken(token);
                 enterApp();
-            } catch { /* pin screen */ }
+            } catch { /* login screen */ }
         }
+    }
+
+    function bindLoginForm() {
+        const form = document.getElementById('driver-form-login');
+        if (!form) return;
+        form.addEventListener('submit', (ev) => {
+            ev.preventDefault();
+            const u = document.getElementById('driver-username');
+            const p = document.getElementById('driver-password');
+            void submitDriverLogin(u?.value || '', p?.value || '');
+        });
     }
 
     // ── TABS ──
@@ -552,11 +591,12 @@ const DriverApp = (() => {
 
     // ── INIT ──
     document.addEventListener('DOMContentLoaded', () => {
+        bindLoginForm();
         tryAutoLogin();
     });
 
     return Object.freeze({
-        pinDigit, pinClear, pinSubmit, logout,
+        logout,
         switchTab, poll, collectPayment, deliverOrder,
         acknowledgeRecall, loadWallet,
         openCancelModal, closeCancelModal, confirmCancelOrder,

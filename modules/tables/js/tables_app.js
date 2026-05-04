@@ -501,6 +501,12 @@
         });
 
         $('btn-logout').addEventListener('click', () => {
+            fetch('/slicehub/api/auth/logout.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({}),
+            }).catch(() => {});
             localStorage.removeItem('sh_token');
             localStorage.removeItem('sh_user');
             state.user = null;

@@ -1,0 +1,201 @@
+/**
+ * SliceHub Hub — centrum lokalu (login hasłem + skróty modułów)
+ */
+:root {
+    --hub-bg: #0a0e14;
+    --hub-surface: #111827;
+    --hub-border: rgba(255, 255, 255, 0.08);
+    --hub-text: #f1f5f9;
+    --hub-muted: #94a3b8;
+    --hub-accent: #3b82f6;
+    --hub-radius: 14px;
+    --font: 'Inter', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body {
+    margin: 0;
+    min-height: 100%;
+    font-family: var(--font);
+    background: var(--hub-bg);
+    color: var(--hub-text);
+    -webkit-tap-highlight-color: transparent;
+}
+
+.hub-hidden { display: none !important; }
+
+/* Login */
+#hub-login {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+.hub-logo {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    background: linear-gradient(145deg, #dc2626, #991b1b);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 18px;
+    margin-bottom: 12px;
+}
+.hub-login-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+.hub-login-sub {
+    color: var(--hub-muted);
+    font-size: 14px;
+    margin-bottom: 28px;
+    text-align: center;
+    max-width: 320px;
+}
+.hub-form {
+    width: 100%;
+    max-width: 360px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.hub-form label {
+    font-size: 12px;
+    color: var(--hub-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.hub-form input {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--hub-border);
+    background: var(--hub-surface);
+    color: var(--hub-text);
+    font-size: 16px;
+}
+.hub-form input:focus {
+    outline: none;
+    border-color: rgba(59, 130, 246, 0.5);
+}
+.hub-btn {
+    margin-top: 8px;
+    padding: 14px;
+    border: none;
+    border-radius: 10px;
+    background: var(--hub-accent);
+    color: #fff;
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+}
+.hub-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.hub-err {
+    color: #f87171;
+    font-size: 13px;
+    min-height: 1.2em;
+}
+
+/* Dashboard */
+#hub-dash {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+.hub-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--hub-border);
+    background: rgba(17, 24, 39, 0.95);
+}
+.hub-top-title {
+    font-weight: 700;
+    font-size: 15px;
+}
+.hub-top-meta {
+    flex: 1;
+    font-size: 13px;
+    color: var(--hub-muted);
+}
+.hub-top-logout {
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--hub-border);
+    background: transparent;
+    color: var(--hub-text);
+    font-size: 13px;
+    cursor: pointer;
+}
+.hub-main {
+    flex: 1;
+    padding: 20px;
+    max-width: 960px;
+    margin: 0 auto;
+    width: 100%;
+}
+.hub-section-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--hub-muted);
+    margin-bottom: 12px;
+}
+.hub-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+}
+.hub-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 18px;
+    border-radius: var(--hub-radius);
+    border: 1px solid var(--hub-border);
+    background: var(--hub-surface);
+    text-decoration: none;
+    color: var(--hub-text);
+    transition: border-color 0.15s, background 0.15s;
+}
+.hub-card:hover {
+    border-color: rgba(59, 130, 246, 0.35);
+    background: #1e293b;
+}
+.hub-card--primary {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(135deg, #1e3a5f 0%, #111827 100%);
+    border-color: rgba(59, 130, 246, 0.25);
+}
+.hub-card-icon {
+    font-size: 22px;
+    opacity: 0.9;
+}
+.hub-card h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+}
+.hub-card p {
+    margin: 0;
+    font-size: 12px;
+    color: var(--hub-muted);
+    line-height: 1.35;
+}
+.hub-card-arrow {
+    font-size: 18px;
+    color: var(--hub-muted);
+}

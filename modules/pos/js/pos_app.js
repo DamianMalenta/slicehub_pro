@@ -9,6 +9,7 @@
 import PosAPI from './PosApiOutbox.js';
 import PosCart from './pos_cart.js';
 import PosUI from './pos_ui.js';
+import { initPosHrClock } from './pos_hr_clock.js';
 
 const PosApp = (() => {
     const TENANT_ID = parseInt(document.querySelector('meta[name="sh-tenant-id"]')?.content, 10) || 1;
@@ -124,10 +125,12 @@ const PosApp = (() => {
 
         _startPolling();
 
+        initPosHrClock(PosAPI, PosUI, TENANT_ID);
+
         // Global keyboard shortcut: Escape closes any open modal
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
-                document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active'));
+                document.querySelectorAll('.modal-overlay.active').forEach((m) => m.classList.remove('active'));
             }
         });
     }

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
@@ -13,34 +13,27 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="css/waiter.css">
-    <link rel="stylesheet" href="../shared/sh_mobile_shell.css">
+    <link rel="stylesheet" href="../ui_shell/sh_mobile_shell.css">
 </head>
 <body>
 
-<!-- VIEW A: PIN LOCK -->
+<!-- VIEW A: LOGIN (login + hasło — aplikacja mobilna) -->
 <div id="view-pin" class="view">
     <div class="pin-container">
         <div class="pin-brand">
             <div class="pin-logo">SH</div>
             <span class="pin-label">KELNER</span>
         </div>
-        <div class="pin-subtitle">Wprowadź swój PIN</div>
-        <div class="pin-dots" id="pin-dots"></div>
-        <div class="pin-error" id="pin-error"></div>
-        <div class="pin-grid">
-            <button class="pin-key" data-val="1">1</button>
-            <button class="pin-key" data-val="2">2</button>
-            <button class="pin-key" data-val="3">3</button>
-            <button class="pin-key" data-val="4">4</button>
-            <button class="pin-key" data-val="5">5</button>
-            <button class="pin-key" data-val="6">6</button>
-            <button class="pin-key" data-val="7">7</button>
-            <button class="pin-key" data-val="8">8</button>
-            <button class="pin-key" data-val="9">9</button>
-            <button class="pin-key pin-key--action" data-val="clear"><i class="fa-solid fa-delete-left"></i></button>
-            <button class="pin-key" data-val="0">0</button>
-            <button class="pin-key pin-key--action pin-key--go" data-val="go"><i class="fa-solid fa-arrow-right"></i></button>
-        </div>
+        <div class="pin-subtitle">Zaloguj się</div>
+        <p style="color:rgba(255,255,255,0.45);font-size:12px;margin:0 0 16px;text-align:center;max-width:280px;">Konto użytkownika (np. z modułu Kadry). Bezpieczniejsze na telefonie niż sam PIN.</p>
+        <form id="waiter-form-login" class="waiter-login-form" autocomplete="on">
+            <label class="waiter-ll" for="waiter-username">Login</label>
+            <input class="waiter-inp" id="waiter-username" name="username" type="text" autocomplete="username" required>
+            <label class="waiter-ll" for="waiter-password">Hasło</label>
+            <input class="waiter-inp" id="waiter-password" name="password" type="password" autocomplete="current-password" required>
+            <div class="pin-error" id="pin-error"></div>
+            <button type="submit" class="waiter-login-btn" id="waiter-btn-login">Zaloguj</button>
+        </form>
     </div>
 </div>
 

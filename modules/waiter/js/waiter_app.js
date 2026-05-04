@@ -5,16 +5,15 @@
  */
 
 const WaiterApp = (() => {
-    const TENANT_ID = parseInt(document.querySelector('meta[name="sh-tenant-id"]')?.content, 10) || 1;
     const API_BASE = '/slicehub/api';
     const TOKEN_KEY = 'sh_token';
     const USER_KEY = 'sh_user';
     const POLL_MS = 5000;
-    const PIN_LENGTH = 4;
+    /** Role mogące korzystać z aplikacji kelner (nie kierowca/kuchnia). */
+    const WAITER_APP_ROLES = ['waiter', 'manager', 'admin', 'owner', 'runner', 'shift_lead', 'team', 'cashier'];
 
     let _token = localStorage.getItem(TOKEN_KEY) || '';
     let _user = null;
-    let _pin = '';
     let _tables = [];
     let _allTables = [];
     let _pollTimer = null;
@@ -42,11 +41,26 @@ const WaiterApp = (() => {
         }
     }
 
+    function _serverLogout(bearerToken) {
+        const headers = { 'Content-Type': 'application/json' };
+        if (bearerToken) {
+            headers['Authorization'] = 'Bearer ' + bearerToken;
+        }
+        fetch(`${API_BASE}/auth/logout.php`, {
+            method: 'POST',
+            headers,
+            credentials: 'same-origin',
+            body: JSON.stringify({}),
+        }).catch(() => {});
+    }
+
     function _forceLogout() {
+        const tok = _token;
         _token = '';
         _user = null;
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(USER_KEY);
+        _serverLogout(tok);
         _stopPolling();
         _showView('pin');
     }
@@ -54,8 +68,12 @@ const WaiterApp = (() => {
     // =========================================================================
     // INIT
     // =========================================================================
+    function _roleOkForWaiterApp(role) {
+        return WAITER_APP_ROLES.includes(String(role || '').toLowerCase());
+    }
+
     function init() {
-        _bindPinPad();
+        _bindLoginForm();
         _bindDashboard();
         _bindNewOrder();
 
@@ -64,9 +82,12 @@ const WaiterApp = (() => {
         if (stored && _token) {
             try {
                 _user = JSON.parse(stored);
-                _bootDashboard();
-                return;
-            } catch { /* fall through to PIN */ }
+                if (_user && _roleOkForWaiterApp(_user.role)) {
+                    _bootDashboard();
+                    return;
+                }
+                _forceLogout();
+            } catch { /* fall through */ }
         }
         _showView('pin');
     }
@@ -84,68 +105,69 @@ const WaiterApp = (() => {
     }
 
     // =========================================================================
-    // PIN PAD
+    // LOGIN (login + hasło — aplikacja mobilna)
     // =========================================================================
-    function _bindPinPad() {
-        $$('#view-pin .pin-key').forEach(btn => {
-            btn.addEventListener('click', () => _handlePinKey(btn.dataset.val));
+    function _bindLoginForm() {
+        const form = $('#waiter-form-login');
+        if (!form) return;
+        form.addEventListener('submit', async (ev) => {
+            ev.preventDefault();
+            const u = $('#waiter-username');
+            const p = $('#waiter-password');
+            const btn = $('#waiter-btn-login');
+            const errEl = $('#pin-error');
+            if (errEl) { errEl.textContent = ''; errEl.classList.remove('visible'); }
+            if (btn) btn.disabled = true;
+            try {
+                await _submitLogin(u?.value || '', p?.value || '');
+            } finally {
+                if (btn) btn.disabled = false;
+            }
         });
     }
 
-    function _handlePinKey(val) {
+    async function _submitLogin(username, password) {
+        /** Sam endpoint logowania — bez Bearer (unikamy konfliktu ze starym tokenem). */
+        let json;
+        try {
+            const res = await fetch(`${API_BASE}/auth/login.php`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    mode: 'system',
+                    username: String(username).trim(),
+                    password: String(password),
+                }),
+            });
+            json = await res.json();
+        } catch {
+            json = { success: false, message: 'Brak połączenia z serwerem' };
+        }
+        const res = { success: json.success === true, message: json.message || '', data: json.data || null };
         const errEl = $('#pin-error');
-        if (errEl) { errEl.classList.remove('visible'); errEl.textContent = ''; }
 
-        if (val === 'clear') {
-            _pin = '';
-            _renderPinDots();
-            return;
-        }
-        if (val === 'go') {
-            if (_pin.length === PIN_LENGTH) _submitPin(_pin);
-            return;
-        }
-        if (_pin.length >= PIN_LENGTH) return;
-
-        _pin += val;
-        _renderPinDots();
-
-        if (_pin.length === PIN_LENGTH) {
-            setTimeout(() => _submitPin(_pin), 120);
-        }
-    }
-
-    function _renderPinDots() {
-        const container = $('#pin-dots');
-        if (!container) return;
-        container.innerHTML = Array.from({ length: PIN_LENGTH }, (_, i) =>
-            `<div class="pin-dot ${i < _pin.length ? 'filled' : ''}"></div>`
-        ).join('');
-    }
-
-    async function _submitPin(pin) {
-        const res = await _post('/auth/login.php', {
-            mode: 'kiosk',
-            tenant_id: TENANT_ID,
-            pin_code: pin,
-        });
-
-        if (res.success && res.data) {
+        if (res.success && res.data && res.data.user) {
+            const role = res.data.user.role;
+            if (!_roleOkForWaiterApp(role)) {
+                if (errEl) {
+                    errEl.textContent = 'To konto nie jest uprawnione do aplikacji kelner (np. kierowca — użyj aplikacji Kierowca).';
+                    errEl.classList.add('visible');
+                }
+                return;
+            }
             _token = res.data.token;
             _user = res.data.user;
             localStorage.setItem(TOKEN_KEY, _token);
             localStorage.setItem(USER_KEY, JSON.stringify(_user));
-            _pin = '';
-            _renderPinDots();
+            if (errEl) errEl.textContent = '';
             _toast(`Witaj, ${_user.name || _user.username}!`, 'success');
             _bootDashboard();
-        } else {
-            _pin = '';
-            const dots = $$('#pin-dots .pin-dot');
-            dots.forEach(d => d.classList.add('error'));
-            const errEl = $('#pin-error');
-            if (errEl) { errEl.textContent = res.message || 'Nieprawidłowy PIN'; errEl.classList.add('visible'); }
-            setTimeout(_renderPinDots, 700);
+            return;
+        }
+
+        if (errEl) {
+            errEl.textContent = res.message || 'Błąd logowania';
+            errEl.classList.add('visible');
         }
     }
 

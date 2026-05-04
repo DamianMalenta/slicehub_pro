@@ -1,0 +1,91 @@
+﻿<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#060809">
+    <meta name="sh-api-base" content="/slicehub/api">
+    <title>SliceHub — Kiosk · Obecność</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="../ui_shell/sh_mobile_shell.css">
+    <link rel="stylesheet" href="css/kiosk_attendance.css">
+</head>
+<body>
+
+<div class="ka-wrap">
+
+    <header class="ka-brand">
+        <div class="ka-logo">SH</div>
+        <div>
+            <div class="ka-title">Obecność / zmiana</div>
+            <div class="ka-sub">Kiosk HR · komunikacja tylko przez REST (api/auth + api/backoffice/hr)</div>
+        </div>
+    </header>
+
+    <!-- Krok 1: zaloguj terminal (konto techniczne lokalu — nie PIN pracownika) -->
+    <section id="view-terminal" class="ka-card hidden">
+        <div class="ka-label">Terminal lokalu</div>
+        <p class="ka-hint" style="margin-top:0">Użyj dedykowanego konta typu „kiosk” lub konta managera przypisanego do tego urządzenia. Pracownicy <strong>nie</strong> logują się tutaj hasłem — tylko PIN-em w kolejnym kroku.</p>
+        <form id="ka-form-terminal" autocomplete="on">
+            <input class="ka-input" id="ka-term-user" name="username" type="text" autocomplete="username" placeholder="Login terminala" required>
+            <input class="ka-input" id="ka-term-pass" name="password" type="password" autocomplete="current-password" placeholder="Hasło" required>
+            <p id="ka-term-err" class="ka-err" aria-live="polite"></p>
+            <button type="submit" class="ka-btn ka-btn--primary">Zaloguj terminal</button>
+        </form>
+    </section>
+
+    <!-- Krok 2: PIN pracownika (Kadry) -->
+    <section id="view-pin" class="ka-card hidden">
+        <div class="ka-label">PIN pracownika</div>
+        <p class="ka-hint" style="margin-top:0">4 cyfry — ten sam PIN co w module Kadry / odświeżenie na POS.</p>
+        <div class="ka-dots" id="ka-pin-dots"></div>
+        <div class="ka-pin-grid">
+            <button type="button" class="ka-pin-btn" onclick="_kaPin('1')">1</button>
+            <button type="button" class="ka-pin-btn" onclick="_kaPin('2')">2</button>
+            <button type="button" class="ka-pin-btn" onclick="_kaPin('3')">3</button>
+            <button type="button" class="ka-pin-btn" onclick="_kaPin('4')">4</button>
+            <button type="button" class="ka-pin-btn" onclick="_kaPin('5')">5</button>
+            <button type="button" class="ka-pin-btn" onclick="_kaPin('6')">6</button>
+            <button type="button" class="ka-pin-btn" onclick="_kaPin('7')">7</button>
+            <button type="button" class="ka-pin-btn" onclick="_kaPin('8')">8</button>
+            <button type="button" class="ka-pin-btn" onclick="_kaPin('9')">9</button>
+            <button type="button" class="ka-pin-btn ka-pin-btn--sub" onclick="_kaPin('clear')">Wyczyść</button>
+            <button type="button" class="ka-pin-btn" onclick="_kaPin('0')">0</button>
+            <button type="button" class="ka-pin-btn ka-pin-btn--sub" onclick="_kaPin('back')">⌫</button>
+        </div>
+        <p id="ka-pin-err" class="ka-err" aria-live="polite"></p>
+        <button type="button" class="ka-btn ka-btn--ghost" id="ka-btn-logout-terminal">Wyloguj terminal</button>
+    </section>
+
+    <!-- Krok 3: stan zmiany -->
+    <section id="view-work" class="ka-card hidden">
+        <div class="ka-label">Pracownik</div>
+        <p class="ka-name" id="ka-work-name">—</p>
+        <p class="ka-role" id="ka-work-role"></p>
+
+        <div class="ka-label" style="margin-top:1rem">Czas na zmianie</div>
+        <div class="ka-timer" id="ka-work-elapsed">00:00:00</div>
+
+        <button type="button" class="ka-btn ka-btn--green" id="ka-btn-start">
+            <i class="fa-solid fa-play" style="margin-right:0.5rem"></i> Rozpocznij pracę
+        </button>
+        <button type="button" class="ka-btn ka-btn--orange hidden" id="ka-btn-stop">
+            <i class="fa-solid fa-stop" style="margin-right:0.5rem"></i> Zakończ pracę
+        </button>
+
+        <button type="button" class="ka-btn ka-btn--ghost" id="ka-btn-other">Inna osoba (nowy PIN)</button>
+
+        <p class="ka-hint">
+            Licznik bazuje na czasie serwera zmiany. Start i koniec zapisują się w HR (<code>sh_work_sessions</code>), zgodnie z polityką lokalu.
+        </p>
+    </section>
+
+</div>
+
+<div id="ka-toast" class="ka-toast" role="status"></div>
+
+<script src="js/kiosk_attendance.js"></script>
+</body>
+</html>

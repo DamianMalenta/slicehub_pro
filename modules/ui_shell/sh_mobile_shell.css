@@ -1,6 +1,6 @@
 /**
  * SliceHub — wspólna warstwa mobilna (tylko addytywne reguły).
- * Ładowana przez moduły z ../shared/sh_mobile_shell.css — nie zastępuje theme’ów.
+ * Ładowana z ../ui_shell/sh_mobile_shell.css — nie zastępuje theme’ów.
  */
 
 /* iOS: nie powiększaj tekstu arbitralnie przy obracie / pinch */

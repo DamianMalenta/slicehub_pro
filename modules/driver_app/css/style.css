@@ -46,6 +46,20 @@ body {
 .pin-btn:active { background:var(--accent-orange); border-color:var(--accent-orange); transform:scale(0.95); }
 .pin-btn.pin-action { font-size:16px; font-weight:800; color:var(--text-secondary); }
 
+.driver-login-form { width:100%; max-width:300px; display:flex; flex-direction:column; gap:8px; user-select:text; }
+.driver-ll { font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; }
+.driver-inp {
+    width:100%; padding:14px 14px; border-radius:var(--radius-sm); border:1px solid var(--border);
+    background:var(--bg-card); color:var(--text-primary); font-size:16px;
+}
+.driver-inp:focus { outline:none; border-color:var(--accent-orange); }
+.driver-login-err { color:var(--accent-red); font-size:13px; min-height:1.2em; margin-top:4px; }
+.driver-login-submit {
+    margin-top:12px; padding:16px; border-radius:var(--radius-md); border:none;
+    background:var(--accent-orange); color:#fff; font-size:15px; font-weight:900; text-transform:uppercase; cursor:pointer;
+}
+.driver-login-submit:disabled { opacity:0.5; }
+
 /* APP SHELL */
 #app-root { display:flex; flex-direction:column; min-height:100vh; }
 

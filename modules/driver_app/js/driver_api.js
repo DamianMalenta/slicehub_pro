@@ -32,11 +32,16 @@ const DriverAPI = (() => {
     return Object.freeze({
         setToken, getToken,
 
-        loginPin: (tenantId, pin) => {
+        /** Login + hasło (aplikacja mobilna kierowcy). */
+        loginSystem: (username, password) => {
             const headers = { 'Content-Type': 'application/json' };
             return fetch('/slicehub/api/auth/login.php', {
                 method: 'POST', headers,
-                body: JSON.stringify({ mode: 'kiosk', tenant_id: tenantId, pin_code: pin }),
+                body: JSON.stringify({
+                    mode: 'system',
+                    username: String(username || '').trim(),
+                    password: String(password || ''),
+                }),
             }).then(r => r.json()).catch(() => ({ success: false, message: 'Brak połączenia' }));
         },
 
