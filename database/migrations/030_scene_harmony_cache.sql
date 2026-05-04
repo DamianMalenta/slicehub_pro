@@ -9,7 +9,9 @@
 --   feather w obrębie sceny + median check per typ składnika (MagicBake zna typy).
 --
 -- Konstytucja:
---   • Klucz = scene_id (1:1 z sh_atelier_scenes.id).
+--   • Klucz = scene_id (1:1 z sh_atelier_scenes.id) — typ INT (signed) jak w m020.
+--   • Brak CONSTRAINT FOREIGN KEY: m020 używa `id INT` (signed), a UNSIGNED w FK → errno 150;
+--     relacja wymuszana w API (JOIN sh_atelier_scenes) + PK na scene_id.
 --   • tenant_id duplikowany dla szybkich JOIN-ów w Style Conductor / raportach
 --     (Prawo "każdy SELECT ma tenant_id").
 --   • outliers_json i variance_json NULLable — jeśli worker nie policzył jeszcze,
@@ -25,9 +27,9 @@ SET NAMES utf8mb4;
 
 -- ── sh_scene_metrics ────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS sh_scene_metrics (
-    scene_id            INT UNSIGNED            NOT NULL
-        COMMENT 'FK → sh_atelier_scenes.id (1:1)',
-    tenant_id           INT UNSIGNED            NOT NULL
+    scene_id            INT                     NOT NULL
+        COMMENT 'FK → sh_atelier_scenes.id (1:1), signed INT jak w m020',
+    tenant_id           INT                     NOT NULL
         COMMENT 'duplikat z sh_atelier_scenes dla szybkich filtrów',
     harmony_score       TINYINT UNSIGNED        NOT NULL DEFAULT 0
         COMMENT '0–100, 0=brak metryki, 50=próg publikacji, 70=toast OK, 100=perfekcyjna',
@@ -41,8 +43,6 @@ CREATE TABLE IF NOT EXISTS sh_scene_metrics (
         COMMENT 'dodaje się przy każdym INSERT/UPDATE (frontend upserts)',
     PRIMARY KEY (scene_id),
     INDEX idx_tenant_score (tenant_id, harmony_score)
-        COMMENT 'dla Style Conductor: WHERE tenant_id=X AND harmony_score<70',
-    CONSTRAINT fk_scene_metrics_scene
-        FOREIGN KEY (scene_id) REFERENCES sh_atelier_scenes(id) ON DELETE CASCADE
+        COMMENT 'dla Style Conductor: WHERE tenant_id=X AND harmony_score<70'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='Faza 2.4 · G4 Harmony Score cache — metryka jakości sceny';
