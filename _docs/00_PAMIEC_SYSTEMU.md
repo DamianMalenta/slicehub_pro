@@ -4,8 +4,8 @@
 > Jeśli coś jest tu napisane — to jest prawda. Jeśli nie ma — idź do `_docs/`, `database/migrations/` lub `core/`.
 > **NIGDY nie zgaduj.** Nigdy nie wymyślaj tabel, kolumn, akcji API. Nigdy nie zmieniaj struktury bazy bez wyraźnej zgody użytkownika.
 
-**Kompilacja:** 2026-04-23
-**Źródła:** `START_TUTAJ.md`, `01_KONSTYTUCJA.md`, `02_ARCHITEKTURA.md`, `04_BAZA_DANYCH.md`, `05_INSTRUKCJA_FOTO_UPLOAD.md`, `ustalenia.md`, `LEGACY_BUSINESS_LOGIC_EXTRACTION.md`, `OPTIMIZED_CORE_LOGIC_V2.md`, `.cursorrules`, migracje 001–040.
+**Kompilacja:** 2026-05-04 (Hub-Centric Shell + Staff Fleet Presence + UI Kadry)
+**Źródła:** `START_TUTAJ.md`, `01_KONSTYTUCJA.md`, `02_ARCHITEKTURA.md`, `04_BAZA_DANYCH.md`, `05_INSTRUKCJA_FOTO_UPLOAD.md`, `18_BACKOFFICE_HR_LOGIC.md`, `19_HUB_AND_KIOSK.md`, `ustalenia.md`, `LEGACY_BUSINESS_LOGIC_EXTRACTION.md`, `OPTIMIZED_CORE_LOGIC_V2.md`, `.cursorrules`, migracje 001–044.
 
 ---
 
@@ -156,7 +156,8 @@ slicehub/
 ├── _KOPALNIA_WIEDZY_LEGACY/            # [ARCHIWUM OFFLINE — poza repo, .gitignore]
 ├── _archive/                           # [ARCHIWUM OFFLINE — poza repo, .gitignore]
 ├── api/
-│   ├── auth/login.php                  # Logowanie (system / kiosk)
+│   ├── auth/login.php                  # Logowanie (system / kiosk; PIN = 4 cyfry, owner OK)
+│   ├── auth/logout.php                 # Niszczy sesję + clearStaffPresence (NEW · 2026-05-04)
 │   ├── online/engine.php               # Storefront (get_menu, get_dish, cart_calculate)
 │   ├── cart/CartEngine.php             # Core silnik koszyka (static ::calculate)
 │   ├── cart/calculate.php              # HTTP wrapper nad CartEngine
@@ -169,7 +170,8 @@ slicehub/
 │   ├── warehouse/*.php                 # Magazyn (PZ, RW, MM, INW, KOR, WZ, stock_list...)
 │   ├── backoffice/
 │   │   ├── api_menu_studio.php         # Studio menu CRUD
-│   │   └── api_visual_studio.php       # Upload warstw wizualnych (Studio)
+│   │   ├── api_visual_studio.php       # Upload warstw wizualnych (Studio)
+│   │   └── hr/engine.php               # HR: clock_* + employees_* + employee_pin_set + employee_rate_set
 │   └── delivery/{dispatch,reconcile}.php
 ├── core/
 │   ├── db_config.php                   # PDO → $pdo
@@ -189,17 +191,26 @@ slicehub/
 │   ├── PayrollEngine.php / TeamPayrollEngine.php  # SSOT: rewrite IN-PLACE na readery z `sh_payroll_ledger::sumForPeriod` (Faza 4 — zakaz plików równoległych / sufiksowanych)
 │   ├── FoodCostEngine.php
 │   ├── AsciiKeyEngine.php              # ASCII key generation (Polish → a-z0-9_)
+│   ├── StaffFleetPresence.php          # Heartbeat last_seen + TTL=120s (NEW · 2026-05-04)
+│   ├── DriverFleetHelper.php           # Idempotentne dopinanie sh_drivers (NEW · 2026-05-04)
 │   ├── Integrations/PapuClient.php     # Papu/Pyszne (integracja)
 │   └── js/api_client.js                # Frontend fetch wrapper
 ├── modules/
+│   ├── hub/                            # Centralny launcher (login restauracji + kafelki) (NEW · 2026-05-04)
+│   ├── kiosk/                          # Terminal obecności / zmiana (3-stage flow) (NEW · 2026-05-04)
+│   ├── backoffice/hr/                  # UI Kadry — CRUD pracowników, PIN, stawki (NEW · 2026-05-04)
+│   ├── ui_shell/sh_mobile_shell.css    # Shared mobile shell — safe-area, viewport-fit (NEW · 2026-05-04)
+│   ├── marketing/                      # Wizard SMS / promocji (Notification Director) (NEW · 2026-05-04)
+│   ├── settings/                       # Panel Settings (integracje, webhooks, API keys, audit)
 │   ├── studio/                         # Backoffice menu + visual compositor
 │   ├── pos/                            # Kasa operacyjna (POS)
 │   ├── online/                         # STOREFRONT (klient końcowy) — OBECNIE PRZEBUDOWYWANY
+│   ├── online_studio/                  # Reżyser sceny (Director's Suite)
 │   ├── tables/                         # Dine-in floor management
 │   ├── kds/                            # Kitchen Display System
-│   ├── waiter/                         # Aplikacja kelnera
+│   ├── waiter/                         # Aplikacja kelnera (mobile, login + hasło)
 │   ├── courses/                        # Dispatcher (Kursy)
-│   ├── driver_app/                     # PWA kierowcy
+│   ├── driver_app/                     # PWA kierowcy (mobile, login + hasło)
 │   └── warehouse/                      # Zarządzanie magazynem (PZ/RW/MM/INW/KOR)
 ├── database/migrations/                # 001–016 idempotentne
 ├── scripts/
@@ -549,6 +560,13 @@ Prosty wrapper fetch POST → JSON, obsługa błędów i auth header. Powinien b
 | `api/backoffice/api_menu_studio.php` | `auth_guard.php` (owner/admin/manager) | guard |
 | `api/backoffice/api_visual_studio.php` | `auth_guard.php` + multipart | guard |
 | `api/warehouse/*` | `auth_guard.php` (manager+) | guard |
+| `api/auth/login.php` | **PUBLIC** (zwraca JWT + startuje sesję PHP) | mode=`system` (login+hasło, dla Hub) lub mode=`kiosk` (PIN 4 cyfry — POS / Kiosk; owner OK) |
+| `api/auth/logout.php` (NEW · 2026-05-04) | Bearer JWT (opcjonalny) | Niszczy sesję + clearStaffPresence |
+| `api/backoffice/hr/engine.php` | `auth_guard.php` (clock_*) + `hrRequireManager` (employees_*, employee_*, hr_users_unlinked) | guard |
+
+**Staff Fleet Presence (NEW · 2026-05-04):** kierowca / kelner pojawia się na liście POS (`get_pos_data`, polling) **tylko** gdy `sh_users.last_seen >= NOW() - 120s` (heartbeat z aplikacji mobilnej). Wyjątek: kierowca w trasie (`sh_drivers.status='busy'`) — zawsze widoczny. Logout natychmiast czyści `last_seen`. Implementacja: `core/StaffFleetPresence.php`.
+
+**PIN policy (od 2026-05-04):** dokładnie **4 cyfry** (regex `^\d{4}$`) wszędzie — POS PIN, Kiosk PIN, HR PIN. `employee_pin_set` w HR ustawia jednocześnie `sh_employees.auth_pin_hash` (bcrypt) i `sh_users.pin_code` powiązanego konta — **ten sam PIN** działa w POS i w Kiosku. Owner też może PIN-em (model jak Toast/Square).
 
 **RBAC matrix** (w 27. sekcji `OPTIMIZED_CORE_LOGIC_V2.md`):
 - `owner` → wszystko

@@ -459,9 +459,9 @@ requested ──approve──> approved ──pay──> paid ─(repayments acc
 
 ### 5.1. Kontekst — gdzie to żyje
 
-- POS (`modules/pos/`) wyświetla **widget Clock** w nagłówku: pokazuje, kto jest zmianie + przycisk „Rozliczenie zmiany" → modal z PIN-padem.
-- Kiosk (`modules/kiosk/` — przyszły) to **dedykowany terminal** tylko do PIN-login → clock-in/out → ekran „gotowe, idź do pracy".
-- Self-service `modules/ekipa/` (mobile PWA, przyszły) — pracownik na telefonie widzi własne godziny.
+- POS (`modules/pos/`) wyświetla **widget Clock** w nagłówku: pokazuje, kto jest na zmianie + przycisk „Zmiana" → modal z PIN-padem (`modules/pos/js/pos_hr_clock.js`). ✅ LIVE od 2026-05-04.
+- Kiosk (`modules/kiosk/`) ✅ **LIVE od 2026-05-04** — **dedykowany terminal** z 3-stage flow: login terminala (konto techniczne lokalu, login+hasło → JWT) → PIN pracownika (4 cyfry) → ekran „Rozpocznij prace / licznik / Zakończ prace". Cross-silo wyłącznie przez REST (`api/auth/login.php`, `api/backoffice/hr/engine.php`) — zero `import` z silosu POS, zgodnie z Konstytucją §9. Pełen opis: `_docs/19_HUB_AND_KIOSK.md`.
+- Self-service `modules/ekipa/` (mobile PWA, **przyszły** — Faza 5) — pracownik na telefonie widzi własne godziny. Tymczasowo: kelner / kierowca w `modules/waiter/` i `modules/driver_app/` mają własny mobile PWA z login+hasło.
 
 **Dla Kroku 1 budujemy:** endpoint wspólny `api/backoffice/hr/engine.php` (action-based, per Konwencja §4 Architektury), z pierwszą akcją **Clock**. POS będzie jego konsumentem.
 
@@ -592,22 +592,25 @@ Body analogiczne + `session_uuid` opcjonalne (gdy nie podane — silnik wybiera 
 10. RETURN.
 ```
 
-### 5.3. Pomocnicze akcje w tym samym `engine.php` (szkic, kod w Kroku 2+)
+### 5.3. Pomocnicze akcje w tym samym `engine.php`
 
-| Action | Kto używa | Cel |
-|---|---|---|
-| `clock_status` | POS widget | kto jest na zmianie (GET-style, ale POST z body dla spójności) |
-| `my_sessions` | Ekipa (self) | lista zmian pracownika w okresie |
-| `employees_list` | Szefa / Settings | lista kadr |
-| `employee_upsert` | Settings | CRUD profilu |
-| `rate_set` | Settings | zmiana stawki → auto-wstawia rekord w `sh_employee_rates` (zamyka poprzednią) |
-| `advance_request` | Ekipa (self) | wniosek o zaliczkę |
-| `advance_decision` | Szefa | approve / reject |
-| `advance_pay` | Szefa + kasa | zaznaczenie wypłaty |
-| `payroll_period` | Szefa + Ekipa | wynik `PayrollEngine::calculate()` (nowa wersja z ledgera) |
-| `payroll_team` | Szefa | `TeamPayrollEngine` agregat |
+| Action | Kto używa | Cel | Status |
+|---|---|---|---|
+| `clock_status` | POS widget, Kiosk, hr_app | kto jest na zmianie (POST z body dla spójności; może być filtrowany po `auth.pin` → zwraca `employee_snapshot`) | ✅ LIVE (Faza 3A) |
+| `employees_list` | Backoffice HR UI / Settings | lista profili HR z join do konta sh_users + flag `has_kiosk_pin` | ✅ **LIVE od 2026-05-04** |
+| `employee_get` | Backoffice HR UI | jeden rekord + aktualna stawka godzinowa | ✅ **LIVE od 2026-05-04** |
+| `employee_upsert` | Backoffice HR UI / Settings | CRUD profilu; opcjonalnie `create_login` tworzy nowe konto sh_users (z opcjonalnym `pos_pin`) | ✅ **LIVE od 2026-05-04** |
+| `employee_pin_set` | Backoffice HR UI | bcrypt PIN do `sh_employees.auth_pin_hash` + sync `sh_users.pin_code` (ten sam PIN w POS i Kiosk) | ✅ **LIVE od 2026-05-04** |
+| `employee_rate_set` | Backoffice HR UI / Settings | zamyka poprzednią linię w `sh_employee_rates`, otwiera nową | ✅ **LIVE od 2026-05-04** |
+| `hr_users_unlinked` | Backoffice HR UI | sh_users w tenancie bez aktywnego powiązania do sh_employees (do podpięcia istniejącego konta przy upsercie) | ✅ **LIVE od 2026-05-04** |
+| `my_sessions` | Ekipa (self) | lista zmian pracownika w okresie | ⏳ Faza 5 |
+| `advance_request` | Ekipa (self) | wniosek o zaliczkę (`AdvanceEngine`) | ⏳ Faza 5 (silnik gotowy, brak UI) |
+| `advance_decision` | Szefa | approve / reject (`AdvanceEngine::approve`/`reject`) | ⏳ Faza 5 (silnik gotowy, brak UI) |
+| `advance_pay` | Szefa + kasa | `AdvanceEngine::markPaid` — emituje `advance_payment` do ledgera | ⏳ Faza 5 (silnik gotowy, brak UI) |
+| `payroll_period` | Szefa + Ekipa | wynik `PayrollEngine::calculate()` (po rewrite IN-PLACE z `sh_payroll_ledger`) | ⏳ Faza 4 |
+| `payroll_team` | Szefa | `TeamPayrollEngine` agregat | ⏳ Faza 4 |
 
-**W Kroku 1 implementujemy TYLKO `clock_in`, `clock_out`, `clock_status`.** Reszta — kolejne iteracje.
+**Stan na 2026-05-04:** zaimplementowane akcje clock + 6 akcji backoffice HR (CRUD pracowników, PIN, stawki). Reszta (self-service ekipy + UI zaliczek + UI payroll) — kolejne fazy zgodnie z roadmapą §13.
 
 ### 5.4. Integracja z POS (frontend)
 

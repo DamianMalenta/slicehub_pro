@@ -3,8 +3,9 @@
 > Oficjalna mapa drogowa projektu **SliceHub Enterprise** dla Agentów AI.
 > Nie zgaduj — sprawdzaj strukturę tutaj.
 >
-> **Ostatnia synchronizacja:** 2026-04-19 (po audycie modułów).
+> **Ostatnia synchronizacja:** 2026-05-04 (Hub-Centric Mobile Shell + Staff Fleet Presence + HR Backoffice UI).
 > **North Star:** [`_docs/00_PAMIEC_SYSTEMU.md`](00_PAMIEC_SYSTEMU.md) — master reference.
+> **Hub & Kiosk dedykowany doc:** [`_docs/19_HUB_AND_KIOSK.md`](19_HUB_AND_KIOSK.md).
 
 ---
 
@@ -138,6 +139,55 @@ Critical: Payment Lock, Driver Wallet, Emergency Alert (red flash + vibration), 
 
 Panel ustawień tenanta, konfiguracja integracji, webhooków, stawek VAT, zmianowych stawek payroll. Opisany w `_docs/13_SETTINGS_PANEL.md`.
 
+### L. HUB — Centralny Launcher (NEW · 2026-05-04)
+`/modules/hub/`
+
+| Plik | Rola |
+|------|------|
+| `index.html` | Login restauracji (login + hasło: owner / manager / admin) + grid kafelków po zalogowaniu |
+| `js/hub_app.js` | Auth (`/api/auth/login.php` mode=`system`), routing do podmodułów |
+| `css/hub.css` | Dark theme, glass cards |
+
+**Filozofia:** jeden „home screen" lokalu. Po zalogowaniu manager / owner widzi siatkę: **Praca operacyjna** (POS, Kiosk zmiany, Plan sali, KDS, Dispatch) + **Administracja** (Kadry, Ustawienia, Studio) + **Aplikacje mobilne pracowników** (Kelner, Kierowca — osobne PWA).
+
+> Pełny opis flow auth + relacji z pozostałymi modułami: `_docs/19_HUB_AND_KIOSK.md`.
+
+### M. KIOSK — Terminal Obecności / Zmiana (NEW · 2026-05-04)
+`/modules/kiosk/`
+
+| Plik | Rola |
+|------|------|
+| `index.html` | 3-stage flow: login terminala → PIN pracownika (4 cyfry) → ekran „Rozpocznij prace / licznik / Zakończ prace" |
+| `js/kiosk_attendance.js` | Cross-silo wyłącznie przez REST (`/api/auth/login.php`, `/api/backoffice/hr/engine.php`). Zero `import` z silosu POS. |
+| `css/kiosk_attendance.css` | High-contrast, touch-first, safe-area-inset |
+
+**Cross-silo (Konstytucja §9):** Kiosk komunikuje się z silosem HR **tylko** przez REST. Dwustopniowy auth: terminal (konto techniczne lokalu, JWT) → pracownik (PIN bcrypt z `sh_employees.auth_pin_hash`).
+
+### N. BACKOFFICE / HR — UI Kadry (NEW · 2026-05-04)
+`/modules/backoffice/hr/`
+
+| Plik | Rola |
+|------|------|
+| `index.html` | Tabela pracowników, modale (dodaj/edytuj profil, ustaw PIN, ustaw stawkę godzinową) |
+| `js/hr_app.js` | CRUD przez `/api/backoffice/hr/engine.php` (akcje `employees_list`, `employee_upsert`, `employee_pin_set`, `employee_rate_set`) |
+| `css/hr.css` | Backoffice glass theme |
+
+Realizuje plan z `_docs/18_BACKOFFICE_HR_LOGIC.md` (Faza 4 — UI Kadry). Wymaga roli owner/manager/admin (auth_guard + `hrRequireManager`).
+
+### O. MARKETING — Wizard SMS / Promocji (NEW · 2026-05-04)
+`/modules/marketing/`
+
+| Plik | Rola |
+|------|------|
+| `index.html` | Wizard kampanii SMS (3 kroki) — konsumuje Notification Director (m033) |
+
+> Status: MVP — szczegóły kontraktu z Notification Director w `_docs/13_SETTINGS_PANEL.md`.
+
+### P. UI SHELL — Wspólny Mobile Shell (NEW · 2026-05-04)
+`/modules/ui_shell/sh_mobile_shell.css`
+
+Shared CSS dla wszystkich modułów: safe-area-inset, viewport-fit, mobilne nawigacje. Importowany przez `hub`, `kiosk`, `backoffice/hr`, `marketing`, `pos`, `kds`, `settings`, `tables`, `waiter`. Zastępuje wcześniejszy `modules/shared/` (zlikwidowany 2026-05-04).
+
 ---
 
 ## 2. BACKEND — API & Core
@@ -147,7 +197,8 @@ Panel ustawień tenanta, konfiguracja integracji, webhooków, stawek VAT, zmiano
 #### Auth & sesje
 | Ścieżka | Opis |
 |---------|------|
-| `auth/login.php` | Auth (mode: `system` / `kiosk`), zwraca JWT |
+| `auth/login.php` | Auth (mode: `system` / `kiosk`), zwraca JWT. Startuje też sesję PHP (cookie SameSite=Strict) i dotyka `slicehubTouchStaffPresence`. **Kiosk PIN = dokładnie 4 cyfry** (regex `^\d{4}$`); fallback do `sh_employees.auth_pin_hash` (bcrypt) gdy `sh_users.pin_code` puste. Owner też może PIN-em (model jak Toast/Square — od 2026-05-04). |
+| `auth/logout.php` (NEW · 2026-05-04) | Niszczy sesję PHP + dekoduje JWT i woła `slicehubClearStaffPresence` (kierowca/kelner natychmiast znika z floty POS). |
 
 #### Core engines — routing przez `engine.php`
 | Ścieżka | Opis |
@@ -204,7 +255,7 @@ Panel ustawień tenanta, konfiguracja integracji, webhooków, stawek VAT, zmiano
 | Ścieżka | Status |
 |---------|--------|
 | `payments/settle.php` | 🟡 ORPHAN (brak UI) — split-tender + `sh_order_payments`; **outbox:** `order.completed` lub `payment.settled` w tej samej transakcji co zapis (`OrderEventPublisher`). POS zwykle używa `pos/engine.php#settle_and_close`. |
-| `backoffice/hr/engine.php` | ✅ **LIVE** — action router HR: `clock_in` / `clock_out` / `clock_status` (Faza 3A, m041–m044). Kanoniczny endpoint silosu HR. |
+| `backoffice/hr/engine.php` | ✅ **LIVE** — action router HR. **Zmiana (clock):** `clock_in` / `clock_out` / `clock_status` (Faza 3A, m041–m044). **Backoffice (NEW · 2026-05-04, wymaga `hrRequireManager`):** `employees_list`, `employee_get`, `employee_upsert` (z opcjonalnym `create_login` — tworzy konto `sh_users`), `employee_pin_set` (bcrypt do `sh_employees.auth_pin_hash` + sync `sh_users.pin_code` żeby ten sam PIN działał w POS i w Kiosk), `employee_rate_set` (zamyka poprzednią linię w `sh_employee_rates`, otwiera nową), `hr_users_unlinked` (lista `sh_users` bez profilu HR — do podpięcia istniejącego konta przy upsercie). Konsument: `modules/backoffice/hr/index.html`. Kanoniczny endpoint silosu HR. |
 | `staff/payroll.php` | 🟡 PLANNED — payroll single user (PayrollEngine). *TODO Faza 4:* docelowo akcja `payroll_user` w `api/backoffice/hr/engine.php` — po rewrite `PayrollEngine` IN-PLACE na ledger. Do czasu gotowego UI HR trzymamy HTTP 410 Gone (patrz `_docs/18_BACKOFFICE_HR_LOGIC.md §13`). |
 | `dashboard/team_payroll.php` | 🟡 PLANNED — team payroll (TeamPayrollEngine). *TODO Faza 4:* akcja `payroll_team` w `api/backoffice/hr/engine.php` — analogicznie jak wyżej. |
 | `reports/food_cost.php` | 🟡 PLANNED — food cost + margin (FoodCostEngine) |
@@ -232,12 +283,14 @@ Wszystkie orphan/planned endpointy mają w nagłówku komentarz `// STATUS: …`
 | Plik | Rola |
 |------|------|
 | `db_config.php` | Połączenie PDO → `$pdo` |
-| `AuthEngine.php` | loginSystem, loginKiosk, getTargetModule |
+| `AuthEngine.php` | `loginSystem`, `loginKiosk`, `getTargetModule`. **Od 2026-05-04:** PIN dokładnie 4 cyfry, owner dozwolony w kiosk mode (model jak Toast/Square), fallback `loginKioskResolveByEmployeePin` przez `sh_employees.auth_pin_hash` (bcrypt). |
 | `AuthGuard.php` | Stateless JWT guard (V2) |
 | `auth_guard.php` | Session + JWT guard (akceptuje oba — używany w endpointach chronionych; NIE w `api/online/engine.php`) |
 | `JwtProvider.php` | Generowanie / walidacja JWT (HS256) |
 | `CredentialVault.php` | Transparent AEAD encryption dla wrażliwych danych (m029) |
 | `GatewayAuth.php` | Multi-key auth + rate limit + idempotency (m027) |
+| `StaffFleetPresence.php` (NEW · 2026-05-04) | Heartbeat `last_seen` dla zalogowanych w aplikacjach mobilnych. `slicehubTouchStaffPresence` (login + każdy poll mobilny), `slicehubClearStaffPresence` (logout). TTL = `slicehubFleetPresenceTtlSeconds()` = **120 s**. Gwarancja: kierowca / kelner pojawia się na liście POS tylko gdy **realnie pracuje w aplikacji**. Wyjątek: kierowca w trasie (`sh_drivers.status='busy'`) — zawsze widoczny niezależnie od TTL. |
+| `DriverFleetHelper.php` (NEW · 2026-05-04) | Idempotentne dopinanie wiersza `sh_drivers` dla kont z rolą `driver` powstałych w Kadrach. `slicehubEnsureDriverFleetRow` (per-call) + `slicehubSyncMissingDriverFleetRows` (bulk sync per tenant). |
 
 #### Business engines
 | Plik | Rola |
@@ -390,6 +443,8 @@ Wszystkie orphan/planned endpointy mają w nagłówku komentarz `// STATUS: …`
 | `_docs/13_SETTINGS_PANEL.md` | Panel Settings |
 | `_docs/14_INBOUND_CALLBACKS.md` | Callbacki przychodzące |
 | `_docs/15_KIERUNEK_ONLINE.md` | Kierunek rozwoju modułu Online |
+| `_docs/18_BACKOFFICE_HR_LOGIC.md` | Architektura silosu HR & Payroll |
+| `_docs/19_HUB_AND_KIOSK.md` | **Hub-Centric Mobile Shell + Staff Fleet Presence + Kiosk** (2026-05-04) |
 | `_docs/ustalenia.md` | Ustalenia projektowe (roboczy) |
 | `_docs/ARCHIWUM/README.md` | Zasady archiwum dokumentacji |
 | `database/README.md` | Quick start — instalacja / reset / aktualizacja bazy |
