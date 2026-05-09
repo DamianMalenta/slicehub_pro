@@ -1,7 +1,17 @@
 /**
  * SliceHub — wspólna warstwa mobilna (tylko addytywne reguły).
- * Ładowana z ../ui_shell/sh_mobile_shell.css — nie zastępuje theme’ów.
+ * Ładowana z ../ui_shell/sh_mobile_shell.css — nie zastępuje theme’ów modułów.
+ *
+ * Cel: każdy moduł (POS, Studio, Settings, Warehouse, KDS, Courses, Online Studio,
+ * Marketing, Inbox, HR Backoffice) ma być KLIKALNY z telefonu (test/QA), nawet jeśli
+ * był projektowany pod desktop. Reguły są defensywne — używają media queries, nie
+ * nadpisują istniejących klas modułów, działają tylko gdy moduł sam nie zdefiniował
+ * własnej obsługi mobile.
  */
+
+/* ============================================================================
+   1. GLOBALNE — działa zawsze (każdy ekran)
+   ============================================================================ */
 
 /* iOS: nie powiększaj tekstu arbitralnie przy obracie / pinch */
 html {
@@ -15,5 +25,259 @@ html {
         padding-left: env(safe-area-inset-left, 0px);
         padding-right: env(safe-area-inset-right, 0px);
         padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+}
+
+/* iOS Safari — bez "bouncing" pull-to-refresh w aplikacjach SPA */
+body {
+    overscroll-behavior-y: none;
+}
+
+/* Każdy interaktywny element bez 300ms tap-delay */
+button, a, input, select, textarea, [role="button"], [tabindex] {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* ============================================================================
+   2. TYLKO MAŁE EKRANY (telefon, < 768px)
+   ============================================================================ */
+
+@media (max-width: 768px) {
+
+    /* ---- (a) iOS auto-zoom prevention ---------------------------------- */
+    /* Każdy input / textarea / select MUSI mieć font-size >= 16px,
+       inaczej iOS Safari samoczynnie zoomuje przy focus. Reguła nadpisana
+       tylko gdy moduł sam nie ustawił większego rozmiaru. */
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+    textarea,
+    select {
+        font-size: max(16px, 1em);
+    }
+
+    /* ---- (b) Powiększenie touch-targets w starych modułach ------------- */
+    /* Dotyczy desktop-style buttonów (np. Studio, Settings, Warehouse).
+       Działa tylko gdy moduł nie ma własnej kontroli rozmiaru. */
+    button:not(.sh-mb-skip),
+    .btn:not(.sh-mb-skip),
+    [type="button"]:not(.sh-mb-skip),
+    [type="submit"]:not(.sh-mb-skip) {
+        min-height: 40px;
+    }
+
+    /* ---- (c) Tabele — horizontal scroll zamiast łamania -------------- */
+    /* Każda tabela w obrębie .sh-mb-table-scroll dostaje przewijanie poziome.
+       Gdy nie chcesz — opakuj w element bez tej klasy.
+       Dodatkowo: surowe <table> bez wrappera w obrębie .container/.main/etc.
+       dostają minimum przewijania na overflow-x. */
+    .sh-mb-table-scroll,
+    .sh-mb-table-scroll > div,
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        max-width: 100%;
+    }
+
+    /* ---- (d) Lepsza kontrola overflow w głównych kontenerach -------- */
+    /* Reguła ostrożna: nie nadpisuje gdy moduł jawnie zarządza scrollem. */
+    body {
+        overflow-x: hidden;
+    }
+
+    /* ---- (e) Modale / dialog — pełny ekran na telefonie ------------- */
+    /* Wzorce: modal-overlay / .modal / [role="dialog"]. Dotyczy tylko
+       gdy moduł sam nie kontroluje szerokości (max-width). */
+    .sh-mb-fullsheet {
+        position: fixed !important;
+        inset: 0 !important;
+        max-width: none !important;
+        max-height: none !important;
+        border-radius: 0 !important;
+    }
+
+    /* ---- (f) Skip-link wyłączający reguły dla konkretnego elementu --- */
+    .sh-mb-skip { /* zachowuje się "po staremu" */
+    }
+}
+
+/* ============================================================================
+   3. BARDZO MAŁE EKRANY (telefon w pionie, < 480px)
+   ============================================================================ */
+
+@media (max-width: 480px) {
+
+    /* Wymuszenie min wysokości buttonów w skomplikowanych formularzach */
+    button:not(.sh-mb-skip),
+    .btn:not(.sh-mb-skip) {
+        min-height: 44px;
+    }
+
+    /* Większy odstęp między klikalnymi elementami w listach */
+    li button + button,
+    li a + a,
+    .list-item button + button {
+        margin-top: 4px;
+    }
+
+    /* Drobne paddingi w kartach / cards / .card */
+    .card:not(.sh-mb-skip) {
+        padding: 12px !important;
+    }
+}
+
+/* ============================================================================
+   4. ORIENTACJA POZIOMA NA MAŁYM TELEFONIE — bezpieczna wysokość
+   ============================================================================ */
+
+@media (max-height: 480px) and (orientation: landscape) {
+
+    /* Modale w orientacji poziomej często wychodzą poza ekran. */
+    .sh-mb-fullsheet {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+}
+
+/* ============================================================================
+   5. PUNKTOWE POPRAWKI MODUŁÓW DESKTOPOWYCH (telefon)
+   ----------------------------------------------------------------------------
+   Reguły dla konkretnych nazw klas używanych w modułach. Działają TYLKO
+   poniżej 900px, więc nie ruszają desktopa. Cel: moduł, który był
+   projektowany pod 1280px+, ma być testowalny z telefonu (klikalność,
+   dostępność, scroll).
+   ============================================================================ */
+
+@media (max-width: 900px) {
+
+    /* ---- (a) STUDIO — zwija sidebar do banera u góry --------------------
+       Studio ma layout: body.flex + <aside class="w-64"> + main.
+       Na telefonie aside (256px) zjada większość ekranu. Włączamy column
+       layout i przeniesiemy aside na górę. */
+    body.flex {
+        flex-direction: column !important;
+        height: auto !important;
+        min-height: 100dvh !important;
+        overflow: visible !important;
+    }
+    body.flex > aside.w-64 {
+        width: 100% !important;
+        max-width: none !important;
+        height: auto !important;
+        flex-direction: row !important;
+        overflow-x: auto !important;
+    }
+    body.flex > aside.w-64 nav {
+        display: flex !important;
+        flex-direction: row !important;
+        overflow-x: auto !important;
+        white-space: nowrap !important;
+    }
+
+    /* ---- (b) ONLINE STUDIO — analogicznie .app + .sidebar -------------- */
+    .app {
+        flex-direction: column !important;
+    }
+    .app > aside.sidebar {
+        width: 100% !important;
+        max-width: none !important;
+        height: auto !important;
+        position: relative !important;
+        flex-direction: row !important;
+        overflow-x: auto !important;
+    }
+    .app > aside.sidebar .sidebar__nav {
+        display: flex !important;
+        flex-direction: row !important;
+        overflow-x: auto !important;
+        white-space: nowrap !important;
+    }
+
+    /* ---- (c) POS / Courses / Tables — uniwersalne shell-nav ------------ */
+    /* Pasek tabów .shell-nav .nav-tabs musi się przewijać poziomo, nie łamać. */
+    .shell-nav {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+    .shell-nav .nav-tabs {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+    .shell-nav .nav-tab {
+        flex-shrink: 0 !important;
+        min-height: 44px;
+    }
+    .shell-nav .nav-tab .nav-tab-label {
+        font-size: 11px !important;
+    }
+
+    /* ---- (d) SETTINGS — pasek zakładek .st-tabs ------------------------ */
+    .st-tabs {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+    .st-tabs .st-tab {
+        flex-shrink: 0 !important;
+        min-height: 44px;
+    }
+    .st-topbar {
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+    }
+    .st-topbar .st-title {
+        font-size: 14px !important;
+        flex-basis: 100% !important;
+        order: 99;
+    }
+
+    /* ---- (e) KDS — board na telefonie układa się pionowo --------------- */
+    .kds-board {
+        grid-template-columns: 1fr !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+    .kds-topbar {
+        flex-wrap: wrap !important;
+        gap: 6px !important;
+    }
+    .kds-topbar .kds-title {
+        font-size: 14px !important;
+    }
+
+    /* ---- (f) WAREHOUSE — Tailwind grid karty już responsywny ---------- */
+    /* Tylko ścieśnijmy padding body z p-8/p-12 na coś rozsądnego. */
+    body.p-8, body.p-12 {
+        padding: 16px !important;
+    }
+
+    /* ---- (g) BACKOFFICE/HR — tabela pracowników w pudełku --------------
+       Zakładamy że jeśli moduł używa <table> bez wrappera, dodajemy
+       overflow-x na rodzicu. */
+    main table,
+    section table,
+    .container table {
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        max-width: 100%;
+    }
+
+    /* ---- (h) COURSES MAP — Leaflet ---------------------------------- */
+    /* Mapa Leaflet na telefonie często ma problemy z 100vh. */
+    .leaflet-container {
+        min-height: 50vh;
+        min-height: 50dvh;
+    }
+}
+
+/* ============================================================================
+   6. PRINT — opcjonalne czyszczenie sticky/fixed dla wydruków
+   ============================================================================ */
+
+@media print {
+    .sh-mb-no-print {
+        display: none !important;
     }
 }

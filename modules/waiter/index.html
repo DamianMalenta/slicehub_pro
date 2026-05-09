@@ -4,10 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="sh-tenant-id" content="1">
+    <script src="/tenant_config.php"></script>
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Kelner">
+    <meta name="format-detection" content="telephone=no">
     <meta name="theme-color" content="#000000">
     <title>SliceHub — Kelner</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="../hub/css/icon-192.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -28,9 +34,22 @@
         <p style="color:rgba(255,255,255,0.45);font-size:12px;margin:0 0 16px;text-align:center;max-width:280px;">Konto użytkownika (np. z modułu Kadry). Bezpieczniejsze na telefonie niż sam PIN.</p>
         <form id="waiter-form-login" class="waiter-login-form" autocomplete="on">
             <label class="waiter-ll" for="waiter-username">Login</label>
-            <input class="waiter-inp" id="waiter-username" name="username" type="text" autocomplete="username" required>
+            <input class="waiter-inp" id="waiter-username" name="username" type="text"
+                   autocomplete="username"
+                   inputmode="text"
+                   autocapitalize="off"
+                   autocorrect="off"
+                   spellcheck="false"
+                   enterkeyhint="next"
+                   required>
             <label class="waiter-ll" for="waiter-password">Hasło</label>
-            <input class="waiter-inp" id="waiter-password" name="password" type="password" autocomplete="current-password" required>
+            <input class="waiter-inp" id="waiter-password" name="password" type="password"
+                   autocomplete="current-password"
+                   autocapitalize="off"
+                   autocorrect="off"
+                   spellcheck="false"
+                   enterkeyhint="go"
+                   required>
             <div class="pin-error" id="pin-error"></div>
             <button type="submit" class="waiter-login-btn" id="waiter-btn-login">Zaloguj</button>
         </form>

@@ -1,11 +1,13 @@
 {
-    "name": "SliceHub Driver",
-    "short_name": "Driver",
-    "description": "SliceHub Delivery Driver App",
+    "name": "SliceHub Kierowca",
+    "short_name": "Kierowca",
+    "description": "SliceHub Driver — mobile delivery app",
     "start_url": "/slicehub/modules/driver_app/index.html",
+    "scope": "/slicehub/modules/driver_app/",
     "display": "standalone",
     "orientation": "portrait",
     "background_color": "#050508",
     "theme_color": "#050508",
+    "lang": "pl",
     "icons": []
 }

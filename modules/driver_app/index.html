@@ -4,15 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Kierowca">
+    <meta name="format-detection" content="telephone=no">
     <meta name="theme-color" content="#050508">
-    <title>SliceHub — Driver</title>
+    <title>SliceHub — Kierowca</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="../hub/css/icon-192.png">
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="../ui_shell/sh_mobile_shell.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="manifest" href="manifest.json">
 </head>
 <body>
 
@@ -31,9 +35,22 @@
     <p style="color:rgba(255,255,255,0.45);font-size:12px;margin:0 16px 18px;text-align:center;max-width:300px;">Zaloguj się kontem kierowcy (login i hasło).</p>
     <form id="driver-form-login" class="driver-login-form" autocomplete="on">
         <label class="driver-ll" for="driver-username">Login</label>
-        <input class="driver-inp" id="driver-username" name="username" type="text" autocomplete="username" required>
+        <input class="driver-inp" id="driver-username" name="username" type="text"
+               autocomplete="username"
+               inputmode="text"
+               autocapitalize="off"
+               autocorrect="off"
+               spellcheck="false"
+               enterkeyhint="next"
+               required>
         <label class="driver-ll" for="driver-password">Hasło</label>
-        <input class="driver-inp" id="driver-password" name="password" type="password" autocomplete="current-password" required>
+        <input class="driver-inp" id="driver-password" name="password" type="password"
+               autocomplete="current-password"
+               autocapitalize="off"
+               autocorrect="off"
+               spellcheck="false"
+               enterkeyhint="go"
+               required>
         <p id="driver-login-err" class="driver-login-err" aria-live="polite"></p>
         <button type="submit" class="driver-login-submit" id="driver-btn-login">Zaloguj</button>
     </form>

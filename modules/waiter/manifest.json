@@ -1,0 +1,13 @@
+{
+    "name": "SliceHub Kelner",
+    "short_name": "Kelner",
+    "description": "SliceHub Waiter — mobile floor app",
+    "start_url": "/slicehub/modules/waiter/index.html",
+    "scope": "/slicehub/modules/waiter/",
+    "display": "standalone",
+    "orientation": "portrait",
+    "background_color": "#000000",
+    "theme_color": "#000000",
+    "lang": "pl",
+    "icons": []
+}
