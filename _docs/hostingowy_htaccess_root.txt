@@ -1,0 +1,37 @@
+# =============================================================================
+# .htaccess do wgrania na hostingu uti.pl jako:
+#     public_html/.htaccess
+#
+# (NIE w public_html/slicehub/, tylko w głównym public_html/.)
+#
+# Po co:
+#   Kod SliceHub ma w wielu miejscach absolutne ścieżki "/slicehub/...".
+#   Lokalnie (XAMPP) to działa, bo projekt fizycznie leży w htdocs/slicehub/.
+#   Na uti.pl pliki są bezpośrednio w public_html/, więc "/slicehub/api/..."
+#   zwraca 404. Ten .htaccess robi alias: każde żądanie na /slicehub/X jest
+#   przepisywane na /X. Działa dla API, JS, CSS, Service Workerów i PWA.
+#
+# Jak wgrać:
+#   1. Otwórz menedżer plików w panelu uti.pl.
+#   2. Wejdź do public_html/  (root domeny, NIE głębiej).
+#   3. Stwórz plik .htaccess z poniższą zawartością.
+#   4. Wejście na https://slicehub.net/  → automatycznie wpadnie do Hub
+#      (przez index.html z redirectem na modules/hub/index.html).
+#   5. Jeśli już masz .htaccess w public_html/, dodaj tylko sekcję ALIAS
+#      poniżej, NIE usuwaj istniejącej zawartości.
+# =============================================================================
+
+RewriteEngine On
+
+# ── (1) Pass Authorization header to PHP (Apache strips it by default) ────
+RewriteCond %{HTTP:Authorization} .
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+# Fallback for CGI/FastCGI setups
+SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+
+# ── (2) ALIAS /slicehub/X → /X ────────────────────────────────────────────
+# Ratunek dla absolutnych ścieżek w kodzie ("/slicehub/api/...", SW, PWA).
+# Reguła nie dotyczy localhost/127.0.0.1 — XAMPP działa po staremu.
+RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1) [NC]
+RewriteRule ^slicehub/(.*)$ /$1 [L]
