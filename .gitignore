@@ -69,3 +69,21 @@ npm-debug.log*
 # Cursor / AI tooling
 # -----------------------------------------------------------------------------
 .cursor/plans/
+
+# -----------------------------------------------------------------------------
+# Skrypty diagnostyczne / one-off (mogą leakować sekrety przy uruchomieniu)
+# Każdy scripts/debug_*.php to plik tymczasowy — po naprawie rm i koniec.
+# -----------------------------------------------------------------------------
+scripts/debug_*.php
+scripts/probe_*.php
+scripts/_local_*.php
+
+# -----------------------------------------------------------------------------
+# Lokalne sekrety / nadpisania configów per-deploy
+# (template wersja `tenant_config.php` zostaje w repo — env-driven)
+# -----------------------------------------------------------------------------
+core/local_secrets.php
+core/db_config.local.php
+tenant_config.local.php
+.env.production
+.env.staging
