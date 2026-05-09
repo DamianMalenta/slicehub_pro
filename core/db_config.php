@@ -12,10 +12,19 @@ if (!defined('JWT_SECRET')) {
     define('JWT_SECRET', $jwtSecret);
 }
 
-$host = 'localhost';
-$db = 'slicehub_pro_v2';
-$user = 'root';
-$pass = '';
+// DB credentials: czytamy ENV-y zanim spadniemy na XAMPP-owe defaulty.
+// Hosting (uti.pl, inne) → ustaw zmienne środowiskowe SLICEHUB_DB_HOST/NAME/USER/PASS
+// w panelu hostingu lub w pliku PHP-FPM env. Lokalnie (XAMPP) zostaw bez ustawień
+// — wpadnie na 'localhost' / 'slicehub_pro_v2' / 'root' / '' i będzie działać jak dotąd.
+$envHost = getenv('SLICEHUB_DB_HOST');
+$envDb   = getenv('SLICEHUB_DB_NAME');
+$envUser = getenv('SLICEHUB_DB_USER');
+$envPass = getenv('SLICEHUB_DB_PASS');
+
+$host = (is_string($envHost) && $envHost !== '') ? $envHost : 'localhost';
+$db   = (is_string($envDb)   && $envDb   !== '') ? $envDb   : 'slicehub_pro_v2';
+$user = (is_string($envUser) && $envUser !== '') ? $envUser : 'root';
+$pass = is_string($envPass) ? $envPass : '';
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$db;charset=utf8mb4", $user, $pass);
