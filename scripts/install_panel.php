@@ -141,6 +141,32 @@ function panel_strip_db_context(string $sql): string
     return trim($sql);
 }
 
+function panel_table_exists(PDO $pdo, string $table): bool
+{
+    $st = $pdo->prepare(
+        "SELECT 1 FROM information_schema.tables
+          WHERE table_schema = DATABASE() AND table_name = :t
+          LIMIT 1"
+    );
+    $st->execute([':t' => $table]);
+    return (bool) $st->fetchColumn();
+}
+
+function panel_friendly_pdo_message(string $context, Throwable $e): string
+{
+    $msg = $e->getMessage();
+    if (str_contains($msg, '1062') && str_contains($msg, 'uq_users_username')) {
+        return "{$context}: login zajęty. W schemacie sh_users.username jest UNIKALNY GLOBALNIE (nie per-tenant) — wybierz inny login, np. sufiksowany id tenanta.";
+    }
+    if (str_contains($msg, '1062')) {
+        return "{$context}: duplikat (UNIQUE constraint). " . $msg;
+    }
+    if (str_contains($msg, '1146')) {
+        return "{$context}: tabela nie istnieje w bazie. Najpierw uruchom instalację (sekcja 2 lub 3).";
+    }
+    return "{$context}: " . $msg;
+}
+
 // -----------------------------------------------------------------------------
 // 2. Action handlers
 // -----------------------------------------------------------------------------
@@ -421,10 +447,16 @@ function action_list_tenants(): void
 {
     try {
         $pdo = panel_connect();
+        if (!panel_table_exists($pdo, 'sh_tenant')) {
+            panel_json(true, 'Brak schematu — uruchom instalację.', [
+                'tenants' => [],
+                'schema_missing' => true,
+            ]);
+        }
         $rows = $pdo->query('SELECT id, name, created_at FROM sh_tenant ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
-        panel_json(true, 'OK', ['tenants' => $rows]);
+        panel_json(true, 'OK', ['tenants' => $rows, 'schema_missing' => false]);
     } catch (Throwable $e) {
-        panel_json(false, 'Lista tenantów: ' . $e->getMessage());
+        panel_json(false, panel_friendly_pdo_message('Lista tenantów', $e));
     }
 }
 
@@ -436,6 +468,13 @@ function action_list_users(array $body): void
     }
     try {
         $pdo = panel_connect();
+        if (!panel_table_exists($pdo, 'sh_users')) {
+            panel_json(true, 'Brak schematu — uruchom instalację.', [
+                'users' => [],
+                'tenant_id' => $tenantId,
+                'schema_missing' => true,
+            ]);
+        }
         $st = $pdo->prepare(
             "SELECT id, username, role, name, status, is_active, is_deleted
                FROM sh_users
@@ -444,9 +483,9 @@ function action_list_users(array $body): void
         );
         $st->execute([':tid' => $tenantId]);
         $rows = $st->fetchAll(PDO::FETCH_ASSOC);
-        panel_json(true, 'OK', ['users' => $rows, 'tenant_id' => $tenantId]);
+        panel_json(true, 'OK', ['users' => $rows, 'tenant_id' => $tenantId, 'schema_missing' => false]);
     } catch (Throwable $e) {
-        panel_json(false, 'Lista użytkowników: ' . $e->getMessage());
+        panel_json(false, panel_friendly_pdo_message('Lista użytkowników', $e));
     }
 }
 
@@ -463,7 +502,7 @@ function action_create_tenant(array $body): void
         $id = (int) $pdo->lastInsertId();
         panel_json(true, "Tenant utworzony (id={$id}).", ['tenant_id' => $id, 'name' => $name]);
     } catch (Throwable $e) {
-        panel_json(false, 'Tworzenie tenanta: ' . $e->getMessage());
+        panel_json(false, panel_friendly_pdo_message('Tworzenie tenanta', $e));
     }
 }
 
@@ -516,7 +555,7 @@ function action_create_owner(array $body): void
             'role'     => $role,
         ]);
     } catch (Throwable $e) {
-        panel_json(false, 'Tworzenie konta: ' . $e->getMessage());
+        panel_json(false, panel_friendly_pdo_message('Tworzenie konta', $e));
     }
 }
 
@@ -544,7 +583,7 @@ function action_change_password(array $body): void
         }
         panel_json(true, "Hasło zmienione dla {$username}.", ['updated' => $n]);
     } catch (Throwable $e) {
-        panel_json(false, 'Zmiana hasła: ' . $e->getMessage());
+        panel_json(false, panel_friendly_pdo_message('Zmiana hasła', $e));
     }
 }
 
@@ -691,6 +730,11 @@ define('SLICEHUB_SCRIPT_KEY', 'losowy_dlugi_string_min_32_znaki');</pre>
                 <button id="btn-chain" class="btn btn-soft text-left">B. Uruchom łańcuch migracji <code>004–044</code></button>
                 <a class="btn btn-soft text-left" href="setup_database.php" target="_blank" rel="noopener">C. Otwórz <code>setup_database.php</code> ↗</a>
             </div>
+            <p class="text-xs text-amber-300/80 mt-3">
+                Uwaga: <code>001</code> robi <code>DROP TABLE</code> tylko swoich tabel. Jeżeli baza ma już
+                struktury z chain (004–044), samo „A" zostawia mieszany stan. Na czystą instalację
+                użyj „Pełny reset" obok.
+            </p>
             <div id="install-out" class="mt-3"></div>
         </div>
 
@@ -892,12 +936,15 @@ define('SLICEHUB_SCRIPT_KEY', 'losowy_dlugi_string_min_32_znaki');</pre>
 
     $('#btn-init').addEventListener('click', async () => {
         $('#install-out').innerHTML = '<span class="pill pill-info">Importuję 001…</span>';
-        renderResult($('#install-out'), await api('init_schema'));
+        const r = await api('init_schema');
+        renderResult($('#install-out'), r);
+        if (r.success) { refreshTenants(); }
     });
     $('#btn-chain').addEventListener('click', async () => {
         $('#install-out').innerHTML = '<span class="pill pill-info">Uruchamiam chain (może potrwać kilkadziesiąt sekund)…</span>';
         const r = await api('run_chain');
         renderResult($('#install-out'), r, renderChainLog(r.data && r.data.log));
+        if (r.success) { refreshTenants(); }
     });
 
     // --- DROP / FULL RESET ---
@@ -932,6 +979,10 @@ define('SLICEHUB_SCRIPT_KEY', 'losowy_dlugi_string_min_32_znaki');</pre>
         sel1.innerHTML = '';
         sel2.innerHTML = '';
         if (!r.success) { renderResult(list, r); return; }
+        if (r.data && r.data.schema_missing) {
+            list.innerHTML = '<span class="pill pill-warn">Brak schematu</span> <span class="text-sm text-slate-400">— uruchom najpierw instalację (sekcja 2 lub 3).</span>';
+            return;
+        }
         const t = (r.data && r.data.tenants) || [];
         if (t.length === 0) {
             list.innerHTML = '<span class="alert86">Brak tenantów — utwórz pierwszego.</span>';
@@ -982,6 +1033,10 @@ define('SLICEHUB_SCRIPT_KEY', 'losowy_dlugi_string_min_32_znaki');</pre>
         const r = await api('list_users', { tenant_id: tid });
         const out = $('#users-list');
         if (!r.success) { renderResult(out, r); return; }
+        if (r.data && r.data.schema_missing) {
+            out.innerHTML = '<span class="pill pill-warn">Brak schematu</span> <span class="text-sm text-slate-400">— uruchom najpierw instalację.</span>';
+            return;
+        }
         const u = (r.data && r.data.users) || [];
         if (u.length === 0) {
             out.innerHTML = '<span class="alert86">Brak użytkowników w tym tenancie.</span>';
