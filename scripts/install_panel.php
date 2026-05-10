@@ -634,8 +634,10 @@ $selfUrl = htmlspecialchars($_SERVER['SCRIPT_NAME'] ?? 'install_panel.php', ENT_
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SliceHub — Install Panel</title>
-<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.tailwindcss.com" onerror="window.__SH_NO_TW__=true"></script>
 <style>
+    /* Fallback bez Tailwind (gdyby CDN był zablokowany na hostingu): pole loginu i przycisk muszą być widoczne */
+    html, body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
     body { background: radial-gradient(1200px 800px at 20% -10%, #1e293b 0%, #0a0e14 60%); color: #e2e8f0; min-height: 100dvh; }
     .glass { background: rgba(255,255,255,0.04); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; }
     .glass-strong { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 14px; }
@@ -668,6 +670,17 @@ $selfUrl = htmlspecialchars($_SERVER['SCRIPT_NAME'] ?? 'install_panel.php', ENT_
 </style>
 </head>
 <body class="p-4 md:p-8">
+
+<noscript>
+    <div style="background:#dc2626;color:white;padding:1rem;border-radius:8px;margin-bottom:1rem;">
+        Wymagane JavaScript. Włącz JS w przeglądarce.
+    </div>
+</noscript>
+
+<div id="js-fallback-warning" style="display:none;background:#fbbf24;color:#0a0e14;padding:.75rem 1rem;border-radius:8px;margin-bottom:1rem;font-size:14px;">
+    <strong>Uwaga:</strong> Tailwind CDN nie załadował się (cdn.tailwindcss.com zablokowany przez hosting?).
+    Panel działa, ale styl jest minimalny. Nie wpływa na funkcjonalność.
+</div>
 
 <div class="max-w-6xl mx-auto">
 
@@ -827,6 +840,11 @@ define('SLICEHUB_SCRIPT_KEY', 'losowy_dlugi_string_min_32_znaki');</pre>
 <script>
 (function(){
     'use strict';
+    console.log('[install_panel] JS booted', new Date().toISOString());
+    if (window.__SH_NO_TW__) {
+        const w = document.getElementById('js-fallback-warning');
+        if (w) w.style.display = 'block';
+    }
     const KEY_STORAGE = 'sh_install_panel_key';
     const $ = (s) => document.querySelector(s);
     const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -851,14 +869,29 @@ define('SLICEHUB_SCRIPT_KEY', 'losowy_dlugi_string_min_32_znaki');</pre>
 
     async function api(action, body = {}) {
         const key = getKey();
-        const res = await fetch(<?= json_encode($selfUrl) ?>, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Script-Key': key },
-            body: JSON.stringify({ action, ...body })
-        });
+        const url = <?= json_encode($selfUrl) ?>;
+        let res;
+        try {
+            res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Script-Key': key },
+                body: JSON.stringify({ action, ...body })
+            });
+        } catch (netErr) {
+            console.error('[install_panel] network error', netErr);
+            return { success: false, message: 'Błąd sieci: ' + (netErr && netErr.message ? netErr.message : netErr), data: null };
+        }
+        const text = await res.text();
         let json;
-        try { json = await res.json(); }
-        catch (e) { return { success: false, message: 'Niepoprawna odpowiedź serwera (HTTP ' + res.status + ').', data: null }; }
+        try { json = JSON.parse(text); }
+        catch (e) {
+            console.error('[install_panel] non-JSON response (HTTP ' + res.status + '):', text.slice(0, 500));
+            return {
+                success: false,
+                message: 'Serwer zwrócił nie-JSON (HTTP ' + res.status + '). Otwórz F12 → Network → install_panel.php → Response.',
+                data: { http_status: res.status, raw_preview: text.slice(0, 500) }
+            };
+        }
         if (res.status === 403) {
             clearKey();
             showAuth();
@@ -879,18 +912,37 @@ define('SLICEHUB_SCRIPT_KEY', 'losowy_dlugi_string_min_32_znaki');</pre>
     }
 
     // --- AUTH ---
-    $('#auth-submit').addEventListener('click', async () => {
+    function showAuthError(msg) {
+        const el = $('#auth-msg');
+        el.textContent = msg;
+        el.classList.remove('hidden');
+    }
+    async function tryLogin() {
         const k = $('#auth-key').value.trim();
-        if (!k) return;
-        setKey(k);
-        const r = await api('health');
-        if (r.success) {
-            $('#auth-msg').classList.add('hidden');
-            showPanel();
-            renderHealth(r);
+        if (!k) { showAuthError('Wpisz klucz.'); return; }
+        $('#auth-submit').disabled = true;
+        $('#auth-submit').textContent = 'Sprawdzam…';
+        try {
+            setKey(k);
+            const r = await api('health');
+            if (r.success) {
+                $('#auth-msg').classList.add('hidden');
+                showPanel();
+                renderHealth(r);
+            } else {
+                clearKey();
+                showAuthError(r.message || 'Błąd logowania (puste).');
+            }
+        } catch (e) {
+            console.error('[install_panel] login exception', e);
+            showAuthError('Wyjątek JS: ' + (e && e.message ? e.message : e));
+        } finally {
+            $('#auth-submit').disabled = false;
+            $('#auth-submit').textContent = 'Zaloguj';
         }
-    });
-    $('#auth-key').addEventListener('keydown', e => { if (e.key === 'Enter') $('#auth-submit').click(); });
+    }
+    $('#auth-submit').addEventListener('click', tryLogin);
+    $('#auth-key').addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
     $('#btn-logout').addEventListener('click', () => { clearKey(); showAuth(); });
 
     // --- HEALTH ---
