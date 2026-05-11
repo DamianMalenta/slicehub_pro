@@ -589,8 +589,11 @@ const PosApp = (() => {
                     name: l.snapshotName, price: (l.unitPriceGrosze / 100).toFixed(2),
                     qty: l.quantity, quantity: l.quantity,
                     vat_rate: l.vatRate ?? 8,
+                    // F5-A (2026-05-11): ujednolicenie kontraktu z online checkout (CartEngine).
+                    // POS wysyła `sku` (nie `ascii_key`) żeby WzEngine::consumeForOrder konsumował
+                    // magazyn dla modyfikatorów ADD. Konstytucja v5 § Prawo II (Bliźniak Cyfrowy).
                     removed: l.removedIngredients.map(r => ({ sku: r.sku, name: r.name })),
-                    added: l.addedModifiers.map(m => ({ ascii_key: m.ascii_key, name: m.name, price: (m.priceGrosze / 100).toFixed(2) })),
+                    added: l.addedModifiers.map(m => ({ sku: m.ascii_key, ascii_key: m.ascii_key, name: m.name, price: (m.priceGrosze / 100).toFixed(2) })),
                     comment: l.comment,
                     is_half: l.isHalf, half_a: l.halfASku || null, half_b: l.halfBSku || null,
                 }));

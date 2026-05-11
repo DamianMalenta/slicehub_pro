@@ -3,7 +3,7 @@
 > Oficjalna mapa drogowa projektu **SliceHub Enterprise** dla Agentów AI.
 > Nie zgaduj — sprawdzaj strukturę tutaj.
 >
-> **Ostatnia synchronizacja:** 2026-05-04 (Hub-Centric Mobile Shell + Staff Fleet Presence + HR Backoffice UI).
+> **Ostatnia synchronizacja:** 2026-05-11 (F5 POS Integrity Pass + F6 Geocoder Nominatim).
 > **North Star:** [`_docs/00_PAMIEC_SYSTEMU.md`](00_PAMIEC_SYSTEMU.md) — master reference.
 > **Hub & Kiosk dedykowany doc:** [`_docs/19_HUB_AND_KIOSK.md`](19_HUB_AND_KIOSK.md).
 
@@ -315,6 +315,8 @@ Wszystkie orphan/planned endpointy mają w nagłówku komentarz `// STATUS: …`
 | `PzEngine.php` | Przyjęcie + AVCO |
 | `WzEngine.php` | Zużycie surowców po acceptance (waste + modyfikatory). **`consumeForOrder` wpięty od F1 · 2026-05-11** przez `core/WarehouseConsumeHook` w `api/pos/engine.php#accept_order` + `api/orders/accept.php`. `checkAvailability` wpięty w online checkout. Formuła Prawa II Konstytucji v5: `needed = recipe_qty × (1 + waste%/100) × multiplier`. |
 | `WarehouseConsumeHook.php` (NEW · F1 2026-05-11) | Helper post-commit hook konsumpcji magazynu po `transitionOrder('accepted')`. Wywołuje `WzEngine::consumeForOrder` w niezależnej transakcji. Failure NIE blokuje akceptu zamówienia (kuchnia gotuje, manager może naprawić korektą KOR). |
+| `WarehouseReverseHook.php` (NEW · F5-C 2026-05-11) | Symetryczny hook do `WarehouseConsumeHook`. Wywoływany z `api/pos/engine.php#cancel_order` gdy zamówienie zostaje anulowane PO `accepted`. Tworzy `wh_documents` typ `KOR`, zwraca surowce na `wh_stock`, oznacza pierwotne `WZ` jako `status='reversed'`. Bez tego POS-cancel powodował drift magazynu (Konstytucja v5 § Prawo II). |
+| `Geocoder.php` (NEW · F6 2026-05-11) | Lekki klient Nominatim + cache w `sh_geocode_cache`. Wpięty w `api/pos/engine.php#process_order` dla `order_type=delivery`. Adres → `delivery_lat`/`delivery_lng` w `sh_orders`. Dispatcher (`api/courses/engine.php#get_dashboard`) używa `COALESCE(delivery_lat, lat)` żeby mapa pokazywała prawdziwy pin zamiast losowego fallbacku. Rate-limit 1 req/sec (cache eliminuje powtórki). |
 | `AutoScanEngine.php` (NEW · F2 2026-05-11) | **Shared AutoScan Engine** dla nazw zewnętrznych z faktur dostawców (KSeF inbox, PZ import). 4-stopniowe confidence scoring: `EXACT (100)` → `ALIAS (85)` → `NAME (60-80)` → `FUZZY (≤59)` → `NONE`. Self-learning przez `sh_product_mapping` (`learnMapping()`). API: `match()`, `matchBulk()`, `learnMapping()`. Threshold auto-accept w `sh_tenant_settings.autoscan_auto_accept_threshold` (default 70). Wpięty w `api/procurement/suggest.php`. Fundament pod F3 (Procurement Inbox UI) i F4 (KSeF API client). |
 | `Ksef/Parser.php` (NEW · F3 2026-05-11) | Parser polskiego standardu FA(2) XML (KSeF). Namespace-aware SimpleXML, ekstraktuje Podmiot1/Podmiot2/Fa/FaWiersz/totals. Konsumowane przez `api/procurement/inbox.php#upload_xml` i `core/Ksef/Client.php` mock-mode. |
 | `Ksef/Client.php` (NEW · F4 2026-05-11) | REST client do KSeF API. 3 environments: `mock` (fixtures z `mockQueryInbox/mockFetchInvoiceXml`), `sandbox` (`ksef-test.mf.gov.pl`), `prod` (`ksef.mf.gov.pl`). Auth: KSeF Token (`SessionToken` header). Auto-load konfigu z `sh_tenant_integrations.credentials` (CredentialVault decrypt). API: `testConnection()`, `queryInbox()`, `fetchInvoiceXml()`. Konsumowane przez `scripts/worker_ksef_inbox.php` i `api/procurement/ksef_config.php#poll_now`. |
