@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0e14">
+    <meta name="sh-tenant-id" content="1">
+    <script src="/tenant_config.php"></script>
+    <title>SliceHub — Profil Firmy</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="../../ui_shell/sh_mobile_shell.css">
+    <link rel="stylesheet" href="css/profile.css">
+</head>
+<body>
+
+<header class="pf-topbar">
+    <div class="pf-logo"><i class="fa-solid fa-building-columns"></i></div>
+    <div>
+        <div class="pf-title">Profil Firmy <span class="pf-sub">dane statutowe i finansowe</span></div>
+    </div>
+    <div class="pf-spacer"></div>
+    <nav class="pf-links">
+        <a href="../../hub/index.html"><i class="fa-solid fa-layer-group"></i> Hub</a>
+        <a href="../hr/index.html"><i class="fa-solid fa-users"></i> Kadry</a>
+        <a href="../../online_studio/index.html"><i class="fa-solid fa-wand-magic-sparkles"></i> Storefront</a>
+    </nav>
+    <button type="button" class="pf-btn" id="pf-btn-refresh" title="Odśwież"><i class="fa-solid fa-rotate"></i></button>
+</header>
+
+<div id="pf-auth-banner" class="pf-banner pf-banner--warn hidden">
+    Brak tokenu JWT — zaloguj się w <strong>Hub</strong> (login i hasło), potem wróć tutaj.
+    Moduł wymaga roli <strong>owner</strong> (do edycji) lub <strong>admin</strong> (do podglądu).
+</div>
+<div id="pf-error-banner" class="pf-banner pf-banner--error hidden"></div>
+<div id="pf-readonly-banner" class="pf-banner pf-banner--info hidden">
+    <i class="fa-solid fa-eye"></i>
+    Tryb tylko do odczytu. Edycja danych statutowych jest zarezerwowana dla roli <strong>owner</strong>.
+</div>
+
+<main class="pf-main">
+
+    <!-- INFO o podziale -->
+    <section class="pf-card pf-card--hint">
+        <div class="pf-hint-icon"><i class="fa-solid fa-circle-info"></i></div>
+        <div>
+            <div class="pf-hint-title">Co tu jest, a co w innych modułach?</div>
+            <div class="pf-hint-body">
+                Tu trzymasz <strong>dane statutowe i finansowe</strong> — to co idzie na faktury,
+                paragony fiskalne, raporty. Dane <strong>klient-facing</strong>
+                (nazwa marketingowa pizzerii dla klienta, telefon kontaktowy, godziny otwarcia,
+                mapa, kanały sprzedaży) konfigurujesz w
+                <a href="../../online_studio/index.html">Online Studio → Storefront</a>.
+                Integracje POS / SMS / webhooki — w
+                <a href="../../settings/index.html">Settings · Integrations</a>.
+            </div>
+        </div>
+    </section>
+
+    <!-- BRAND / TENANT -->
+    <section class="pf-card">
+        <h2 class="pf-card-title"><i class="fa-solid fa-id-card-clip"></i> Identyfikacja organizacji</h2>
+        <div class="pf-grid">
+            <div class="pf-field">
+                <label for="pf-name">Nazwa organizacji <span class="pf-req">*</span>
+                    <span class="pf-help">krótka nazwa wyświetlana w Hub i nagłówkach</span>
+                </label>
+                <input id="pf-name" type="text" maxlength="255" placeholder="np. Pizzeria Mario">
+            </div>
+            <div class="pf-field">
+                <label for="pf-slug">Slug (URL-safe ID)
+                    <span class="pf-help">a-z, 0-9, "-", "_", start z litery — używane w linkach online</span>
+                </label>
+                <input id="pf-slug" type="text" maxlength="64" placeholder="np. pizzeria-mario" autocomplete="off">
+            </div>
+            <div class="pf-field pf-field--wide">
+                <label for="pf-nip">NIP <span class="pf-help">10 cyfr (bez kresek), checksum walidowana</span></label>
+                <input id="pf-nip" type="text" inputmode="numeric" maxlength="13" placeholder="np. 5252344078" autocomplete="off">
+                <div id="pf-nip-status" class="pf-status"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- STATUTORY -->
+    <section class="pf-card">
+        <h2 class="pf-card-title"><i class="fa-solid fa-scale-balanced"></i> Dane statutowe</h2>
+        <div class="pf-grid">
+            <div class="pf-field">
+                <label for="pf-company-name">Pełna nazwa rejestrowa
+                    <span class="pf-help">np. "Mario Kowalski Pizzeria Mario JDG"</span>
+                </label>
+                <input id="pf-company-name" type="text" maxlength="255">
+            </div>
+            <div class="pf-field">
+                <label for="pf-legal-form">Forma prawna</label>
+                <select id="pf-legal-form">
+                    <option value="">— wybierz —</option>
+                    <option value="jdg">JDG (Jednoosobowa działalność)</option>
+                    <option value="sp_zoo">Sp. z o.o.</option>
+                    <option value="sa">Spółka akcyjna (S.A.)</option>
+                    <option value="sk">Spółka komandytowa (Sp. k.)</option>
+                    <option value="sj">Spółka jawna (Sp. j.)</option>
+                    <option value="sp_komandytowa">Spółka komandytowo-akcyjna</option>
+                    <option value="fundacja">Fundacja</option>
+                    <option value="stowarzyszenie">Stowarzyszenie</option>
+                    <option value="inne">Inne</option>
+                </select>
+            </div>
+            <div class="pf-field">
+                <label for="pf-regon">REGON <span class="pf-help">9 lub 14 cyfr + checksum</span></label>
+                <input id="pf-regon" type="text" inputmode="numeric" maxlength="14" autocomplete="off">
+                <div id="pf-regon-status" class="pf-status"></div>
+            </div>
+            <div class="pf-field">
+                <label for="pf-krs">KRS <span class="pf-help">10 cyfr (tylko spółki KRS-owe)</span></label>
+                <input id="pf-krs" type="text" inputmode="numeric" maxlength="10" autocomplete="off">
+            </div>
+            <div class="pf-field pf-field--wide">
+                <label for="pf-addr-street">Adres rejestrowy — ulica i numer
+                    <span class="pf-help">≠ adres lokalu (ten ustawiasz w Storefront)</span>
+                </label>
+                <input id="pf-addr-street" type="text" maxlength="255">
+            </div>
+            <div class="pf-field">
+                <label for="pf-addr-postal">Kod pocztowy <span class="pf-help">XX-XXX</span></label>
+                <input id="pf-addr-postal" type="text" maxlength="6" placeholder="00-001" autocomplete="off">
+            </div>
+            <div class="pf-field">
+                <label for="pf-addr-city">Miasto</label>
+                <input id="pf-addr-city" type="text" maxlength="120">
+            </div>
+            <div class="pf-field">
+                <label for="pf-addr-country">Kraj <span class="pf-help">kod ISO 2-literowy</span></label>
+                <input id="pf-addr-country" type="text" maxlength="2" placeholder="PL" style="text-transform:uppercase">
+            </div>
+            <div class="pf-field pf-field--wide">
+                <label class="pf-checkbox">
+                    <input type="checkbox" id="pf-vat-payer">
+                    <span>Czynny podatnik VAT</span>
+                    <span class="pf-help">odznaczone = zwolnienie z VAT (np. JDG &lt; 200k limit)</span>
+                </label>
+            </div>
+        </div>
+    </section>
+
+    <!-- FINANCIAL -->
+    <section class="pf-card">
+        <h2 class="pf-card-title"><i class="fa-solid fa-money-check-dollar"></i> Dane finansowe</h2>
+        <div class="pf-grid">
+            <div class="pf-field pf-field--wide">
+                <label for="pf-invoice-email">E-mail do faktur
+                    <span class="pf-help">≠ kontakt klienta (ten w Storefront). To adres księgowości / własny.</span>
+                </label>
+                <input id="pf-invoice-email" type="email" maxlength="180" autocomplete="off">
+            </div>
+            <div class="pf-field">
+                <label for="pf-bank-name">Nazwa banku</label>
+                <input id="pf-bank-name" type="text" maxlength="120" placeholder="np. mBank">
+            </div>
+            <div class="pf-field pf-field--wide">
+                <label for="pf-bank-iban">IBAN <span class="pf-help">PL + 26 cyfr, walidowany MOD 97</span></label>
+                <input id="pf-bank-iban" type="text" maxlength="34" placeholder="PL12 1234 1234 1234 1234 1234 1234" autocomplete="off">
+                <div id="pf-iban-status" class="pf-status"></div>
+            </div>
+            <div class="pf-field">
+                <label for="pf-bank-swift">SWIFT/BIC <span class="pf-help">opcjonalnie, dla przelewów zagr.</span></label>
+                <input id="pf-bank-swift" type="text" maxlength="11" placeholder="np. BREXPLPWMBK" autocomplete="off" style="text-transform:uppercase">
+            </div>
+            <div class="pf-field">
+                <label for="pf-fiscal-no">Numer fiskalny kasy <span class="pf-help">opcjonalny</span></label>
+                <input id="pf-fiscal-no" type="text" maxlength="64" autocomplete="off">
+            </div>
+        </div>
+    </section>
+
+    <!-- ACTIONS -->
+    <section class="pf-actions">
+        <button type="button" class="pf-btn pf-btn--primary" id="pf-btn-save" disabled>
+            <i class="fa-solid fa-floppy-disk"></i> Zapisz zmiany
+        </button>
+        <span id="pf-dirty-indicator" class="pf-dirty-indicator hidden">
+            <i class="fa-solid fa-circle"></i> Niezapisane zmiany
+        </span>
+        <span id="pf-save-status" class="pf-save-status"></span>
+    </section>
+</main>
+
+<script src="js/profile_app.js"></script>
+</body>
+</html>
