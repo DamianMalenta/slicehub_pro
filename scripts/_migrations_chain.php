@@ -59,4 +59,5 @@ return [
     '046_ksef_inbox.sql',
     '047_order_geocoding.sql',
     '048_variant_scales.sql',
+    '049_modifier_size_pricing.sql',
 ];

@@ -2626,6 +2626,118 @@ try {
             $response['message'] = 'Variant scale deleted.';
             break;
 
+        // =================================================================
+        // F-S2 — MODIFIER SIZE PRICING (Toast-style, 2026-05-11)
+        // Cena modyfikatora zalezna od rozmiaru pizzy (variant_option_id).
+        // =================================================================
+
+        case 'get_modifier_pricing':
+            $modifierId = (int)($input['modifier_id'] ?? 0);
+            if ($modifierId <= 0) throw new Exception('modifier_id required.');
+            $stmt = $pdo->prepare(
+                "SELECT mp.variant_option_id, mp.price_grosze,
+                        opt.name AS option_name, opt.key_ascii AS option_key, opt.scale_id
+                   FROM sh_modifier_pricing mp
+                   JOIN sh_variant_scale_options opt ON opt.id = mp.variant_option_id
+                  WHERE mp.modifier_id = ?
+                    AND mp.tenant_id = ?
+                    AND mp.is_deleted = 0
+                  ORDER BY opt.display_order ASC"
+            );
+            $stmt->execute([$modifierId, $tenant_id]);
+            $response['success'] = true;
+            $response['data'] = ['pricing' => $stmt->fetchAll(PDO::FETCH_ASSOC)];
+            $response['message'] = 'Modifier size pricing loaded.';
+            break;
+
+        case 'save_modifier_pricing':
+            $modifierId = (int)($input['modifier_id'] ?? 0);
+            $rows = $input['pricing'] ?? [];
+            if ($modifierId <= 0) throw new Exception('modifier_id required.');
+            if (!is_array($rows)) throw new Exception('pricing must be array.');
+
+            // Verify modifier belongs to tenant.
+            $stmtChk = $pdo->prepare(
+                "SELECT m.id
+                   FROM sh_modifiers m
+                   JOIN sh_modifier_groups mg ON mg.id = m.group_id AND mg.tenant_id = ?
+                  WHERE m.id = ? LIMIT 1"
+            );
+            $stmtChk->execute([$tenant_id, $modifierId]);
+            if (!$stmtChk->fetch()) throw new Exception('Modifier not found or access denied.');
+
+            $pdo->beginTransaction();
+            try {
+                $stmtUpsert = $pdo->prepare(
+                    "INSERT INTO sh_modifier_pricing
+                        (tenant_id, modifier_id, variant_option_id, price_grosze, is_deleted)
+                     VALUES (?, ?, ?, ?, 0)
+                     ON DUPLICATE KEY UPDATE price_grosze = VALUES(price_grosze), is_deleted = 0"
+                );
+                $kept = [];
+                foreach ($rows as $r) {
+                    $optId = (int)($r['variant_option_id'] ?? 0);
+                    $price = (int)round((float)($r['price'] ?? 0) * 100);
+                    if ($optId <= 0) continue;
+                    $stmtUpsert->execute([$tenant_id, $modifierId, $optId, $price]);
+                    $kept[] = $optId;
+                }
+                // Soft-delete rows that disappeared from payload.
+                if ($kept) {
+                    $ph = implode(',', array_fill(0, count($kept), '?'));
+                    $pdo->prepare(
+                        "UPDATE sh_modifier_pricing SET is_deleted = 1
+                          WHERE modifier_id = ? AND tenant_id = ?
+                            AND variant_option_id NOT IN ($ph)"
+                    )->execute(array_merge([$modifierId, $tenant_id], $kept));
+                }
+                $pdo->commit();
+                $response['success'] = true;
+                $response['data'] = ['saved' => count($kept)];
+                $response['message'] = "Saved {$response['data']['saved']} size-pricing row(s).";
+            } catch (\Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+            break;
+
+        case 'get_half_pricing_settings':
+            $stmt = $pdo->prepare(
+                "SELECT setting_key, setting_value FROM sh_tenant_settings
+                  WHERE tenant_id = ? AND setting_key IN ('half_pricing_strategy','half_pricing_percent')"
+            );
+            $stmt->execute([$tenant_id]);
+            $out = ['half_pricing_strategy' => 'percentage', 'half_pricing_percent' => 50];
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $out[$r['setting_key']] = $r['setting_value'];
+            }
+            $response['success'] = true;
+            $response['data'] = $out;
+            break;
+
+        case 'save_half_pricing_settings':
+            $strategy = (string)($input['half_pricing_strategy'] ?? 'percentage');
+            $percent  = (int)($input['half_pricing_percent'] ?? 50);
+            if (!in_array($strategy, ['percentage','average','higher','full'], true)) {
+                throw new Exception('Invalid strategy: percentage|average|higher|full');
+            }
+            if ($percent < 0 || $percent > 100) throw new Exception('percent must be 0-100');
+
+            $pdo->prepare(
+                "INSERT INTO sh_tenant_settings (tenant_id, setting_key, setting_value)
+                 VALUES (?, 'half_pricing_strategy', ?)
+                 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)"
+            )->execute([$tenant_id, $strategy]);
+            $pdo->prepare(
+                "INSERT INTO sh_tenant_settings (tenant_id, setting_key, setting_value)
+                 VALUES (?, 'half_pricing_percent', ?)
+                 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)"
+            )->execute([$tenant_id, (string)$percent]);
+            $response['success'] = true;
+            $response['data'] = ['half_pricing_strategy' => $strategy, 'half_pricing_percent' => $percent];
+            $response['message'] = 'Half-pricing settings saved.';
+            break;
+
         case 'create_variant_family':
             // Tworzy rodzine wariantow z PARENT itemu + scale.
             // Dla kazdej opcji skali generuje child sh_menu_items z ascii_key = parent_ascii_key + '_' + option.key_ascii.
