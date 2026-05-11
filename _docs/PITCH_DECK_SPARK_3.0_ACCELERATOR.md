@@ -1,5 +1,7 @@
 # SliceHub Enterprise — Pitch Deck (wniosek: Startup Spark 3.0 Accelerator)
 
+> **Gotowa prezentacja (HTML, pełny ekran, druk):** otwórz w przeglądarce plik [`presentations/spark-30-slicehub/index.html`](../presentations/spark-30-slicehub/index.html) (strzałki / spacja / klik brzegu; przycisk pełnego ekranu; Ctrl+P).
+
 > **Źródła merytoryczne w repo:** `_docs/00_PAMIEC_SYSTEMU.md`, `_docs/01_KONSTYTUCJA.md`, `_docs/02_ARCHITEKTURA.md`, `_docs/15_KIERUNEK_ONLINE.md`, `_docs/canvasy/SliceHub Three Directions.md`, `_docs/19_LOGISTYKA_I_BEZPIECZENSTWO.md` (logistyka).  
 > **Uwaga prawna:** kryteria naboru Spark 3.0 weryfikuj na stronie PARP / operatora programu w aktualnej edycji — ten dokument to **szkielet narracji**, nie gotowy formularz urzędowy.
 
@@ -197,4 +199,4 @@ SliceHub to enterprise’owy OS dla restauracji: jeden silnik dla menu, magazynu
 
 ---
 
-*Koniec dokumentu — skopiuj każdą sekcję „Slajd N" do osobnego slajdu w Google Slides / Keynote / Canva; grafiki: screenshoty z `modules/online_studio/`, `modules/courses/`, `modules/studio/`.*
+*Koniec dokumentu — wersja robocza Markdown; **gotowy pokaz:** `presentations/spark-30-slicehub/index.html`. Do eksportu PDF: otwórz HTML → Ctrl+P. Do Google Slides: wklej treść slajd po slajdzie i dodaj screenshoty z `modules/online_studio/`, `modules/courses/`, `modules/studio/`.*

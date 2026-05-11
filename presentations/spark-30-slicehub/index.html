@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <title>SliceHub · Startup Spark 3.0</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Syne:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg0: #050508;
+      --bg1: #0c0c12;
+      --glass: rgba(255, 255, 255, 0.04);
+      --glass2: rgba(255, 255, 255, 0.08);
+      --stroke: rgba(255, 255, 255, 0.1);
+      --text: #e8e8ec;
+      --muted: #9898a8;
+      --accent: #f97316;
+      --accent2: #fb923c;
+      --ok: #34d399;
+      --warn: #fbbf24;
+      --slide-pad: clamp(1.25rem, 4vw, 3.5rem);
+      --font-display: "Syne", system-ui, sans-serif;
+      --font-body: "DM Sans", system-ui, sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg0);
+      color: var(--text);
+      font-family: var(--font-body);
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    body {
+      background:
+        radial-gradient(120% 80% at 80% -10%, rgba(249, 115, 22, 0.12), transparent 55%),
+        radial-gradient(80% 60% at -10% 100%, rgba(99, 102, 241, 0.08), transparent 50%),
+        linear-gradient(180deg, var(--bg1), var(--bg0));
+    }
+
+    .deck {
+      height: 100dvh;
+      width: 100%;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .slide {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      justify-content: center;
+      padding: var(--slide-pad);
+      padding-bottom: calc(var(--slide-pad) + 3rem);
+      max-width: 1200px;
+      margin: 0 auto;
+      width: 100%;
+      animation: inSlide 0.45s ease both;
+    }
+
+    .slide.is-active { display: flex; }
+
+    @keyframes inSlide {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .glass-panel {
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--stroke);
+      border-radius: 1.25rem;
+      padding: clamp(1rem, 2.5vw, 1.75rem);
+    }
+
+    .eyebrow {
+      font-size: 0.75rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent2);
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+    }
+
+    h1 {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: clamp(2rem, 5.5vw, 3.75rem);
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.75rem;
+    }
+
+    h2 {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: clamp(1.5rem, 3.5vw, 2.35rem);
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin-bottom: 1rem;
+    }
+
+    .lead {
+      font-size: clamp(1.05rem, 2vw, 1.35rem);
+      color: var(--muted);
+      line-height: 1.55;
+      max-width: 42rem;
+    }
+
+    .lead strong { color: var(--text); }
+
+    ul.clean {
+      list-style: none;
+      margin-top: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    ul.clean li {
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+      font-size: clamp(0.95rem, 1.6vw, 1.1rem);
+      line-height: 1.45;
+      color: #c4c4d0;
+    }
+
+    ul.clean li::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      margin-top: 0.45rem;
+      border-radius: 50%;
+      flex-shrink: 0;
+      background: linear-gradient(135deg, var(--accent), #a855f7);
+      box-shadow: 0 0 12px rgba(249, 115, 22, 0.5);
+    }
+
+    .triad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+    }
+
+    @media (max-width: 720px) {
+      .triad { grid-template-columns: 1fr; }
+    }
+
+    .triad-card {
+      padding: 1rem 1.1rem;
+      border-radius: 1rem;
+      border: 1px solid var(--stroke);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .triad-card b {
+      display: block;
+      font-family: var(--font-display);
+      font-size: 1.15rem;
+      margin-bottom: 0.35rem;
+      color: #fff;
+    }
+
+    .triad-card span { font-size: 0.88rem; color: var(--muted); line-height: 1.4; }
+
+    .grid-modules {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 0.65rem;
+      margin-top: 1.25rem;
+    }
+
+    .mod {
+      padding: 0.85rem 1rem;
+      border-radius: 0.85rem;
+      border: 1px solid var(--stroke);
+      background: rgba(255, 255, 255, 0.025);
+    }
+
+    .mod h3 {
+      font-family: var(--font-display);
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 0.25rem;
+    }
+
+    .mod p { font-size: 0.8rem; color: var(--muted); line-height: 1.4; }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+
+    .pill {
+      font-size: 0.78rem;
+      padding: 0.35rem 0.65rem;
+      border-radius: 999px;
+      border: 1px solid var(--stroke);
+      background: rgba(255, 255, 255, 0.04);
+      color: #c8c8d4;
+    }
+
+    .table-wrap {
+      margin-top: 1rem;
+      overflow: auto;
+      border-radius: 1rem;
+      border: 1px solid var(--stroke);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+
+    th, td {
+      padding: 0.65rem 0.85rem;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    th {
+      background: rgba(255, 255, 255, 0.04);
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    td { color: var(--muted); }
+    td:first-child { color: #e2e2ea; font-weight: 500; }
+
+    .placeholder {
+      border: 1px dashed rgba(251, 146, 60, 0.45);
+      background: rgba(249, 115, 22, 0.06);
+      border-radius: 1rem;
+      padding: 1.25rem 1.5rem;
+      margin-top: 1rem;
+    }
+
+    .placeholder h3 {
+      font-family: var(--font-display);
+      font-size: 1rem;
+      color: var(--accent2);
+      margin-bottom: 0.5rem;
+    }
+
+    .placeholder p { color: var(--muted); font-size: 0.92rem; line-height: 1.5; }
+
+    .quote-box {
+      margin-top: 1.25rem;
+      padding: 1.5rem 1.75rem;
+      border-left: 4px solid var(--accent);
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 0 1rem 1rem 0;
+      font-size: clamp(1rem, 1.8vw, 1.2rem);
+      line-height: 1.55;
+      color: #d4d4de;
+    }
+
+    .footer-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 0.65rem var(--slide-pad);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      background: rgba(5, 5, 8, 0.75);
+      backdrop-filter: blur(16px);
+      border-top: 1px solid var(--stroke);
+      z-index: 50;
+    }
+
+    .progress {
+      flex: 1;
+      height: 3px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 99px;
+      overflow: hidden;
+      max-width: 320px;
+    }
+
+    .progress i {
+      display: block;
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), #c084fc);
+      border-radius: 99px;
+      transition: width 0.35s ease;
+    }
+
+    .nav-hint {
+      font-size: 0.72rem;
+      color: var(--muted);
+      display: none;
+    }
+
+    @media (min-width: 900px) {
+      .nav-hint { display: block; }
+    }
+
+    .slide-num {
+      font-variant-numeric: tabular-nums;
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .btn-fs {
+      font: inherit;
+      font-size: 0.75rem;
+      padding: 0.4rem 0.75rem;
+      border-radius: 0.5rem;
+      border: 1px solid var(--stroke);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .btn-fs:hover { background: rgba(255, 255, 255, 0.1); }
+
+    .tap-zones {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      pointer-events: none;
+    }
+
+    .tap-zones button {
+      pointer-events: auto;
+      position: absolute;
+      top: 0;
+      bottom: 4rem;
+      width: 18%;
+      max-width: 140px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      opacity: 0;
+    }
+
+    .tap-zones .prev { left: 0; }
+    .tap-zones .next { right: 0; }
+
+    .title-slide h1 span {
+      background: linear-gradient(135deg, #fff 0%, #fdba74 50%, #fb923c 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .spark-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 1.5rem;
+      padding: 0.5rem 1rem;
+      border-radius: 999px;
+      border: 1px solid var(--stroke);
+      background: rgba(255, 255, 255, 0.05);
+      font-size: 0.85rem;
+      color: #c8c8d4;
+    }
+
+    .spark-badge svg { width: 18px; height: 18px; opacity: 0.9; }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    @media (max-width: 800px) {
+      .two-col { grid-template-columns: 1fr; }
+    }
+
+    .mini {
+      font-size: 0.78rem;
+      color: #6b6b7a;
+      margin-top: 1rem;
+      line-height: 1.45;
+    }
+
+    .cta-line {
+      margin-top: 1.5rem;
+      font-family: var(--font-display);
+      font-size: clamp(1.15rem, 2.2vw, 1.5rem);
+      font-weight: 700;
+      color: #fff;
+    }
+
+    @media print {
+      html, body { overflow: visible; height: auto; background: #fff; color: #111; }
+      body { background: #fff; }
+      .footer-bar, .tap-zones, .btn-fs { display: none !important; }
+      .slide {
+        display: flex !important;
+        page-break-after: always;
+        min-height: 100vh;
+        max-width: 100%;
+        animation: none;
+        padding: 2cm;
+      }
+      .glass-panel, .triad-card, .mod, .table-wrap, .placeholder {
+        background: #f9f9fb;
+        border-color: #ddd;
+        backdrop-filter: none;
+      }
+      .eyebrow { color: #b45309; }
+      h1, h2, h3, .lead, ul.clean li, td, .quote-box { color: #222 !important; }
+      .lead { color: #444 !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="deck" id="deck" aria-live="polite">
+    <!-- 1 -->
+    <section class="slide title-slide is-active" data-i="0">
+      <p class="eyebrow">Wniosek grantowy</p>
+      <h1><span>SliceHub</span> Enterprise</h1>
+      <p class="lead">System operacyjny dla gastronomii: od magazynu i kuchni po immersyjne zamówienie online i flotę dostaw — jedna baza prawdy, wiele kanałów.</p>
+      <div class="spark-badge" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+        <span><strong style="color:#fff">Startup Spark 3.0</strong> Accelerator · rama do ~400 tys. zł (de minimis — zweryfikuj w regulaminie naboru)</span>
+      </div>
+      <p class="mini">Źródła produktowe w repo: <code style="color:#a78bfa">_docs/00_PAMIEC_SYSTEMU.md</code>, <code style="color:#a78bfa">01_KONSTYTUCJA.md</code>, <code style="color:#a78bfa">02_ARCHITEKTURA.md</code>, <code style="color:#a78bfa">15_KIERUNEK_ONLINE.md</code></p>
+    </section>
+
+    <!-- 2 -->
+    <section class="slide" data-i="1">
+      <p class="eyebrow">Problem</p>
+      <h2>Rynek jest rozjechany — nie „głodny na kolejny POS"</h2>
+      <ul class="clean">
+        <li><strong>Narzędzia w silosach:</strong> POS, magazyn, online, agregatory i logistyka rzadko mówią jednym językiem danych. Food cost i compliance kończą w arkuszu.</li>
+        <li><strong>„Katalog SKU" zamiast marki:</strong> witryna zamówień to siatka produktów, nie doświadczenie budujące rozpoznawalność lokalu.</li>
+        <li><strong>Słaby most menu ↔ magazyn:</strong> bez cyfrowego bliźniaka receptur i modyfikatorów promocje i zmiany menu uderzają w marżę „po cichu".</li>
+        <li><strong>Dostawy bez twardych reguł:</strong> brak spójnego silnika statusów i rozliczeń u kierowcy podnosi ryzyko operacyjne i konflikty z klientem.</li>
+      </ul>
+    </section>
+
+    <!-- 3 -->
+    <section class="slide" data-i="2">
+      <p class="eyebrow">Insight</p>
+      <h2>Gastronomia premium to trzy sceny naraz</h2>
+      <p class="lead">Jeśli <strong>zaplecze (A)</strong>, <strong>lokal (B)</strong> i <strong>kanał zewnętrzny (C)</strong> nie rozmawiają w tym samym modelu danych (SKU, klucze menu, tenant), skaluje się chaos — nie feature.</p>
+      <div class="triad">
+        <div class="triad-card glass-panel">
+          <b>A · Zaplecze</b>
+          <span>Magazyn, receptury BOM, koszt surowca, waste%.</span>
+        </div>
+        <div class="triad-card glass-panel">
+          <b>B · Front domowy</b>
+          <span>POS, sala, stoliki, KDS — prawda operacyjna w lokalu.</span>
+        </div>
+        <div class="triad-card glass-panel">
+          <b>C · Świat</b>
+          <span>Storefront, dostawa, śledzenie — obietnica wobec gościa.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 -->
+    <section class="slide" data-i="3">
+      <p class="eyebrow">Rozwiązanie</p>
+      <h2>Jedno enterprise OS dla restauracji</h2>
+      <p class="lead"><strong>SliceHub</strong> to wielomodułowy, <strong>wielonajemcowy</strong> system: menu, <strong>macierz cen per kanał</strong>, magazyn, zamówienia, kuchnia, stoliki, <strong>logistyka kursów</strong> oraz <strong>immersyjny storefront</strong> — zasadą jest: <strong>serwer = prawda</strong> (koszyk i ceny liczy backend; front wysyła SKU i ilości).</p>
+      <div class="pill-row">
+        <span class="pill">Omnichannel price matrix</span>
+        <span class="pill">Digital twin inventory</span>
+        <span class="pill">Temporal menu</span>
+        <span class="pill">Courses K{n} / L{n}</span>
+        <span class="pill">Payment lock (driver)</span>
+      </div>
+    </section>
+
+    <!-- 5 -->
+    <section class="slide" data-i="4">
+      <p class="eyebrow">Produkt</p>
+      <h2>Warstwa operacyjna — zmapowana w kodzie</h2>
+      <div class="grid-modules">
+        <div class="mod glass-panel"><h3>Menu Studio</h3><p>Macierz cen POS / Takeaway / Delivery, BOM, modyfikatory z wpływem na magazyn.</p></div>
+        <div class="mod glass-panel"><h3>POS · Tables · Waiter</h3><p>Sala i koszyk z walidacją serwerową.</p></div>
+        <div class="mod glass-panel"><h3>KDS</h3><p>Przepływ kuchenny, statusy biletu.</p></div>
+        <div class="mod glass-panel"><h3>Warehouse</h3><p>PZ, RW, INW, MM, KOR — most magazynowy po SKU.</p></div>
+        <div class="mod glass-panel"><h3>Courses + Driver + Dispatcher</h3><p>Portfel, dispatch, payment lock przed „dostarczono", emergency recall.</p></div>
+        <div class="mod glass-panel"><h3>Hub</h3><p>Launcher dla personelu — wejście do modułów.</p></div>
+      </div>
+      <p class="mini"><strong>Architektura:</strong> silosy <code>sh_</code> / <code>sys_</code> / <code>wh_</code>, połączenia między nimi po kluczach znakowych + bariera <code>tenant_id</code> w SQL — mniej ryzyka przy skalowaniu SaaS.</p>
+    </section>
+
+    <!-- 6 -->
+    <section class="slide" data-i="5">
+      <p class="eyebrow">Differentiator</p>
+      <h2>„Okno do restauracji" — nie kolejny sklepik</h2>
+      <p class="lead"><strong>Storefront + Online Studio:</strong> gość widzi <strong>teatr fotograficzny</strong>, nie sztywny grid. Menedżer ma <strong>Director's Suite</strong> — warstwy sceny, LUT, kamery, <strong>Harmony Score</strong>, masowe operacje stylu na kategorię.</p>
+      <ul class="clean">
+        <li><strong>Harmony Score:</strong> liczby i decyzje, nie ozdoba UI.</li>
+        <li><strong>Living Scene:</strong> kierunek na kontekst (pora dnia, obciążenie, triggery).</li>
+        <li><strong>Magic Enhance:</strong> start od auto-kompozycji, nie od pustego płótna.</li>
+      </ul>
+      <p class="mini">Kierunek produktowy: <code>_docs/15_KIERUNEK_ONLINE.md</code> (Counter + Drzwi, Faza 2).</p>
+    </section>
+
+    <!-- 7 -->
+    <section class="slide" data-i="6">
+      <p class="eyebrow">Technologia</p>
+      <h2>Zero-Reload Runtime — audytowalny stack</h2>
+      <ul class="clean">
+        <li><strong>Produkcja:</strong> Vanilla JS (ES6+), PHP 8+, MariaDB — bez Node/React/Vue w runtime na hostingu.</li>
+        <li><strong>Deploy:</strong> statyczne pliki + PHP — przewidywalny hosting, krótsza ścieżka do operacji krytycznych niż ciężki SPA.</li>
+        <li><strong>Dev tooling:</strong> opcjonalnie Vite/esbuild/TS z artefaktem w repo (Konstytucja v5).</li>
+      </ul>
+      <p class="mini"><strong>Dla Spark / due diligence:</strong> mniejsza powierzchnia dependency-chains, łatwiejszy audyt bezpieczeństwa, niższy próg dla partnera przemysłowego i integratorów.</p>
+    </section>
+
+    <!-- 8 -->
+    <section class="slide" data-i="7">
+      <p class="eyebrow">Trakcja</p>
+      <h2>Dowód komercjalizacji i wykonalności</h2>
+      <div class="placeholder glass-panel">
+        <h3>Uzupełnij przed wysłaniem wniosku</h3>
+        <p>Lokale / MRR / piloci / LOI / NPS / link do demo (hasłowane). Jedna tabela liczb mówi więcej niż dziesięć slajdów opisowych.</p>
+      </div>
+      <p class="lead" style="margin-top:1rem"><strong>Dowód techniczny (repo):</strong> domknięte pętle E2E opisane w <code>_docs/sessions/</code> — m.in. zużycie magazynowe po akceptacji zamówienia, kolejne fazy KSeF / procurement.</p>
+    </section>
+
+    <!-- 9 -->
+    <section class="slide" data-i="8">
+      <p class="eyebrow">Model biznesowy</p>
+      <h2>Jak zarabiamy</h2>
+      <div class="placeholder glass-panel">
+        <h3>Szkic do doprecyzowania zespołu</h3>
+        <p>SaaS per lokal lub per stanowisko + moduły premium (Online Studio, flota). Jednorazowy onboarding i migracja menu. Pilot przemysłowy jako etap przed pełnym MRR.</p>
+      </div>
+    </section>
+
+    <!-- 10 -->
+    <section class="slide" data-i="9">
+      <p class="eyebrow">Rynek</p>
+      <h2>SMB i regionalne łańcuchy w PL i CEE</h2>
+      <p class="lead">Segment potrzebuje <strong>jednego OS</strong> zamiast pięciu subskrypcji. Konkurencja referencyjna w dokumentacji (jako poziom jakości): ekosystemy typu Domino's-class, NUV, EZ Pizza, Papa John's, agregatory — SliceHub to <strong>krok dalej</strong> w warstwie immersive online przy jednoczesnej spójności operacyjnej.</p>
+    </section>
+
+    <!-- 11 -->
+    <section class="slide" data-i="10">
+      <p class="eyebrow">Spark 3.0</p>
+      <h2>Dopasowanie do ścieżki programu</h2>
+      <div class="table-wrap glass-panel">
+        <table>
+          <thead><tr><th>Ścieżka</th><th>Narracja SliceHub</th></tr></thead>
+          <tbody>
+            <tr><td>Industry / pilot</td><td>Pilot z siecią lub HORECA: magazyn + zamówienia + dostawy + storefront — KPI: czas obsługi, food cost, błędy, SLA dostaw.</td></tr>
+            <tr><td>Sector agnostic</td><td>Sprzedaż modułowa („klocki") z roadmapą do pełnego OS.</td></tr>
+            <tr><td>Go Global</td><td>Multi-tenant + lekki runtime → lokalizacja i hosting międzynarodowy; storefront jako przewaga na rynkach nasyconych agregatorami.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 12 -->
+    <section class="slide" data-i="11">
+      <p class="eyebrow">Roadmapa</p>
+      <h2>18–24 miesiące (zsynchronizowane z dokumentacją)</h2>
+      <div class="table-wrap glass-panel">
+        <table>
+          <thead><tr><th>Horyzont</th><th>Cel</th></tr></thead>
+          <tbody>
+            <tr><td>0–6 mc</td><td>Counter + Drzwi (Faza B), poler Studio, dalsza unifikacja rendererów storefront ↔ director.</td></tr>
+            <tr><td>6–12 mc</td><td>Living Table (persist companions), Apple/Google Pay (P1), powiadomienia.</td></tr>
+            <tr><td>12–18 mc</td><td>Restaurant Viewfinder (Faza 3) po walidacji B.</td></tr>
+            <tr><td>Równolegle</td><td>Offline-first POS po Anti-Corruption Layer — zgodnie z FREEZE NOTICE w pamięci systemu.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 13 -->
+    <section class="slide" data-i="12">
+      <p class="eyebrow">Budżet grantu</p>
+      <h2>Propozycja alokacji (szkielet)</h2>
+      <div class="table-wrap glass-panel">
+        <table>
+          <thead><tr><th>Kategoria</th><th>Udział</th><th>Co finansujemy</th></tr></thead>
+          <tbody>
+            <tr><td>R&amp;D produktu</td><td>~45–55%</td><td>Counter + Drzwi, E2E, SQL, bezpieczeństwo.</td></tr>
+            <tr><td>Zespół</td><td>~25–35%</td><td>Backend, frontend, product.</td></tr>
+            <tr><td>Pilot industry</td><td>~10–15%</td><td>Integracja z partnerem, szkolenia, KPI.</td></tr>
+            <tr><td>i18n / compliance</td><td>~5–10%</td><td>EN storefront, RODO, przygotowanie pod certyfikacje.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="mini">Kwoty absolutne dopasuj do limitu de minimis i wymagań wniosku w aktualnej edycji naboru.</p>
+    </section>
+
+    <!-- 14 -->
+    <section class="slide" data-i="13">
+      <p class="eyebrow">Ryzyka</p>
+      <h2>Transparentnie — i jak to gasimy</h2>
+      <div class="table-wrap glass-panel">
+        <table>
+          <thead><tr><th>Ryzyko</th><th>Mitygacja</th></tr></thead>
+          <tbody>
+            <tr><td>Złożoność produktu</td><td>Sprzedaż modułowa, MVP per segment; brak funkcji „na papierze" bez call-site w kodzie.</td></tr>
+            <tr><td>Key people</td><td>Konstytucja + <code>_docs/*</code> + sesje audytowe — onboarding nowych osób.</td></tr>
+            <tr><td>Koszt jakości UX online</td><td>Twardy filtr innowacji vs „paint"; Harmony Score jako kontrola jakości.</td></tr>
+            <tr><td>Skalowanie bazy</td><td>Tenant barrier, silosy prefiksowe, prepared statements.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 15 -->
+    <section class="slide" data-i="14">
+      <p class="eyebrow">ESG</p>
+      <h2>Efekt uboczny, który da się policzyć</h2>
+      <ul class="clean">
+        <li><strong>Mniej marnotrawstwa surowca</strong> dzięki powiązaniu receptur z magazynem i modelem waste%.</li>
+        <li><strong>Bezpieczniejsza dostawa</strong> — payment lock i narzędzia dyspozytora ograniczają rozjazd rozliczeń i konflikty z gościem.</li>
+      </ul>
+    </section>
+
+    <!-- 16 -->
+    <section class="slide" data-i="15">
+      <p class="eyebrow">Zespół</p>
+      <h2>Ludzie za systemem</h2>
+      <div class="placeholder glass-panel">
+        <h3>Zdjęcia + 1 linijka supermocy każdej osoby</h3>
+        <p>CEO / Produkt · CTO / Backend · Design / Front. Jeśli macie advisory lub LOI od partnera przemysłowego — umieść tutaj: podnosi wiarygodność ścieżki Industry.</p>
+      </div>
+    </section>
+
+    <!-- 17 -->
+    <section class="slide" data-i="16">
+      <p class="eyebrow">Prośba</p>
+      <h2>Co robimy dalej</h2>
+      <p class="lead">Szukamy <strong>grantu Spark 3.0</strong> oraz <strong>partnera pilotażowego</strong> z gastronomii lub dystrybucji. Proponujemy <strong>6-miesięczny pilot</strong> z ustalonymi KPI i raportem końcowym.</p>
+      <p class="cta-line">Kontakt: [email] · [telefon] · [www]</p>
+      <p class="mini">Otwórz ten plik w przeglądarce — pełny ekran klawiszem poniżej. Druk: Ctrl+P (każdy slajd na osobnej stronie).</p>
+    </section>
+
+    <!-- 18 appendix -->
+    <section class="slide" data-i="17">
+      <p class="eyebrow">Załącznik · 30 sekund</p>
+      <h2>Elevator pitch</h2>
+      <div class="quote-box glass-panel">
+        SliceHub to enterprise’owy OS dla restauracji: jeden silnik dla menu, magazynu, kuchni, sali, dostaw i immersyjnego zamówienia online. Łączymy <strong>cyfrowego bliźniaka kosztu</strong> z <strong>doświadczeniem klienta jak w kinie</strong>, a technicznie trzymamy <strong>prosty, audytowalny stack</strong> (PHP, Vanilla JS, MariaDB) z twardą izolacją danych per tenant. Dzięki grantowi Spark domykamy fazę <strong>Counter + Drzwi</strong> i pilotaż przemysłowy z mierzalnym ROI.
+      </div>
+    </section>
+
+    <!-- 19 -->
+    <section class="slide" data-i="18">
+      <p class="eyebrow">Załącznik</p>
+      <h2>Słowniczek na Q&amp;A</h2>
+      <div class="two-col">
+        <div class="glass-panel">
+          <ul class="clean">
+            <li><strong>Omnichannel price matrix:</strong> brak jednej „płaskiej" ceny — poziomy w <code>sh_price_tiers</code> per kanał.</li>
+            <li><strong>CartEngine:</strong> serwer liczy koszyk; front nie wysyła totali.</li>
+          </ul>
+        </div>
+        <div class="glass-panel">
+          <ul class="clean">
+            <li><strong>Payment lock:</strong> kierowca nie zamyka dostawy bez rozliczenia, jeśli nie prepaid.</li>
+            <li><strong>Harmony Score:</strong> metryka jakości sceny — liczby i decyzje.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="tap-zones" aria-hidden="true">
+    <button type="button" class="prev" tabindex="-1" aria-label="Poprzedni slajd"></button>
+    <button type="button" class="next" tabindex="-1" aria-label="Następny slajd"></button>
+  </div>
+
+  <footer class="footer-bar">
+    <span class="slide-num" id="sn">1 / 19</span>
+    <div class="progress" aria-hidden="true"><i id="prog" style="width:5.26%"></i></div>
+    <span class="nav-hint">← → spacja · kliknij brzeg ekranu</span>
+    <button type="button" class="btn-fs" id="fs">Pełny ekran</button>
+  </footer>
+
+  <script>
+(function () {
+  var slides = Array.prototype.slice.call(document.querySelectorAll(".slide"));
+  var n = slides.length;
+  var i = 0;
+  var sn = document.getElementById("sn");
+  var prog = document.getElementById("prog");
+  var deck = document.getElementById("deck");
+
+  function go(delta) {
+    var next = Math.max(0, Math.min(n - 1, i + delta));
+    if (next === i) return;
+    slides[i].classList.remove("is-active");
+    i = next;
+    slides[i].classList.add("is-active");
+    sn.textContent = i + 1 + " / " + n;
+    prog.style.width = ((i + 1) / n * 100).toFixed(2) + "%";
+    deck.setAttribute("aria-label", "Slajd " + (i + 1) + " z " + n);
+  }
+
+  document.querySelector(".tap-zones .prev").addEventListener("click", function () { go(-1); });
+  document.querySelector(".tap-zones .next").addEventListener("click", function () { go(1); });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === " " ) {
+      e.preventDefault();
+      go(e.shiftKey ? -1 : 1);
+    } else if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === "Enter") {
+      e.preventDefault();
+      go(1);
+    } else if (e.key === "ArrowLeft" || e.key === "PageUp") {
+      e.preventDefault();
+      go(-1);
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      slides[i].classList.remove("is-active");
+      i = 0;
+      slides[i].classList.add("is-active");
+      sn.textContent = "1 / " + n;
+      prog.style.width = (100 / n) + "%";
+    } else if (e.key === "End") {
+      e.preventDefault();
+      slides[i].classList.remove("is-active");
+      i = n - 1;
+      slides[i].classList.add("is-active");
+      sn.textContent = n + " / " + n;
+      prog.style.width = "100%";
+    }
+  });
+
+  var tx = null;
+  document.addEventListener("touchstart", function (e) { tx = e.changedTouches[0].screenX; }, { passive: true });
+  document.addEventListener("touchend", function (e) {
+    if (tx == null) return;
+    var dx = e.changedTouches[0].screenX - tx;
+    tx = null;
+    if (dx > 60) go(-1);
+    else if (dx < -60) go(1);
+  }, { passive: true });
+
+  document.getElementById("fs").addEventListener("click", function () {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(function () {});
+    else document.exitFullscreen();
+  });
+})();
+  </script>
+</body>
+</html>
