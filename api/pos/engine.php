@@ -397,6 +397,48 @@ try {
             } catch (\PDOException $e2) {}
         }
 
+        // F-S3 (2026-05-11): meal_packages — combo/bundle/meal.
+        $mealPackages = [];
+        try {
+            $stmtMeals = $pdo->prepare(
+                "SELECT id, ascii_key, name, description, category_id, type,
+                        final_price_grosze, discount_percent, image_url
+                   FROM sh_meal_packages
+                  WHERE tenant_id = :tid
+                    AND is_deleted = 0
+                    AND is_active = 1
+                    AND (publication_status IS NULL OR publication_status IN ('Live','published'))
+                    AND (valid_from IS NULL OR valid_from <= NOW())
+                    AND (valid_to   IS NULL OR valid_to   >= NOW())
+                  ORDER BY display_order ASC, name ASC"
+            );
+            $stmtMeals->execute([':tid' => $tenant_id]);
+            $mealPackages = $stmtMeals->fetchAll(PDO::FETCH_ASSOC);
+            if ($mealPackages) {
+                $mealIds = array_column($mealPackages, 'id');
+                $phM = implode(',', array_fill(0, count($mealIds), '?'));
+                $stmtComps = $pdo->prepare(
+                    "SELECT meal_id, component_type, item_sku, category_id, qty,
+                            allow_upgrade, surcharge_grosze, display_order
+                       FROM sh_meal_components
+                      WHERE meal_id IN ({$phM}) AND tenant_id = ?
+                      ORDER BY meal_id, display_order"
+                );
+                $stmtComps->execute(array_merge($mealIds, [$tenant_id]));
+                $byMeal = [];
+                foreach ($stmtComps->fetchAll(PDO::FETCH_ASSOC) as $c) {
+                    $byMeal[$c['meal_id']][] = $c;
+                }
+                foreach ($mealPackages as &$m) {
+                    $m['components'] = $byMeal[$m['id']] ?? [];
+                }
+                unset($m);
+            }
+        } catch (\Throwable $mealErr) {
+            error_log('[POS get_init_data] meal_packages query failed: ' . $mealErr->getMessage());
+            $mealPackages = [];
+        }
+
         posResponse(true, [
             'categories'     => $categories,
             'items'          => $items,
@@ -404,8 +446,10 @@ try {
             'drivers'        => $drivers,
             'waiters'        => $waiters,
             'modifierGroups' => $modifierGroups,
-            // F-S1 (2026-05-11): variantGroups dla UI POS — kafelek parenta z submenu rozmiarów.
+            // F-S1: variantGroups dla UI POS — kafelek parenta z submenu rozmiarów.
             'variantGroups'  => $variantGroups ?? [],
+            // F-S3: combo/bundle/meal packages.
+            'mealPackages'   => $mealPackages,
         ]);
     }
 

@@ -2738,6 +2738,150 @@ try {
             $response['message'] = 'Half-pricing settings saved.';
             break;
 
+        // =================================================================
+        // F-S3 — MEAL PACKAGES (Combo/Bundle, 2026-05-11)
+        // sh_meal_packages + sh_meal_components. Sprzedażowy combo.
+        // =================================================================
+
+        case 'list_meals':
+            $stmt = $pdo->prepare(
+                "SELECT m.id, m.ascii_key, m.name, m.description, m.category_id, m.type,
+                        m.final_price_grosze, m.discount_percent, m.image_url,
+                        m.publication_status, m.valid_from, m.valid_to,
+                        m.is_active, m.display_order,
+                        (SELECT COUNT(*) FROM sh_meal_components mc
+                          WHERE mc.meal_id = m.id) AS components_count
+                   FROM sh_meal_packages m
+                  WHERE m.tenant_id = ?
+                    AND m.is_deleted = 0
+                  ORDER BY m.display_order ASC, m.name ASC"
+            );
+            $stmt->execute([$tenant_id]);
+            $response['success'] = true;
+            $response['data'] = ['meals' => $stmt->fetchAll(PDO::FETCH_ASSOC)];
+            break;
+
+        case 'get_meal_details':
+            $mealId = (int)($input['meal_id'] ?? 0);
+            if ($mealId <= 0) throw new Exception('meal_id required.');
+            $stmtM = $pdo->prepare(
+                "SELECT * FROM sh_meal_packages WHERE id = ? AND tenant_id = ? AND is_deleted = 0"
+            );
+            $stmtM->execute([$mealId, $tenant_id]);
+            $meal = $stmtM->fetch(PDO::FETCH_ASSOC);
+            if (!$meal) throw new Exception('Meal not found.');
+
+            $stmtC = $pdo->prepare(
+                "SELECT mc.*, mi.name AS item_name, c.name AS category_name
+                   FROM sh_meal_components mc
+                   LEFT JOIN sh_menu_items mi ON mi.ascii_key = mc.item_sku AND mi.tenant_id = mc.tenant_id
+                   LEFT JOIN sh_categories c ON c.id = mc.category_id
+                  WHERE mc.meal_id = ? AND mc.tenant_id = ?
+                  ORDER BY mc.display_order ASC"
+            );
+            $stmtC->execute([$mealId, $tenant_id]);
+            $meal['components'] = $stmtC->fetchAll(PDO::FETCH_ASSOC);
+
+            $response['success'] = true;
+            $response['data'] = $meal;
+            break;
+
+        case 'save_meal':
+            $mealId      = (int)($input['id'] ?? 0);
+            $asciiKey    = strtoupper(preg_replace('/[^A-Za-z0-9_]/', '_', trim((string)($input['ascii_key'] ?? ''))));
+            $name        = trim((string)($input['name'] ?? ''));
+            $desc        = trim((string)($input['description'] ?? ''));
+            $categoryId  = isset($input['category_id']) && (int)$input['category_id'] > 0 ? (int)$input['category_id'] : null;
+            $type        = (string)($input['type'] ?? 'fixed');
+            $finalPrice  = isset($input['final_price_grosze']) && $input['final_price_grosze'] !== '' ? (int)$input['final_price_grosze'] : null;
+            $discount    = isset($input['discount_percent']) && $input['discount_percent'] !== '' ? (float)$input['discount_percent'] : null;
+            $imageUrl    = trim((string)($input['image_url'] ?? ''));
+            $pubStatus   = (string)($input['publication_status'] ?? 'Draft');
+            $validFrom   = $input['valid_from'] ?? null;
+            $validTo     = $input['valid_to'] ?? null;
+            $isActive    = !empty($input['is_active']) ? 1 : 0;
+            $displayOrder = (int)($input['display_order'] ?? 0);
+            $components  = $input['components'] ?? [];
+
+            if ($asciiKey === '' || $name === '') throw new Exception('ascii_key and name required.');
+            if (!in_array($type, ['fixed','choice'], true)) throw new Exception('type must be fixed|choice.');
+            if (!in_array($pubStatus, ['Draft','Live','Archived'], true)) $pubStatus = 'Draft';
+
+            $pdo->beginTransaction();
+            try {
+                if ($mealId > 0) {
+                    $pdo->prepare(
+                        "UPDATE sh_meal_packages
+                            SET ascii_key = ?, name = ?, description = ?, category_id = ?, type = ?,
+                                final_price_grosze = ?, discount_percent = ?, image_url = ?,
+                                publication_status = ?, valid_from = ?, valid_to = ?,
+                                is_active = ?, display_order = ?
+                          WHERE id = ? AND tenant_id = ?"
+                    )->execute([
+                        $asciiKey, $name, $desc !== '' ? $desc : null, $categoryId, $type,
+                        $finalPrice, $discount, $imageUrl !== '' ? $imageUrl : null,
+                        $pubStatus, $validFrom ?: null, $validTo ?: null,
+                        $isActive, $displayOrder,
+                        $mealId, $tenant_id
+                    ]);
+                } else {
+                    $pdo->prepare(
+                        "INSERT INTO sh_meal_packages
+                            (tenant_id, ascii_key, name, description, category_id, type,
+                             final_price_grosze, discount_percent, image_url,
+                             publication_status, valid_from, valid_to, is_active, display_order)
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+                    )->execute([
+                        $tenant_id, $asciiKey, $name, $desc !== '' ? $desc : null, $categoryId, $type,
+                        $finalPrice, $discount, $imageUrl !== '' ? $imageUrl : null,
+                        $pubStatus, $validFrom ?: null, $validTo ?: null, $isActive, $displayOrder
+                    ]);
+                    $mealId = (int)$pdo->lastInsertId();
+                }
+
+                // Replace components.
+                $pdo->prepare("DELETE FROM sh_meal_components WHERE meal_id = ? AND tenant_id = ?")
+                    ->execute([$mealId, $tenant_id]);
+                $stmtC = $pdo->prepare(
+                    "INSERT INTO sh_meal_components
+                        (meal_id, tenant_id, component_type, item_sku, category_id, qty,
+                         allow_upgrade, surcharge_grosze, display_order)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                );
+                $ord = 0;
+                foreach ($components as $c) {
+                    $cType = (string)($c['component_type'] ?? 'fixed_item');
+                    if (!in_array($cType, ['fixed_item','category_choice'], true)) continue;
+                    $cItem = $cType === 'fixed_item' ? (string)($c['item_sku'] ?? '') : null;
+                    $cCat  = $cType === 'category_choice' && isset($c['category_id']) ? (int)$c['category_id'] : null;
+                    $cQty  = max(1, (int)($c['qty'] ?? 1));
+                    $cUpg  = !empty($c['allow_upgrade']) ? 1 : 0;
+                    $cSur  = (int)round((float)($c['surcharge_grosze'] ?? 0));
+                    if ($cType === 'fixed_item' && $cItem === '') continue;
+                    if ($cType === 'category_choice' && !$cCat) continue;
+                    $stmtC->execute([$mealId, $tenant_id, $cType, $cItem, $cCat, $cQty, $cUpg, $cSur, $ord]);
+                    $ord++;
+                }
+
+                $pdo->commit();
+                $response['success'] = true;
+                $response['data'] = ['meal_id' => $mealId];
+                $response['message'] = 'Meal saved.';
+            } catch (\Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+            break;
+
+        case 'delete_meal':
+            $mealId = (int)($input['id'] ?? 0);
+            if ($mealId <= 0) throw new Exception('id required.');
+            $pdo->prepare("UPDATE sh_meal_packages SET is_deleted = 1 WHERE id = ? AND tenant_id = ?")
+                ->execute([$mealId, $tenant_id]);
+            $response['success'] = true;
+            $response['data'] = ['deleted' => $mealId];
+            break;
+
         case 'create_variant_family':
             // Tworzy rodzine wariantow z PARENT itemu + scale.
             // Dla kazdej opcji skali generuje child sh_menu_items z ascii_key = parent_ascii_key + '_' + option.key_ascii.

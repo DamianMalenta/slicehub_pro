@@ -60,4 +60,5 @@ return [
     '047_order_geocoding.sql',
     '048_variant_scales.sql',
     '049_modifier_size_pricing.sql',
+    '050_meal_packages.sql',
 ];
