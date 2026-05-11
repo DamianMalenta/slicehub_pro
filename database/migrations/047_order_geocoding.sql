@@ -13,8 +13,7 @@ ALTER TABLE sh_orders
   ADD COLUMN delivery_lat       DECIMAL(10,7) NULL AFTER delivery_address,
   ADD COLUMN delivery_lng       DECIMAL(10,7) NULL AFTER delivery_lat,
   ADD COLUMN geocode_provider   VARCHAR(32)   NULL AFTER delivery_lng,
-  ADD COLUMN geocode_quality    VARCHAR(16)   NULL AFTER geocode_provider
-                                  COMMENT 'exact|approximate|cached|fallback|none',
+  ADD COLUMN geocode_quality    VARCHAR(16)   NULL COMMENT 'exact|approximate|cached|fallback|none' AFTER geocode_provider,
   ADD COLUMN geocoded_at        DATETIME      NULL AFTER geocode_quality,
   ADD KEY idx_orders_geocoded (tenant_id, delivery_lat, delivery_lng);
 
