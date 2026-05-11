@@ -124,6 +124,7 @@ window.ItemEditor = {
         nav.classList.remove('hidden');
         const items = [
             { id:'sec-identity',   icon:'fa-fingerprint',    tip:'Tożsamość',    hc:'hover:text-purple-400 hover:border-purple-500/30 hover:bg-purple-500/10' },
+            { id:'sec-variants',   icon:'fa-arrows-left-right-to-line', tip:'Rozmiary / Warianty', hc:'hover:text-orange-400 hover:border-orange-500/30 hover:bg-orange-500/10' },
             { id:'sec-matrix',     icon:'fa-table-cells',    tip:'Macierz Cen',  hc:'hover:text-cyan-400 hover:border-cyan-500/30 hover:bg-cyan-500/10' },
             { id:'sec-vat',        icon:'fa-receipt',        tip:'VAT',          hc:'hover:text-amber-400 hover:border-amber-500/30 hover:bg-amber-500/10' },
             { id:'sec-modifiers',  icon:'fa-puzzle-piece',   tip:'Modyfikatory', hc:'hover:text-purple-400 hover:border-purple-500/30 hover:bg-purple-500/10' },
@@ -230,6 +231,38 @@ window.ItemEditor = {
                             <button type="button" data-type="half_half" onclick="window.ItemEditor.setItemType('half_half')" class="type-btn flex-1 px-3 py-3 text-[9px] font-black uppercase bg-white/5 text-slate-500 hover:text-white transition-all flex items-center justify-center gap-1.5"><i class="fa-solid fa-circle-half-stroke text-[6px]"></i> Pół/Pół</button>
                         </div>
                     </div>
+                </div>
+            `)}
+
+            ${this._glassCard('sec-variants', 'orange', 'fa-arrows-left-right-to-line', 'Rozmiary / Warianty (F-S1)', `
+                <p class="text-[10px] text-slate-400 mb-3 leading-relaxed">
+                    Wybierz <strong class="text-orange-300">Skalę Rozmiarów</strong> żeby ta pozycja stała się
+                    <strong class="text-orange-300">parentem</strong> — sprzedaż w POS dostanie kafelek z wyborem rozmiaru.
+                    Receptura wpisana RAZ na parent, mnożona przez <code class="text-orange-300">multiplier(option)</code>.
+                </p>
+                <div class="grid grid-cols-12 gap-4">
+                    <div class="col-span-7 flex flex-col gap-1.5">
+                        <label class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Skala Rozmiarów</label>
+                        <select id="item-variant-scale" class="bg-black/50 border border-white/10 text-white rounded-xl p-3 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500/30 focus:outline-none transition cursor-pointer">
+                            <option value="">— Brak (zwykła pozycja standalone) —</option>
+                        </select>
+                    </div>
+                    <div class="col-span-5 flex flex-col gap-1.5">
+                        <label class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Akcje</label>
+                        <div class="flex gap-2">
+                            <button type="button" onclick="window.ItemEditor.openVariantScaleManager()" class="flex-1 text-[8px] font-black uppercase text-orange-400 bg-orange-500/10 border border-orange-500/20 rounded-lg px-3 py-2 hover:bg-orange-500/20 transition flex items-center justify-center gap-1.5"><i class="fa-solid fa-list"></i> Zarządzaj skalami</button>
+                            <button type="button" onclick="window.ItemEditor.generateVariantFamily()" class="flex-1 text-[8px] font-black uppercase text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2 hover:bg-emerald-500/20 transition flex items-center justify-center gap-1.5" id="btn-generate-variant-family" disabled><i class="fa-solid fa-wand-magic-sparkles"></i> Wygeneruj rodzinę</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="variant-children-preview" class="mt-4 hidden">
+                    <div class="text-[9px] text-slate-400 uppercase font-bold mb-2">Warianty (children):</div>
+                    <div id="variant-children-list" class="grid grid-cols-3 gap-2"></div>
+                </div>
+                <div class="mt-3 text-[10px] text-slate-500 leading-relaxed bg-black/30 rounded-lg p-2 border border-white/5">
+                    <i class="fa-solid fa-circle-info text-orange-400 mr-1"></i>
+                    <strong>Bliźniak Cyfrowy (Konstytucja v5 § Prawo II):</strong>
+                    parent = abstrakcyjny szablon, nie sprzedawalny w POS. Children = realne SKU (np. <code>PIZZA_MARGHERITA_S</code>) z własnymi cenami i mnożnikiem receptury.
                 </div>
             `)}
 
@@ -654,6 +687,16 @@ window.ItemEditor = {
         if ($('item-available-start')) $('item-available-start').value = itemData.availableStart || '';
         if ($('item-available-end')) $('item-available-end').value = itemData.availableEnd || '';
 
+        // F-S1 — variant scale (parent only)
+        this._currentParentItemId    = itemData.parentItemId || null;
+        this._currentVariantOptionId = itemData.variantOptionId || null;
+        this._currentIsVariantParent = !!itemData.isVariantParent;
+        this._currentVariantScaleId  = itemData.variantScaleId || null;
+        this._loadVariantScalesIntoSelect(itemData.variantScaleId || null);
+        this._renderVariantChildrenPreview(itemData.id || 0);
+        const genBtn = $('btn-generate-variant-family');
+        if (genBtn) genBtn.disabled = !(itemData.id > 0 && (itemData.variantScaleId || itemData.isVariantParent));
+
         const days = (itemData.availableDays || '1,2,3,4,5,6,7').split(',').map(d => d.trim());
         document.querySelectorAll('.day-checkbox').forEach(cb => {
             cb.checked = days.includes(cb.value);
@@ -855,7 +898,10 @@ window.ItemEditor = {
             parentSku: val('item-parent-sku') || null,
             allergens: Array.from(document.querySelectorAll('.allergen-checkbox:checked')).map(cb => cb.value),
             modifierGroupIds: Array.from(document.querySelectorAll('.modifier-group-checkbox:checked'))
-                .map(cb => parseInt(cb.value, 10)).filter(Number.isInteger)
+                .map(cb => parseInt(cb.value, 10)).filter(Number.isInteger),
+            // F-S1 — variant scale fields
+            variantScaleId: parseInt(val('item-variant-scale'), 10) || null,
+            isVariantParent: (parseInt(val('item-variant-scale'), 10) > 0) ? 1 : 0
         };
 
         const btn = $('btn-save-item');
@@ -1171,5 +1217,218 @@ window.ItemEditor = {
                 btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> <span>Wygeneruj automatycznie</span>';
             }
         }
+    },
+
+    // =========================================================================
+    // F-S1 — VARIANT SCALES (Rozmiary / Warianty) · 2026-05-11
+    // Reuzywalna skala (Mala/Srednia/Duza) z multiplier-em dla receptury.
+    // Konstytucja v5 § Prawo II — jedna receptura, wiele rozmiarow.
+    // =========================================================================
+
+    async _loadVariantScalesIntoSelect(selectedId) {
+        const sel = document.getElementById('item-variant-scale');
+        if (!sel) return;
+        sel.innerHTML = '<option value="">— Brak (zwykła pozycja standalone) —</option>';
+        try {
+            const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'list_variant_scales' });
+            const scales = (r && r.success && r.data && r.data.scales) ? r.data.scales : [];
+            scales.forEach(s => {
+                const optsCount = Array.isArray(s.options) ? s.options.length : 0;
+                const opt = new Option(`${s.name}  ·  ${optsCount} opcji  (${s.key_ascii})`, s.id);
+                sel.appendChild(opt);
+            });
+            if (selectedId) sel.value = String(selectedId);
+        } catch (e) {
+            console.warn('[ItemEditor] _loadVariantScalesIntoSelect failed', e);
+        }
+        sel.onchange = () => {
+            const genBtn = document.getElementById('btn-generate-variant-family');
+            const itemId = parseInt(document.getElementById('item-id')?.value || '0', 10);
+            if (genBtn) genBtn.disabled = !(itemId > 0 && parseInt(sel.value, 10) > 0);
+        };
+    },
+
+    async _renderVariantChildrenPreview(parentItemId) {
+        const wrap = document.getElementById('variant-children-preview');
+        const list = document.getElementById('variant-children-list');
+        if (!wrap || !list) return;
+        list.innerHTML = '';
+        if (!parentItemId || parentItemId <= 0) { wrap.classList.add('hidden'); return; }
+        try {
+            // Czytamy children z aktualnego drzewa (lokalny stan), zamiast osobnego API call.
+            const tree = window.StudioState?.menuTree || [];
+            const children = [];
+            tree.forEach(cat => (cat.items || []).forEach(it => {
+                if (parseInt(it.parentItemId, 10) === parseInt(parentItemId, 10)) children.push(it);
+            }));
+            if (children.length === 0) { wrap.classList.add('hidden'); return; }
+            wrap.classList.remove('hidden');
+            list.innerHTML = children.map(c => `
+                <div class="bg-black/30 border border-orange-500/20 rounded-lg p-2 flex flex-col gap-0.5">
+                    <span class="text-[10px] text-orange-300 font-bold uppercase">${c.name || c.asciiKey}</span>
+                    <span class="text-[8px] text-slate-500 font-mono">${c.asciiKey}</span>
+                </div>
+            `).join('');
+        } catch (e) {
+            console.warn('[ItemEditor] _renderVariantChildrenPreview failed', e);
+        }
+    },
+
+    async generateVariantFamily() {
+        const itemId = parseInt(document.getElementById('item-id')?.value || '0', 10);
+        if (!itemId) { alert('Najpierw zapisz pozycję (parent), potem wygeneruj rodzinę.'); return; }
+        const scaleId = parseInt(document.getElementById('item-variant-scale')?.value || '0', 10);
+        if (!scaleId) { alert('Wybierz skalę rozmiarów.'); return; }
+
+        if (!confirm('Wygenerować rodzinę wariantów na podstawie wybranej skali?\n\nKażdy wariant dostanie własne SKU (np. PIZZA_X_S, _M, _L) i własną cenę. Istniejące warianty z tym samym SKU zostaną pominięte.')) return;
+
+        try {
+            // Najpierw zapisz parent (żeby variant_scale_id było w bazie).
+            await this.saveItem();
+            // Następnie wygeneruj rodzinę.
+            const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
+                action: 'create_variant_family',
+                parent_item_id: itemId
+            });
+            if (r && r.success) {
+                const created = (r.data && r.data.created) || [];
+                const skipped = (r.data && r.data.skipped) || [];
+                alert(`✅ Utworzono ${created.length} wariantów.\nPominięto (już istniały): ${skipped.length}.\n\nLista:\n${created.map(c => '• ' + c.ascii_key).join('\n')}`);
+                if (typeof window.loadMenuTree === 'function') await window.loadMenuTree();
+                if (window.Core?.renderTree) window.Core.renderTree();
+                this._renderVariantChildrenPreview(itemId);
+            } else {
+                alert('❌ Błąd: ' + (r?.message || 'unknown'));
+            }
+        } catch (e) {
+            console.error('[ItemEditor] generateVariantFamily', e);
+            alert('Krytyczny błąd: ' + e.message);
+        }
+    },
+
+    async openVariantScaleManager() {
+        // Lekki modal: lista skal + edycja inline.
+        let r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'list_variant_scales' });
+        const scales = (r && r.success && r.data && r.data.scales) ? r.data.scales : [];
+
+        const modal = document.createElement('div');
+        modal.id = 'variant-scale-mgr';
+        modal.className = 'fixed inset-0 bg-black/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4';
+        modal.innerHTML = `
+            <div class="bg-slate-900 border border-orange-500/30 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+                <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-orange-300 font-black uppercase text-sm tracking-wider"><i class="fa-solid fa-arrows-left-right-to-line"></i> Skale Rozmiarów</h3>
+                        <p class="text-[10px] text-slate-500 mt-0.5">Reużywalne między pozycjami (iiko-style). Multiplier wpływa na recepturę.</p>
+                    </div>
+                    <button onclick="document.getElementById('variant-scale-mgr')?.remove()" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="flex-1 overflow-y-auto p-6 space-y-4">
+                    <div id="vs-list" class="space-y-3"></div>
+                    <button onclick="window.ItemEditor._vsAddNew()" class="w-full bg-orange-500/10 border border-dashed border-orange-500/30 text-orange-300 rounded-xl py-3 text-[10px] font-black uppercase tracking-wider hover:bg-orange-500/20 transition"><i class="fa-solid fa-plus mr-2"></i> Nowa Skala</button>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+
+        const renderList = () => {
+            const root = document.getElementById('vs-list');
+            if (!root) return;
+            if (scales.length === 0) {
+                root.innerHTML = '<p class="text-center text-slate-500 text-[10px] italic py-6">Brak skal. Dodaj nową poniżej.</p>';
+                return;
+            }
+            root.innerHTML = scales.map((s, idx) => `
+                <div class="bg-black/40 border border-white/10 rounded-xl p-4">
+                    <div class="grid grid-cols-12 gap-3 mb-3">
+                        <div class="col-span-6">
+                            <label class="text-[8px] text-slate-500 font-bold uppercase">Nazwa</label>
+                            <input data-vs-idx="${idx}" data-vs-field="name" class="w-full bg-black/50 border border-white/10 rounded-lg p-2 text-xs text-white" value="${s.name || ''}" placeholder="Rozmiary pizzy">
+                        </div>
+                        <div class="col-span-4">
+                            <label class="text-[8px] text-slate-500 font-bold uppercase">Klucz ASCII</label>
+                            <input data-vs-idx="${idx}" data-vs-field="key_ascii" class="w-full bg-black/50 border border-white/10 rounded-lg p-2 text-xs font-mono text-white uppercase" value="${s.key_ascii || ''}" placeholder="SCALE_PIZZA">
+                        </div>
+                        <div class="col-span-2 flex items-end">
+                            <button onclick="window.ItemEditor._vsSave(${idx})" class="w-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg py-2 text-[9px] font-black uppercase hover:bg-emerald-500/30"><i class="fa-solid fa-floppy-disk"></i></button>
+                        </div>
+                    </div>
+                    <div class="space-y-1.5 mt-3" id="vs-opts-${idx}">
+                        ${(s.options || []).map((o, oi) => `
+                            <div class="grid grid-cols-12 gap-2 items-center bg-black/30 rounded-lg p-2">
+                                <input data-vs-idx="${idx}" data-vs-opt="${oi}" data-vs-field="name" class="col-span-3 bg-black/50 border border-white/5 rounded p-1.5 text-[11px] text-white" value="${o.name || ''}" placeholder="Mała">
+                                <input data-vs-idx="${idx}" data-vs-opt="${oi}" data-vs-field="key_ascii" class="col-span-2 bg-black/50 border border-white/5 rounded p-1.5 text-[11px] font-mono text-white uppercase" value="${o.key_ascii || ''}" placeholder="S">
+                                <input type="number" step="0.01" data-vs-idx="${idx}" data-vs-opt="${oi}" data-vs-field="multiplier" class="col-span-2 bg-black/50 border border-white/5 rounded p-1.5 text-[11px] text-white text-center" value="${o.multiplier ?? 1}" placeholder="1.0">
+                                <input type="number" data-vs-idx="${idx}" data-vs-opt="${oi}" data-vs-field="diameter_cm" class="col-span-2 bg-black/50 border border-white/5 rounded p-1.5 text-[11px] text-white text-center" value="${o.diameter_cm ?? ''}" placeholder="cm">
+                                <div class="col-span-1 text-[8px] text-slate-500 text-center">× recipe</div>
+                                <button onclick="window.ItemEditor._vsRemoveOpt(${idx}, ${oi})" class="col-span-2 bg-rose-500/10 border border-rose-500/20 rounded py-1.5 text-rose-400 text-[9px] font-black uppercase hover:bg-rose-500/20"><i class="fa-solid fa-trash"></i> Usuń</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <button onclick="window.ItemEditor._vsAddOpt(${idx})" class="mt-2 text-[9px] text-orange-300 hover:text-orange-200"><i class="fa-solid fa-plus"></i> dodaj opcję</button>
+                    <button onclick="window.ItemEditor._vsDelete(${idx})" class="mt-2 ml-3 text-[9px] text-rose-400 hover:text-rose-300"><i class="fa-solid fa-trash"></i> usuń skalę</button>
+                </div>
+            `).join('');
+
+            // Bind inputs to in-memory scales[] for autosave-on-action
+            root.querySelectorAll('input[data-vs-idx]').forEach(input => {
+                input.addEventListener('input', () => {
+                    const i = parseInt(input.dataset.vsIdx, 10);
+                    const oi = input.dataset.vsOpt !== undefined ? parseInt(input.dataset.vsOpt, 10) : null;
+                    const field = input.dataset.vsField;
+                    if (oi !== null) {
+                        scales[i].options[oi][field] = input.value;
+                    } else {
+                        scales[i][field] = input.value;
+                    }
+                });
+            });
+        };
+
+        window.ItemEditor._vsAddNew = () => {
+            scales.push({ id: 0, name: 'Nowa Skala', key_ascii: 'SCALE_NEW_' + Math.floor(Math.random()*1000), options: [{ name: 'Mała', key_ascii: 'S', multiplier: 0.7, display_order: 0 }] });
+            renderList();
+        };
+        window.ItemEditor._vsAddOpt = (i) => {
+            if (!scales[i].options) scales[i].options = [];
+            scales[i].options.push({ name: 'Nowy', key_ascii: 'NEW' + scales[i].options.length, multiplier: 1.0, display_order: scales[i].options.length });
+            renderList();
+        };
+        window.ItemEditor._vsRemoveOpt = (i, oi) => {
+            scales[i].options.splice(oi, 1);
+            renderList();
+        };
+        window.ItemEditor._vsSave = async (i) => {
+            const s = scales[i];
+            const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
+                action: 'save_variant_scale',
+                id: s.id || 0,
+                name: s.name,
+                key_ascii: s.key_ascii,
+                description: s.description || '',
+                options: s.options || []
+            });
+            if (r && r.success) {
+                alert('✅ Zapisano skalę.');
+                if (r.data && r.data.scale_id) scales[i].id = r.data.scale_id;
+                // Reload select w głównym widoku
+                this._loadVariantScalesIntoSelect(this._currentVariantScaleId);
+            } else {
+                alert('❌ ' + (r?.message || 'unknown'));
+            }
+        };
+        window.ItemEditor._vsDelete = async (i) => {
+            if (!confirm('Usunąć tę skalę?')) return;
+            const s = scales[i];
+            if (s.id) {
+                const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
+                    action: 'delete_variant_scale', id: s.id
+                });
+                if (!r || !r.success) { alert('❌ ' + (r?.message || 'unknown')); return; }
+            }
+            scales.splice(i, 1);
+            renderList();
+        };
+
+        renderList();
     }
 };

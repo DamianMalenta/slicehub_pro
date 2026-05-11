@@ -1266,8 +1266,16 @@ try {
 
             $datCol = $hasDriverActionType ? ", COALESCE(driver_action_type, 'none') AS driver_action_type" : "";
             $cpCol  = $mi022HasCompositionProfile ? ", COALESCE(composition_profile, 'static_hero') AS composition_profile" : "";
+            // F-S1: probe variant columns w get_item_details (graceful w starszej bazie).
+            $hasVariantColsHere = false;
+            try { $pdo->query("SELECT variant_scale_id FROM sh_menu_items LIMIT 0"); $hasVariantColsHere = true; }
+            catch (\PDOException $e) {}
+            $variantCols = $hasVariantColsHere
+                ? ", variant_scale_id, is_variant_parent, parent_item_id, variant_option_id"
+                : "";
+
             if ($schemaV2) {
-                $stmtItem = $pdo->prepare("SELECT id, category_id, name, ascii_key, `type`, is_active, vat_rate_dine_in, vat_rate_takeaway, kds_station_id, printer_group, is_locked_by_hq, publication_status, valid_from, valid_to, description, image_url, marketing_tags, barcode_ean, parent_sku, allergens_json, badge_type, is_secret, stock_count, display_order, plu_code, available_days, available_start, available_end{$datCol}{$cpCol} FROM sh_menu_items WHERE id = ? AND tenant_id = ? AND is_deleted = 0");
+                $stmtItem = $pdo->prepare("SELECT id, category_id, name, ascii_key, `type`, is_active, vat_rate_dine_in, vat_rate_takeaway, kds_station_id, printer_group, is_locked_by_hq, publication_status, valid_from, valid_to, description, image_url, marketing_tags, barcode_ean, parent_sku, allergens_json, badge_type, is_secret, stock_count, display_order, plu_code, available_days, available_start, available_end{$datCol}{$cpCol}{$variantCols} FROM sh_menu_items WHERE id = ? AND tenant_id = ? AND is_deleted = 0");
             } else {
                 $stmtItem = $pdo->prepare("SELECT id, category_id, name, ascii_key, `type`, is_active, price, vat_rate AS vat_rate_dine_in, vat_rate AS vat_rate_takeaway, printer_group, printer_group AS kds_station_id, 0 AS is_locked_by_hq, 'Draft' AS publication_status, NULL AS valid_from, NULL AS valid_to, description, NULL AS image_url, tags AS marketing_tags, NULL AS barcode_ean, NULL AS parent_sku, NULL AS allergens_json, badge_type, is_secret, stock_count, display_order, plu_code, available_days, available_start, available_end, 'none' AS driver_action_type, 'static_hero' AS composition_profile FROM sh_menu_items WHERE id = ? AND tenant_id = ? AND is_deleted = 0");
             }
@@ -1367,7 +1375,12 @@ try {
                 'allergens' => $allergens,
                 'driverActionType' => $item['driver_action_type'] ?? 'none',
                 'priceMatrix' => $priceMatrix,
-                'priceTiers' => $priceTiersOut
+                'priceTiers' => $priceTiersOut,
+                // F-S1 — variant fields (NULL gdy migracja 048 nie zaaplikowana lub item nie jest wariantowy)
+                'variantScaleId'   => isset($item['variant_scale_id']) ? (int)$item['variant_scale_id'] : null,
+                'isVariantParent'  => (bool)($item['is_variant_parent'] ?? 0),
+                'parentItemId'     => isset($item['parent_item_id']) ? (int)$item['parent_item_id'] : null,
+                'variantOptionId'  => isset($item['variant_option_id']) ? (int)$item['variant_option_id'] : null,
             ];
             $response['message'] = "Pobrano szczegóły dania.";
             break;
@@ -1411,6 +1424,21 @@ try {
             $parentSku = trim($input['parentSku'] ?? '');
             $parentSku = $parentSku === '' ? null : $parentSku;
 
+            // F-S1: variant scale fields (opcjonalne, NULL-safe dla zwyklych itemow).
+            // hasVariantColumns probe — graceful gdy migracja 048 nie zaaplikowana.
+            static $hasVariantColumns = null;
+            if ($hasVariantColumns === null) {
+                try {
+                    $pdo->query("SELECT variant_scale_id FROM sh_menu_items LIMIT 0");
+                    $hasVariantColumns = true;
+                } catch (\PDOException $e) {
+                    $hasVariantColumns = false;
+                }
+            }
+            $variantScaleId  = isset($input['variantScaleId']) && (int)$input['variantScaleId'] > 0
+                ? (int)$input['variantScaleId'] : null;
+            $isVariantParent = !empty($input['isVariantParent']) ? 1 : 0;
+
             $allergensRaw = $input['allergens'] ?? [];
             $allergensJson = is_array($allergensRaw) ? json_encode($allergensRaw) : '[]';
 
@@ -1437,6 +1465,12 @@ try {
                         $cols = "tenant_id, category_id, name, ascii_key, `type`, is_active, vat_rate_dine_in, vat_rate_takeaway, kds_station_id, printer_group, publication_status, valid_from, valid_to, description, image_url, marketing_tags, badge_type, is_secret, stock_count, display_order, plu_code, available_days, available_start, available_end, barcode_ean, parent_sku, allergens_json";
                         $vals = "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?";
                         $params = [$tenant_id, $categoryId, $name, $asciiKey, $itemType, $isActive, $vatRateDineIn, $vatRateTakeaway, $kdsStationId, $printerGroup, $pubStatus, $validFrom, $validTo, $description, $imageUrl, $marketingTags, $badgeType, $isSecret, $stockCount, $displayOrder, $pluCode, $availableDays, $availableStart, $availableEnd, $barcodeEan, $parentSku, $allergensJson];
+                        if ($hasVariantColumns) {
+                            $cols .= ", variant_scale_id, is_variant_parent";
+                            $vals .= ", ?, ?";
+                            $params[] = $variantScaleId;
+                            $params[] = $isVariantParent;
+                        }
                         if ($hasDriverActionType) {
                             $cols .= ", driver_action_type";
                             $vals .= ", ?";
@@ -1453,6 +1487,11 @@ try {
                     } else {
                         $setCols = "name = ?, ascii_key = ?, category_id = ?, `type` = ?, is_active = ?, vat_rate_dine_in = ?, vat_rate_takeaway = ?, kds_station_id = ?, printer_group = ?, publication_status = ?, valid_from = ?, valid_to = ?, description = ?, image_url = ?, marketing_tags = ?, badge_type = ?, is_secret = ?, stock_count = ?, display_order = ?, plu_code = ?, available_days = ?, available_start = ?, available_end = ?, barcode_ean = ?, parent_sku = ?, allergens_json = ?";
                         $params = [$name, $asciiKey, $categoryId, $itemType, $isActive, $vatRateDineIn, $vatRateTakeaway, $kdsStationId, $printerGroup, $pubStatus, $validFrom, $validTo, $description, $imageUrl, $marketingTags, $badgeType, $isSecret, $stockCount, $displayOrder, $pluCode, $availableDays, $availableStart, $availableEnd, $barcodeEan, $parentSku, $allergensJson];
+                        if ($hasVariantColumns) {
+                            $setCols .= ", variant_scale_id = ?, is_variant_parent = ?";
+                            $params[] = $variantScaleId;
+                            $params[] = $isVariantParent;
+                        }
                         if ($hasDriverActionType) {
                             $setCols .= ", driver_action_type = ?";
                             $params[] = $driverActionType;
@@ -2431,6 +2470,227 @@ try {
             $response['success'] = true;
             $response['data']    = ['assets' => $globalAssets];
             $response['message'] = count($globalAssets) . ' assets loaded.';
+            break;
+
+        // =================================================================
+        // F-S1 — VARIANT SCALES (2026-05-11)
+        // Reuzywalna skala rozmiarow (Mala/Srednia/Duza) z multiplier-em
+        // dla receptury. WzEngine mnozy quantity_base x multiplier(option).
+        // Konstytucja v5 § Prawo II — jedna receptura, wiele rozmiarów.
+        // =================================================================
+
+        case 'list_variant_scales':
+            $stmtScales = $pdo->prepare(
+                "SELECT id, name, key_ascii, description, is_active
+                   FROM sh_variant_scales
+                  WHERE tenant_id = ?
+                    AND is_deleted = 0
+                  ORDER BY name ASC"
+            );
+            $stmtScales->execute([$tenant_id]);
+            $scales = $stmtScales->fetchAll(PDO::FETCH_ASSOC);
+
+            if ($scales) {
+                $scaleIds = array_column($scales, 'id');
+                $ph = implode(',', array_fill(0, count($scaleIds), '?'));
+                $stmtOpts = $pdo->prepare(
+                    "SELECT id, scale_id, name, key_ascii, display_order,
+                            diameter_cm, multiplier, is_default
+                       FROM sh_variant_scale_options
+                      WHERE scale_id IN ($ph)
+                        AND tenant_id = ?
+                        AND is_deleted = 0
+                      ORDER BY scale_id ASC, display_order ASC, id ASC"
+                );
+                $stmtOpts->execute(array_merge($scaleIds, [$tenant_id]));
+                $byScale = [];
+                foreach ($stmtOpts->fetchAll(PDO::FETCH_ASSOC) as $opt) {
+                    $byScale[$opt['scale_id']][] = $opt;
+                }
+                foreach ($scales as &$s) {
+                    $s['options'] = $byScale[$s['id']] ?? [];
+                }
+                unset($s);
+            }
+
+            $response['success'] = true;
+            $response['data']    = ['scales' => $scales];
+            $response['message'] = count($scales) . ' variant scales loaded.';
+            break;
+
+        case 'save_variant_scale':
+            $scaleId  = (int)($input['id'] ?? 0);
+            $name     = trim((string)($input['name'] ?? ''));
+            $keyAscii = strtoupper(preg_replace('/[^A-Za-z0-9_]/', '_', trim((string)($input['key_ascii'] ?? ''))));
+            $desc     = trim((string)($input['description'] ?? ''));
+            $options  = $input['options'] ?? [];
+
+            if ($name === '' || $keyAscii === '') {
+                throw new Exception('Pola name oraz key_ascii sa wymagane.');
+            }
+            if (!is_array($options) || count($options) === 0) {
+                throw new Exception('Skala musi miec przynajmniej jedna opcje.');
+            }
+
+            $pdo->beginTransaction();
+            try {
+                if ($scaleId > 0) {
+                    $pdo->prepare(
+                        "UPDATE sh_variant_scales
+                            SET name = ?, key_ascii = ?, description = ?
+                          WHERE id = ? AND tenant_id = ?"
+                    )->execute([$name, $keyAscii, $desc !== '' ? $desc : null, $scaleId, $tenant_id]);
+                } else {
+                    $pdo->prepare(
+                        "INSERT INTO sh_variant_scales (tenant_id, name, key_ascii, description)
+                         VALUES (?, ?, ?, ?)"
+                    )->execute([$tenant_id, $name, $keyAscii, $desc !== '' ? $desc : null]);
+                    $scaleId = (int)$pdo->lastInsertId();
+                }
+
+                // Upsert/replace opcji.
+                // Strategia: usun istniejace nie pokryte przez payload (po key_ascii),
+                // potem upsert per option.
+                $payloadKeys = [];
+                foreach ($options as $opt) {
+                    $optKey = strtoupper(preg_replace('/[^A-Za-z0-9_]/', '_', (string)($opt['key_ascii'] ?? '')));
+                    if ($optKey !== '') $payloadKeys[] = $optKey;
+                }
+                if ($payloadKeys) {
+                    $phK = implode(',', array_fill(0, count($payloadKeys), '?'));
+                    $pdo->prepare(
+                        "UPDATE sh_variant_scale_options
+                            SET is_deleted = 1
+                          WHERE scale_id = ? AND tenant_id = ?
+                            AND key_ascii NOT IN ($phK)"
+                    )->execute(array_merge([$scaleId, $tenant_id], $payloadKeys));
+                }
+
+                $stmtUpsertOpt = $pdo->prepare(
+                    "INSERT INTO sh_variant_scale_options
+                        (scale_id, tenant_id, name, key_ascii, display_order, diameter_cm, multiplier, is_default, is_deleted)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+                     ON DUPLICATE KEY UPDATE
+                        name = VALUES(name),
+                        display_order = VALUES(display_order),
+                        diameter_cm = VALUES(diameter_cm),
+                        multiplier = VALUES(multiplier),
+                        is_default = VALUES(is_default),
+                        is_deleted = 0"
+                );
+                $ord = 0;
+                foreach ($options as $opt) {
+                    $optName = trim((string)($opt['name'] ?? ''));
+                    $optKey  = strtoupper(preg_replace('/[^A-Za-z0-9_]/', '_', (string)($opt['key_ascii'] ?? '')));
+                    $optMult = (float)($opt['multiplier'] ?? 1.0);
+                    $optDiam = isset($opt['diameter_cm']) && $opt['diameter_cm'] !== '' ? (int)$opt['diameter_cm'] : null;
+                    $optDef  = !empty($opt['is_default']) ? 1 : 0;
+                    if ($optName === '' || $optKey === '') continue;
+                    $stmtUpsertOpt->execute([
+                        $scaleId, $tenant_id, $optName, $optKey, $ord, $optDiam, $optMult, $optDef
+                    ]);
+                    $ord++;
+                }
+
+                $pdo->commit();
+                $response['success'] = true;
+                $response['data']    = ['scale_id' => $scaleId];
+                $response['message'] = 'Variant scale saved.';
+            } catch (\Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+            break;
+
+        case 'delete_variant_scale':
+            $scaleId = (int)($input['id'] ?? 0);
+            if ($scaleId <= 0) throw new Exception('id required.');
+
+            // Zabezpieczenie: jesli skala uzywana przez ktorykolwiek item, blokuj.
+            $stmtUse = $pdo->prepare(
+                "SELECT COUNT(*) FROM sh_menu_items
+                  WHERE tenant_id = ? AND variant_scale_id = ? AND is_deleted = 0"
+            );
+            $stmtUse->execute([$tenant_id, $scaleId]);
+            $usedBy = (int)$stmtUse->fetchColumn();
+            if ($usedBy > 0) {
+                throw new Exception("Cannot delete: scale is used by {$usedBy} menu item(s).");
+            }
+
+            $pdo->prepare(
+                "UPDATE sh_variant_scales SET is_deleted = 1 WHERE id = ? AND tenant_id = ?"
+            )->execute([$scaleId, $tenant_id]);
+
+            $response['success'] = true;
+            $response['data']    = ['deleted' => $scaleId];
+            $response['message'] = 'Variant scale deleted.';
+            break;
+
+        case 'create_variant_family':
+            // Tworzy rodzine wariantow z PARENT itemu + scale.
+            // Dla kazdej opcji skali generuje child sh_menu_items z ascii_key = parent_ascii_key + '_' + option.key_ascii.
+            // Jesli wariant z tym kluczem juz istnieje, pomija (idempotentnie).
+            // PRZED: parent musi miec variant_scale_id ustawione (przez save_item z payloadu wariantowego).
+            $parentId = (int)($input['parent_item_id'] ?? 0);
+            if ($parentId <= 0) throw new Exception('parent_item_id required.');
+
+            $stmtParent = $pdo->prepare(
+                "SELECT id, category_id, ascii_key, name, type, variant_scale_id, vat_rate_dine_in, vat_rate_takeaway
+                   FROM sh_menu_items
+                  WHERE id = ? AND tenant_id = ? AND is_deleted = 0"
+            );
+            $stmtParent->execute([$parentId, $tenant_id]);
+            $parent = $stmtParent->fetch(PDO::FETCH_ASSOC);
+            if (!$parent) throw new Exception('Parent item not found.');
+            if (!$parent['variant_scale_id']) throw new Exception('Parent has no variant_scale_id. Set it first by save_item.');
+
+            // Upewnij sie ze parent jest oznaczony jako variant_parent.
+            $pdo->prepare("UPDATE sh_menu_items SET is_variant_parent = 1 WHERE id = ? AND tenant_id = ?")
+                ->execute([$parentId, $tenant_id]);
+
+            // Pobierz opcje skali.
+            $stmtOpts = $pdo->prepare(
+                "SELECT id, name, key_ascii, multiplier
+                   FROM sh_variant_scale_options
+                  WHERE scale_id = ? AND tenant_id = ? AND is_deleted = 0
+                  ORDER BY display_order ASC"
+            );
+            $stmtOpts->execute([(int)$parent['variant_scale_id'], $tenant_id]);
+            $opts = $stmtOpts->fetchAll(PDO::FETCH_ASSOC);
+            if (!$opts) throw new Exception('Scale has no options.');
+
+            $created = [];
+            $skipped = [];
+            $stmtCheck = $pdo->prepare(
+                "SELECT id FROM sh_menu_items WHERE tenant_id = ? AND ascii_key = ? LIMIT 1"
+            );
+            $stmtInsert = $pdo->prepare(
+                "INSERT INTO sh_menu_items
+                    (tenant_id, category_id, name, ascii_key, type, is_active, is_deleted,
+                     vat_rate_dine_in, vat_rate_takeaway, publication_status,
+                     parent_item_id, variant_option_id)
+                 VALUES (?, ?, ?, ?, ?, 1, 0, ?, ?, 'Live', ?, ?)"
+            );
+            foreach ($opts as $opt) {
+                $childKey = $parent['ascii_key'] . '_' . $opt['key_ascii'];
+                $childName = $parent['name'] . ' ' . $opt['name'];
+                $stmtCheck->execute([$tenant_id, $childKey]);
+                if ($stmtCheck->fetch()) {
+                    $skipped[] = $childKey;
+                    continue;
+                }
+                $stmtInsert->execute([
+                    $tenant_id, $parent['category_id'], $childName, $childKey,
+                    $parent['type'] ?: 'standard',
+                    (float)$parent['vat_rate_dine_in'], (float)$parent['vat_rate_takeaway'],
+                    $parentId, (int)$opt['id'],
+                ]);
+                $created[] = ['ascii_key' => $childKey, 'name' => $childName, 'option_id' => (int)$opt['id']];
+            }
+
+            $response['success'] = true;
+            $response['data']    = ['parent_id' => $parentId, 'created' => $created, 'skipped' => $skipped];
+            $response['message'] = sprintf('%d variants created, %d skipped (already existed).', count($created), count($skipped));
             break;
 
         default:
