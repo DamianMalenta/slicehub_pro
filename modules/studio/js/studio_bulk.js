@@ -25,9 +25,14 @@ window.BulkEditor = {
         const payload = {
             action: 'save_bulk', // TEGO BRAKOWAŁO!
             itemIds: window.StudioState.bulkSelectedItems,
-            kdsGroup: document.getElementById('bulk-printer')?.value || '', // Zmiana z printerGroup na kdsGroup
+            kdsGroup: document.getElementById('bulk-printer')?.value || '',
             badgeType: document.getElementById('bulk-badge')?.value || '',
             isSecret: document.getElementById('bulk-secret')?.value || '',
+            // F-S4 (2026-05-11): VAT bulk update — drift naprawiony.
+            // Jeden select #bulk-vat aplikuje stawkę do OBU pól (dine_in + takeaway).
+            // Puste '' = brak zmiany (backend ignoruje).
+            vatRateDineIn: document.getElementById('bulk-vat')?.value || '',
+            vatRateTakeaway: document.getElementById('bulk-vat')?.value || '',
             temporalPublicationPatch: {
                 apply: shouldApplyPublication,
                 status: publicationStatus,

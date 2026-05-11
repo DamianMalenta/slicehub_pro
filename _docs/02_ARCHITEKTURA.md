@@ -3,7 +3,24 @@
 > Oficjalna mapa drogowa projektu **SliceHub Enterprise** dla Agentów AI.
 > Nie zgaduj — sprawdzaj strukturę tutaj.
 >
-> **Ostatnia synchronizacja:** 2026-05-04 (Hub-Centric Mobile Shell + Staff Fleet Presence + HR Backoffice UI).
+> **Ostatnia synchronizacja:** 2026-05-11 (RELEASE BUNDLE COMPLETE — gotowe do testów na uti.pl):
+> - F5 POS Integrity Pass (cart revalid + reverse stock + modifiers SKU)
+> - F6 Geocoder Nominatim (delivery_lat/lng + dispatcher map)
+> - F-S1 Variant Scales (pizza Mała/Średnia/Duża + multiplier)
+> - F-S2 Topping Size Pricing (Toast-style + 4 half-half strategies)
+> - F-S2.1 Studio UI: macierz cen modyfikatorów per rozmiar
+> - F-S3 Meal Packages (Combo/Bundle) — backend
+> - F-S3.1 POS UI: kafelki combo + wizard wyboru składników
+> - F-S4 Studio drift cleanup (Live/published, valid_from DATETIME, bulk VAT, recipe clone, parent_sku validation)
+> - F-S5 Multi-stage recipes (półprodukty, iiko-style „заготовки", WzEngine rekurencyjna ekspansja z max depth 3)
+> - F-S6 Wizard „Nowa Pizza" (4-step modal: nazwa → skala → ceny → generuj)
+> - F-S3.2 WzEngine combo expansion (combo line → wirtualne linie → konsumpcja per składnik; pełna kompozycja z variant + subrecipe)
+> - F-S5.1 Studio UI dla półproduktów (toggle recycle + picker + yield input; backend walidacja anti-cycle + LEFT JOIN sys_items/sh_menu_items)
+> - F-S8 (verify) — Combo reverse stock działa BEZ dodatkowego kodu (WarehouseReverseHook czyta wh_document_lines per surowiec, F-S3.2 expansion produkuje per-surowiec WZ)
+> - F-S1.2 — Variant scale presets (5 gotowych skal w Studio UI) + auto-multiplier w skrypcie migracji legacy parent_sku (z mapy XS=0.55, S=0.70, M=1.00, L=1.30, XL=1.60, XXL=2.00, MINI/BIG/REG/STD/NORMAL, średnice 26..45 cm)
+> - F-S6.1 — Wizard "Nowa Pizza" rozbudowany do 5 kroków (krok 4: modifier groups checkbox lista, krok 5: generuj)
+> - F-S7 — Hard PRICE_MISMATCH (tenant flag `price_mismatch_mode`: soft|hard; hard → HTTP 409 z error_code)
+> - F-S9 — Recipe drag-and-drop reorder (migracja 055 + native HTML5 drag w studio_recipe.js + schema-aware ORDER BY display_order)
 > **North Star:** [`_docs/00_PAMIEC_SYSTEMU.md`](00_PAMIEC_SYSTEMU.md) — master reference.
 > **Hub & Kiosk dedykowany doc:** [`_docs/19_HUB_AND_KIOSK.md`](19_HUB_AND_KIOSK.md).
 
@@ -266,6 +283,13 @@ Shared CSS dla wszystkich modułów: safe-area-inset, viewport-fit, mobilne nawi
 | `gateway/intake.php` | Zewnętrzny punkt wejścia (multi-key auth, rate limit, idempotency) |
 | `integrations/inbound.php` | Callback handler dla 3rd-party POS / dostawców (webhook inbound) |
 
+#### Procurement (m045+ · F2+F3 · 2026-05-11)
+| Ścieżka | Opis |
+|---------|------|
+| `procurement/suggest.php` | AutoScan endpoint — action-based: `suggest`, `suggest_bulk`, `learn`, `learn_bulk`, `threshold_get`, `threshold_set`. RBAC: suggest = owner/admin/manager, learn = owner/manager, threshold_set = owner. Audit do `sh_settings_audit`. Fundament pod F3 (Procurement Inbox UI) + F4 (KSeF API client). |
+| `procurement/inbox.php` (F3 · 2026-05-11, rozszerzony F4.5) | KSeF Inbox endpoint — action-based: `list`, `show`, `upload_xml`, `reparse`, `update_line`, `accept`, `reject` + **F4.5**: `smart_create_sku` (tworzy nowy `sys_items` + auto-mapping), `reverse` (owner-only — KOR dokument + reverse magazynu + status→draft). RBAC granularny. Audit do `sh_settings_audit`. |
+| `procurement/ksef_config.php` (NEW · F4 · 2026-05-11) | KSeF konfiguracja — action-based: `config_get`, `config_save` (owner-only, token przez CredentialVault), `test_connection` (real HTTP do sandbox/prod albo mock), `poll_now` (manual trigger), `state`, `toggle_auto_poll` (włącz/wyłącz worker). |
+
 #### Utility
 | Ścieżka | Status |
 |---------|--------|
@@ -306,7 +330,13 @@ Wszystkie orphan/planned endpointy mają w nagłówku komentarz `// STATUS: …`
 | Plik | Rola |
 |------|------|
 | `PzEngine.php` | Przyjęcie + AVCO |
-| `WzEngine.php` | Zużycie surowców po acceptance (waste + modyfikatory) |
+| `WzEngine.php` | Zużycie surowców po acceptance (waste + modyfikatory). **`consumeForOrder` wpięty od F1 · 2026-05-11** przez `core/WarehouseConsumeHook` w `api/pos/engine.php#accept_order` + `api/orders/accept.php`. `checkAvailability` wpięty w online checkout. Formuła Prawa II Konstytucji v5: `needed = recipe_qty × (1 + waste%/100) × multiplier`. |
+| `WarehouseConsumeHook.php` (NEW · F1 2026-05-11) | Helper post-commit hook konsumpcji magazynu po `transitionOrder('accepted')`. Wywołuje `WzEngine::consumeForOrder` w niezależnej transakcji. Failure NIE blokuje akceptu zamówienia (kuchnia gotuje, manager może naprawić korektą KOR). |
+| `WarehouseReverseHook.php` (NEW · F5-C 2026-05-11) | Symetryczny hook do `WarehouseConsumeHook`. Wywoływany z `api/pos/engine.php#cancel_order` gdy zamówienie zostaje anulowane PO `accepted`. Tworzy `wh_documents` typ `KOR`, zwraca surowce na `wh_stock`, oznacza pierwotne `WZ` jako `status='reversed'`. Bez tego POS-cancel powodował drift magazynu (Konstytucja v5 § Prawo II). |
+| `Geocoder.php` (NEW · F6 2026-05-11) | Lekki klient Nominatim + cache w `sh_geocode_cache`. Wpięty w `api/pos/engine.php#process_order` dla `order_type=delivery`. Adres → `delivery_lat`/`delivery_lng` w `sh_orders`. Dispatcher (`api/courses/engine.php#get_dashboard`) używa `COALESCE(delivery_lat, lat)` żeby mapa pokazywała prawdziwy pin zamiast losowego fallbacku. Rate-limit 1 req/sec (cache eliminuje powtórki). |
+| `AutoScanEngine.php` (NEW · F2 2026-05-11) | **Shared AutoScan Engine** dla nazw zewnętrznych z faktur dostawców (KSeF inbox, PZ import). 4-stopniowe confidence scoring: `EXACT (100)` → `ALIAS (85)` → `NAME (60-80)` → `FUZZY (≤59)` → `NONE`. Self-learning przez `sh_product_mapping` (`learnMapping()`). API: `match()`, `matchBulk()`, `learnMapping()`. Threshold auto-accept w `sh_tenant_settings.autoscan_auto_accept_threshold` (default 70). Wpięty w `api/procurement/suggest.php`. Fundament pod F3 (Procurement Inbox UI) i F4 (KSeF API client). |
+| `Ksef/Parser.php` (NEW · F3 2026-05-11) | Parser polskiego standardu FA(2) XML (KSeF). Namespace-aware SimpleXML, ekstraktuje Podmiot1/Podmiot2/Fa/FaWiersz/totals. Konsumowane przez `api/procurement/inbox.php#upload_xml` i `core/Ksef/Client.php` mock-mode. |
+| `Ksef/Client.php` (NEW · F4 2026-05-11) | REST client do KSeF API. 3 environments: `mock` (fixtures z `mockQueryInbox/mockFetchInvoiceXml`), `sandbox` (`ksef-test.mf.gov.pl`), `prod` (`ksef.mf.gov.pl`). Auth: KSeF Token (`SessionToken` header). Auto-load konfigu z `sh_tenant_integrations.credentials` (CredentialVault decrypt). API: `testConnection()`, `queryInbox()`, `fetchInvoiceXml()`. Konsumowane przez `scripts/worker_ksef_inbox.php` i `api/procurement/ksef_config.php#poll_now`. |
 | `InwEngine.php` | Inwentaryzacja |
 | `KorEngine.php` | Korekta |
 | `MmEngine.php` | Międzymagazynowe |

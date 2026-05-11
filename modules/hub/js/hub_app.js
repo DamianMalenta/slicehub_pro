@@ -56,6 +56,24 @@
         if (meta && user) {
             meta.textContent = (user.name || user.username || '') + ' · ' + (user.role || '');
         }
+        applyRoleVisibility(user);
+    }
+
+    /**
+     * Pokazuje/ukrywa kafelki z atrybutem data-roles="rola1,rola2,...".
+     * Kafelki bez data-roles widoczne dla wszystkich. Z data-roles widoczne
+     * tylko gdy user.role jest na liście.
+     */
+    function applyRoleVisibility(user) {
+        const role = String((user && user.role) || '').toLowerCase();
+        document.querySelectorAll('[data-roles]').forEach((el) => {
+            const allowed = String(el.getAttribute('data-roles') || '')
+                .split(',')
+                .map((r) => r.trim().toLowerCase())
+                .filter(Boolean);
+            if (allowed.length === 0) return;
+            el.style.display = allowed.includes(role) ? '' : 'none';
+        });
     }
 
     async function login(username, password) {

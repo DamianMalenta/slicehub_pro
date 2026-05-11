@@ -1,4 +1,6 @@
-# SLICEHUB ENTERPRISE OS - KONSTYTUCJA V4 (SYSTEM RULES, DOCS & DB SCHEMA)
+# SLICEHUB ENTERPRISE OS - KONSTYTUCJA V5 (SYSTEM RULES, DOCS & DB SCHEMA)
+
+> **Ostatnia rewizja: 2026-05-11.** Pełen tekst Konstytucji v5: `_docs/01_KONSTYTUCJA.md`. Niniejszy plik to operacyjny skrót dla AI w czasie rzeczywistym.
 
 Jesteś Głównym Architektem i Programistą pracującym nad SliceHub OS. Twoim zadaniem jest pisanie kodu najwyższej inżynieryjnej jakości, bezwzględnie przestrzegając poniższych zasad.
 
@@ -23,10 +25,12 @@ Zanim napiszesz JAKIEKOLWIEK zapytanie SQL, sprawdź plik ze strukturą bazy! ZA
 - System jest architekturą wielonajemcową.
 - **BEZWZGLĘDNIE:** Każde zapytanie SQL (`SELECT`, `INSERT`, `UPDATE`, `DELETE`) musi zawierać barierę `tenant_id = :tenantId` (w klauzuli WHERE lub ON). Wyciek danych między pizzeriami to błąd krytyczny.
 
-## 3. STOS TECHNOLOGICZNY (Manifest "Zero-Reload SPA")
-- **Frontend:** Vanilla JS (ES6+), czysty HTML5, Tailwind CSS.
+## 3. STOS TECHNOLOGICZNY (Manifest "Zero-Reload Runtime")
+- **Frontend (runtime na hostingu):** Vanilla JS (ES6+), czysty HTML5, Tailwind CSS (CDN albo build artifact).
 - **Backend:** PHP 8+ (PDO, REST API).
-- **ABSOLUTNY ZAKAZ:** Node.js, npm, Webpack, React, Vue, Angular, jQuery.
+- **Dev tooling (lokalnie, opcjonalnie — od v5 / 2026-05-11):** Vite, esbuild, prettier, eslint, TypeScript→vanilla JS, PostCSS, Sass — output deployowany jako zwykłe pliki commit-owane do repo, hosting nigdy nie odpala build-step.
+- **ZAKAZ na produkcji:** Node.js w runtime, npm/yarn/pnpm jako runtime dependency manager, Webpack/Rollup/Parcel działające na żądanie, React/Vue/Angular/Svelte jako framework runtime, jQuery jako biblioteka.
+- **Reguła kompromisu:** każdy programista po `git clone` ma działający kod bez `npm install`. Output dev-toolingu MUSI być w repo.
 
 ## 4. ARCHITEKTURA I MODUŁOWOŚĆ ("Klocki Lego")
 - **Zasada 1=1:** Jeden moduł biznesowy = spójna warstwa API (np. `api/warehouse/*.php`, `api/backoffice/api_menu_studio.php`). 
@@ -115,3 +119,27 @@ JOIN sys_items s ON s.sku = r.warehouse_sku AND s.tenant_id = r.tenant_id
 
 ### Obowiązek przy dodawaniu nowego prefiksu
 Jeśli w przyszłości powstanie nowy silos (np. `pay_`, `log_`, `aud_`), automatycznie obowiązuje tu ta sama reguła: most tylko przez klucze znakowe, nigdy po ID.
+
+## 10. PRAWO DOMKNIĘCIA KONTRAKTU (Code ↔ Docs Drift Guard) — NEW v5 (2026-05-11)
+- Funkcja opisana w `_docs/*.md` jako produkcyjna MUSI mieć call-site w `api/` lub `core/` + przynajmniej jeden test (manualny w `_docs/manual_tests.md` albo automatyczny).
+- Funkcja kompletna ale niewpięta = adnotacja `@planned (Prawo VIII)` w docblocku z konkretnym powodem i datą planowanego włączenia.
+- Audyt modułu (sesja typu „przejrzyj X") raportuje listę `@planned` + funkcji opisanych w docs ale bez call-sitów. Nie wolno tego ukryć.
+- Aktualne `@planned`: `api/payments/settle.php` (decyzja: integracja albo usunięcie), `api/orders/edit.php`, `api/orders/estimate.php`, `api/orders/sla_monitor.php`.
+- Domknięte: ~~`core/WzEngine.php::consumeForOrder`~~ (F1 · 2026-05-11 — `core/WarehouseConsumeHook`).
+
+## 11. PRAWO DATOWANYCH ZAMROŻEŃ (Freeze Discipline) — NEW v5 (2026-05-11)
+Każda sekcja `FREEZE NOTICE` w jakimkolwiek dokumencie systemu MUSI zawierać:
+- `FROZEN_AT` (data wprowadzenia, YYYY-MM-DD)
+- `UNTIL` (data review max +6 miesięcy LUB konkretny trigger biznesowy)
+- `REASON` (konkretny powód, nie generyczne „work in progress")
+- `UNFREEZE_BY` (kto może odmrozić — domyślnie właściciel produktu jawną decyzją)
+- `SCOPE` (pełna lista plików / migracji / tabel pod ochroną)
+
+Po dacie `UNTIL` AI w kolejnej sesji MOŻE zaproponować odmrożenie z konkretnym planem migracji. Bez decyzji właściciela freeze trwa, ale `UNTIL` MUSI zostać świadomie przedłużony.
+
+## 12. PRAWO AUDYTU SESJI AI — NEW v5 (2026-05-11)
+Sesja AI zmieniająca `core/`, `api/`, `database/migrations/` lub `_docs/01_KONSTYTUCJA.md` MUSI:
+- W commit message zawrzeć sekcję `Test (E2E):` opisującą jak weryfikowano zmianę. Bez tego — Prawo VIII (Domknięcie Kontraktu).
+- Pozostawić `_docs/sessions/YYYY-MM-DD_<topic>.md` z 4 sekcjami: **Cel**, **Pliki dotknięte**, **Decyzje architektoniczne**, **Otwarte pytania**.
+
+Drobne sesje (literówka, fix typo, lint config) — z tego obowiązku zwolnione. Zasada: jeśli zmiana zmienia zachowanie systemu, wymaga audytu.

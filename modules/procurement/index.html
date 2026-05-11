@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0e14">
+    <meta name="sh-tenant-id" content="1">
+    <script src="/tenant_config.php"></script>
+    <title>SliceHub — Inbox KSeF</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="../ui_shell/sh_mobile_shell.css">
+    <link rel="stylesheet" href="css/procurement.css">
+</head>
+<body>
+
+<header class="pi-topbar">
+    <div class="pi-logo"><i class="fa-solid fa-inbox"></i></div>
+    <div>
+        <div class="pi-title">Inbox KSeF <span class="pi-sub">faktury przychodzące od dostawców</span></div>
+    </div>
+    <div class="pi-spacer"></div>
+    <nav class="pi-links">
+        <a href="../hub/index.html"><i class="fa-solid fa-layer-group"></i> Hub</a>
+        <a href="../warehouse/manager_pz.html"><i class="fa-solid fa-truck-fast"></i> PZ ręczny</a>
+        <a href="../warehouse/index.html"><i class="fa-solid fa-boxes-stacked"></i> Magazyn</a>
+    </nav>
+    <button type="button" class="pi-btn" id="pi-btn-config" title="Konfiguracja KSeF (F4)"><i class="fa-solid fa-gear"></i> KSeF</button>
+    <button type="button" class="pi-btn" id="pi-btn-poll-now" title="Pobierz teraz z KSeF (F4)"><i class="fa-solid fa-cloud-arrow-down"></i> Pobierz</button>
+    <button type="button" class="pi-btn" id="pi-btn-refresh" title="Odśwież"><i class="fa-solid fa-rotate"></i></button>
+</header>
+
+<div id="pi-auth-banner" class="pi-banner pi-banner--warn hidden">
+    Brak tokenu JWT — zaloguj się w <strong>Hub</strong> (login i hasło), potem wróć tutaj.
+    Moduł wymaga roli <strong>owner</strong> / <strong>admin</strong> / <strong>manager</strong>.
+</div>
+<div id="pi-error-banner" class="pi-banner pi-banner--error hidden"></div>
+
+<main class="pi-main">
+
+    <!-- HINT BOX -->
+    <section class="pi-card pi-card--hint">
+        <div class="pi-hint-icon"><i class="fa-solid fa-circle-info"></i></div>
+        <div>
+            <div class="pi-hint-title">Jak to działa?</div>
+            <div class="pi-hint-body">
+                <strong>F3 MVP (manual upload):</strong> przeciągnij FA(2) XML do strefy poniżej.
+                Parser wyciągnie linie, AutoScan dopasuje surowce (EXACT/ALIAS/NAME/FUZZY) z confidence,
+                manager akceptuje → automatycznie powstaje PZ + stany rosną w magazynie.
+                <br>
+                <strong>F4 (przyszłość):</strong> worker będzie pollował KSeF API, faktury same tu wpadną.
+            </div>
+        </div>
+    </section>
+
+    <!-- DROP ZONE -->
+    <section id="pi-dropzone" class="pi-dropzone">
+        <div class="pi-dropzone-icon"><i class="fa-solid fa-file-import"></i></div>
+        <div class="pi-dropzone-title">Przeciągnij FA(2) XML tutaj</div>
+        <div class="pi-dropzone-sub">albo <button type="button" class="pi-link-btn" id="pi-btn-pick">wybierz plik z dysku</button></div>
+        <input type="file" id="pi-file-input" accept=".xml,application/xml,text/xml" multiple style="display:none">
+        <div id="pi-upload-status" class="pi-upload-status hidden"></div>
+    </section>
+
+    <!-- STATS BAR -->
+    <section class="pi-stats">
+        <button type="button" class="pi-stat-pill pi-stat-pill--active" data-status="">
+            <i class="fa-solid fa-list"></i> Wszystkie <span class="pi-stat-count" id="pi-stat-total">0</span>
+        </button>
+        <button type="button" class="pi-stat-pill" data-status="draft">
+            <i class="fa-solid fa-hourglass-half"></i> Do akceptacji <span class="pi-stat-count" id="pi-stat-draft">0</span>
+        </button>
+        <button type="button" class="pi-stat-pill" data-status="accepted">
+            <i class="fa-solid fa-check-double"></i> Zaakceptowane <span class="pi-stat-count" id="pi-stat-accepted">0</span>
+        </button>
+        <button type="button" class="pi-stat-pill" data-status="rejected">
+            <i class="fa-solid fa-circle-xmark"></i> Odrzucone <span class="pi-stat-count" id="pi-stat-rejected">0</span>
+        </button>
+    </section>
+
+    <!-- INVOICES TABLE -->
+    <section class="pi-card">
+        <div id="pi-invoices-list">
+            <div class="pi-empty">
+                <i class="fa-solid fa-inbox"></i>
+                <div>Brak faktur w inbox-ie.</div>
+                <div class="pi-empty-hint">Wgraj FA(2) XML przez drop-zone powyżej.</div>
+            </div>
+        </div>
+    </section>
+</main>
+
+<!-- DETAIL MODAL -->
+<div id="pi-modal-backdrop" class="pi-modal-backdrop hidden">
+    <div class="pi-modal" id="pi-modal">
+        <header class="pi-modal-header">
+            <div>
+                <div class="pi-modal-title" id="pi-modal-title">Faktura</div>
+                <div class="pi-modal-sub" id="pi-modal-sub"></div>
+            </div>
+            <button type="button" class="pi-btn pi-btn--ghost" id="pi-modal-close">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </header>
+        <div class="pi-modal-body" id="pi-modal-body">
+            <!-- dynamicznie renderowane -->
+        </div>
+        <footer class="pi-modal-footer">
+            <button type="button" class="pi-btn pi-btn--ghost" id="pi-modal-rescan">
+                <i class="fa-solid fa-arrows-rotate"></i> Rescan AutoScan
+            </button>
+            <div class="pi-spacer"></div>
+            <button type="button" class="pi-btn pi-btn--danger" id="pi-modal-reject">
+                <i class="fa-solid fa-circle-xmark"></i> Odrzuć
+            </button>
+            <button type="button" class="pi-btn pi-btn--primary" id="pi-modal-accept">
+                <i class="fa-solid fa-check-double"></i> Akceptuj → PZ
+            </button>
+        </footer>
+    </div>
+</div>
+
+<!-- F4 CONFIG MODAL — KSeF Token / Environment / Auto-poll -->
+<div id="pi-cfg-backdrop" class="pi-modal-backdrop hidden">
+    <div class="pi-modal" style="max-width:640px">
+        <header class="pi-modal-header">
+            <div>
+                <div class="pi-modal-title"><i class="fa-solid fa-gear"></i> Konfiguracja KSeF</div>
+                <div class="pi-modal-sub">Token z podatki.gov.pl + środowisko + auto-poll (F4 · cron / HTTP trigger)</div>
+            </div>
+            <button type="button" class="pi-btn pi-btn--ghost" id="pi-cfg-close"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="pi-modal-body" id="pi-cfg-body">
+            <div class="pi-cfg-field">
+                <label>Środowisko</label>
+                <select id="pi-cfg-env" class="pi-sku-select" style="min-width:240px">
+                    <option value="mock">🧪 Mock (dev — fixtures, brak KSeF)</option>
+                    <option value="sandbox">🛠️ Sandbox (ksef-test.mf.gov.pl)</option>
+                    <option value="prod">🟢 Produkcja (ksef.mf.gov.pl)</option>
+                </select>
+            </div>
+            <div class="pi-cfg-field">
+                <label>KSeF Token <span style="color:#94a3b8;font-weight:normal">(z panelu podatki.gov.pl)</span></label>
+                <input type="password" id="pi-cfg-token" class="pi-sku-select" style="min-width:100%;font-family:ui-monospace,monospace" placeholder="••••••••••">
+                <div id="pi-cfg-token-preview" style="color:#94a3b8;font-size:0.78rem;margin-top:4px"></div>
+            </div>
+            <div class="pi-cfg-field">
+                <label class="pi-checkbox-label" style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;color:#e2e8f0">
+                    <input type="checkbox" id="pi-cfg-auto-poll" style="width:18px;height:18px;accent-color:#16a34a;cursor:pointer">
+                    <span>Auto-poll włączony (worker pobiera co N minut)</span>
+                </label>
+                <div style="color:#94a3b8;font-size:0.78rem;margin-top:4px;margin-left:1.5rem">
+                    Wymaga cron-a uti.pl / VPS albo HTTP trigger (cron-job.org strzela <code>scripts/worker_ksef_inbox.php?key=...</code>).
+                </div>
+            </div>
+            <div id="pi-cfg-state" class="pi-cfg-state hidden"></div>
+        </div>
+        <footer class="pi-modal-footer">
+            <button type="button" class="pi-btn" id="pi-cfg-test"><i class="fa-solid fa-plug"></i> Test connection</button>
+            <div class="pi-spacer"></div>
+            <button type="button" class="pi-btn pi-btn--primary" id="pi-cfg-save"><i class="fa-solid fa-floppy-disk"></i> Zapisz</button>
+        </footer>
+    </div>
+</div>
+
+<!-- F4.5 SMART CREATE MODAL — utworzenie nowego sys_items dla NONE linii -->
+<div id="pi-create-backdrop" class="pi-modal-backdrop hidden">
+    <div class="pi-modal" style="max-width:560px">
+        <header class="pi-modal-header">
+            <div>
+                <div class="pi-modal-title"><i class="fa-solid fa-plus"></i> Utwórz nowy surowiec (sys_items)</div>
+                <div class="pi-modal-sub">F4.5 — smart-create dla linii NONE</div>
+            </div>
+            <button type="button" class="pi-btn pi-btn--ghost" id="pi-create-close"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="pi-modal-body">
+            <div class="pi-cfg-field">
+                <label>Z faktury</label>
+                <input type="text" id="pi-create-from" class="pi-sku-select" style="min-width:100%" readonly>
+            </div>
+            <div class="pi-cfg-field">
+                <label>SKU (max 64 znaki, A-Z/0-9/_)</label>
+                <input type="text" id="pi-create-sku" class="pi-sku-select" style="min-width:100%;font-family:ui-monospace,monospace;text-transform:uppercase" placeholder="np. NOWY_SKU_001">
+            </div>
+            <div class="pi-cfg-field">
+                <label>Nazwa pełna</label>
+                <input type="text" id="pi-create-name" class="pi-sku-select" style="min-width:100%">
+            </div>
+            <div class="pi-cfg-field">
+                <label>Jednostka bazowa</label>
+                <select id="pi-create-unit" class="pi-sku-select" style="min-width:200px">
+                    <option value="kg">kg</option>
+                    <option value="l">l</option>
+                    <option value="szt">szt</option>
+                    <option value="m">m</option>
+                </select>
+            </div>
+            <div style="color:#94a3b8;font-size:0.78rem;margin-top:0.5rem">
+                Po utworzeniu: SKU zostanie automatycznie przypisany do tej linii faktury,
+                a nazwa "z faktury" zapisana do <code>sh_product_mapping</code> (network effect).
+            </div>
+        </div>
+        <footer class="pi-modal-footer">
+            <div class="pi-spacer"></div>
+            <button type="button" class="pi-btn pi-btn--primary" id="pi-create-submit"><i class="fa-solid fa-check"></i> Utwórz i przypisz</button>
+        </footer>
+    </div>
+</div>
+
+<style>
+.pi-cfg-field { margin-bottom: 1rem; }
+.pi-cfg-field label { display: block; font-size: 0.78rem; color: #94a3b8; margin-bottom: 0.4rem; font-weight: 500; }
+.pi-cfg-state {
+    margin-top: 1rem; padding: 0.6rem 0.9rem; border-radius: 8px;
+    background: rgba(0,0,0,0.30); border: 1px solid rgba(255,255,255,0.06);
+    font-size: 0.82rem; color: #cbd5e1;
+}
+.pi-cfg-state.ok { background: rgba(22,163,74,0.10); border-color: rgba(74,222,128,0.30); color: #86efac; }
+.pi-cfg-state.err { background: rgba(220,38,38,0.10); border-color: rgba(248,113,113,0.30); color: #fca5a5; }
+</style>
+
+<script src="js/procurement_app.js"></script>
+</body>
+</html>

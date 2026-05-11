@@ -89,8 +89,15 @@
         tr.id = `row-${rowId}`;
         tr.innerHTML = `
         <td class="py-4 pr-4">
-            <input type="text" placeholder="Nazwa z faktury (mapowanie / KSeF)..."
-                class="w-full bg-black/50 border border-white/5 rounded-lg p-3 text-xs text-slate-300 outline-none focus:border-green-500 transition invoice-name">
+            <div class="flex gap-1.5 items-start">
+                <input type="text" placeholder="Nazwa z faktury (AutoScan)..."
+                    class="flex-1 bg-black/50 border border-white/5 rounded-lg p-3 text-xs text-slate-300 outline-none focus:border-green-500 transition invoice-name">
+                <button type="button" class="autoscan-btn shrink-0 px-2 py-2 bg-blue-600/80 hover:bg-blue-500 text-white rounded-lg text-[10px] font-bold uppercase tracking-wide transition"
+                        title="Sprawdź sugestię z AutoScan (F2.5)">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                </button>
+            </div>
+            <div class="autoscan-status hidden mt-1.5 text-[10px] flex items-center gap-1.5"></div>
         </td>
         <td class="py-4 pr-4">
             <select class="w-full bg-black border border-white/10 rounded-lg p-3 text-xs font-bold text-green-400 outline-none focus:border-green-500 appearance-none transition system-sku">
@@ -112,6 +119,129 @@
             </button>
         </td>`;
         tbody.appendChild(tr);
+
+        // F2.5 (2026-05-11): AutoScan suggest button + auto-on-blur
+        const btnScan = tr.querySelector('.autoscan-btn');
+        const nameInput = tr.querySelector('.invoice-name');
+        const handler = () => runAutoScan(tr);
+        if (btnScan) btnScan.addEventListener('click', handler);
+        if (nameInput) {
+            nameInput.addEventListener('blur', () => {
+                if ((nameInput.value || '').trim().length >= 3) handler();
+            });
+        }
+    };
+
+    // =========================================================================
+    // F2.5 — Shared AutoScan suggest (woła /api/procurement/suggest.php).
+    // Konstytucja v5 § Prawo IV: frontend wysyła tylko external_name,
+    // serwer zwraca {sku, confidence, candidates}. Auto-fill SKU select
+    // gdy should_auto_accept=true; w przeciwnym wypadku pokazuje
+    // listę candidates z confidence pill (manual confirm).
+    // =========================================================================
+    async function runAutoScan(rowEl) {
+        const nameInput = rowEl.querySelector('.invoice-name');
+        const skuSelect = rowEl.querySelector('.system-sku');
+        const statusEl  = rowEl.querySelector('.autoscan-status');
+        if (!nameInput || !skuSelect || !statusEl) return;
+
+        const extName = (nameInput.value || '').trim();
+        if (extName.length < 3) {
+            statusEl.className = 'autoscan-status mt-1.5 text-[10px] text-slate-500';
+            statusEl.innerHTML = '<i class="fa-solid fa-circle-info"></i> Wpisz min. 3 znaki';
+            statusEl.classList.remove('hidden');
+            return;
+        }
+
+        statusEl.classList.remove('hidden');
+        statusEl.className = 'autoscan-status mt-1.5 text-[10px] text-slate-400';
+        statusEl.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> AutoScan…';
+
+        try {
+            const token = localStorage.getItem('sh_token') || '';
+            const res = await fetch('/api/procurement/suggest.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': token ? 'Bearer ' + token : '',
+                },
+                body: JSON.stringify({ action: 'suggest', external_name: extName }),
+            });
+            const json = await res.json();
+            if (!json.success) {
+                statusEl.className = 'autoscan-status mt-1.5 text-[10px] text-red-400';
+                statusEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> ' + (json.message || 'Błąd AutoScan');
+                return;
+            }
+
+            const d = json.data;
+            renderAutoScanResult(rowEl, d, skuSelect, statusEl);
+        } catch (e) {
+            statusEl.className = 'autoscan-status mt-1.5 text-[10px] text-red-400';
+            statusEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Błąd sieci: ' + (e.message || e);
+        }
+    }
+
+    function renderAutoScanResult(rowEl, data, skuSelect, statusEl) {
+        const { match_type, confidence, sku, sku_name, should_auto_accept, should_auto_learn, candidates } = data;
+
+        // Pill color per confidence level
+        let cls = 'text-slate-400';
+        let icon = 'fa-question';
+        if (match_type === 'EXACT') { cls = 'text-emerald-300'; icon = 'fa-check-double'; }
+        else if (match_type === 'ALIAS') { cls = 'text-emerald-300'; icon = 'fa-link'; }
+        else if (match_type === 'NAME') { cls = 'text-amber-300'; icon = 'fa-check'; }
+        else if (match_type === 'FUZZY') { cls = 'text-orange-300'; icon = 'fa-magnifying-glass'; }
+        else { cls = 'text-red-400'; icon = 'fa-circle-xmark'; }
+
+        const learnBadge = should_auto_learn
+            ? ' <span class="ml-1 px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded text-[9px]">+LEARN</span>'
+            : '';
+
+        let html = `<span class="${cls}"><i class="fa-solid ${icon}"></i> ${escapeHtml(match_type)} ${confidence}%</span>`;
+        if (sku) {
+            html += ` → <code class="text-green-400">${escapeHtml(sku)}</code> <span class="text-slate-500">${escapeHtml(sku_name || '')}</span>${learnBadge}`;
+        }
+
+        // Auto-fill SKU select gdy should_auto_accept
+        if (should_auto_accept && sku) {
+            const exists = Array.from(skuSelect.options).some(o => o.value === sku);
+            if (exists) {
+                skuSelect.value = sku;
+                html += ' <span class="ml-1 text-emerald-300 text-[9px] uppercase font-bold">[wypełniono]</span>';
+            }
+        }
+
+        // Multiple candidates → expandable list z one-click apply
+        if (candidates && candidates.length > 1) {
+            html += '<details class="ml-2 inline-block"><summary class="cursor-pointer text-slate-500 hover:text-slate-300 text-[10px]">+' + (candidates.length - 1) + ' inne</summary>';
+            html += '<div class="mt-1 pl-3 border-l border-slate-700 space-y-0.5">';
+            candidates.slice(1).forEach(c => {
+                const ccls = c.match_type === 'EXACT' || c.match_type === 'ALIAS' ? 'text-emerald-400'
+                          : c.match_type === 'NAME' ? 'text-amber-400'
+                          : 'text-slate-400';
+                html += `<button type="button" class="block text-left text-[10px] ${ccls} hover:underline" onclick="window.applyAutoScanCandidate(this, '${escapeAttr(c.sku)}')"><i class="fa-solid fa-arrow-right text-[8px]"></i> ${escapeHtml(c.sku)} ${c.confidence}% (${escapeHtml(c.match_type)}) — ${escapeHtml(c.name)}</button>`;
+            });
+            html += '</div></details>';
+        }
+
+        statusEl.className = 'autoscan-status mt-1.5 text-[10px] flex items-center gap-1.5 flex-wrap';
+        statusEl.innerHTML = html;
+    }
+
+    window.applyAutoScanCandidate = function (btn, sku) {
+        const tr = btn.closest('tr');
+        if (!tr) return;
+        const skuSelect = tr.querySelector('.system-sku');
+        if (!skuSelect) return;
+        const exists = Array.from(skuSelect.options).some(o => o.value === sku);
+        if (exists) {
+            skuSelect.value = sku;
+            const statusEl = tr.querySelector('.autoscan-status');
+            if (statusEl) {
+                statusEl.innerHTML += ' <span class="ml-2 text-emerald-300 font-bold text-[10px]">✓ wybrano ' + sku + '</span>';
+            }
+        }
     };
 
     window.removeRow = function (rowId) {
@@ -173,12 +303,24 @@
         }
 
         if (res.success) {
-            alert('PZ zaksięgowane. Stany i AVCO zaktualizowane.');
+            const autoLearned = res.data?.pz_document?.auto_learned || 0;
+            let msg = 'PZ zaksięgowane. Stany i AVCO zaktualizowane.';
+            if (autoLearned > 0) {
+                msg += `\n\n🧠 AutoScan zapamiętał ${autoLearned} nowych mapowań — następna dostawa od tego dostawcy będzie szybsza.`;
+            }
+            alert(msg);
             document.getElementById('pz-number').value = '';
             document.getElementById('pz-items').innerHTML = '';
             window.addRow();
         } else {
-            alert(res.message || 'Błąd PZ');
+            // F2.5: jeśli backend zwrócił candidates (UNMAPPED_PRODUCT), pokaż user-friendly hint
+            const data = res.data || {};
+            if (data.candidates && data.candidates.length > 0) {
+                const top = data.candidates[0];
+                alert((res.message || 'Błąd PZ') + `\n\nNajlepsza propozycja: ${top.sku} '${top.name}' @ ${top.confidence}% ${top.match_type}.\n\nKliknij ikonkę 🪄 obok pola "Nazwa z faktury" żeby zobaczyć więcej i wybrać.`);
+            } else {
+                alert(res.message || 'Błąd PZ');
+            }
         }
     };
 })();

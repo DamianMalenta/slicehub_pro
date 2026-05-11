@@ -1266,8 +1266,16 @@ try {
 
             $datCol = $hasDriverActionType ? ", COALESCE(driver_action_type, 'none') AS driver_action_type" : "";
             $cpCol  = $mi022HasCompositionProfile ? ", COALESCE(composition_profile, 'static_hero') AS composition_profile" : "";
+            // F-S1: probe variant columns w get_item_details (graceful w starszej bazie).
+            $hasVariantColsHere = false;
+            try { $pdo->query("SELECT variant_scale_id FROM sh_menu_items LIMIT 0"); $hasVariantColsHere = true; }
+            catch (\PDOException $e) {}
+            $variantCols = $hasVariantColsHere
+                ? ", variant_scale_id, is_variant_parent, parent_item_id, variant_option_id"
+                : "";
+
             if ($schemaV2) {
-                $stmtItem = $pdo->prepare("SELECT id, category_id, name, ascii_key, `type`, is_active, vat_rate_dine_in, vat_rate_takeaway, kds_station_id, printer_group, is_locked_by_hq, publication_status, valid_from, valid_to, description, image_url, marketing_tags, barcode_ean, parent_sku, allergens_json, badge_type, is_secret, stock_count, display_order, plu_code, available_days, available_start, available_end{$datCol}{$cpCol} FROM sh_menu_items WHERE id = ? AND tenant_id = ? AND is_deleted = 0");
+                $stmtItem = $pdo->prepare("SELECT id, category_id, name, ascii_key, `type`, is_active, vat_rate_dine_in, vat_rate_takeaway, kds_station_id, printer_group, is_locked_by_hq, publication_status, valid_from, valid_to, description, image_url, marketing_tags, barcode_ean, parent_sku, allergens_json, badge_type, is_secret, stock_count, display_order, plu_code, available_days, available_start, available_end{$datCol}{$cpCol}{$variantCols} FROM sh_menu_items WHERE id = ? AND tenant_id = ? AND is_deleted = 0");
             } else {
                 $stmtItem = $pdo->prepare("SELECT id, category_id, name, ascii_key, `type`, is_active, price, vat_rate AS vat_rate_dine_in, vat_rate AS vat_rate_takeaway, printer_group, printer_group AS kds_station_id, 0 AS is_locked_by_hq, 'Draft' AS publication_status, NULL AS valid_from, NULL AS valid_to, description, NULL AS image_url, tags AS marketing_tags, NULL AS barcode_ean, NULL AS parent_sku, NULL AS allergens_json, badge_type, is_secret, stock_count, display_order, plu_code, available_days, available_start, available_end, 'none' AS driver_action_type, 'static_hero' AS composition_profile FROM sh_menu_items WHERE id = ? AND tenant_id = ? AND is_deleted = 0");
             }
@@ -1367,7 +1375,12 @@ try {
                 'allergens' => $allergens,
                 'driverActionType' => $item['driver_action_type'] ?? 'none',
                 'priceMatrix' => $priceMatrix,
-                'priceTiers' => $priceTiersOut
+                'priceTiers' => $priceTiersOut,
+                // F-S1 — variant fields (NULL gdy migracja 048 nie zaaplikowana lub item nie jest wariantowy)
+                'variantScaleId'   => isset($item['variant_scale_id']) ? (int)$item['variant_scale_id'] : null,
+                'isVariantParent'  => (bool)($item['is_variant_parent'] ?? 0),
+                'parentItemId'     => isset($item['parent_item_id']) ? (int)$item['parent_item_id'] : null,
+                'variantOptionId'  => isset($item['variant_option_id']) ? (int)$item['variant_option_id'] : null,
             ];
             $response['message'] = "Pobrano szczegóły dania.";
             break;
@@ -1411,6 +1424,32 @@ try {
             $parentSku = trim($input['parentSku'] ?? '');
             $parentSku = $parentSku === '' ? null : $parentSku;
 
+            // F-S4 (2026-05-11): walidacja parent_sku.
+            // Po F-S1 to deprecated (uzywamy parent_item_id FK), ale legacy items moga
+            // nadal miec ustawione. Akceptujemy tylko jesli wskazuje na istniejacy ascii_key tego tenanta.
+            if ($parentSku !== null) {
+                $stmtChkParent = $pdo->prepare("SELECT 1 FROM sh_menu_items WHERE ascii_key = ? AND tenant_id = ? LIMIT 1");
+                $stmtChkParent->execute([$parentSku, $tenant_id]);
+                if (!$stmtChkParent->fetch()) {
+                    throw new Exception("parent_sku '{$parentSku}' nie istnieje w menu tego tenanta. Zostaw puste albo uzyj istniejacego SKU.");
+                }
+            }
+
+            // F-S1: variant scale fields (opcjonalne, NULL-safe dla zwyklych itemow).
+            // hasVariantColumns probe — graceful gdy migracja 048 nie zaaplikowana.
+            static $hasVariantColumns = null;
+            if ($hasVariantColumns === null) {
+                try {
+                    $pdo->query("SELECT variant_scale_id FROM sh_menu_items LIMIT 0");
+                    $hasVariantColumns = true;
+                } catch (\PDOException $e) {
+                    $hasVariantColumns = false;
+                }
+            }
+            $variantScaleId  = isset($input['variantScaleId']) && (int)$input['variantScaleId'] > 0
+                ? (int)$input['variantScaleId'] : null;
+            $isVariantParent = !empty($input['isVariantParent']) ? 1 : 0;
+
             $allergensRaw = $input['allergens'] ?? [];
             $allergensJson = is_array($allergensRaw) ? json_encode($allergensRaw) : '[]';
 
@@ -1437,6 +1476,12 @@ try {
                         $cols = "tenant_id, category_id, name, ascii_key, `type`, is_active, vat_rate_dine_in, vat_rate_takeaway, kds_station_id, printer_group, publication_status, valid_from, valid_to, description, image_url, marketing_tags, badge_type, is_secret, stock_count, display_order, plu_code, available_days, available_start, available_end, barcode_ean, parent_sku, allergens_json";
                         $vals = "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?";
                         $params = [$tenant_id, $categoryId, $name, $asciiKey, $itemType, $isActive, $vatRateDineIn, $vatRateTakeaway, $kdsStationId, $printerGroup, $pubStatus, $validFrom, $validTo, $description, $imageUrl, $marketingTags, $badgeType, $isSecret, $stockCount, $displayOrder, $pluCode, $availableDays, $availableStart, $availableEnd, $barcodeEan, $parentSku, $allergensJson];
+                        if ($hasVariantColumns) {
+                            $cols .= ", variant_scale_id, is_variant_parent";
+                            $vals .= ", ?, ?";
+                            $params[] = $variantScaleId;
+                            $params[] = $isVariantParent;
+                        }
                         if ($hasDriverActionType) {
                             $cols .= ", driver_action_type";
                             $vals .= ", ?";
@@ -1453,6 +1498,11 @@ try {
                     } else {
                         $setCols = "name = ?, ascii_key = ?, category_id = ?, `type` = ?, is_active = ?, vat_rate_dine_in = ?, vat_rate_takeaway = ?, kds_station_id = ?, printer_group = ?, publication_status = ?, valid_from = ?, valid_to = ?, description = ?, image_url = ?, marketing_tags = ?, badge_type = ?, is_secret = ?, stock_count = ?, display_order = ?, plu_code = ?, available_days = ?, available_start = ?, available_end = ?, barcode_ean = ?, parent_sku = ?, allergens_json = ?";
                         $params = [$name, $asciiKey, $categoryId, $itemType, $isActive, $vatRateDineIn, $vatRateTakeaway, $kdsStationId, $printerGroup, $pubStatus, $validFrom, $validTo, $description, $imageUrl, $marketingTags, $badgeType, $isSecret, $stockCount, $displayOrder, $pluCode, $availableDays, $availableStart, $availableEnd, $barcodeEan, $parentSku, $allergensJson];
+                        if ($hasVariantColumns) {
+                            $setCols .= ", variant_scale_id = ?, is_variant_parent = ?";
+                            $params[] = $variantScaleId;
+                            $params[] = $isVariantParent;
+                        }
                         if ($hasDriverActionType) {
                             $setCols .= ", driver_action_type = ?";
                             $params[] = $driverActionType;
@@ -1549,6 +1599,21 @@ try {
 
                 if (isset($input['isSecret']) && $input['isSecret'] !== '') {
                     $updates[] = "is_secret = ?"; $params[] = filter_var($input['isSecret'], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+                }
+
+                // F-S4 (2026-05-11): VAT bulk update — pole było w UI ale nie wysyłane (drift).
+                // Akceptujemy 2 kanały (dine_in, takeaway). Walidacja: 0..25%.
+                if ($schemaV2 && isset($input['vatRateDineIn']) && $input['vatRateDineIn'] !== '' && $input['vatRateDineIn'] !== null) {
+                    $vatDine = (float)$input['vatRateDineIn'];
+                    if ($vatDine >= 0 && $vatDine <= 25) {
+                        $updates[] = "vat_rate_dine_in = ?"; $params[] = $vatDine;
+                    }
+                }
+                if ($schemaV2 && isset($input['vatRateTakeaway']) && $input['vatRateTakeaway'] !== '' && $input['vatRateTakeaway'] !== null) {
+                    $vatTake = (float)$input['vatRateTakeaway'];
+                    if ($vatTake >= 0 && $vatTake <= 25) {
+                        $updates[] = "vat_rate_takeaway = ?"; $params[] = $vatTake;
+                    }
                 }
 
                 if ($schemaV2 && !empty($input['temporalPublicationPatch']) && !empty($input['temporalPublicationPatch']['apply'])) {
@@ -1993,30 +2058,130 @@ try {
             $menuItemSku = preg_replace('/[^a-zA-Z0-9_-]/', '', $input['menuItemSku'] ?? '');
             if (empty($menuItemSku)) throw new Exception("Brak SKU dania.");
 
-            $stmt = $pdo->prepare("
-                SELECT r.warehouse_sku, s.name, s.base_unit, r.quantity_base, r.waste_percent, r.is_packaging
-                FROM sh_recipes r
-                JOIN sys_items s ON s.sku = r.warehouse_sku AND s.tenant_id = r.tenant_id
-                WHERE r.menu_item_sku = ? AND r.tenant_id = ?
-                ORDER BY r.id ASC
-            ");
-            $stmt->execute([$menuItemSku, $tenant_id]);
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            // F-S5.1 (2026-05-11): probe is_subrecipe column (graceful gdy migracja 053 brak).
+            $hasSubrecipeColumns = false;
+            try {
+                $pdo->query("SELECT is_subrecipe FROM sh_recipes LIMIT 0");
+                $hasSubrecipeColumns = true;
+            } catch (\PDOException $e) {}
 
-            $ingredients = array_map(function($r) {
-                return [
-                    'warehouseSku'  => $r['warehouse_sku'],
-                    'name'          => $r['name'],
-                    'baseUnit'      => $r['base_unit'],
-                    'quantityBase'  => (float)$r['quantity_base'],
-                    'wastePercent'  => (float)$r['waste_percent'],
-                    'isPackaging'   => (bool)$r['is_packaging']
-                ];
-            }, $rows);
+            // F-S5.1: LEFT JOIN żeby zwracało także linie półproduktów (warehouse_sku = ascii_key z sh_menu_items).
+            // Wcześniej INNER JOIN sys_items pomijał półprodukty.
+            // F-S9: probe display_order (graceful gdy migracja 055 brak).
+            $hasDisplayOrder = false;
+            try { $pdo->query("SELECT display_order FROM sh_recipes LIMIT 0"); $hasDisplayOrder = true; }
+            catch (\PDOException $e) {}
+            $orderBy = $hasDisplayOrder ? "ORDER BY r.display_order ASC, r.id ASC" : "ORDER BY r.id ASC";
+            $displayOrderSelect = $hasDisplayOrder ? ", r.display_order" : ", r.id AS display_order";
+
+            if ($hasSubrecipeColumns) {
+                $stmt = $pdo->prepare("
+                    SELECT r.warehouse_sku,
+                           COALESCE(s.name, mi.name)        AS name,
+                           COALESCE(s.base_unit, 'porcja')  AS base_unit,
+                           r.quantity_base,
+                           r.waste_percent,
+                           r.is_packaging,
+                           r.is_subrecipe,
+                           r.subrecipe_yield
+                           {$displayOrderSelect}
+                    FROM sh_recipes r
+                    LEFT JOIN sys_items s
+                          ON s.sku = r.warehouse_sku AND s.tenant_id = r.tenant_id
+                    LEFT JOIN sh_menu_items mi
+                          ON mi.ascii_key = r.warehouse_sku AND mi.tenant_id = r.tenant_id
+                    WHERE r.menu_item_sku = ? AND r.tenant_id = ?
+                    {$orderBy}
+                ");
+                $stmt->execute([$menuItemSku, $tenant_id]);
+                $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                $ingredients = array_map(function($r) {
+                    return [
+                        'warehouseSku'    => $r['warehouse_sku'],
+                        'name'            => $r['name'] ?? $r['warehouse_sku'],
+                        'baseUnit'        => $r['base_unit'] ?? '',
+                        'quantityBase'    => (float)$r['quantity_base'],
+                        'wastePercent'    => (float)$r['waste_percent'],
+                        'isPackaging'     => (bool)$r['is_packaging'],
+                        // F-S5.1
+                        'isSubrecipe'     => (int)($r['is_subrecipe'] ?? 0) === 1,
+                        'subrecipeYield'  => (float)($r['subrecipe_yield'] ?? 1.0),
+                        // F-S9 — display order dla drag-and-drop UI
+                        'displayOrder'    => (int)($r['display_order'] ?? 0),
+                    ];
+                }, $rows);
+            } else {
+                // Legacy fallback bez F-S5 kolumn.
+                $stmt = $pdo->prepare("
+                    SELECT r.warehouse_sku, s.name, s.base_unit, r.quantity_base, r.waste_percent, r.is_packaging
+                    FROM sh_recipes r
+                    JOIN sys_items s ON s.sku = r.warehouse_sku AND s.tenant_id = r.tenant_id
+                    WHERE r.menu_item_sku = ? AND r.tenant_id = ?
+                    ORDER BY r.id ASC
+                ");
+                $stmt->execute([$menuItemSku, $tenant_id]);
+                $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                $ingredients = array_map(function($r) {
+                    return [
+                        'warehouseSku'  => $r['warehouse_sku'],
+                        'name'          => $r['name'],
+                        'baseUnit'      => $r['base_unit'],
+                        'quantityBase'  => (float)$r['quantity_base'],
+                        'wastePercent'  => (float)$r['waste_percent'],
+                        'isPackaging'   => (bool)$r['is_packaging'],
+                        'isSubrecipe'   => false,
+                        'subrecipeYield' => 1.0,
+                    ];
+                }, $rows);
+            }
 
             $response['success'] = true;
             $response['data']    = ['ingredients' => $ingredients];
             $response['message'] = 'Receptura pobrana.';
+            break;
+
+        // F-S5.1 — kandydaci na półprodukty: pozycje menu z własną recepturą.
+        // Wykluczamy parenty variant family (is_variant_parent=1) bo nie maja własnego SKU sprzedażowego.
+        case 'list_subrecipe_candidates':
+            $menuItemSkuExclude = preg_replace('/[^a-zA-Z0-9_-]/', '', $input['exclude_sku'] ?? '');
+            $params = [$tenant_id];
+
+            $hasVariantCols = false;
+            try { $pdo->query("SELECT is_variant_parent FROM sh_menu_items LIMIT 0"); $hasVariantCols = true; }
+            catch (\PDOException $e) {}
+
+            $variantFilter = $hasVariantCols ? "AND (mi.is_variant_parent IS NULL OR mi.is_variant_parent = 0)" : "";
+            $excludeFilter = '';
+            if ($menuItemSkuExclude !== '') {
+                $excludeFilter = "AND mi.ascii_key <> ?";
+                $params[] = $menuItemSkuExclude;
+            }
+
+            $stmt = $pdo->prepare("
+                SELECT DISTINCT mi.ascii_key, mi.name,
+                       (SELECT COUNT(*) FROM sh_recipes r2
+                          WHERE r2.menu_item_sku = mi.ascii_key
+                            AND r2.tenant_id = mi.tenant_id) AS recipe_lines
+                  FROM sh_menu_items mi
+                  JOIN sh_recipes r ON r.menu_item_sku = mi.ascii_key AND r.tenant_id = mi.tenant_id
+                 WHERE mi.tenant_id = ?
+                   AND mi.is_deleted = 0
+                   {$variantFilter}
+                   {$excludeFilter}
+                 ORDER BY mi.name ASC
+                 LIMIT 200
+            ");
+            $stmt->execute($params);
+            $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $response['success'] = true;
+            $response['data'] = ['candidates' => array_map(function($r) {
+                return [
+                    'asciiKey'    => $r['ascii_key'],
+                    'name'        => $r['name'],
+                    'recipeLines' => (int)$r['recipe_lines'],
+                ];
+            }, $candidates)];
             break;
 
         // ==============================================================================
@@ -2027,23 +2192,88 @@ try {
             $ingredients  = $input['ingredients'] ?? [];
             if (empty($menuItemSku)) throw new Exception("Brak SKU dania.");
 
+            // F-S5.1 (2026-05-11): wykryj is_subrecipe column (graceful gdy migracja 053 brak).
+            $hasSubrecipeCols = false;
+            try { $pdo->query("SELECT is_subrecipe FROM sh_recipes LIMIT 0"); $hasSubrecipeCols = true; }
+            catch (\PDOException $e) {}
+
+            // F-S9: probe display_order column (graceful gdy migracja 055 brak).
+            $hasDisplayOrderSave = false;
+            try { $pdo->query("SELECT display_order FROM sh_recipes LIMIT 0"); $hasDisplayOrderSave = true; }
+            catch (\PDOException $e) {}
+
+            // Anti-cycle: nie dopuść żeby półprodukt referował sam siebie.
+            // Plus walidacja istnienia SKU (surowiec w sys_items / półprodukt w sh_menu_items).
             $pdo->beginTransaction();
             try {
                 $stmtDel = $pdo->prepare("DELETE FROM sh_recipes WHERE menu_item_sku = ? AND tenant_id = ?");
                 $stmtDel->execute([$menuItemSku, $tenant_id]);
 
-                $stmtIns = $pdo->prepare("INSERT INTO sh_recipes (tenant_id, menu_item_sku, warehouse_sku, quantity_base, waste_percent, is_packaging) VALUES (?, ?, ?, ?, ?, ?)");
+                if ($hasSubrecipeCols && $hasDisplayOrderSave) {
+                    $stmtIns = $pdo->prepare(
+                        "INSERT INTO sh_recipes
+                            (tenant_id, menu_item_sku, warehouse_sku, quantity_base, waste_percent,
+                             is_packaging, is_subrecipe, subrecipe_yield, display_order)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                    );
+                } elseif ($hasSubrecipeCols) {
+                    $stmtIns = $pdo->prepare(
+                        "INSERT INTO sh_recipes
+                            (tenant_id, menu_item_sku, warehouse_sku, quantity_base, waste_percent,
+                             is_packaging, is_subrecipe, subrecipe_yield)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                    );
+                } else {
+                    $stmtIns = $pdo->prepare(
+                        "INSERT INTO sh_recipes (tenant_id, menu_item_sku, warehouse_sku, quantity_base, waste_percent, is_packaging)
+                         VALUES (?, ?, ?, ?, ?, ?)"
+                    );
+                }
+
+                // Lookup helpers — walidacja przed INSERT.
+                $chkSysItem = $pdo->prepare("SELECT 1 FROM sys_items WHERE sku = ? AND tenant_id = ? LIMIT 1");
+                $chkMenuItem = $pdo->prepare("SELECT 1 FROM sh_menu_items WHERE ascii_key = ? AND tenant_id = ? AND is_deleted = 0 LIMIT 1");
+                $skipped = [];
+                $ord = 0;
                 foreach ($ingredients as $ing) {
                     $sku     = preg_replace('/[^a-zA-Z0-9_-]/', '', $ing['warehouseSku'] ?? '');
                     $qty     = floatval($ing['quantityBase']  ?? 0);
                     $waste   = floatval($ing['wastePercent']  ?? 0);
                     $isPkg   = !empty($ing['isPackaging']) ? 1 : 0;
+                    $isSub   = !empty($ing['isSubrecipe']) ? 1 : 0;
+                    $yield   = max(0.0001, floatval($ing['subrecipeYield'] ?? 1.0));
+                    // F-S9: displayOrder — preferuj z payloadu, fallback do indeksu pętli.
+                    $displayOrder = isset($ing['displayOrder']) ? (int)$ing['displayOrder'] : $ord;
                     if (empty($sku) || $qty <= 0) continue;
-                    $stmtIns->execute([$tenant_id, $menuItemSku, $sku, $qty, $waste, $isPkg]);
+
+                    if ($isSub) {
+                        if ($sku === $menuItemSku) {
+                            $skipped[] = "{$sku} (cycle)";
+                            continue;
+                        }
+                        $chkMenuItem->execute([$sku, $tenant_id]);
+                        if (!$chkMenuItem->fetch()) {
+                            $skipped[] = "{$sku} (półprodukt nie istnieje w menu)";
+                            continue;
+                        }
+                    } else {
+                        $chkSysItem->execute([$sku, $tenant_id]);
+                        if (!$chkSysItem->fetch()) { /* not blocking */ }
+                    }
+
+                    if ($hasSubrecipeCols && $hasDisplayOrderSave) {
+                        $stmtIns->execute([$tenant_id, $menuItemSku, $sku, $qty, $waste, $isPkg, $isSub, $yield, $displayOrder]);
+                    } elseif ($hasSubrecipeCols) {
+                        $stmtIns->execute([$tenant_id, $menuItemSku, $sku, $qty, $waste, $isPkg, $isSub, $yield]);
+                    } else {
+                        $stmtIns->execute([$tenant_id, $menuItemSku, $sku, $qty, $waste, $isPkg]);
+                    }
+                    $ord++;
                 }
                 $pdo->commit();
                 $response['success'] = true;
-                $response['message'] = 'Receptura zapisana.';
+                $response['data']    = ['skipped' => $skipped];
+                $response['message'] = 'Receptura zapisana.' . ($skipped ? ' Pominięto: ' . implode(', ', $skipped) : '');
             } catch (Exception $e) {
                 $pdo->rollBack();
                 throw $e;
@@ -2431,6 +2661,564 @@ try {
             $response['success'] = true;
             $response['data']    = ['assets' => $globalAssets];
             $response['message'] = count($globalAssets) . ' assets loaded.';
+            break;
+
+        // =================================================================
+        // F-S1 — VARIANT SCALES (2026-05-11)
+        // Reuzywalna skala rozmiarow (Mala/Srednia/Duza) z multiplier-em
+        // dla receptury. WzEngine mnozy quantity_base x multiplier(option).
+        // Konstytucja v5 § Prawo II — jedna receptura, wiele rozmiarów.
+        // =================================================================
+
+        case 'list_variant_scales':
+            $stmtScales = $pdo->prepare(
+                "SELECT id, name, key_ascii, description, is_active
+                   FROM sh_variant_scales
+                  WHERE tenant_id = ?
+                    AND is_deleted = 0
+                  ORDER BY name ASC"
+            );
+            $stmtScales->execute([$tenant_id]);
+            $scales = $stmtScales->fetchAll(PDO::FETCH_ASSOC);
+
+            if ($scales) {
+                $scaleIds = array_column($scales, 'id');
+                $ph = implode(',', array_fill(0, count($scaleIds), '?'));
+                $stmtOpts = $pdo->prepare(
+                    "SELECT id, scale_id, name, key_ascii, display_order,
+                            diameter_cm, multiplier, is_default
+                       FROM sh_variant_scale_options
+                      WHERE scale_id IN ($ph)
+                        AND tenant_id = ?
+                        AND is_deleted = 0
+                      ORDER BY scale_id ASC, display_order ASC, id ASC"
+                );
+                $stmtOpts->execute(array_merge($scaleIds, [$tenant_id]));
+                $byScale = [];
+                foreach ($stmtOpts->fetchAll(PDO::FETCH_ASSOC) as $opt) {
+                    $byScale[$opt['scale_id']][] = $opt;
+                }
+                foreach ($scales as &$s) {
+                    $s['options'] = $byScale[$s['id']] ?? [];
+                }
+                unset($s);
+            }
+
+            $response['success'] = true;
+            $response['data']    = ['scales' => $scales];
+            $response['message'] = count($scales) . ' variant scales loaded.';
+            break;
+
+        case 'save_variant_scale':
+            $scaleId  = (int)($input['id'] ?? 0);
+            $name     = trim((string)($input['name'] ?? ''));
+            $keyAscii = strtoupper(preg_replace('/[^A-Za-z0-9_]/', '_', trim((string)($input['key_ascii'] ?? ''))));
+            $desc     = trim((string)($input['description'] ?? ''));
+            $options  = $input['options'] ?? [];
+
+            if ($name === '' || $keyAscii === '') {
+                throw new Exception('Pola name oraz key_ascii sa wymagane.');
+            }
+            if (!is_array($options) || count($options) === 0) {
+                throw new Exception('Skala musi miec przynajmniej jedna opcje.');
+            }
+
+            $pdo->beginTransaction();
+            try {
+                if ($scaleId > 0) {
+                    $pdo->prepare(
+                        "UPDATE sh_variant_scales
+                            SET name = ?, key_ascii = ?, description = ?
+                          WHERE id = ? AND tenant_id = ?"
+                    )->execute([$name, $keyAscii, $desc !== '' ? $desc : null, $scaleId, $tenant_id]);
+                } else {
+                    $pdo->prepare(
+                        "INSERT INTO sh_variant_scales (tenant_id, name, key_ascii, description)
+                         VALUES (?, ?, ?, ?)"
+                    )->execute([$tenant_id, $name, $keyAscii, $desc !== '' ? $desc : null]);
+                    $scaleId = (int)$pdo->lastInsertId();
+                }
+
+                // Upsert/replace opcji.
+                // Strategia: usun istniejace nie pokryte przez payload (po key_ascii),
+                // potem upsert per option.
+                $payloadKeys = [];
+                foreach ($options as $opt) {
+                    $optKey = strtoupper(preg_replace('/[^A-Za-z0-9_]/', '_', (string)($opt['key_ascii'] ?? '')));
+                    if ($optKey !== '') $payloadKeys[] = $optKey;
+                }
+                if ($payloadKeys) {
+                    $phK = implode(',', array_fill(0, count($payloadKeys), '?'));
+                    $pdo->prepare(
+                        "UPDATE sh_variant_scale_options
+                            SET is_deleted = 1
+                          WHERE scale_id = ? AND tenant_id = ?
+                            AND key_ascii NOT IN ($phK)"
+                    )->execute(array_merge([$scaleId, $tenant_id], $payloadKeys));
+                }
+
+                $stmtUpsertOpt = $pdo->prepare(
+                    "INSERT INTO sh_variant_scale_options
+                        (scale_id, tenant_id, name, key_ascii, display_order, diameter_cm, multiplier, is_default, is_deleted)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+                     ON DUPLICATE KEY UPDATE
+                        name = VALUES(name),
+                        display_order = VALUES(display_order),
+                        diameter_cm = VALUES(diameter_cm),
+                        multiplier = VALUES(multiplier),
+                        is_default = VALUES(is_default),
+                        is_deleted = 0"
+                );
+                $ord = 0;
+                foreach ($options as $opt) {
+                    $optName = trim((string)($opt['name'] ?? ''));
+                    $optKey  = strtoupper(preg_replace('/[^A-Za-z0-9_]/', '_', (string)($opt['key_ascii'] ?? '')));
+                    $optMult = (float)($opt['multiplier'] ?? 1.0);
+                    $optDiam = isset($opt['diameter_cm']) && $opt['diameter_cm'] !== '' ? (int)$opt['diameter_cm'] : null;
+                    $optDef  = !empty($opt['is_default']) ? 1 : 0;
+                    if ($optName === '' || $optKey === '') continue;
+                    $stmtUpsertOpt->execute([
+                        $scaleId, $tenant_id, $optName, $optKey, $ord, $optDiam, $optMult, $optDef
+                    ]);
+                    $ord++;
+                }
+
+                $pdo->commit();
+                $response['success'] = true;
+                $response['data']    = ['scale_id' => $scaleId];
+                $response['message'] = 'Variant scale saved.';
+            } catch (\Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+            break;
+
+        case 'delete_variant_scale':
+            $scaleId = (int)($input['id'] ?? 0);
+            if ($scaleId <= 0) throw new Exception('id required.');
+
+            // Zabezpieczenie: jesli skala uzywana przez ktorykolwiek item, blokuj.
+            $stmtUse = $pdo->prepare(
+                "SELECT COUNT(*) FROM sh_menu_items
+                  WHERE tenant_id = ? AND variant_scale_id = ? AND is_deleted = 0"
+            );
+            $stmtUse->execute([$tenant_id, $scaleId]);
+            $usedBy = (int)$stmtUse->fetchColumn();
+            if ($usedBy > 0) {
+                throw new Exception("Cannot delete: scale is used by {$usedBy} menu item(s).");
+            }
+
+            $pdo->prepare(
+                "UPDATE sh_variant_scales SET is_deleted = 1 WHERE id = ? AND tenant_id = ?"
+            )->execute([$scaleId, $tenant_id]);
+
+            $response['success'] = true;
+            $response['data']    = ['deleted' => $scaleId];
+            $response['message'] = 'Variant scale deleted.';
+            break;
+
+        // =================================================================
+        // F-S2 — MODIFIER SIZE PRICING (Toast-style, 2026-05-11)
+        // Cena modyfikatora zalezna od rozmiaru pizzy (variant_option_id).
+        // =================================================================
+
+        case 'get_modifier_pricing':
+            $modifierId = (int)($input['modifier_id'] ?? 0);
+            if ($modifierId <= 0) throw new Exception('modifier_id required.');
+            $stmt = $pdo->prepare(
+                "SELECT mp.variant_option_id, mp.price_grosze,
+                        opt.name AS option_name, opt.key_ascii AS option_key, opt.scale_id
+                   FROM sh_modifier_pricing mp
+                   JOIN sh_variant_scale_options opt ON opt.id = mp.variant_option_id
+                  WHERE mp.modifier_id = ?
+                    AND mp.tenant_id = ?
+                    AND mp.is_deleted = 0
+                  ORDER BY opt.display_order ASC"
+            );
+            $stmt->execute([$modifierId, $tenant_id]);
+            $response['success'] = true;
+            $response['data'] = ['pricing' => $stmt->fetchAll(PDO::FETCH_ASSOC)];
+            $response['message'] = 'Modifier size pricing loaded.';
+            break;
+
+        case 'save_modifier_pricing':
+            $modifierId = (int)($input['modifier_id'] ?? 0);
+            $rows = $input['pricing'] ?? [];
+            if ($modifierId <= 0) throw new Exception('modifier_id required.');
+            if (!is_array($rows)) throw new Exception('pricing must be array.');
+
+            // Verify modifier belongs to tenant.
+            $stmtChk = $pdo->prepare(
+                "SELECT m.id
+                   FROM sh_modifiers m
+                   JOIN sh_modifier_groups mg ON mg.id = m.group_id AND mg.tenant_id = ?
+                  WHERE m.id = ? LIMIT 1"
+            );
+            $stmtChk->execute([$tenant_id, $modifierId]);
+            if (!$stmtChk->fetch()) throw new Exception('Modifier not found or access denied.');
+
+            $pdo->beginTransaction();
+            try {
+                $stmtUpsert = $pdo->prepare(
+                    "INSERT INTO sh_modifier_pricing
+                        (tenant_id, modifier_id, variant_option_id, price_grosze, is_deleted)
+                     VALUES (?, ?, ?, ?, 0)
+                     ON DUPLICATE KEY UPDATE price_grosze = VALUES(price_grosze), is_deleted = 0"
+                );
+                $kept = [];
+                foreach ($rows as $r) {
+                    $optId = (int)($r['variant_option_id'] ?? 0);
+                    $price = (int)round((float)($r['price'] ?? 0) * 100);
+                    if ($optId <= 0) continue;
+                    $stmtUpsert->execute([$tenant_id, $modifierId, $optId, $price]);
+                    $kept[] = $optId;
+                }
+                // Soft-delete rows that disappeared from payload.
+                if ($kept) {
+                    $ph = implode(',', array_fill(0, count($kept), '?'));
+                    $pdo->prepare(
+                        "UPDATE sh_modifier_pricing SET is_deleted = 1
+                          WHERE modifier_id = ? AND tenant_id = ?
+                            AND variant_option_id NOT IN ($ph)"
+                    )->execute(array_merge([$modifierId, $tenant_id], $kept));
+                }
+                $pdo->commit();
+                $response['success'] = true;
+                $response['data'] = ['saved' => count($kept)];
+                $response['message'] = "Saved {$response['data']['saved']} size-pricing row(s).";
+            } catch (\Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+            break;
+
+        case 'get_half_pricing_settings':
+            $stmt = $pdo->prepare(
+                "SELECT setting_key, setting_value FROM sh_tenant_settings
+                  WHERE tenant_id = ? AND setting_key IN ('half_pricing_strategy','half_pricing_percent')"
+            );
+            $stmt->execute([$tenant_id]);
+            $out = ['half_pricing_strategy' => 'percentage', 'half_pricing_percent' => 50];
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $out[$r['setting_key']] = $r['setting_value'];
+            }
+            $response['success'] = true;
+            $response['data'] = $out;
+            break;
+
+        // F-S7 — Hard PRICE_MISMATCH tenant flag
+        case 'get_price_mismatch_mode':
+            $stmt = $pdo->prepare(
+                "SELECT setting_value FROM sh_tenant_settings
+                  WHERE tenant_id = ? AND setting_key = 'price_mismatch_mode' LIMIT 1"
+            );
+            $stmt->execute([$tenant_id]);
+            $val = (string)($stmt->fetchColumn() ?: 'soft');
+            $response['success'] = true;
+            $response['data'] = ['mode' => $val];
+            break;
+
+        case 'set_price_mismatch_mode':
+            $mode = (string)($input['mode'] ?? 'soft');
+            if (!in_array($mode, ['soft','hard'], true)) {
+                throw new Exception('mode must be: soft|hard');
+            }
+            $pdo->prepare(
+                "INSERT INTO sh_tenant_settings (tenant_id, setting_key, setting_value)
+                 VALUES (?, 'price_mismatch_mode', ?)
+                 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)"
+            )->execute([$tenant_id, $mode]);
+            $response['success'] = true;
+            $response['data'] = ['mode' => $mode];
+            $response['message'] = "PRICE_MISMATCH mode set to '{$mode}'.";
+            break;
+
+        case 'save_half_pricing_settings':
+            $strategy = (string)($input['half_pricing_strategy'] ?? 'percentage');
+            $percent  = (int)($input['half_pricing_percent'] ?? 50);
+            if (!in_array($strategy, ['percentage','average','higher','full'], true)) {
+                throw new Exception('Invalid strategy: percentage|average|higher|full');
+            }
+            if ($percent < 0 || $percent > 100) throw new Exception('percent must be 0-100');
+
+            $pdo->prepare(
+                "INSERT INTO sh_tenant_settings (tenant_id, setting_key, setting_value)
+                 VALUES (?, 'half_pricing_strategy', ?)
+                 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)"
+            )->execute([$tenant_id, $strategy]);
+            $pdo->prepare(
+                "INSERT INTO sh_tenant_settings (tenant_id, setting_key, setting_value)
+                 VALUES (?, 'half_pricing_percent', ?)
+                 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)"
+            )->execute([$tenant_id, (string)$percent]);
+            $response['success'] = true;
+            $response['data'] = ['half_pricing_strategy' => $strategy, 'half_pricing_percent' => $percent];
+            $response['message'] = 'Half-pricing settings saved.';
+            break;
+
+        // =================================================================
+        // F-S3 — MEAL PACKAGES (Combo/Bundle, 2026-05-11)
+        // sh_meal_packages + sh_meal_components. Sprzedażowy combo.
+        // =================================================================
+
+        // =================================================================
+        // F-S4 — RECIPE TEMPLATE (clone from existing item)
+        // =================================================================
+
+        case 'clone_recipe':
+            // input: source_ascii_key (z którego klonujemy), target_ascii_key (do którego).
+            $srcKey = trim((string)($input['source_ascii_key'] ?? ''));
+            $dstKey = trim((string)($input['target_ascii_key'] ?? ''));
+            if ($srcKey === '' || $dstKey === '') throw new Exception('source_ascii_key + target_ascii_key required.');
+            if ($srcKey === $dstKey) throw new Exception('Source and target must differ.');
+
+            // Bariery tenant_id (Konstytucja v5 § Prawo VI).
+            $stmtChk = $pdo->prepare(
+                "SELECT ascii_key FROM sh_menu_items
+                  WHERE tenant_id = ? AND ascii_key IN (?, ?) AND is_deleted = 0"
+            );
+            $stmtChk->execute([$tenant_id, $srcKey, $dstKey]);
+            $found = $stmtChk->fetchAll(PDO::FETCH_COLUMN);
+            if (!in_array($srcKey, $found, true)) throw new Exception("Source SKU '{$srcKey}' not found.");
+            if (!in_array($dstKey, $found, true)) throw new Exception("Target SKU '{$dstKey}' not found.");
+
+            $stmtSrc = $pdo->prepare(
+                "SELECT warehouse_sku, quantity_base, waste_percent, is_packaging
+                   FROM sh_recipes WHERE tenant_id = ? AND menu_item_sku = ?"
+            );
+            $stmtSrc->execute([$tenant_id, $srcKey]);
+            $rows = $stmtSrc->fetchAll(PDO::FETCH_ASSOC);
+            if (!$rows) throw new Exception("Source '{$srcKey}' has no recipe lines.");
+
+            $pdo->beginTransaction();
+            try {
+                $pdo->prepare("DELETE FROM sh_recipes WHERE tenant_id = ? AND menu_item_sku = ?")
+                    ->execute([$tenant_id, $dstKey]);
+                $stmtIns = $pdo->prepare(
+                    "INSERT INTO sh_recipes (tenant_id, menu_item_sku, warehouse_sku, quantity_base, waste_percent, is_packaging)
+                     VALUES (?, ?, ?, ?, ?, ?)"
+                );
+                foreach ($rows as $r) {
+                    $stmtIns->execute([
+                        $tenant_id, $dstKey,
+                        $r['warehouse_sku'],
+                        $r['quantity_base'], $r['waste_percent'], $r['is_packaging']
+                    ]);
+                }
+                $pdo->commit();
+                $response['success'] = true;
+                $response['data'] = ['cloned_lines' => count($rows)];
+                $response['message'] = "Receptura skopiowana: {$srcKey} → {$dstKey} ({$response['data']['cloned_lines']} linii).";
+            } catch (\Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+            break;
+
+        case 'list_meals':
+            $stmt = $pdo->prepare(
+                "SELECT m.id, m.ascii_key, m.name, m.description, m.category_id, m.type,
+                        m.final_price_grosze, m.discount_percent, m.image_url,
+                        m.publication_status, m.valid_from, m.valid_to,
+                        m.is_active, m.display_order,
+                        (SELECT COUNT(*) FROM sh_meal_components mc
+                          WHERE mc.meal_id = m.id) AS components_count
+                   FROM sh_meal_packages m
+                  WHERE m.tenant_id = ?
+                    AND m.is_deleted = 0
+                  ORDER BY m.display_order ASC, m.name ASC"
+            );
+            $stmt->execute([$tenant_id]);
+            $response['success'] = true;
+            $response['data'] = ['meals' => $stmt->fetchAll(PDO::FETCH_ASSOC)];
+            break;
+
+        case 'get_meal_details':
+            $mealId = (int)($input['meal_id'] ?? 0);
+            if ($mealId <= 0) throw new Exception('meal_id required.');
+            $stmtM = $pdo->prepare(
+                "SELECT * FROM sh_meal_packages WHERE id = ? AND tenant_id = ? AND is_deleted = 0"
+            );
+            $stmtM->execute([$mealId, $tenant_id]);
+            $meal = $stmtM->fetch(PDO::FETCH_ASSOC);
+            if (!$meal) throw new Exception('Meal not found.');
+
+            $stmtC = $pdo->prepare(
+                "SELECT mc.*, mi.name AS item_name, c.name AS category_name
+                   FROM sh_meal_components mc
+                   LEFT JOIN sh_menu_items mi ON mi.ascii_key = mc.item_sku AND mi.tenant_id = mc.tenant_id
+                   LEFT JOIN sh_categories c ON c.id = mc.category_id
+                  WHERE mc.meal_id = ? AND mc.tenant_id = ?
+                  ORDER BY mc.display_order ASC"
+            );
+            $stmtC->execute([$mealId, $tenant_id]);
+            $meal['components'] = $stmtC->fetchAll(PDO::FETCH_ASSOC);
+
+            $response['success'] = true;
+            $response['data'] = $meal;
+            break;
+
+        case 'save_meal':
+            $mealId      = (int)($input['id'] ?? 0);
+            $asciiKey    = strtoupper(preg_replace('/[^A-Za-z0-9_]/', '_', trim((string)($input['ascii_key'] ?? ''))));
+            $name        = trim((string)($input['name'] ?? ''));
+            $desc        = trim((string)($input['description'] ?? ''));
+            $categoryId  = isset($input['category_id']) && (int)$input['category_id'] > 0 ? (int)$input['category_id'] : null;
+            $type        = (string)($input['type'] ?? 'fixed');
+            $finalPrice  = isset($input['final_price_grosze']) && $input['final_price_grosze'] !== '' ? (int)$input['final_price_grosze'] : null;
+            $discount    = isset($input['discount_percent']) && $input['discount_percent'] !== '' ? (float)$input['discount_percent'] : null;
+            $imageUrl    = trim((string)($input['image_url'] ?? ''));
+            $pubStatus   = (string)($input['publication_status'] ?? 'Draft');
+            $validFrom   = $input['valid_from'] ?? null;
+            $validTo     = $input['valid_to'] ?? null;
+            $isActive    = !empty($input['is_active']) ? 1 : 0;
+            $displayOrder = (int)($input['display_order'] ?? 0);
+            $components  = $input['components'] ?? [];
+
+            if ($asciiKey === '' || $name === '') throw new Exception('ascii_key and name required.');
+            if (!in_array($type, ['fixed','choice'], true)) throw new Exception('type must be fixed|choice.');
+            if (!in_array($pubStatus, ['Draft','Live','Archived'], true)) $pubStatus = 'Draft';
+
+            $pdo->beginTransaction();
+            try {
+                if ($mealId > 0) {
+                    $pdo->prepare(
+                        "UPDATE sh_meal_packages
+                            SET ascii_key = ?, name = ?, description = ?, category_id = ?, type = ?,
+                                final_price_grosze = ?, discount_percent = ?, image_url = ?,
+                                publication_status = ?, valid_from = ?, valid_to = ?,
+                                is_active = ?, display_order = ?
+                          WHERE id = ? AND tenant_id = ?"
+                    )->execute([
+                        $asciiKey, $name, $desc !== '' ? $desc : null, $categoryId, $type,
+                        $finalPrice, $discount, $imageUrl !== '' ? $imageUrl : null,
+                        $pubStatus, $validFrom ?: null, $validTo ?: null,
+                        $isActive, $displayOrder,
+                        $mealId, $tenant_id
+                    ]);
+                } else {
+                    $pdo->prepare(
+                        "INSERT INTO sh_meal_packages
+                            (tenant_id, ascii_key, name, description, category_id, type,
+                             final_price_grosze, discount_percent, image_url,
+                             publication_status, valid_from, valid_to, is_active, display_order)
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+                    )->execute([
+                        $tenant_id, $asciiKey, $name, $desc !== '' ? $desc : null, $categoryId, $type,
+                        $finalPrice, $discount, $imageUrl !== '' ? $imageUrl : null,
+                        $pubStatus, $validFrom ?: null, $validTo ?: null, $isActive, $displayOrder
+                    ]);
+                    $mealId = (int)$pdo->lastInsertId();
+                }
+
+                // Replace components.
+                $pdo->prepare("DELETE FROM sh_meal_components WHERE meal_id = ? AND tenant_id = ?")
+                    ->execute([$mealId, $tenant_id]);
+                $stmtC = $pdo->prepare(
+                    "INSERT INTO sh_meal_components
+                        (meal_id, tenant_id, component_type, item_sku, category_id, qty,
+                         allow_upgrade, surcharge_grosze, display_order)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                );
+                $ord = 0;
+                foreach ($components as $c) {
+                    $cType = (string)($c['component_type'] ?? 'fixed_item');
+                    if (!in_array($cType, ['fixed_item','category_choice'], true)) continue;
+                    $cItem = $cType === 'fixed_item' ? (string)($c['item_sku'] ?? '') : null;
+                    $cCat  = $cType === 'category_choice' && isset($c['category_id']) ? (int)$c['category_id'] : null;
+                    $cQty  = max(1, (int)($c['qty'] ?? 1));
+                    $cUpg  = !empty($c['allow_upgrade']) ? 1 : 0;
+                    $cSur  = (int)round((float)($c['surcharge_grosze'] ?? 0));
+                    if ($cType === 'fixed_item' && $cItem === '') continue;
+                    if ($cType === 'category_choice' && !$cCat) continue;
+                    $stmtC->execute([$mealId, $tenant_id, $cType, $cItem, $cCat, $cQty, $cUpg, $cSur, $ord]);
+                    $ord++;
+                }
+
+                $pdo->commit();
+                $response['success'] = true;
+                $response['data'] = ['meal_id' => $mealId];
+                $response['message'] = 'Meal saved.';
+            } catch (\Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+            break;
+
+        case 'delete_meal':
+            $mealId = (int)($input['id'] ?? 0);
+            if ($mealId <= 0) throw new Exception('id required.');
+            $pdo->prepare("UPDATE sh_meal_packages SET is_deleted = 1 WHERE id = ? AND tenant_id = ?")
+                ->execute([$mealId, $tenant_id]);
+            $response['success'] = true;
+            $response['data'] = ['deleted' => $mealId];
+            break;
+
+        case 'create_variant_family':
+            // Tworzy rodzine wariantow z PARENT itemu + scale.
+            // Dla kazdej opcji skali generuje child sh_menu_items z ascii_key = parent_ascii_key + '_' + option.key_ascii.
+            // Jesli wariant z tym kluczem juz istnieje, pomija (idempotentnie).
+            // PRZED: parent musi miec variant_scale_id ustawione (przez save_item z payloadu wariantowego).
+            $parentId = (int)($input['parent_item_id'] ?? 0);
+            if ($parentId <= 0) throw new Exception('parent_item_id required.');
+
+            $stmtParent = $pdo->prepare(
+                "SELECT id, category_id, ascii_key, name, type, variant_scale_id, vat_rate_dine_in, vat_rate_takeaway
+                   FROM sh_menu_items
+                  WHERE id = ? AND tenant_id = ? AND is_deleted = 0"
+            );
+            $stmtParent->execute([$parentId, $tenant_id]);
+            $parent = $stmtParent->fetch(PDO::FETCH_ASSOC);
+            if (!$parent) throw new Exception('Parent item not found.');
+            if (!$parent['variant_scale_id']) throw new Exception('Parent has no variant_scale_id. Set it first by save_item.');
+
+            // Upewnij sie ze parent jest oznaczony jako variant_parent.
+            $pdo->prepare("UPDATE sh_menu_items SET is_variant_parent = 1 WHERE id = ? AND tenant_id = ?")
+                ->execute([$parentId, $tenant_id]);
+
+            // Pobierz opcje skali.
+            $stmtOpts = $pdo->prepare(
+                "SELECT id, name, key_ascii, multiplier
+                   FROM sh_variant_scale_options
+                  WHERE scale_id = ? AND tenant_id = ? AND is_deleted = 0
+                  ORDER BY display_order ASC"
+            );
+            $stmtOpts->execute([(int)$parent['variant_scale_id'], $tenant_id]);
+            $opts = $stmtOpts->fetchAll(PDO::FETCH_ASSOC);
+            if (!$opts) throw new Exception('Scale has no options.');
+
+            $created = [];
+            $skipped = [];
+            $stmtCheck = $pdo->prepare(
+                "SELECT id FROM sh_menu_items WHERE tenant_id = ? AND ascii_key = ? LIMIT 1"
+            );
+            $stmtInsert = $pdo->prepare(
+                "INSERT INTO sh_menu_items
+                    (tenant_id, category_id, name, ascii_key, type, is_active, is_deleted,
+                     vat_rate_dine_in, vat_rate_takeaway, publication_status,
+                     parent_item_id, variant_option_id)
+                 VALUES (?, ?, ?, ?, ?, 1, 0, ?, ?, 'Live', ?, ?)"
+            );
+            foreach ($opts as $opt) {
+                $childKey = $parent['ascii_key'] . '_' . $opt['key_ascii'];
+                $childName = $parent['name'] . ' ' . $opt['name'];
+                $stmtCheck->execute([$tenant_id, $childKey]);
+                if ($stmtCheck->fetch()) {
+                    $skipped[] = $childKey;
+                    continue;
+                }
+                $stmtInsert->execute([
+                    $tenant_id, $parent['category_id'], $childName, $childKey,
+                    $parent['type'] ?: 'standard',
+                    (float)$parent['vat_rate_dine_in'], (float)$parent['vat_rate_takeaway'],
+                    $parentId, (int)$opt['id'],
+                ]);
+                $created[] = ['ascii_key' => $childKey, 'name' => $childName, 'option_id' => (int)$opt['id']];
+            }
+
+            $response['success'] = true;
+            $response['data']    = ['parent_id' => $parentId, 'created' => $created, 'skipped' => $skipped];
+            $response['message'] = sprintf('%d variants created, %d skipped (already existed).', count($created), count($skipped));
             break;
 
         default:

@@ -30,47 +30,8 @@ $dryRun = in_array('--dry-run', $args, true);
 $include015 = in_array('--include-015', $args, true);
 $auditOnly = in_array('--audit', $args, true);
 
-/** @var list<string> Relative paths under database/migrations/ */
-$chain = [
-    '004_expand_search_aliases.sql',
-    '006_studio_mission_control.sql',
-    '007_pos_engine_columns.sql',
-    '008_delivery_ecosystem.sql',
-    '009_delivery_state_machine.sql',
-    '010_driver_action_type.sql',
-    '011_integration_logs.sql',
-    '012_visual_layers.sql',
-    '013_board_companions.sql',
-    '014_global_assets.sql',
-    '016_visual_compositor_upgrade.sql',
-    '017_online_module_extensions.sql',
-    '019_layer_positioning.sql',
-    '020_director_scenes.sql',
-    '021_unified_asset_library.sql',
-    '022_scene_kit.sql',
-    '023_scene_templates_content.sql',
-    '024_modifier_visual_impact.sql',
-    '025_drop_legacy_magic_dict.sql',
-    '026_event_system.sql',
-    '027_gateway_v2.sql',
-    '028_integration_deliveries.sql',
-    '029_infrastructure_completion.sql',
-    '030_scene_harmony_cache.sql',
-    '031_baked_variants.sql',
-    '032_asset_library_organizer.sql',
-    '033_notification_director.sql',
-    '034_faza7_gdpr_security.sql',
-    '035_atelier_performance.sql',
-    '036_asset_display_name.sql',
-    '037_pos_foundation.sql',
-    '038_drop_legacy_inventory_docs.sql',
-    '039_resilient_pos.sql',
-    '040_pos_server_events.sql',
-    '041_hr_employees_foundation.sql',
-    '042_hr_work_sessions_extend.sql',
-    '043_hr_payroll_ledger.sql',
-    '044_hr_advances.sql',
-];
+/** @var list<string> Relative paths under database/migrations/ — single source of truth */
+$chain = require __DIR__ . '/_migrations_chain.php';
 
 if ($include015) {
     array_splice($chain, 10, 0, ['015_normalize_three_drivers.sql']);

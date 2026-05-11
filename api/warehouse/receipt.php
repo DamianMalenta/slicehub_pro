@@ -78,8 +78,15 @@ try {
     error_log('[PZ Receipt] PzMappingException: ' . $e->getMessage());
     echo json_encode([
         'success' => false,
-        'message' => 'Internal server error.',
-        'data'    => ['unmapped_product' => $e->getExternalName()],
+        'message' => $e->getMessage(),
+        'code'    => 'UNMAPPED_PRODUCT',
+        'data'    => [
+            'unmapped_product' => $e->getExternalName(),
+            'match_type'       => $e->getMatchType(),
+            'confidence'       => $e->getConfidence(),
+            'candidates'       => $e->getCandidates(),
+            'hint'             => 'Użyj /api/procurement/suggest.php (action=suggest) dla pełnego matchingu lub manualnie wybierz SKU w UI.',
+        ],
     ], JSON_UNESCAPED_UNICODE);
 
 } catch (\InvalidArgumentException $e) {
