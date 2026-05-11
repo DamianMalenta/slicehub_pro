@@ -1,12 +1,19 @@
 <?php
 // =============================================================================
-// STATUS: ORPHAN (audit 2026-04-19) — not wired from any frontend module.
+// STATUS: @planned (Prawo VIII Konstytucji v5 — Domknięcie Kontraktu).
+// ORPHAN (audit 2026-04-19) — not wired from any frontend module.
 // Overlaps with `api/pos/engine.php#settle_and_close`, but this version has
 // richer split-tender logic (integer grosze math, sh_order_payments rows).
 // Events (transactional outbox): `order.completed` when auto-complete triggers;
 // `payment.settled` when payment captured without status→completed (e.g. delivery).
-// DECISION PENDING: promote this to canonical settlement or merge into
-// pos/engine.php. Do NOT delete without moving the split-tender logic.
+//
+// DECISION PENDING (deadline: kolejna sesja audytu warstwy płatności):
+//   (a) Promować ten plik do canonical settlement i zmigrować pos/engine.php
+//       na używanie tych endpoint-ów; albo
+//   (b) Wyciągnąć split-tender logic do `core/SettlementEngine.php` shared
+//       i usunąć ten plik (Soft Delete: rename do `_archive_settle.php`).
+//
+// Do czasu decyzji NIE wolno tego pliku usuwać ani edytować bez zatwierdzenia.
 // =============================================================================
 // SliceHub Enterprise — Payment Settlement (Split Tender)
 // POST /api/payments/settle.php

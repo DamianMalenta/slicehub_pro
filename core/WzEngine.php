@@ -19,6 +19,30 @@ declare(strict_types=1);
 class WzEngine
 {
     /**
+     * @planned (Prawo VIII Konstytucji v5 — Domknięcie Kontraktu).
+     *
+     * STATUS: kod kompletny, brak call-sitów w `api/` ani `core/`. Funkcja
+     * NIE jest jeszcze uruchamiana w produkcyjnym przepływie zamówień.
+     *
+     * Architektoniczny zamiar (`_docs/02_ARCHITEKTURA.md` §C):
+     *   "WzEngine = Zużycie surowców po acceptance"
+     *
+     * Zaplanowany hook (sesja F1 — Pętla zużycia POS↔Magazyn):
+     *   `core/OrderStateMachine.php::transitionOrder($pdo, $oid, $tid, $uid, 'accepted', ...)`
+     *   → po pomyślnej tranzycji statusu wywołać:
+     *      WzEngine::consumeForOrder($pdo, $tenantId, $warehouseId, $orderId, $userId)
+     *   wszystkie kanały (POS, online, kelner, kiosk) idą przez ten sam transition →
+     *   jeden hook = pełne pokrycie.
+     *
+     * Test E2E wymagany przed zdjęciem `@planned`:
+     *   1. Sprzedaj pizzę z recepturą przez POS.
+     *   2. Sprawdź `wh_stock.quantity` przed/po — musi spaść o
+     *      `Σ(recipe_qty × (1 + waste%/100) × multiplier)` per SKU.
+     *   3. Sprawdź `wh_documents` (type=WZ) i `wh_document_lines` — nowy dokument.
+     *
+     * Po wpięciu i teście: usunąć `@planned` z docblocku + wpis w `_docs/sessions/`
+     * + odznaczyć z listy w `_docs/01_KONSTYTUCJA.md` § Prawo VIII.
+     *
      * @return array{success: bool, doc_id?: int, doc_number?: string, total_cost?: float, deductions?: array<string,float>, error?: string}
      *
      * @throws \Throwable on unrecoverable DB errors (the transaction is rolled back before re-throw)
