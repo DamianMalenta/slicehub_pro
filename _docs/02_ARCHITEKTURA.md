@@ -14,6 +14,7 @@
 > - F-S4 Studio drift cleanup (Live/published, valid_from DATETIME, bulk VAT, recipe clone, parent_sku validation)
 > - F-S5 Multi-stage recipes (półprodukty, iiko-style „заготовки", WzEngine rekurencyjna ekspansja z max depth 3)
 > - F-S6 Wizard „Nowa Pizza" (4-step modal: nazwa → skala → ceny → generuj)
+> - F-S3.2 WzEngine combo expansion (combo line → wirtualne linie → konsumpcja per składnik; pełna kompozycja z variant + subrecipe)
 > **North Star:** [`_docs/00_PAMIEC_SYSTEMU.md`](00_PAMIEC_SYSTEMU.md) — master reference.
 > **Hub & Kiosk dedykowany doc:** [`_docs/19_HUB_AND_KIOSK.md`](19_HUB_AND_KIOSK.md).
 
