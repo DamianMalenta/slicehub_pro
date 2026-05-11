@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/AutoScanEngine.php';
+
 /**
  * PZ Engine — Goods Receipt & AVCO Valuation
  *
@@ -11,23 +13,47 @@ declare(strict_types=1);
  * audit trail.
  *
  * Target schema: wh_documents, wh_document_lines, wh_stock, wh_stock_logs,
- *                sh_product_mapping.
+ *                sh_product_mapping, sys_items.
+ *
+ * F2.5 (2026-05-11): mapping resolution upgraded from EXACT-only
+ * (sh_product_mapping LOWER match) to shared AutoScanEngine z 4-stopniowym
+ * confidence (EXACT/ALIAS/NAME/FUZZY/NONE) + threshold auto-accept.
+ * Auto-learn ALIAS matches po pomyślnym commit-cie dokumentu PZ
+ * (network effect — kolejny PZ z tej samej nazwy ma EXACT 100%).
  */
 
 class PzMappingException extends \RuntimeException
 {
     private string $externalName;
+    private array  $candidates;
+    private int    $confidence;
+    private string $matchType;
 
-    public function __construct(string $externalName)
-    {
+    /**
+     * @param list<array{sku:string,name:string,confidence:int,match_type:string}> $candidates
+     */
+    public function __construct(
+        string $externalName,
+        array $candidates = [],
+        int $confidence = 0,
+        string $matchType = 'NONE'
+    ) {
         $this->externalName = $externalName;
-        parent::__construct("Unmapped external product: {$externalName}");
+        $this->candidates   = $candidates;
+        $this->confidence   = $confidence;
+        $this->matchType    = $matchType;
+        $msg = "Unmapped external product: {$externalName}";
+        if ($candidates !== []) {
+            $top = $candidates[0];
+            $msg .= " (best guess: {$top['sku']} '{$top['name']}' @ {$top['confidence']}% {$top['match_type']}, below auto-accept threshold)";
+        }
+        parent::__construct($msg);
     }
 
-    public function getExternalName(): string
-    {
-        return $this->externalName;
-    }
+    public function getExternalName(): string { return $this->externalName; }
+    public function getCandidates(): array { return $this->candidates; }
+    public function getConfidence(): int { return $this->confidence; }
+    public function getMatchType(): string { return $this->matchType; }
 }
 
 class PzEngine
@@ -69,16 +95,14 @@ class PzEngine
 
         // =================================================================
         // PHASE 1: MAPPING & VALIDATION  (pre-transaction, read-only)
+        //
+        // F2.5 (2026-05-11): używa shared AutoScanEngine zamiast samego
+        // exact-match. Threshold auto-accept respektowany (default 70).
+        // Linie które match-ują ALIAS są kolekcjonowane do PHASE 3 auto-learn.
         // =================================================================
 
-        $stmtMapping = $pdo->prepare("
-            SELECT internal_sku
-            FROM sh_product_mapping
-            WHERE tenant_id = :tid AND LOWER(external_name) = LOWER(:ext)
-            LIMIT 1
-        ");
-
         $mappedLines = [];
+        $aliasLearnQueue = []; // [external_name => sku] dla post-commit auto-learn
 
         foreach ($lines as $idx => $line) {
             $resolvedSku  = trim($line['resolved_sku'] ?? '');
@@ -91,13 +115,28 @@ class PzEngine
                     );
                 }
 
-                $stmtMapping->execute([':tid' => $tenantId, ':ext' => $externalName]);
-                $mapRow = $stmtMapping->fetch(PDO::FETCH_ASSOC);
+                // Shared AutoScan — EXACT (100) → ALIAS (85) → NAME (60-80) → FUZZY (≤59) → NONE
+                $scan = AutoScanEngine::match($pdo, $tenantId, $externalName);
 
-                if (!$mapRow) {
-                    throw new PzMappingException($externalName);
+                if (empty($scan['should_auto_accept']) || $scan['sku'] === null) {
+                    // Confidence below threshold albo NONE — frontend dostaje propozycje
+                    // i decyduje (UI: pokazuje suggest button, manual select)
+                    throw new PzMappingException(
+                        $externalName,
+                        $scan['candidates'] ?? [],
+                        (int) ($scan['confidence'] ?? 0),
+                        (string) ($scan['match_type'] ?? 'NONE')
+                    );
                 }
-                $resolvedSku = $mapRow['internal_sku'];
+
+                $resolvedSku = (string) $scan['sku'];
+
+                // ALIAS auto-learn — kolejka po commit-cie. Zapisuje do
+                // sh_product_mapping żeby kolejne PZ z tej samej nazwy
+                // miały EXACT 100% (network effect Konstytucja v5 § II).
+                if (($scan['match_type'] ?? '') === AutoScanEngine::MATCH_ALIAS) {
+                    $aliasLearnQueue[$externalName] = $resolvedSku;
+                }
             }
 
             $quantity    = (float)($line['quantity'] ?? 0);
@@ -264,6 +303,24 @@ class PzEngine
 
             $pdo->commit();
 
+            // =================================================================
+            // PHASE 3: POST-COMMIT AUTO-LEARN (network effect / Prawo II)
+            //
+            // ALIAS matches z PHASE 1 zapisujemy do sh_product_mapping żeby
+            // kolejne PZ z tej samej nazwy miały EXACT 100% (zero kliknięć).
+            // Failure NIE blokuje sukcesu PZ — dokument już zapisany, AVCO
+            // przeliczone. Loggujemy alert.
+            // =================================================================
+            $learnedCount = 0;
+            foreach ($aliasLearnQueue as $extName => $sku) {
+                $r = AutoScanEngine::learnMapping($pdo, $tenantId, (string) $extName, (string) $sku);
+                if (!empty($r['learned'])) {
+                    $learnedCount++;
+                } elseif (!empty($r['error'])) {
+                    error_log('[PzEngine.autoLearn] ' . $extName . ' → ' . $sku . ': ' . $r['error']);
+                }
+            }
+
             return [
                 'success'      => true,
                 'pz_document'  => [
@@ -273,6 +330,7 @@ class PzEngine
                     'supplier_name'    => $supplierName,
                     'supplier_invoice' => $supplierInvoice,
                     'lines'            => $resultLines,
+                    'auto_learned'     => $learnedCount,
                     'created_at'       => date('c'),
                     'created_by'       => $userId,
                 ],
