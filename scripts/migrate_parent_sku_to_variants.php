@@ -136,26 +136,43 @@ foreach ($groups as $g) {
         //    z multiplier=1.0 (legacy nie zna realnych — admin może później dostroić).
         $stmtUpsertOpt = $pdo->prepare("
             INSERT INTO sh_variant_scale_options
-                (scale_id, tenant_id, name, key_ascii, display_order, multiplier, is_deleted)
-            VALUES (?, ?, ?, ?, ?, 1.000, 0)
-            ON DUPLICATE KEY UPDATE display_order = VALUES(display_order), is_deleted = 0
+                (scale_id, tenant_id, name, key_ascii, display_order, diameter_cm, multiplier, is_deleted)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+            ON DUPLICATE KEY UPDATE
+                display_order = VALUES(display_order),
+                multiplier = VALUES(multiplier),
+                is_deleted = 0
         ");
         $stmtLinkChild = $pdo->prepare("UPDATE sh_menu_items SET parent_item_id = ?, variant_option_id = ? WHERE id = ? AND tenant_id = ?");
 
+        // F-S1.2 (2026-05-11): mapa presetów dla auto-multiplier z sufiksu klucza.
+        // Pozwala uniknąć ręcznego dostrajania po legacy migracji.
+        $multiplierPresets = [
+            'XS'   => 0.55,
+            'S'    => 0.70, 'SMALL' => 0.70, 'MINI' => 0.55,
+            'M'    => 1.00, 'MEDIUM' => 1.00, 'STD' => 1.00, 'NORMAL' => 1.00, 'REG' => 1.00,
+            'L'    => 1.30, 'LARGE' => 1.30, 'BIG' => 1.50,
+            'XL'   => 1.60,
+            'XXL'  => 2.00,
+            // Średnice
+            '26'   => 0.70, '30'   => 0.85, '32' => 1.00, '36' => 1.20, '40' => 1.40, '45' => 1.65,
+        ];
+
         foreach ($childIds as $i => $childId) {
             $childKey = $childKeys[$i] ?? '';
-            // Wyciągnij sufiks: jeśli child_key zaczyna się od parent_sku, weź resztę.
-            // Inaczej fallback do całego klucza.
             $suffix = (str_starts_with($childKey, $pSku))
                 ? trim(substr($childKey, strlen($pSku)), '_-')
                 : $childKey;
             $optKey = strtoupper(preg_replace('/[^A-Z0-9_]/', '_', $suffix ?: 'V' . $i));
 
             $optName = $suffix ?: 'wariant ' . ($i + 1);
-            echo "      child id={$childId} {$childKey} → option_key={$optKey} (name={$optName})\n";
+            // F-S1.2: auto-multiplier z presetu (fallback 1.0).
+            $optMultiplier = $multiplierPresets[$optKey] ?? 1.0;
+
+            echo "      child id={$childId} {$childKey} → option_key={$optKey} (name={$optName}, multiplier={$optMultiplier}" . ($optMultiplier !== 1.0 ? ' from preset' : '') . ")\n";
 
             if ($apply) {
-                $stmtUpsertOpt->execute([$scaleId, $tid, $optName, $optKey, $i]);
+                $stmtUpsertOpt->execute([$scaleId, $tid, $optName, $optKey, $i, null, $optMultiplier]);
                 $optId = (int)$pdo->lastInsertId();
                 if (!$optId) {
                     // ON DUPLICATE bez nowego id → pobierz

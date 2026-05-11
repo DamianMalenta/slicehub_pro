@@ -1680,7 +1680,11 @@ window.ItemEditor = {
                 </div>
                 <div class="flex-1 overflow-y-auto p-6 space-y-4">
                     <div id="vs-list" class="space-y-3"></div>
-                    <button onclick="window.ItemEditor._vsAddNew()" class="w-full bg-orange-500/10 border border-dashed border-orange-500/30 text-orange-300 rounded-xl py-3 text-[10px] font-black uppercase tracking-wider hover:bg-orange-500/20 transition"><i class="fa-solid fa-plus mr-2"></i> Nowa Skala</button>
+                    <div class="flex gap-2">
+                        <button onclick="window.ItemEditor._vsAddNew()" class="flex-1 bg-orange-500/10 border border-dashed border-orange-500/30 text-orange-300 rounded-xl py-3 text-[10px] font-black uppercase tracking-wider hover:bg-orange-500/20 transition"><i class="fa-solid fa-plus mr-2"></i> Nowa Skala</button>
+                        <!-- F-S1.2 (2026-05-11): Presety z gotowymi multiplier-ami -->
+                        <button onclick="window.ItemEditor._vsAddPreset()" class="bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-wider hover:bg-amber-500/20 transition" title="F-S1.2: gotowe presety (Pizza S/M/L/XL, Coffee S/M/L, etc.)"><i class="fa-solid fa-magic-wand-sparkles mr-2"></i> Preset</button>
+                    </div>
                 </div>
             </div>`;
         document.body.appendChild(modal);
@@ -1742,6 +1746,79 @@ window.ItemEditor = {
         window.ItemEditor._vsAddNew = () => {
             scales.push({ id: 0, name: 'Nowa Skala', key_ascii: 'SCALE_NEW_' + Math.floor(Math.random()*1000), options: [{ name: 'Mała', key_ascii: 'S', multiplier: 0.7, display_order: 0 }] });
             renderList();
+        };
+
+        // F-S1.2 — Presety
+        window.ItemEditor._vsAddPreset = () => {
+            const presets = [
+                { label: '🍕 Pizza 4 rozmiary (26/32/36/40 cm)', scale: { name: 'Rozmiary pizzy', key_ascii: 'SCALE_PIZZA_4',
+                    options: [
+                        { name: 'Mała (26 cm)', key_ascii: 'S', multiplier: 0.70, diameter_cm: 26, display_order: 0 },
+                        { name: 'Średnia (32 cm)', key_ascii: 'M', multiplier: 1.00, diameter_cm: 32, display_order: 1, is_default: 1 },
+                        { name: 'Duża (36 cm)', key_ascii: 'L', multiplier: 1.30, diameter_cm: 36, display_order: 2 },
+                        { name: 'XL (40 cm)', key_ascii: 'XL', multiplier: 1.60, diameter_cm: 40, display_order: 3 },
+                    ]
+                } },
+                { label: '🍕 Pizza 3 rozmiary (S/M/L)', scale: { name: 'Rozmiary pizzy S/M/L', key_ascii: 'SCALE_PIZZA_3',
+                    options: [
+                        { name: 'Mała', key_ascii: 'S', multiplier: 0.70, display_order: 0 },
+                        { name: 'Średnia', key_ascii: 'M', multiplier: 1.00, display_order: 1, is_default: 1 },
+                        { name: 'Duża', key_ascii: 'L', multiplier: 1.30, display_order: 2 },
+                    ]
+                } },
+                { label: '☕ Coffee S/M/L', scale: { name: 'Rozmiar kawy', key_ascii: 'SCALE_COFFEE',
+                    options: [
+                        { name: 'Small (180ml)', key_ascii: 'S', multiplier: 0.75, display_order: 0 },
+                        { name: 'Medium (250ml)', key_ascii: 'M', multiplier: 1.00, display_order: 1, is_default: 1 },
+                        { name: 'Large (350ml)', key_ascii: 'L', multiplier: 1.40, display_order: 2 },
+                    ]
+                } },
+                { label: '🥤 Napój 0.33/0.5/1.0L', scale: { name: 'Rozmiar napoju', key_ascii: 'SCALE_BEVERAGE',
+                    options: [
+                        { name: '0.33L', key_ascii: 'S033', multiplier: 0.33, display_order: 0 },
+                        { name: '0.5L', key_ascii: 'M050', multiplier: 0.50, display_order: 1, is_default: 1 },
+                        { name: '1.0L', key_ascii: 'L100', multiplier: 1.00, display_order: 2 },
+                    ]
+                } },
+                { label: '🍟 Frytki Standard/Duże', scale: { name: 'Rozmiar frytek', key_ascii: 'SCALE_FRIES',
+                    options: [
+                        { name: 'Standard', key_ascii: 'STD', multiplier: 1.00, display_order: 0, is_default: 1 },
+                        { name: 'Duże', key_ascii: 'L', multiplier: 1.50, display_order: 1 },
+                    ]
+                } },
+            ];
+
+            // Modal wyboru
+            const presetModal = document.createElement('div');
+            presetModal.className = 'fixed inset-0 z-[400] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4';
+            presetModal.innerHTML = `
+                <div class="bg-slate-900 border border-amber-500/40 rounded-2xl w-full max-w-lg overflow-hidden">
+                    <div class="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                        <h4 class="text-white font-black text-base">Wybierz preset skali</h4>
+                        <button onclick="this.closest('.fixed').remove()" class="text-slate-400 hover:text-white text-xl">×</button>
+                    </div>
+                    <div class="p-4 space-y-2 max-h-96 overflow-y-auto"></div>
+                </div>`;
+            const listBox = presetModal.querySelector('div.space-y-2');
+            presets.forEach(p => {
+                const btn = document.createElement('button');
+                btn.className = 'w-full bg-black/40 hover:bg-amber-500/15 border border-white/10 hover:border-amber-500/40 rounded-lg p-3 text-left transition';
+                btn.innerHTML = `
+                    <div class="text-white text-sm font-bold">${p.label}</div>
+                    <div class="text-slate-500 text-[10px] mt-1 font-mono">${p.scale.options.map(o => `${o.key_ascii}=${o.multiplier}`).join(' · ')}</div>`;
+                btn.onclick = () => {
+                    // Unikalność klucza: dopiszemy random sufiks jeśli istnieje
+                    let key = p.scale.key_ascii;
+                    if (scales.some(s => s.key_ascii === key)) {
+                        key = key + '_' + Math.floor(Math.random()*1000);
+                    }
+                    scales.push({ id: 0, name: p.scale.name, key_ascii: key, options: p.scale.options.map(o => ({ ...o })) });
+                    presetModal.remove();
+                    renderList();
+                };
+                listBox.appendChild(btn);
+            });
+            document.body.appendChild(presetModal);
         };
         window.ItemEditor._vsAddOpt = (i) => {
             if (!scales[i].options) scales[i].options = [];
