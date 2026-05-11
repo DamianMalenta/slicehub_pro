@@ -65,7 +65,7 @@ Droga C (Restaurant Viewfinder) jest naturalną nadbudową w Fazie 3, po weryfik
 
 **Konstytucja respektowana:**
 - Prawo II (Bliźniak Cyfrowy): stock badge per-ingredient (`wh_stock.quantity`, `current_avco_price`), live Food Cost total, waste%, ubytek.
-- Prawo III (Zero-Reload SPA): czyste Vanilla JS, zero nowych dependencji, żadnych reloadów.
+- Manifest „Zero-Reload Runtime" (Konstytucja v5 § Stos Technologiczny): czyste Vanilla JS na produkcji, zero nowych dependencji w runtime, żadnych reloadów.
 - Prawo VI (Snajper): 5 plików dotkniętych (1 PHP + 3 JS + 1 HTML), wszystkie nowe akcje dopisane w naturalnym miejscu między `save_modifier_visual` a Category Table; picker reuse `ModifierInspector.loadCompactAssets` + `list_assets_compact`.
 - Zero zmian schematu DB — działa na istniejących migracjach m020/m021/m022/m024.
 
@@ -229,7 +229,7 @@ CREATE TABLE IF NOT EXISTS sh_scene_metrics (
 - **Living Table** jako metafora — danie + companions persist przy swipe.
 - **Tryb statyczny** jako fallback dla starych urządzeń i użytkowników preferujących prosty UX.
 
-### 4.2 Technologia (manifest „Zero-Reload SPA" zachowany)
+### 4.2 Technologia (manifest „Zero-Reload Runtime" zachowany — Konstytucja v5)
 
 - **Vanilla JS (ES6+).** Zero Reacta, zero Vue, zero frameworków.
 - **CSS-based compositing** (stacked `<img>` + blend modes + filters). Bez WebGL w Fazie 2.

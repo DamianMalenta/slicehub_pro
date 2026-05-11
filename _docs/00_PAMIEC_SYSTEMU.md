@@ -9,17 +9,26 @@
 
 ---
 
-## 🧊 FREEZE NOTICE — OFFLINE-FIRST POS (2026-04-23)
+## 🧊 FREEZE NOTICE — OFFLINE-FIRST POS
 
-> **UWAGA:** Moduł **Offline-First POS jest zamrożony w połowie prac** (ukończono P1, P2, P3, **P3.5 i P4**). AI ma **kategoryczny zakaz** refaktoryzacji, usuwania plików SW oraz edycji tabel offline (`sh_pos_terminals`, `sh_pos_sync_cursors`, `sh_pos_op_log`, `sh_pos_server_events`). **Instrukcja wznowienia prac** znajduje się w dokumencie [`17_OFFLINE_POS_BACKLOG.md`](./17_OFFLINE_POS_BACKLOG.md).
+> **Format zgodny z Prawem IX (Datowane Zamrożenia, Konstytucja v5).**
 >
-> **Pliki pod ochroną** (pełna lista w §2 backlogu): `api/pos/sync.php`, `database/migrations/039_resilient_pos.sql`, `database/migrations/040_pos_server_events.sql`, `modules/pos/sw.js`, `modules/pos/manifest.webmanifest`, `modules/pos/offline.html`, `modules/pos/.htaccess`, `modules/pos/js/pos_sw_register.js`, `modules/pos/js/PosLocalStore.js`, `modules/pos/js/PosSyncEngine.js`, `modules/pos/js/PosApiOutbox.js`, wszystkie ikony/screenshoty POS + `modules/online/sw.js`, `modules/online/manifest.webmanifest`, `modules/online/.htaccess`.
->
-> **Zamrożone fazy** (NIE implementować bez jawnego rozmrożenia): P4.5 (worker_pos_fanout), P5 (multi-device), P6 (conflict UI + fantom cards), P7 (offline PIN auth), P8 (SSE + demo).
+> | Pole | Wartość |
+> |---|---|
+> | **FROZEN_AT** | 2026-04-23 |
+> | **UNTIL** | **2026-08-23** (data automatycznego review) **LUB** trigger biznesowy: pierwszy z następujących — (a) wdrożenie produkcyjne SliceHub na ≥ 3 lokalach z włączonym offline-mode i 60 dniami bez P0/P1 incidentu, (b) jawna decyzja właściciela w chacie. |
+> | **REASON** | Moduł Offline-First POS zamrożony w połowie prac (ukończono P1, P2, P3, P3.5, P4). Konflikty z producentami z innych modułów wymagają Anti-Corruption Layer (`scripts/worker_pos_fanout.php`) który nie istnieje. Ruszanie tych plików bez ACL = ryzyko utraty integralności sync między urządzeniami. |
+> | **UNFREEZE_BY** | właściciel produktu, jawną decyzją w chacie + aktualizacja `UNTIL` |
+> | **SCOPE — pliki pod ochroną** | `api/pos/sync.php`, `database/migrations/039_resilient_pos.sql`, `database/migrations/040_pos_server_events.sql`, `modules/pos/sw.js`, `modules/pos/manifest.webmanifest`, `modules/pos/offline.html`, `modules/pos/.htaccess`, `modules/pos/js/pos_sw_register.js`, `modules/pos/js/PosLocalStore.js`, `modules/pos/js/PosSyncEngine.js`, `modules/pos/js/PosApiOutbox.js`, wszystkie ikony/screenshoty POS + `modules/online/sw.js`, `modules/online/manifest.webmanifest`, `modules/online/.htaccess`. |
+> | **SCOPE — tabele offline** | `sh_pos_terminals`, `sh_pos_sync_cursors`, `sh_pos_op_log`, `sh_pos_server_events` |
+> | **SCOPE — zamrożone fazy** | P4.5 (worker_pos_fanout), P5 (multi-device), P6 (conflict UI + fantom cards), P7 (offline PIN auth), P8 (SSE + demo) |
+> | **JAWNIE WYŁĄCZONE Z FREEZE** | `core/StaffFleetPresence.php`, `core/DriverFleetHelper.php` — to fleet presence dla aplikacji mobilnych (Kelner / Kierowca), NIE offline-POS. Mogą być edytowane normalnie. |
 >
 > **Zakaz dotyczy też** dodawania nowych akcji do `api/pos/sync.php` oraz bezpośredniego `INSERT INTO sh_pos_server_events` z `api/online/*`, `api/kds/*`, `api/backoffice/*`. Gdy wznowimy — producenci pójdą przez `sh_event_outbox` + nowy `scripts/worker_pos_fanout.php` (Anti-Corruption Layer), co chroni Prawo VI § 4 Konstytucji (Klocki Lego) i izolację domen.
 >
-> **Kto rozmraża:** wyłącznie właściciel produktu, jawną decyzją w chacie. AI nie rozmraża samodzielnie.
+> **Instrukcja wznowienia prac:** [`17_OFFLINE_POS_BACKLOG.md`](./17_OFFLINE_POS_BACKLOG.md).
+>
+> **Po dacie `UNTIL` (2026-08-23)** AI może w kolejnej sesji **zaproponować** odmrożenie z konkretnym planem — wymaga jawnej decyzji właściciela. Bez tej decyzji freeze trwa, ale `UNTIL` musi zostać przedłużony świadomie.
 
 ---
 
@@ -52,7 +61,7 @@ Biblioteka zdjęć historycznie miała 3 niezależne endpointy: `library_list` (
 
 ### Niezmienniki (nie dyskutujemy)
 
-1. **Zero-Reload SPA** — brak Node/React/Vue/npm. Vanilla JS + PHP + MariaDB.
+1. **Zero-Reload Runtime** — brak Node/React/Vue/npm na produkcji. Vanilla JS + PHP + MariaDB. Dev-tooling (Vite, esbuild, TypeScript→vanilla) dozwolony lokalnie pod warunkiem że output jest commit-owany do repo (od Konstytucji v5).
 2. **SSOT biblioteki assetów** = `api/assets/engine.php`. `libraryList` w `studio_api.js` i `library_list` w `api_menu_studio.php` **muszą zniknąć** (faza B, kwiecień 2026).
 3. **SceneResolver + AssetResolver = serwer.** Frontend nigdy nie wymyśla URL do obrazka.
 4. **CartEngine = serwer.** Frontend nigdy nie wylicza totala.
@@ -80,15 +89,20 @@ Biblioteka zdjęć historycznie miała 3 niezależne endpointy: `library_list` (
 
 SliceHub **nie jest kolejnym POS-em**. To **gastronomiczny system klasy enterprise** — wielonajemczy, wielomodułowy, z macierzą cenową omnichannel, cyfrowym bliźniakiem magazynu, temporalną publikacją menu, serwer-autorytatywną kalkulacją i stanowym silnikiem zamówień. Początkowo dla gastronomii, architektonicznie uniwersalny.
 
-**Stos technologiczny (Manifest „Zero-Reload SPA"):**
-- **Frontend:** Vanilla JS (ES6+), czysty HTML5, Tailwind CSS (w nowszych modułach) lub czysty CSS.
+**Stos technologiczny (Manifest „Zero-Reload Runtime"):**
+> **Złagodzone w Konstytucji v5 (2026-05-11)** — zakaz Node.js doprecyzowany do warstwy *runtime*, dev-tooling dozwolony pod warunkiem że output ląduje w repo jako czyste pliki.
+
+- **Frontend (runtime na hostingu):** Vanilla JS (ES6+), czysty HTML5, Tailwind CSS (CDN albo build artifact) lub czysty CSS.
+- **Dev tooling (lokalnie, opcjonalnie):** Vite, esbuild, prettier, eslint, TypeScript→vanilla JS, PostCSS, Sass — output deployowany jako zwykłe pliki, hosting nigdy nie odpala build-step. Pełna reguła w `_docs/01_KONSTYTUCJA.md` § "STOS TECHNOLOGICZNY".
 - **Backend:** PHP 8+ (PDO, REST API JSON).
 - **Baza:** MariaDB 10.4+ / MySQL 8.0+, utf8mb4_unicode_ci, baza `slicehub_pro_v2`.
-- **ABSOLUTNY ZAKAZ:** Node.js, npm, Webpack, React, Vue, Angular, jQuery.
+- **ZAKAZ na produkcji:** Node.js w runtime, npm/yarn/pnpm jako runtime dependency manager, Webpack/Rollup/Parcel działające na żądanie, React/Vue/Angular/Svelte jako framework runtime, jQuery jako biblioteka.
 
 ---
 
-## 1. KONSTYTUCJA — 6 NIENARUSZALNYCH PRAW
+## 1. KONSTYTUCJA — 10 NIENARUSZALNYCH PRAW
+
+> **Wersja Konstytucji: v5 (2026-05-11).** Liczba praw: **10** (wcześniej 7 — w v5 dodano Prawa VIII / IX / X). Pełen tekst: [`_docs/01_KONSTYTUCJA.md`](01_KONSTYTUCJA.md). Poniżej skrót — używany jako quick reference w trakcie kodowania.
 
 ### Prawo I — Macierz Cenowa (Omnichannel)
 - NIE ISTNIEJE „płaska cena". Każda cena żyje w macierzy `(target_type, target_sku, channel, tenant_id)` w tabeli `sh_price_tiers`.
@@ -127,10 +141,14 @@ SliceHub **nie jest kolejnym POS-em**. To **gastronomiczny system klasy enterpri
 
 ### Prawo VII — Innowacja albo Nic (Online Studio + Storefront)
 
-> **Obowiązuje od 2026-04-19.** Dotyczy każdej funkcji związanej z prezentacją wizualną dla managera i klienta.
+> **Obowiązuje od 2026-04-19. Zakres ZAWĘŻONY w v5 (2026-05-11).**
+>
+> **Twardo dotyczy WYŁĄCZNIE:** `modules/online/`, `modules/online_studio/`, `api/online/engine.php`, `api/online_studio/engine.php`, `api/assets/engine.php`, `core/SceneResolver.php`, `core/SceneRenderer.php`, `core/js/scene_renderer.js`.
+>
+> **NIE dotyczy:** Magazyn, POS, Hub, Kadry, Kiosk, Settings, Tables, KDS, Driver, Courses, Backoffice/Profile, Procurement (KSeF Inbox), Dispatcher.
 
 - **SliceHub nie jest kolejnym systemem POS / online do gastronomii.** Buduje rozwiązania, których jeszcze nie ma na rynku (Domino's, NUV POS, EZ Pizza, Papa John's, WooFood, Apprication, Glovo/Uber Eats web ordering).
-- **Każda funkcja Online Studio i Storefrontu MUSI być o krok przed najlepszym konkurentem.** Jeśli opisuje się ją jednym słowem — „filtr", „slider", „picker", „color wheel", „thumbnail grid" — **nie piszemy tego kodu**. To paint, nie innowacja.
+- **Każda funkcja w obrębie zawężonego zakresu MUSI być o krok przed najlepszym konkurentem.** Jeśli opisuje się ją jednym słowem — „filtr", „slider", „picker", „color wheel", „thumbnail grid" — **nie piszemy tego kodu**. To paint, nie innowacja.
 - **Każdy „bulk op" zmienia rzeczywistą zawartość:** ambient + companions + typografia + ruch + LUT + kompozycja — nie pojedynczy parametr.
 - **Harmony Score / metryki jakości = numeryczne + actionable.** Nie ozdoba UI. Manager widzi liczbę i wie co nacisnąć.
 - **Living Scene reaguje na świat** (pora dnia, pogoda, obciążenie kuchni, triggery z `sh_scene_triggers`), nie jest pętlą CSS animation.
@@ -142,13 +160,35 @@ SliceHub **nie jest kolejnym POS-em**. To **gastronomiczny system klasy enterpri
 
 ---
 
+### Prawo VIII — Domknięcie Kontraktu (Code ↔ Docs Drift Guard) · NEW v5
+
+- Funkcja opisana w docs jako produkcyjna MUSI mieć call-site + test (manual albo auto).
+- Funkcja kompletna ale niewpięta = adnotacja `@planned (Prawo VIII)` w docblocku z konkretnym powodem i datą.
+- Każdy audyt modułu raportuje listę `@planned` na końcu — nie wolno tego ukryć.
+- **Aktualne `@planned`:** `core/WzEngine.php::consumeForOrder` (sesja F1), `api/payments/settle.php` (decyzja: integracja albo usunięcie), `api/orders/edit.php`, `api/orders/estimate.php`, `api/orders/sla_monitor.php`.
+
+### Prawo IX — Datowane Zamrożenia (Freeze Discipline) · NEW v5
+
+- Każdy `FREEZE NOTICE` musi mieć `FROZEN_AT`, `UNTIL` (data lub trigger), `REASON`, `UNFREEZE_BY`, `SCOPE`.
+- Po dacie `UNTIL` AI może zaproponować odmrożenie z planem — wymaga decyzji właściciela.
+- Lista freeze nie rośnie w nieskończoność.
+
+### Prawo X — Audyt Sesji AI · NEW v5
+
+- Sesja zmieniająca `core/`, `api/`, `database/migrations/` lub `01_KONSTYTUCJA.md` MUSI:
+  - Mieć w commit message sekcję `Test (E2E):`.
+  - Pozostawić plik `_docs/sessions/YYYY-MM-DD_<topic>.md` z 4 sekcjami: Cel, Pliki dotknięte, Decyzje architektoniczne, Otwarte pytania.
+- Drobne sesje (literówka, fix lint) — zwolnione.
+
+---
+
 ## 2. STRUKTURA KATALOGÓW (Mapa Drogowa)
 
 ```
 slicehub/
 ├── _docs/                              # Kanoniczna dokumentacja
 │   ├── 00_PAMIEC_SYSTEMU.md            # TEN PLIK — czytasz PIERWSZY
-│   ├── 01_KONSTYTUCJA.md               # 6 praw
+│   ├── 01_KONSTYTUCJA.md               # 10 praw (v5 od 2026-05-11)
 │   ├── 02_ARCHITEKTURA.md              # Mapa katalogów, moduły
 │   ├── 04_BAZA_DANYCH.md               # Schemat DB, relacje, konwencje
 │   ├── 05_INSTRUKCJA_FOTO_UPLOAD.md    # Limity, walidacja, brief fotograficzny
