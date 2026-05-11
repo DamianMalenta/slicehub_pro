@@ -256,6 +256,8 @@ const PosApp = (() => {
         _menuData.drivers = d.drivers || [];
         _menuData.waiters = d.waiters || [];
         _menuData.modifierGroups = d.modifierGroups || [];
+        // F-S1 (2026-05-11): variant groups — kazda grupa to parent + lista wariantow.
+        _menuData.variantGroups = d.variantGroups || [];
 
         const channel = PosCart.getChannel();
         _menuData.items = (d.items || []).map(item => {
@@ -269,6 +271,12 @@ const PosApp = (() => {
                 priceGrosze, price: (priceGrosze / 100).toFixed(2),
                 vatDine: parseFloat(item.vatDineIn || 8), vatTake: parseFloat(item.vatTakeaway || 5),
                 priceTiers: tiers,
+                // F-S1 — variant meta (kazdy wariant wie ze nalezy do rodziny)
+                parentAsciiKey: item.parentAsciiKey || null,
+                parentName: item.parentName || null,
+                variantOptionName: item.variantOptionName || null,
+                variantOptionKey: item.variantOptionKey || null,
+                variantMultiplier: item.variantMultiplier ?? 1.0,
             };
         });
 
@@ -440,8 +448,74 @@ const PosApp = (() => {
             _activeCategoryId = catId;
             _renderMenu();
         });
-        const filtered = _menuData.items.filter(i => i.category_id === _activeCategoryId);
-        PosUI.renderItemGrid(filtered, _onItemClick);
+        // F-S1 (2026-05-11): dedup wariantow w kafelkach.
+        // Z kazdej variant family pokazujemy jeden „ambassador" (pierwszy wariant)
+        // z badge'm „RM" (rozmiary). Klikniecie wymusza wybor rozmiaru.
+        const all = _menuData.items.filter(i => i.category_id === _activeCategoryId);
+        const seenParents = new Set();
+        const displayItems = [];
+        for (const it of all) {
+            if (it.parentAsciiKey) {
+                if (seenParents.has(it.parentAsciiKey)) continue;
+                seenParents.add(it.parentAsciiKey);
+                // Klonujemy + nadpisujemy nazwa wyswietlana = nazwa parenta + badge.
+                displayItems.push({
+                    ...it,
+                    name: it.parentName || it.name,
+                    _isVariantAmbassador: true,
+                });
+            } else {
+                displayItems.push(it);
+            }
+        }
+        PosUI.renderItemGrid(displayItems, _onItemClick);
+    }
+
+    // F-S1 — Modal wyboru rozmiaru (przed dish card).
+    // Pokazywany gdy kliknieto ambassador wariantu lub gdy item jest czescia rodziny.
+    function _openVariantPicker(ambassadorItem, onSelected) {
+        const parentKey = ambassadorItem.parentAsciiKey;
+        const siblings = _menuData.items
+            .filter(i => i.parentAsciiKey === parentKey)
+            .sort((a, b) => (a.variantOptionKey || '').localeCompare(b.variantOptionKey || ''));
+        if (siblings.length === 0) { onSelected(ambassadorItem); return; }
+
+        const modal = document.createElement('div');
+        modal.id = 'fs1-variant-picker';
+        modal.className = 'fixed inset-0 z-[300] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4';
+        modal.innerHTML = `
+            <div class="bg-slate-900 border border-orange-500/40 rounded-2xl max-w-md w-full overflow-hidden">
+                <div class="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-white font-black text-base">${ambassadorItem.parentName || ambassadorItem.name}</h3>
+                        <p class="text-orange-300 text-[10px] uppercase font-bold tracking-wider mt-0.5">Wybierz rozmiar</p>
+                    </div>
+                    <button onclick="document.getElementById('fs1-variant-picker')?.remove()" class="text-slate-400 hover:text-white text-xl">×</button>
+                </div>
+                <div class="p-4 space-y-2" id="fs1-variant-list"></div>
+            </div>`;
+        document.body.appendChild(modal);
+
+        const listEl = modal.querySelector('#fs1-variant-list');
+        siblings.forEach(v => {
+            const priceTxt = (v.priceGrosze / 100).toFixed(2);
+            const btn = document.createElement('button');
+            btn.className = 'w-full bg-black/40 hover:bg-orange-500/15 border border-white/10 hover:border-orange-500/40 rounded-xl p-4 flex items-center justify-between transition group';
+            btn.innerHTML = `
+                <div class="flex flex-col items-start text-left">
+                    <span class="text-white font-bold text-sm">${v.variantOptionName || v.name}</span>
+                    <span class="text-slate-500 text-[10px] font-mono uppercase">${v.ascii_key}</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="text-orange-300 text-lg font-black tabular-nums">${priceTxt} zł</span>
+                    <i class="fa-solid fa-chevron-right text-slate-500 group-hover:text-orange-300"></i>
+                </div>`;
+            btn.onclick = () => {
+                modal.remove();
+                onSelected(v);
+            };
+            listEl.appendChild(btn);
+        });
     }
 
     // =========================================================================
@@ -449,6 +523,26 @@ const PosApp = (() => {
     // =========================================================================
     function _onItemClick(item) {
         if (_isCartLocked) { PosUI.toast('Koszyk zablokowany — wydrukowano paragon', 'error'); return; }
+
+        // F-S1 (2026-05-11): jesli kafelek to ambassador rodziny — otworz picker rozmiaru.
+        if (item._isVariantAmbassador && item.parentAsciiKey) {
+            _openVariantPicker(item, (chosenVariant) => {
+                if (_halfMode) {
+                    if (!_halfA) {
+                        _halfA = chosenVariant;
+                        PosUI.toast(`½ ${chosenVariant.name} — teraz drugą połowę`, 'info');
+                    } else {
+                        _openHalfDishCard(_halfA, chosenVariant);
+                        _halfA = null; _halfMode = false;
+                        const btn = document.querySelector('#btn-half');
+                        if (btn) btn.classList.remove('active');
+                    }
+                } else {
+                    _openDishCard(chosenVariant);
+                }
+            });
+            return;
+        }
 
         if (_halfMode) {
             if (!_halfA) {

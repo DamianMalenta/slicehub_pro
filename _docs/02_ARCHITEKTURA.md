@@ -3,7 +3,7 @@
 > Oficjalna mapa drogowa projektu **SliceHub Enterprise** dla Agentów AI.
 > Nie zgaduj — sprawdzaj strukturę tutaj.
 >
-> **Ostatnia synchronizacja:** 2026-05-04 (Hub-Centric Mobile Shell + Staff Fleet Presence + HR Backoffice UI).
+> **Ostatnia synchronizacja:** 2026-05-11 (F-S1 Variant Scale Model — pizza mała/średnia/duża).
 > **North Star:** [`_docs/00_PAMIEC_SYSTEMU.md`](00_PAMIEC_SYSTEMU.md) — master reference.
 > **Hub & Kiosk dedykowany doc:** [`_docs/19_HUB_AND_KIOSK.md`](19_HUB_AND_KIOSK.md).
 
