@@ -88,7 +88,7 @@ W systemie znajdują się foldery ze starym kodem (np. poprzednie wersje POS, Ma
 - **Zwalnianie z `@planned`:** dopiero w tej samej sesji, w której funkcja zostaje wpięta + przetestowana E2E + udokumentowana w commit message.
 
 **Aktualna lista znanych `@planned` funkcji** (do zlikwidowania w kolejnych sesjach):
-- `core/WzEngine.php::consumeForOrder` — kompletna logika, 0 call-sitów. Plan: sesja F1 (Pętla zużycia POS↔Magazyn).
+- ~~`core/WzEngine.php::consumeForOrder`~~ — **DOMKNIĘTE w sesji F1 · 2026-05-11.** Wpięte w `core/WarehouseConsumeHook` → `api/pos/engine.php#accept_order` + `api/orders/accept.php`. Test E2E w `_docs/sessions/2026-05-11_phase_f1_consume_loop.md`.
 - `api/payments/settle.php` — kompletny endpoint split-tender, ORPHAN bez UI. Plan: integracja z `pos/engine.php` lub świadome usunięcie po decyzji o canonical settlement.
 - `api/orders/edit.php`, `api/orders/estimate.php`, `api/orders/sla_monitor.php` — placeholder-y oznaczone jako `🟡 PLANNED` w `02_ARCHITEKTURA.md`.
 

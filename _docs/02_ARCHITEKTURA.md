@@ -306,7 +306,8 @@ Wszystkie orphan/planned endpointy mają w nagłówku komentarz `// STATUS: …`
 | Plik | Rola |
 |------|------|
 | `PzEngine.php` | Przyjęcie + AVCO |
-| `WzEngine.php` | Zużycie surowców po acceptance (waste + modyfikatory). ⚠ **`consumeForOrder` jest `@planned` (Prawo VIII Konstytucji v5)** — kod kompletny, 0 call-sitów. Zaplanowany hook w `OrderStateMachine::transitionOrder('accepted')` w sesji F1 (Pętla zużycia POS↔Magazyn). `checkAvailability` jest wpięty (online checkout) i działa. |
+| `WzEngine.php` | Zużycie surowców po acceptance (waste + modyfikatory). **`consumeForOrder` wpięty od F1 · 2026-05-11** przez `core/WarehouseConsumeHook` w `api/pos/engine.php#accept_order` + `api/orders/accept.php`. `checkAvailability` wpięty w online checkout. Formuła Prawa II Konstytucji v5: `needed = recipe_qty × (1 + waste%/100) × multiplier`. |
+| `WarehouseConsumeHook.php` (NEW · F1 2026-05-11) | Helper post-commit hook konsumpcji magazynu po `transitionOrder('accepted')`. Wywołuje `WzEngine::consumeForOrder` w niezależnej transakcji. Failure NIE blokuje akceptu zamówienia (kuchnia gotuje, manager może naprawić korektą KOR). |
 | `InwEngine.php` | Inwentaryzacja |
 | `KorEngine.php` | Korekta |
 | `MmEngine.php` | Międzymagazynowe |

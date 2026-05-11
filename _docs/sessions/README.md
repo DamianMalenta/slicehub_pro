@@ -22,3 +22,4 @@ Zawartość — 4 sekcje:
 ## Indeks sesji
 
 - [`2026-05-11_constitution_v5.md`](2026-05-11_constitution_v5.md) — Konstytucja v5: Prawa VIII / IX / X + naprawa drift-u kod-docs.
+- [`2026-05-11_phase_f1_consume_loop.md`](2026-05-11_phase_f1_consume_loop.md) — F1 Pętla zużycia POS↔Magazyn: hook `WzEngine::consumeForOrder` w `accept_order`, naprawa 3 bug-ów PDO w WzEngine, `consumeForOrder` zdjęte z `@planned`.

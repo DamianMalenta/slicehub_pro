@@ -165,7 +165,8 @@ SliceHub **nie jest kolejnym POS-em**. To **gastronomiczny system klasy enterpri
 - Funkcja opisana w docs jako produkcyjna MUSI mieć call-site + test (manual albo auto).
 - Funkcja kompletna ale niewpięta = adnotacja `@planned (Prawo VIII)` w docblocku z konkretnym powodem i datą.
 - Każdy audyt modułu raportuje listę `@planned` na końcu — nie wolno tego ukryć.
-- **Aktualne `@planned`:** `core/WzEngine.php::consumeForOrder` (sesja F1), `api/payments/settle.php` (decyzja: integracja albo usunięcie), `api/orders/edit.php`, `api/orders/estimate.php`, `api/orders/sla_monitor.php`.
+- **Aktualne `@planned`:** `api/payments/settle.php` (decyzja: integracja albo usunięcie), `api/orders/edit.php`, `api/orders/estimate.php`, `api/orders/sla_monitor.php`.
+- **Domknięte:** ~~`core/WzEngine.php::consumeForOrder`~~ (F1 · 2026-05-11 — `core/WarehouseConsumeHook`).
 
 ### Prawo IX — Datowane Zamrożenia (Freeze Discipline) · NEW v5
 
