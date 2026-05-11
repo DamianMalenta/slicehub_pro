@@ -646,6 +646,96 @@ window.RecipeMapper = {
         this.renderRecipeList();
     },
 
+    // F-S5.1 (2026-05-11): toggle linii receptury między surowcem a półproduktem.
+    // Półprodukt = warehouse_sku to ascii_key INNEJ pozycji menu (sh_menu_items),
+    // WzEngine rekurencyjnie expanduje recepturę półproduktu przez subrecipe_yield.
+    async toggleSubrecipe(index) {
+        const row = this.state.currentRecipe[index];
+        if (!row) return;
+        if (!row.isSubrecipe) {
+            // Otwórz picker półproduktu — lista kandydatów z list_subrecipe_candidates.
+            try {
+                const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
+                    action: 'list_subrecipe_candidates',
+                    exclude_sku: this.state.currentMenuItemSku || ''
+                });
+                const candidates = r?.data?.candidates || [];
+                if (candidates.length === 0) {
+                    alert('Brak kandydatów na półprodukt. Najpierw zdefiniuj recepturę dla pozycji która ma być półproduktem (np. „Sos pomidorowy").');
+                    return;
+                }
+                this._openSubrecipePicker(candidates, (chosen) => {
+                    row.isSubrecipe = true;
+                    row.warehouseSku = chosen.asciiKey;
+                    row.name = chosen.name + ' (półprodukt)';
+                    row.baseUnit = 'porcja';
+                    row.subrecipeYield = row.subrecipeYield || 10; // domyślnie 10 porcji z batchu
+                    this.renderRecipeList();
+                });
+            } catch (e) {
+                alert('Błąd pobrania kandydatów: ' + e.message);
+            }
+        } else {
+            if (!confirm('Wyłączyć tryb półproduktu? Linia zostanie usunięta (musisz dodać ją ponownie jako zwykły surowiec z magazynu).')) return;
+            this.state.currentRecipe.splice(index, 1);
+            this.renderRecipeList();
+        }
+    },
+
+    updateSubrecipeYield(index, newYield) {
+        const row = this.state.currentRecipe[index];
+        if (!row) return;
+        const y = Math.max(0.1, parseFloat(newYield) || 1);
+        row.subrecipeYield = y;
+        this.renderRecipeList();
+    },
+
+    _openSubrecipePicker(candidates, onPicked) {
+        const modal = document.createElement('div');
+        modal.id = 'fs51-subrecipe-picker';
+        modal.className = 'fixed inset-0 z-[300] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4';
+        modal.innerHTML = `
+            <div class="bg-slate-900 border border-orange-500/40 rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden">
+                <div class="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-white font-black text-base"><i class="fa-solid fa-recycle text-orange-400"></i> Wybierz półprodukt</h3>
+                        <p class="text-orange-300 text-[10px] uppercase font-bold tracking-wider mt-0.5">F-S5.1 · iiko-style „заготовка"</p>
+                    </div>
+                    <button onclick="document.getElementById('fs51-subrecipe-picker')?.remove()" class="text-slate-400 hover:text-white text-xl">×</button>
+                </div>
+                <div class="p-4 space-y-2 overflow-y-auto">
+                    <input type="text" id="fs51-search" placeholder="Szukaj..." class="w-full bg-black/50 border border-white/10 text-white rounded p-2 text-sm">
+                    <div id="fs51-list" class="space-y-1.5 mt-2 max-h-96 overflow-y-auto"></div>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+
+        const listEl = modal.querySelector('#fs51-list');
+        const searchEl = modal.querySelector('#fs51-search');
+        const renderList = (filter) => {
+            const flt = (filter || '').toLowerCase();
+            listEl.innerHTML = '';
+            candidates
+                .filter(c => !flt || c.asciiKey.toLowerCase().includes(flt) || (c.name || '').toLowerCase().includes(flt))
+                .slice(0, 100)
+                .forEach(c => {
+                    const btn = document.createElement('button');
+                    btn.className = 'w-full bg-black/40 hover:bg-orange-500/15 border border-white/10 hover:border-orange-500/40 rounded-lg p-3 flex items-center justify-between transition text-left';
+                    btn.innerHTML = `
+                        <div>
+                            <div class="text-white text-sm font-bold">${c.name}</div>
+                            <div class="text-slate-500 text-[10px] font-mono">${c.asciiKey} · ${c.recipeLines} składników w recepturze</div>
+                        </div>
+                        <i class="fa-solid fa-arrow-right text-orange-400"></i>`;
+                    btn.onclick = () => { modal.remove(); onPicked(c); };
+                    listEl.appendChild(btn);
+                });
+            if (!listEl.children.length) listEl.innerHTML = '<p class="text-center text-slate-500 text-[10px] italic py-4">Brak wyników</p>';
+        };
+        renderList('');
+        searchEl.addEventListener('input', () => renderList(searchEl.value));
+    },
+
     renderRecipeList() {
         const container = document.getElementById('recipe-ingredients-list');
         if (!container) return;
@@ -727,14 +817,24 @@ window.RecipeMapper = {
                 ? d.rowCost.toLocaleString('pl-PL', { style: 'currency', currency: 'PLN', minimumFractionDigits: 2, maximumFractionDigits: 4 })
                 : '—';
 
+            // F-S5.1 (2026-05-11): wizualne odróżnienie półproduktu (orange highlight + badge SUB).
+            const isSub = !!d.ing.isSubrecipe;
+            const subBadge = isSub
+                ? `<span class="inline-flex items-center gap-1 text-[7px] font-black uppercase px-1.5 py-0.5 rounded border bg-orange-900/40 border-orange-500/50 text-orange-300" title="Półprodukt — własna receptura (rekurencyjna ekspansja w WzEngine)"><i class="fa-solid fa-recycle text-[7px]"></i> SUB ×${(d.ing.subrecipeYield || 1).toFixed(0)}</span>`
+                : '';
+            const rowBg = isSub
+                ? 'border-orange-500/30 bg-orange-950/20'
+                : 'border-white/10 bg-black/40';
+
             html += `
-            <div class="recipe-row flex items-center justify-between gap-2 p-2 border border-white/10 bg-black/40 rounded-lg hover:border-white/20 transition" data-sku="${_eR(d.ing.warehouseSku)}">
+            <div class="recipe-row flex items-center justify-between gap-2 p-2 border ${rowBg} rounded-lg hover:border-white/20 transition" data-sku="${_eR(d.ing.warehouseSku)}">
                 <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-2 flex-wrap">
                         <span class="text-white text-[11px] font-black truncate">${_eR(d.ing.name)}</span>
-                        ${stockBadge}
+                        ${subBadge}
+                        ${isSub ? '' : stockBadge}
                     </div>
-                    <div class="text-slate-600 text-[8px] font-mono truncate">${_eR(d.ing.warehouseSku)} · base: ${_eR(d.ing.baseUnit || 'kg')}</div>
+                    <div class="text-slate-600 text-[8px] font-mono truncate">${_eR(d.ing.warehouseSku)} · base: ${_eR(d.ing.baseUnit || 'kg')}${isSub ? ' · <span class="text-orange-400">półprodukt</span>' : ''}</div>
                 </div>
                 <input type="number" step="0.001" min="0" value="${d.ing.quantityBase}"
                        class="w-16 bg-transparent border border-white/20 text-white text-center text-[11px] p-1 rounded outline-none focus:border-blue-500"
@@ -746,6 +846,15 @@ window.RecipeMapper = {
                 <input type="number" step="0.1" min="0" max="100" value="${d.wastePct}"
                        class="w-12 bg-transparent border border-amber-500/30 text-amber-300 text-center text-[10px] p-1 rounded outline-none focus:border-amber-500"
                        onchange="window.RecipeMapper.updateWaste(${index}, this.value)" title="Ubytek %">
+                ${isSub
+                    ? `<input type="number" step="0.1" min="0.1" value="${d.ing.subrecipeYield || 1}" title="Yield: liczba porcji z 1 batchu półproduktu" class="w-14 bg-transparent border border-orange-500/40 text-orange-300 text-center text-[10px] p-1 rounded outline-none focus:border-orange-500" onchange="window.RecipeMapper.updateSubrecipeYield(${index}, this.value)" placeholder="yield">`
+                    : '<span class="w-14 inline-block"></span>'
+                }
+                <button class="text-[9px] font-black uppercase px-2 py-1 rounded ${isSub ? 'bg-orange-500/20 border border-orange-500/40 text-orange-300 hover:bg-orange-500/30' : 'bg-slate-800/50 border border-white/10 text-slate-400 hover:bg-slate-700'} transition"
+                        onclick="window.RecipeMapper.toggleSubrecipe(${index})"
+                        title="F-S5.1: ${isSub ? 'Wyłącz tryb półproduktu (wróci do surowca z magazynu)' : 'Włącz tryb półproduktu (warehouse_sku = ascii_key innej pozycji menu)'}">
+                    <i class="fa-solid fa-recycle"></i>
+                </button>
                 <span class="text-slate-400 text-[10px] font-mono w-20 text-right shrink-0" title="Koszt wiersza (AVCO × qty × (1+waste%))">${rowCostStr}</span>
                 <button class="bg-red-900/30 hover:bg-red-600 text-red-200 hover:text-white w-7 h-7 rounded transition text-[10px] flex items-center justify-center shrink-0"
                         onclick="window.RecipeMapper.removeIngredient(${index})" title="Usuń z receptury">

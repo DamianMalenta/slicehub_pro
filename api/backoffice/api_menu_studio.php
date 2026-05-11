@@ -2058,30 +2058,120 @@ try {
             $menuItemSku = preg_replace('/[^a-zA-Z0-9_-]/', '', $input['menuItemSku'] ?? '');
             if (empty($menuItemSku)) throw new Exception("Brak SKU dania.");
 
-            $stmt = $pdo->prepare("
-                SELECT r.warehouse_sku, s.name, s.base_unit, r.quantity_base, r.waste_percent, r.is_packaging
-                FROM sh_recipes r
-                JOIN sys_items s ON s.sku = r.warehouse_sku AND s.tenant_id = r.tenant_id
-                WHERE r.menu_item_sku = ? AND r.tenant_id = ?
-                ORDER BY r.id ASC
-            ");
-            $stmt->execute([$menuItemSku, $tenant_id]);
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            // F-S5.1 (2026-05-11): probe is_subrecipe column (graceful gdy migracja 053 brak).
+            $hasSubrecipeColumns = false;
+            try {
+                $pdo->query("SELECT is_subrecipe FROM sh_recipes LIMIT 0");
+                $hasSubrecipeColumns = true;
+            } catch (\PDOException $e) {}
 
-            $ingredients = array_map(function($r) {
-                return [
-                    'warehouseSku'  => $r['warehouse_sku'],
-                    'name'          => $r['name'],
-                    'baseUnit'      => $r['base_unit'],
-                    'quantityBase'  => (float)$r['quantity_base'],
-                    'wastePercent'  => (float)$r['waste_percent'],
-                    'isPackaging'   => (bool)$r['is_packaging']
-                ];
-            }, $rows);
+            // F-S5.1: LEFT JOIN żeby zwracało także linie półproduktów (warehouse_sku = ascii_key z sh_menu_items).
+            // Wcześniej INNER JOIN sys_items pomijał półprodukty.
+            if ($hasSubrecipeColumns) {
+                $stmt = $pdo->prepare("
+                    SELECT r.warehouse_sku,
+                           COALESCE(s.name, mi.name)        AS name,
+                           COALESCE(s.base_unit, 'porcja')  AS base_unit,
+                           r.quantity_base,
+                           r.waste_percent,
+                           r.is_packaging,
+                           r.is_subrecipe,
+                           r.subrecipe_yield
+                    FROM sh_recipes r
+                    LEFT JOIN sys_items s
+                          ON s.sku = r.warehouse_sku AND s.tenant_id = r.tenant_id
+                    LEFT JOIN sh_menu_items mi
+                          ON mi.ascii_key = r.warehouse_sku AND mi.tenant_id = r.tenant_id
+                    WHERE r.menu_item_sku = ? AND r.tenant_id = ?
+                    ORDER BY r.id ASC
+                ");
+                $stmt->execute([$menuItemSku, $tenant_id]);
+                $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                $ingredients = array_map(function($r) {
+                    return [
+                        'warehouseSku'    => $r['warehouse_sku'],
+                        'name'            => $r['name'] ?? $r['warehouse_sku'],
+                        'baseUnit'        => $r['base_unit'] ?? '',
+                        'quantityBase'    => (float)$r['quantity_base'],
+                        'wastePercent'    => (float)$r['waste_percent'],
+                        'isPackaging'     => (bool)$r['is_packaging'],
+                        // F-S5.1 — nowe pola.
+                        'isSubrecipe'     => (int)($r['is_subrecipe'] ?? 0) === 1,
+                        'subrecipeYield'  => (float)($r['subrecipe_yield'] ?? 1.0),
+                    ];
+                }, $rows);
+            } else {
+                // Legacy fallback bez F-S5 kolumn.
+                $stmt = $pdo->prepare("
+                    SELECT r.warehouse_sku, s.name, s.base_unit, r.quantity_base, r.waste_percent, r.is_packaging
+                    FROM sh_recipes r
+                    JOIN sys_items s ON s.sku = r.warehouse_sku AND s.tenant_id = r.tenant_id
+                    WHERE r.menu_item_sku = ? AND r.tenant_id = ?
+                    ORDER BY r.id ASC
+                ");
+                $stmt->execute([$menuItemSku, $tenant_id]);
+                $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                $ingredients = array_map(function($r) {
+                    return [
+                        'warehouseSku'  => $r['warehouse_sku'],
+                        'name'          => $r['name'],
+                        'baseUnit'      => $r['base_unit'],
+                        'quantityBase'  => (float)$r['quantity_base'],
+                        'wastePercent'  => (float)$r['waste_percent'],
+                        'isPackaging'   => (bool)$r['is_packaging'],
+                        'isSubrecipe'   => false,
+                        'subrecipeYield' => 1.0,
+                    ];
+                }, $rows);
+            }
 
             $response['success'] = true;
             $response['data']    = ['ingredients' => $ingredients];
             $response['message'] = 'Receptura pobrana.';
+            break;
+
+        // F-S5.1 — kandydaci na półprodukty: pozycje menu z własną recepturą.
+        // Wykluczamy parenty variant family (is_variant_parent=1) bo nie maja własnego SKU sprzedażowego.
+        case 'list_subrecipe_candidates':
+            $menuItemSkuExclude = preg_replace('/[^a-zA-Z0-9_-]/', '', $input['exclude_sku'] ?? '');
+            $params = [$tenant_id];
+
+            $hasVariantCols = false;
+            try { $pdo->query("SELECT is_variant_parent FROM sh_menu_items LIMIT 0"); $hasVariantCols = true; }
+            catch (\PDOException $e) {}
+
+            $variantFilter = $hasVariantCols ? "AND (mi.is_variant_parent IS NULL OR mi.is_variant_parent = 0)" : "";
+            $excludeFilter = '';
+            if ($menuItemSkuExclude !== '') {
+                $excludeFilter = "AND mi.ascii_key <> ?";
+                $params[] = $menuItemSkuExclude;
+            }
+
+            $stmt = $pdo->prepare("
+                SELECT DISTINCT mi.ascii_key, mi.name,
+                       (SELECT COUNT(*) FROM sh_recipes r2
+                          WHERE r2.menu_item_sku = mi.ascii_key
+                            AND r2.tenant_id = mi.tenant_id) AS recipe_lines
+                  FROM sh_menu_items mi
+                  JOIN sh_recipes r ON r.menu_item_sku = mi.ascii_key AND r.tenant_id = mi.tenant_id
+                 WHERE mi.tenant_id = ?
+                   AND mi.is_deleted = 0
+                   {$variantFilter}
+                   {$excludeFilter}
+                 ORDER BY mi.name ASC
+                 LIMIT 200
+            ");
+            $stmt->execute($params);
+            $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $response['success'] = true;
+            $response['data'] = ['candidates' => array_map(function($r) {
+                return [
+                    'asciiKey'    => $r['ascii_key'],
+                    'name'        => $r['name'],
+                    'recipeLines' => (int)$r['recipe_lines'],
+                ];
+            }, $candidates)];
             break;
 
         // ==============================================================================
@@ -2092,23 +2182,73 @@ try {
             $ingredients  = $input['ingredients'] ?? [];
             if (empty($menuItemSku)) throw new Exception("Brak SKU dania.");
 
+            // F-S5.1 (2026-05-11): wykryj is_subrecipe column (graceful gdy migracja 053 brak).
+            $hasSubrecipeCols = false;
+            try { $pdo->query("SELECT is_subrecipe FROM sh_recipes LIMIT 0"); $hasSubrecipeCols = true; }
+            catch (\PDOException $e) {}
+
+            // Anti-cycle: nie dopuść żeby półprodukt referował sam siebie.
+            // Plus walidacja istnienia SKU (surowiec w sys_items / półprodukt w sh_menu_items).
             $pdo->beginTransaction();
             try {
                 $stmtDel = $pdo->prepare("DELETE FROM sh_recipes WHERE menu_item_sku = ? AND tenant_id = ?");
                 $stmtDel->execute([$menuItemSku, $tenant_id]);
 
-                $stmtIns = $pdo->prepare("INSERT INTO sh_recipes (tenant_id, menu_item_sku, warehouse_sku, quantity_base, waste_percent, is_packaging) VALUES (?, ?, ?, ?, ?, ?)");
+                if ($hasSubrecipeCols) {
+                    $stmtIns = $pdo->prepare(
+                        "INSERT INTO sh_recipes
+                            (tenant_id, menu_item_sku, warehouse_sku, quantity_base, waste_percent,
+                             is_packaging, is_subrecipe, subrecipe_yield)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                    );
+                } else {
+                    $stmtIns = $pdo->prepare(
+                        "INSERT INTO sh_recipes (tenant_id, menu_item_sku, warehouse_sku, quantity_base, waste_percent, is_packaging)
+                         VALUES (?, ?, ?, ?, ?, ?)"
+                    );
+                }
+
+                // Lookup helpers — walidacja przed INSERT.
+                $chkSysItem = $pdo->prepare("SELECT 1 FROM sys_items WHERE sku = ? AND tenant_id = ? LIMIT 1");
+                $chkMenuItem = $pdo->prepare("SELECT 1 FROM sh_menu_items WHERE ascii_key = ? AND tenant_id = ? AND is_deleted = 0 LIMIT 1");
+                $skipped = [];
                 foreach ($ingredients as $ing) {
                     $sku     = preg_replace('/[^a-zA-Z0-9_-]/', '', $ing['warehouseSku'] ?? '');
                     $qty     = floatval($ing['quantityBase']  ?? 0);
                     $waste   = floatval($ing['wastePercent']  ?? 0);
                     $isPkg   = !empty($ing['isPackaging']) ? 1 : 0;
+                    $isSub   = !empty($ing['isSubrecipe']) ? 1 : 0;
+                    $yield   = max(0.0001, floatval($ing['subrecipeYield'] ?? 1.0));
                     if (empty($sku) || $qty <= 0) continue;
-                    $stmtIns->execute([$tenant_id, $menuItemSku, $sku, $qty, $waste, $isPkg]);
+
+                    if ($isSub) {
+                        // Anti-cycle: półprodukt nie może wskazywać sam na siebie.
+                        if ($sku === $menuItemSku) {
+                            $skipped[] = "{$sku} (cycle)";
+                            continue;
+                        }
+                        $chkMenuItem->execute([$sku, $tenant_id]);
+                        if (!$chkMenuItem->fetch()) {
+                            $skipped[] = "{$sku} (półprodukt nie istnieje w menu)";
+                            continue;
+                        }
+                    } else {
+                        $chkSysItem->execute([$sku, $tenant_id]);
+                        if (!$chkSysItem->fetch()) {
+                            // Nie blokuje — sys_items może być uzupełnione później. Logujemy info.
+                        }
+                    }
+
+                    if ($hasSubrecipeCols) {
+                        $stmtIns->execute([$tenant_id, $menuItemSku, $sku, $qty, $waste, $isPkg, $isSub, $yield]);
+                    } else {
+                        $stmtIns->execute([$tenant_id, $menuItemSku, $sku, $qty, $waste, $isPkg]);
+                    }
                 }
                 $pdo->commit();
                 $response['success'] = true;
-                $response['message'] = 'Receptura zapisana.';
+                $response['data']    = ['skipped' => $skipped];
+                $response['message'] = 'Receptura zapisana.' . ($skipped ? ' Pominięto: ' . implode(', ', $skipped) : '');
             } catch (Exception $e) {
                 $pdo->rollBack();
                 throw $e;
