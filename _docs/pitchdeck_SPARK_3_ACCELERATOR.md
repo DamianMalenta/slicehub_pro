@@ -231,4 +231,18 @@
 
 ---
 
+## Pliki PPTX / PDF (gotowe w repo)
+
+| Plik | Opis |
+|------|------|
+| `_docs/pitchdeck_SPARK_3_output/SliceHub_Spark3_Pitch.pptx` | Prezentacja 16:9 (slajdy + mocki PWA z repo) |
+| `_docs/pitchdeck_SPARK_3_output/SliceHub_Spark3_Pitch.pdf` | Ta sama treść w PDF (A4, DejaVu, polskie znaki) |
+| `_docs/pitchdeck_SPARK_3_assets/png/*.png` | Rastery mocków SVG (`modules/online/screenshots/`, `modules/pos/screenshots/`) — CairoSVG 2× |
+
+**Regeneracja:** `pip install python-pptx pillow cairosvg fpdf2` następnie `python3 scripts/build_spark_pitchdeck.py`.
+
+**Wideo / screen recording:** w repozytorium **nie ma** plików `.mp4` / `.webm`; w dokumentacji plan demo offline: `_docs/17_OFFLINE_POS_BACKLOG.md` (P8). Do wniosku możesz dołożyć nagranie lokalnie po `seed_demo_all.php` (instrukcja: `_docs/DEPLOYMENT_HOSTING.md`).
+
+---
+
 *Dokument roboczy dla wniosku. Ostatnia synchronizacja treści z repo: 2026-05-11.*
