@@ -58,4 +58,5 @@ return [
     '045_tenant_legal_profile.sql',
     '046_ksef_inbox.sql',
     '047_order_geocoding.sql',
+    '048_variant_scales.sql',
 ];

@@ -3,7 +3,7 @@
 > Oficjalna mapa drogowa projektu **SliceHub Enterprise** dla Agentów AI.
 > Nie zgaduj — sprawdzaj strukturę tutaj.
 >
-> **Ostatnia synchronizacja:** 2026-05-11 (F5 POS Integrity Pass + F6 Geocoder Nominatim).
+> **Ostatnia synchronizacja:** 2026-05-11 (Release Bundle: F5 POS Integrity + F6 Geocoder + F-S1 Variant Scales + F-S2 Topping Size Pricing + F-S3 Combo Meals + F-S4 Studio drift cleanup).
 > **North Star:** [`_docs/00_PAMIEC_SYSTEMU.md`](00_PAMIEC_SYSTEMU.md) — master reference.
 > **Hub & Kiosk dedykowany doc:** [`_docs/19_HUB_AND_KIOSK.md`](19_HUB_AND_KIOSK.md).
 

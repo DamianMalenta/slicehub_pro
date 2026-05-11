@@ -93,32 +93,65 @@ try {
         $categories = $stmtCat->fetchAll(PDO::FETCH_ASSOC);
 
         // -- Items --
+        // F-S1 (2026-05-11): variant columns probe (graceful fallback gdy migracja 048 brak).
+        $hasVariantCols = false;
+        try { $pdo->query("SELECT variant_scale_id FROM sh_menu_items LIMIT 0"); $hasVariantCols = true; }
+        catch (\PDOException $e) {}
+
         if ($schemaV2) {
-            $stmtItems = $pdo->prepare(
-                // F5-D (2026-05-11): Temporal Tables filter. POS pokazuje TYLKO opublikowane
-                // pozycje w aktualnym oknie czasowym — analogicznie do online checkout
-                // (Konstytucja v5 § Prawo II — Bliźniak Cyfrowy: ten sam stan w POS i Online).
-                "SELECT id, category_id, name, ascii_key, is_active, image_url, description,
-                        vat_rate_dine_in, vat_rate_takeaway
-                 FROM sh_menu_items
-                 WHERE tenant_id = ?
-                   AND is_deleted = 0
-                   AND (publication_status IS NULL OR publication_status = 'published')
-                   AND (valid_from IS NULL OR valid_from <= CURDATE())
-                   AND (valid_to IS NULL OR valid_to >= CURDATE())
-                 ORDER BY display_order ASC, name ASC"
-            );
+            // F-S1 + F5-D + F-S4 — wspólne klauzule:
+            //   * is_variant_parent=0 (parents niesprzedawalne, F-S1)
+            //   * Temporal Tables filter (Live + valid_from/to, F5-D)
+            //   * F-S4: kanoniczny słownik publication_status = 'Live' (był 'published')
+            //     — fallback do 'published' dla baz bez migracji 051.
+            if ($hasVariantCols) {
+                $stmtItems = $pdo->prepare(
+                    "SELECT mi.id, mi.category_id, mi.name, mi.ascii_key, mi.is_active, mi.image_url, mi.description,
+                            mi.vat_rate_dine_in, mi.vat_rate_takeaway,
+                            mi.parent_item_id, mi.variant_option_id,
+                            parent_mi.ascii_key AS parent_ascii_key,
+                            parent_mi.name AS parent_name,
+                            opt.name AS variant_option_name,
+                            opt.key_ascii AS variant_option_key,
+                            opt.display_order AS variant_option_order,
+                            opt.multiplier AS variant_multiplier
+                       FROM sh_menu_items mi
+                       LEFT JOIN sh_menu_items parent_mi
+                            ON parent_mi.id = mi.parent_item_id AND parent_mi.tenant_id = mi.tenant_id
+                       LEFT JOIN sh_variant_scale_options opt
+                            ON opt.id = mi.variant_option_id AND opt.tenant_id = mi.tenant_id
+                      WHERE mi.tenant_id = ?
+                        AND mi.is_deleted = 0
+                        AND mi.is_variant_parent = 0
+                        AND (mi.publication_status IS NULL OR mi.publication_status IN ('Live','published'))
+                        AND (mi.valid_from IS NULL OR mi.valid_from <= NOW())
+                        AND (mi.valid_to   IS NULL OR mi.valid_to   >= NOW())
+                      ORDER BY mi.display_order ASC, mi.name ASC"
+                );
+            } else {
+                $stmtItems = $pdo->prepare(
+                    "SELECT id, category_id, name, ascii_key, is_active, image_url, description,
+                            vat_rate_dine_in, vat_rate_takeaway
+                       FROM sh_menu_items
+                      WHERE tenant_id = ?
+                        AND is_deleted = 0
+                        AND (publication_status IS NULL OR publication_status IN ('Live','published'))
+                        AND (valid_from IS NULL OR valid_from <= NOW())
+                        AND (valid_to   IS NULL OR valid_to   >= NOW())
+                      ORDER BY display_order ASC, name ASC"
+                );
+            }
         } else {
             $stmtItems = $pdo->prepare(
-                // F5-D: jw. (legacy schema bez vat_rate_*).
+                // F-S4: kanoniczny 'Live' (z fallback 'published' dla starych baz). DATETIME-safe via NOW().
                 "SELECT id, category_id, name, ascii_key, is_active, NULL AS image_url, description,
                         vat_rate AS vat_rate_dine_in, vat_rate AS vat_rate_takeaway, price
                  FROM sh_menu_items
                  WHERE tenant_id = ?
                    AND is_deleted = 0
-                   AND (publication_status IS NULL OR publication_status = 'published')
-                   AND (valid_from IS NULL OR valid_from <= CURDATE())
-                   AND (valid_to IS NULL OR valid_to >= CURDATE())
+                   AND (publication_status IS NULL OR publication_status IN ('Live','published'))
+                   AND (valid_from IS NULL OR valid_from <= NOW())
+                   AND (valid_to   IS NULL OR valid_to   >= NOW())
                  ORDER BY display_order ASC, name ASC"
             );
         }
@@ -157,7 +190,7 @@ try {
                     ['channel' => 'Delivery', 'price' => $lp],
                 ];
             }
-            $items[] = [
+            $itemRow = [
                 'id'          => (int)$it['id'],
                 'categoryId'  => (int)$it['category_id'],
                 'name'        => $it['name'],
@@ -168,7 +201,51 @@ try {
                 'vatTakeaway' => (float)($it['vat_rate_takeaway'] ?? 5),
                 'priceTiers'  => $tiers,
             ];
+            // F-S1 — variant meta (NULL dla zwyklych itemow).
+            if (!empty($it['parent_item_id'])) {
+                $itemRow['parentItemId']      = (int)$it['parent_item_id'];
+                $itemRow['parentAsciiKey']    = $it['parent_ascii_key'] ?? null;
+                $itemRow['parentName']        = $it['parent_name'] ?? null;
+                $itemRow['variantOptionId']   = (int)($it['variant_option_id'] ?? 0);
+                $itemRow['variantOptionName'] = $it['variant_option_name'] ?? null;
+                $itemRow['variantOptionKey']  = $it['variant_option_key'] ?? null;
+                $itemRow['variantMultiplier'] = (float)($it['variant_multiplier'] ?? 1.0);
+            }
+            $items[] = $itemRow;
         }
+
+        // F-S1 — variant groups: zgrupuj children po parentAsciiKey dla UI POS.
+        // Frontend moze pokazac jeden kafelek „Pizza Margherita" → submenu wyboru rozmiaru.
+        $variantGroups = [];
+        foreach ($items as $row) {
+            if (!empty($row['parentAsciiKey'])) {
+                $pKey = $row['parentAsciiKey'];
+                if (!isset($variantGroups[$pKey])) {
+                    $variantGroups[$pKey] = [
+                        'parentAsciiKey' => $pKey,
+                        'parentName'     => $row['parentName'] ?? $pKey,
+                        'categoryId'     => $row['categoryId'],
+                        'variants'       => [],
+                    ];
+                }
+                $variantGroups[$pKey]['variants'][] = [
+                    'asciiKey'      => $row['asciiKey'],
+                    'optionName'    => $row['variantOptionName'] ?? '',
+                    'optionKey'     => $row['variantOptionKey'] ?? '',
+                    'multiplier'    => $row['variantMultiplier'] ?? 1.0,
+                    'priceTiers'    => $row['priceTiers'],
+                    'imageUrl'      => $row['imageUrl'],
+                ];
+            }
+        }
+        // Sortuj variants per group po display_order opcji
+        foreach ($variantGroups as &$vg) {
+            usort($vg['variants'], static function($a, $b) {
+                return strnatcmp((string)$a['optionKey'], (string)$b['optionKey']);
+            });
+        }
+        unset($vg);
+        $variantGroups = array_values($variantGroups);
 
         // m021 Asset Studio override — hero z sh_asset_links ma priorytet
         AssetResolver::injectHeros($pdo, (int)$tenant_id, $items, 'asciiKey', 'imageUrl');
@@ -327,6 +404,8 @@ try {
             'drivers'        => $drivers,
             'waiters'        => $waiters,
             'modifierGroups' => $modifierGroups,
+            // F-S1 (2026-05-11): variantGroups dla UI POS — kafelek parenta z submenu rozmiarów.
+            'variantGroups'  => $variantGroups ?? [],
         ]);
     }
 
