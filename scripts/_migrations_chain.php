@@ -55,4 +55,5 @@ return [
     '042_hr_work_sessions_extend.sql',
     '043_hr_payroll_ledger.sql',
     '044_hr_advances.sql',
+    '045_tenant_legal_profile.sql',
 ];
