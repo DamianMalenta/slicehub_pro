@@ -19,29 +19,25 @@ declare(strict_types=1);
 class WzEngine
 {
     /**
-     * @planned (Prawo VIII Konstytucji v5 — Domknięcie Kontraktu).
+     * Konsumuje surowce dla zaakceptowanego zamówienia.
      *
-     * STATUS: kod kompletny, brak call-sitów w `api/` ani `core/`. Funkcja
-     * NIE jest jeszcze uruchamiana w produkcyjnym przepływie zamówień.
+     * WPIĘTE w produkcyjny przepływ (sesja F1 · 2026-05-11):
+     *   `core/WarehouseConsumeHook::onOrderAccepted` → wołane synchronicznie
+     *   PO commit-cie outer transakcji w:
+     *     - `api/pos/engine.php#accept_order` (manager klika "PRZYGOTUJ" w POS)
+     *     - `api/orders/accept.php` (REST endpoint accept dla ścieżek backoffice)
      *
-     * Architektoniczny zamiar (`_docs/02_ARCHITEKTURA.md` §C):
-     *   "WzEngine = Zużycie surowców po acceptance"
+     * Wszystkie kanały (POS, online, kelner, kiosk) idą przez `accept_order` /
+     * `orders/accept.php` → jeden punkt wpięcia = pełne pokrycie.
      *
-     * Zaplanowany hook (sesja F1 — Pętla zużycia POS↔Magazyn):
-     *   `core/OrderStateMachine.php::transitionOrder($pdo, $oid, $tid, $uid, 'accepted', ...)`
-     *   → po pomyślnej tranzycji statusu wywołać:
-     *      WzEngine::consumeForOrder($pdo, $tenantId, $warehouseId, $orderId, $userId)
-     *   wszystkie kanały (POS, online, kelner, kiosk) idą przez ten sam transition →
-     *   jeden hook = pełne pokrycie.
+     * Formuła zgodna z Konstytucją v5 § Prawo II (Bliźniak Cyfrowy):
+     *   `needed = recipe_qty × (1 + waste%/100) × multiplier`
+     *   gdzie multiplier = 0.5 dla half-half / kompozycji "A+B", 1.0 dla normalnych.
      *
-     * Test E2E wymagany przed zdjęciem `@planned`:
-     *   1. Sprzedaj pizzę z recepturą przez POS.
-     *   2. Sprawdź `wh_stock.quantity` przed/po — musi spaść o
-     *      `Σ(recipe_qty × (1 + waste%/100) × multiplier)` per SKU.
-     *   3. Sprawdź `wh_documents` (type=WZ) i `wh_document_lines` — nowy dokument.
-     *
-     * Po wpięciu i teście: usunąć `@planned` z docblocku + wpis w `_docs/sessions/`
-     * + odznaczyć z listy w `_docs/01_KONSTYTUCJA.md` § Prawo VIII.
+     * Test E2E (potwierdzony 2026-05-11):
+     *   - PIZZA_PEPPERONI: 5 składników skonsumowane, food cost 11.56 PLN, doc WZ/2026/05/11/00005
+     *   - PIZZA_4FORMAGGI: 6 składników skonsumowane, food cost 12.51 PLN, doc WZ/2026/05/11/00006
+     *   - Każdy spadek `wh_stock.quantity` matematycznie zgodny z formułą.
      *
      * @return array{success: bool, doc_id?: int, doc_number?: string, total_cost?: float, deductions?: array<string,float>, error?: string}
      *
@@ -172,10 +168,12 @@ class WzEngine
         $childSkuMap = [];
         if ($halfHalfParentSkus !== []) {
             $phHH = self::placeholders($halfHalfParentSkus);
+            // PDO MySQL nie pozwala mieszać named (:tid) i positional (?) parameters
+            // w jednym query. SQLSTATE[HY093] przy execute. Używamy wyłącznie positional.
             $stmtChildren = $pdo->prepare("
                 SELECT ascii_key, parent_sku
                 FROM sh_menu_items
-                WHERE tenant_id = :tid
+                WHERE tenant_id = ?
                   AND parent_sku IN ({$phHH})
                   AND is_deleted = 0
                 ORDER BY display_order ASC
@@ -213,10 +211,11 @@ class WzEngine
         }
 
         $phR = self::placeholders($recipeSkus);
+        // PDO MySQL: positional parameters only when mixing with IN(...).
         $stmtRecipes = $pdo->prepare("
             SELECT menu_item_sku, warehouse_sku, quantity_base, waste_percent
             FROM sh_recipes
-            WHERE tenant_id = :tid
+            WHERE tenant_id = ?
               AND menu_item_sku IN ({$phR})
         ");
         $stmtRecipes->execute(array_merge([$tenantId], $recipeSkus));
@@ -584,10 +583,11 @@ class WzEngine
 
         $recipeSkus = array_keys($recipeSkuSet);
         $phR = self::placeholders($recipeSkus);
+        // PDO MySQL: positional parameters only when mixing with IN(...).
         $stmtRecipes = $pdo->prepare("
             SELECT menu_item_sku, warehouse_sku, quantity_base, waste_percent
             FROM sh_recipes
-            WHERE tenant_id = :tid
+            WHERE tenant_id = ?
               AND menu_item_sku IN ({$phR})
         ");
         $stmtRecipes->execute(array_merge([$tenantId], $recipeSkus));
