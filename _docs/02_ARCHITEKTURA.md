@@ -266,10 +266,11 @@ Shared CSS dla wszystkich modułów: safe-area-inset, viewport-fit, mobilne nawi
 | `gateway/intake.php` | Zewnętrzny punkt wejścia (multi-key auth, rate limit, idempotency) |
 | `integrations/inbound.php` | Callback handler dla 3rd-party POS / dostawców (webhook inbound) |
 
-#### Procurement (m045+ · NEW F2 · 2026-05-11)
+#### Procurement (m045+ · F2+F3 · 2026-05-11)
 | Ścieżka | Opis |
 |---------|------|
 | `procurement/suggest.php` | AutoScan endpoint — action-based: `suggest`, `suggest_bulk`, `learn`, `learn_bulk`, `threshold_get`, `threshold_set`. RBAC: suggest = owner/admin/manager, learn = owner/manager, threshold_set = owner. Audit do `sh_settings_audit`. Fundament pod F3 (Procurement Inbox UI) + F4 (KSeF API client). |
+| `procurement/inbox.php` (NEW · F3 · 2026-05-11) | KSeF Inbox endpoint — action-based: `list`, `show`, `upload_xml`, `reparse`, `update_line`, `accept`, `reject`. RBAC: list/show/upload = owner/admin/manager, reparse/update/accept/reject = owner/manager. Parsuje FA(2) XML przez `core/Ksef/Parser`, match przez AutoScan, accept tworzy PZ przez PzEngine. Konsumowane przez `modules/procurement/`. |
 
 #### Utility
 | Ścieżka | Status |
