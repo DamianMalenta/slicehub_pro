@@ -3,13 +3,17 @@
 > Oficjalna mapa drogowa projektu **SliceHub Enterprise** dla Agentów AI.
 > Nie zgaduj — sprawdzaj strukturę tutaj.
 >
-> **Ostatnia synchronizacja:** 2026-05-11 (RELEASE BUNDLE — wszystko gotowe do testów na uti.pl):
+> **Ostatnia synchronizacja:** 2026-05-11 (RELEASE BUNDLE COMPLETE — gotowe do testów na uti.pl):
 > - F5 POS Integrity Pass (cart revalid + reverse stock + modifiers SKU)
 > - F6 Geocoder Nominatim (delivery_lat/lng + dispatcher map)
 > - F-S1 Variant Scales (pizza Mała/Średnia/Duża + multiplier)
 > - F-S2 Topping Size Pricing (Toast-style + 4 half-half strategies)
-> - F-S3 Meal Packages (Combo/Bundle)
+> - F-S2.1 Studio UI: macierz cen modyfikatorów per rozmiar
+> - F-S3 Meal Packages (Combo/Bundle) — backend
+> - F-S3.1 POS UI: kafelki combo + wizard wyboru składników
 > - F-S4 Studio drift cleanup (Live/published, valid_from DATETIME, bulk VAT, recipe clone, parent_sku validation)
+> - F-S5 Multi-stage recipes (półprodukty, iiko-style „заготовки", WzEngine rekurencyjna ekspansja z max depth 3)
+> - F-S6 Wizard „Nowa Pizza" (4-step modal: nazwa → skala → ceny → generuj)
 > **North Star:** [`_docs/00_PAMIEC_SYSTEMU.md`](00_PAMIEC_SYSTEMU.md) — master reference.
 > **Hub & Kiosk dedykowany doc:** [`_docs/19_HUB_AND_KIOSK.md`](19_HUB_AND_KIOSK.md).
 
