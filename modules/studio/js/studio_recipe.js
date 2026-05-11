@@ -757,7 +757,13 @@ window.RecipeMapper = {
         html += '</div>';
 
         html += `
-            <div class="recipe-footer sticky bottom-0 mt-3 pt-3 border-t border-white/10 bg-[#0a0a0f]/95 backdrop-blur">
+            <div class="recipe-footer sticky bottom-0 mt-3 pt-3 border-t border-white/10 bg-[#0a0a0f]/95 backdrop-blur space-y-2">
+                <button type="button"
+                        onclick="window.RecipeMapper.openCloneRecipeModal()"
+                        class="w-full bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 font-black text-[10px] uppercase tracking-widest py-2 rounded-xl transition flex items-center justify-center gap-2"
+                        title="F-S4: skopiuj recepturę z innej pozycji menu">
+                    <i class="fa-solid fa-copy"></i> Skopiuj z innej pozycji
+                </button>
                 <button type="button" id="btn-save-recipe"
                         onclick="window.RecipeMapper.saveItemRecipe()"
                         class="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-black text-[11px] uppercase tracking-widest py-3 rounded-xl shadow-[0_0_15px_rgba(147,51,234,0.3)] transition-all flex items-center justify-center gap-2">
@@ -820,6 +826,97 @@ window.RecipeMapper = {
                 btn.disabled = false;
                 btn.innerHTML = origHtml || `<i class="fa-solid fa-floppy-disk"></i> Zapisz Recepturę`;
             }
+        }
+    },
+
+    // =========================================================================
+    // F-S4 — RECIPE CLONE (Skopiuj recepturę z innej pozycji menu) · 2026-05-11
+    // =========================================================================
+
+    async openCloneRecipeModal() {
+        if (!this.state.currentMenuItemSku) { alert('Najpierw wybierz pozycję menu z drzewa.'); return; }
+        const targetKey = this.state.currentMenuItemSku;
+
+        // Lista dostępnych pozycji z aktualnego StudioState (uniknij ekstra API call).
+        const tree = window.StudioState?.menuTree || [];
+        const allItems = [];
+        tree.forEach(cat => (cat.items || []).forEach(it => {
+            if (it.asciiKey && it.asciiKey !== targetKey) {
+                allItems.push({ asciiKey: it.asciiKey, name: it.name, categoryName: cat.name });
+            }
+        }));
+        if (!allItems.length) { alert('Brak innych pozycji do skopiowania.'); return; }
+
+        const modal = document.createElement('div');
+        modal.id = 'fs4-clone-recipe-modal';
+        modal.className = 'fixed inset-0 z-[300] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4';
+        modal.innerHTML = `
+            <div class="bg-slate-900 border border-amber-500/40 rounded-2xl w-full max-w-xl overflow-hidden">
+                <div class="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-white font-black text-base">Skopiuj recepturę</h3>
+                        <p class="text-amber-300 text-[10px] uppercase font-bold tracking-wider mt-0.5">F-S4 · Z innej pozycji menu → <code>${targetKey}</code></p>
+                    </div>
+                    <button onclick="document.getElementById('fs4-clone-recipe-modal')?.remove()" class="text-slate-400 hover:text-white text-xl">×</button>
+                </div>
+                <div class="p-4 space-y-3">
+                    <input type="text" id="fs4-clone-search" placeholder="Szukaj pozycji..." class="w-full bg-black/50 border border-white/10 text-white rounded-lg p-3 text-sm focus:border-amber-500 outline-none">
+                    <div id="fs4-clone-list" class="max-h-80 overflow-y-auto space-y-1.5"></div>
+                    <p class="text-[10px] text-amber-300/70 leading-snug">⚠️ Istniejąca receptura <code>${targetKey}</code> zostanie ZASTĄPIONA przez wybraną.</p>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+
+        const listEl = modal.querySelector('#fs4-clone-list');
+        const searchEl = modal.querySelector('#fs4-clone-search');
+
+        const renderList = (filter) => {
+            const flt = (filter || '').toLowerCase();
+            listEl.innerHTML = '';
+            allItems
+                .filter(i => !flt || i.asciiKey.toLowerCase().includes(flt) || (i.name || '').toLowerCase().includes(flt))
+                .slice(0, 50)
+                .forEach(i => {
+                    const btn = document.createElement('button');
+                    btn.className = 'w-full bg-black/40 hover:bg-amber-500/15 border border-white/10 hover:border-amber-500/40 rounded-lg p-3 flex items-center justify-between transition text-left';
+                    btn.innerHTML = `
+                        <div>
+                            <div class="text-white text-sm font-bold">${i.name}</div>
+                            <div class="text-slate-500 text-[10px] font-mono">${i.asciiKey} <span class="text-slate-600">· ${i.categoryName || ''}</span></div>
+                        </div>
+                        <i class="fa-solid fa-arrow-right text-amber-400"></i>`;
+                    btn.onclick = () => this.confirmCloneRecipe(i.asciiKey, targetKey);
+                    listEl.appendChild(btn);
+                });
+            if (!listEl.children.length) listEl.innerHTML = '<p class="text-center text-slate-500 text-[10px] italic py-4">Brak wyników</p>';
+        };
+        renderList('');
+        searchEl.addEventListener('input', () => renderList(searchEl.value));
+    },
+
+    async confirmCloneRecipe(srcKey, dstKey) {
+        if (!confirm(`Skopiować recepturę z "${srcKey}" do "${dstKey}"?\n\nIstniejąca receptura ${dstKey} zostanie ZASTĄPIONA.`)) return;
+        try {
+            const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
+                action: 'clone_recipe',
+                source_ascii_key: srcKey,
+                target_ascii_key: dstKey,
+            });
+            if (r && r.success) {
+                alert(`✅ ${r.message || 'Skopiowano.'}`);
+                document.getElementById('fs4-clone-recipe-modal')?.remove();
+                // Reload bieżącej receptury w UI.
+                if (this.loadItemRecipe) {
+                    await this.loadItemRecipe(dstKey);
+                } else if (typeof window.loadMenuTree === 'function') {
+                    await window.loadMenuTree();
+                }
+            } else {
+                alert('❌ ' + (r?.message || 'unknown error'));
+            }
+        } catch (e) {
+            console.error('[RecipeMapper] confirmCloneRecipe', e);
+            alert('Krytyczny błąd: ' + e.message);
         }
     }
 };

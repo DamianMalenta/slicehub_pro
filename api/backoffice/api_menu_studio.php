@@ -1424,6 +1424,17 @@ try {
             $parentSku = trim($input['parentSku'] ?? '');
             $parentSku = $parentSku === '' ? null : $parentSku;
 
+            // F-S4 (2026-05-11): walidacja parent_sku.
+            // Po F-S1 to deprecated (uzywamy parent_item_id FK), ale legacy items moga
+            // nadal miec ustawione. Akceptujemy tylko jesli wskazuje na istniejacy ascii_key tego tenanta.
+            if ($parentSku !== null) {
+                $stmtChkParent = $pdo->prepare("SELECT 1 FROM sh_menu_items WHERE ascii_key = ? AND tenant_id = ? LIMIT 1");
+                $stmtChkParent->execute([$parentSku, $tenant_id]);
+                if (!$stmtChkParent->fetch()) {
+                    throw new Exception("parent_sku '{$parentSku}' nie istnieje w menu tego tenanta. Zostaw puste albo uzyj istniejacego SKU.");
+                }
+            }
+
             // F-S1: variant scale fields (opcjonalne, NULL-safe dla zwyklych itemow).
             // hasVariantColumns probe — graceful gdy migracja 048 nie zaaplikowana.
             static $hasVariantColumns = null;
@@ -1588,6 +1599,21 @@ try {
 
                 if (isset($input['isSecret']) && $input['isSecret'] !== '') {
                     $updates[] = "is_secret = ?"; $params[] = filter_var($input['isSecret'], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+                }
+
+                // F-S4 (2026-05-11): VAT bulk update — pole było w UI ale nie wysyłane (drift).
+                // Akceptujemy 2 kanały (dine_in, takeaway). Walidacja: 0..25%.
+                if ($schemaV2 && isset($input['vatRateDineIn']) && $input['vatRateDineIn'] !== '' && $input['vatRateDineIn'] !== null) {
+                    $vatDine = (float)$input['vatRateDineIn'];
+                    if ($vatDine >= 0 && $vatDine <= 25) {
+                        $updates[] = "vat_rate_dine_in = ?"; $params[] = $vatDine;
+                    }
+                }
+                if ($schemaV2 && isset($input['vatRateTakeaway']) && $input['vatRateTakeaway'] !== '' && $input['vatRateTakeaway'] !== null) {
+                    $vatTake = (float)$input['vatRateTakeaway'];
+                    if ($vatTake >= 0 && $vatTake <= 25) {
+                        $updates[] = "vat_rate_takeaway = ?"; $params[] = $vatTake;
+                    }
                 }
 
                 if ($schemaV2 && !empty($input['temporalPublicationPatch']) && !empty($input['temporalPublicationPatch']['apply'])) {
@@ -2742,6 +2768,60 @@ try {
         // F-S3 — MEAL PACKAGES (Combo/Bundle, 2026-05-11)
         // sh_meal_packages + sh_meal_components. Sprzedażowy combo.
         // =================================================================
+
+        // =================================================================
+        // F-S4 — RECIPE TEMPLATE (clone from existing item)
+        // =================================================================
+
+        case 'clone_recipe':
+            // input: source_ascii_key (z którego klonujemy), target_ascii_key (do którego).
+            $srcKey = trim((string)($input['source_ascii_key'] ?? ''));
+            $dstKey = trim((string)($input['target_ascii_key'] ?? ''));
+            if ($srcKey === '' || $dstKey === '') throw new Exception('source_ascii_key + target_ascii_key required.');
+            if ($srcKey === $dstKey) throw new Exception('Source and target must differ.');
+
+            // Bariery tenant_id (Konstytucja v5 § Prawo VI).
+            $stmtChk = $pdo->prepare(
+                "SELECT ascii_key FROM sh_menu_items
+                  WHERE tenant_id = ? AND ascii_key IN (?, ?) AND is_deleted = 0"
+            );
+            $stmtChk->execute([$tenant_id, $srcKey, $dstKey]);
+            $found = $stmtChk->fetchAll(PDO::FETCH_COLUMN);
+            if (!in_array($srcKey, $found, true)) throw new Exception("Source SKU '{$srcKey}' not found.");
+            if (!in_array($dstKey, $found, true)) throw new Exception("Target SKU '{$dstKey}' not found.");
+
+            $stmtSrc = $pdo->prepare(
+                "SELECT warehouse_sku, quantity_base, waste_percent, is_packaging
+                   FROM sh_recipes WHERE tenant_id = ? AND menu_item_sku = ?"
+            );
+            $stmtSrc->execute([$tenant_id, $srcKey]);
+            $rows = $stmtSrc->fetchAll(PDO::FETCH_ASSOC);
+            if (!$rows) throw new Exception("Source '{$srcKey}' has no recipe lines.");
+
+            $pdo->beginTransaction();
+            try {
+                $pdo->prepare("DELETE FROM sh_recipes WHERE tenant_id = ? AND menu_item_sku = ?")
+                    ->execute([$tenant_id, $dstKey]);
+                $stmtIns = $pdo->prepare(
+                    "INSERT INTO sh_recipes (tenant_id, menu_item_sku, warehouse_sku, quantity_base, waste_percent, is_packaging)
+                     VALUES (?, ?, ?, ?, ?, ?)"
+                );
+                foreach ($rows as $r) {
+                    $stmtIns->execute([
+                        $tenant_id, $dstKey,
+                        $r['warehouse_sku'],
+                        $r['quantity_base'], $r['waste_percent'], $r['is_packaging']
+                    ]);
+                }
+                $pdo->commit();
+                $response['success'] = true;
+                $response['data'] = ['cloned_lines' => count($rows)];
+                $response['message'] = "Receptura skopiowana: {$srcKey} → {$dstKey} ({$response['data']['cloned_lines']} linii).";
+            } catch (\Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                throw $e;
+            }
+            break;
 
         case 'list_meals':
             $stmt = $pdo->prepare(

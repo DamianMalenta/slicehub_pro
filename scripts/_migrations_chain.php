@@ -61,4 +61,6 @@ return [
     '048_variant_scales.sql',
     '049_modifier_size_pricing.sql',
     '050_meal_packages.sql',
+    '051_publication_status_normalize.sql',
+    '052_valid_from_to_datetime.sql',
 ];
