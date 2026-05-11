@@ -827,7 +827,8 @@ window.RecipeMapper = {
                 : 'border-white/10 bg-black/40';
 
             html += `
-            <div class="recipe-row flex items-center justify-between gap-2 p-2 border ${rowBg} rounded-lg hover:border-white/20 transition" data-sku="${_eR(d.ing.warehouseSku)}">
+            <div class="recipe-row flex items-center justify-between gap-2 p-2 border ${rowBg} rounded-lg hover:border-white/20 transition" data-sku="${_eR(d.ing.warehouseSku)}" data-row-idx="${index}" draggable="true">
+                <span class="recipe-drag-handle cursor-grab text-slate-500 hover:text-white px-1 text-[12px]" title="F-S9: przeciągnij aby zmienić kolejność"><i class="fa-solid fa-grip-vertical"></i></span>
                 <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2 flex-wrap">
                         <span class="text-white text-[11px] font-black truncate">${_eR(d.ing.name)}</span>
@@ -883,6 +884,49 @@ window.RecipeMapper = {
 
         container.innerHTML = html;
         this._triggerMarginUpdate();
+        // F-S9 (2026-05-11): native HTML5 drag-and-drop dla recipe rows.
+        this._wireRecipeDragDrop();
+    },
+
+    // F-S9 — drag-and-drop handler. Reorderuje `this.state.currentRecipe` w pamięci
+    // + automatycznie aktualizuje displayOrder na bazie aktualnej kolejności.
+    // Save propaguje displayOrder do backendu w save_recipe (już obsłużone).
+    _wireRecipeDragDrop() {
+        const rows = document.querySelectorAll('.recipe-grid .recipe-row');
+        rows.forEach(row => {
+            row.addEventListener('dragstart', (e) => {
+                row.classList.add('opacity-50');
+                e.dataTransfer.setData('text/plain', row.dataset.rowIdx);
+                e.dataTransfer.effectAllowed = 'move';
+            });
+            row.addEventListener('dragend', () => {
+                row.classList.remove('opacity-50');
+                document.querySelectorAll('.recipe-row').forEach(r => r.classList.remove('border-orange-500'));
+            });
+            row.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                row.classList.add('border-orange-500');
+            });
+            row.addEventListener('dragleave', () => {
+                row.classList.remove('border-orange-500');
+            });
+            row.addEventListener('drop', (e) => {
+                e.preventDefault();
+                row.classList.remove('border-orange-500');
+                const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                const toIdx = parseInt(row.dataset.rowIdx, 10);
+                if (Number.isNaN(fromIdx) || Number.isNaN(toIdx) || fromIdx === toIdx) return;
+
+                // Reorder in-memory
+                const arr = this.state.currentRecipe;
+                const [moved] = arr.splice(fromIdx, 1);
+                arr.splice(toIdx, 0, moved);
+                // Re-assign displayOrder w aktualnej kolejności.
+                arr.forEach((r, i) => { r.displayOrder = i; });
+                this.renderRecipeList();
+            });
+        });
     },
 
     async saveItemRecipe() {

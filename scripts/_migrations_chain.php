@@ -65,4 +65,5 @@ return [
     '052_valid_from_to_datetime.sql',
     '053_subrecipes.sql',
     '054_order_line_combo_meta.sql',
+    '055_recipe_display_order.sql',
 ];

@@ -1341,7 +1341,9 @@ window.ItemEditor = {
                     <i class="fa-solid fa-arrow-right text-slate-600 text-[8px]"></i>
                     <span class="fs6-step-pill px-2 py-1 rounded bg-slate-700/40 text-slate-400" data-step="3">3. Ceny</span>
                     <i class="fa-solid fa-arrow-right text-slate-600 text-[8px]"></i>
-                    <span class="fs6-step-pill px-2 py-1 rounded bg-slate-700/40 text-slate-400" data-step="4">4. Generuj</span>
+                    <span class="fs6-step-pill px-2 py-1 rounded bg-slate-700/40 text-slate-400" data-step="4">4. Modyfikatory</span>
+                    <i class="fa-solid fa-arrow-right text-slate-600 text-[8px]"></i>
+                    <span class="fs6-step-pill px-2 py-1 rounded bg-slate-700/40 text-slate-400" data-step="5">5. Generuj</span>
                 </div>
                 <div class="overflow-y-auto flex-1 p-5 space-y-4">
                     <!-- STEP 1 -->
@@ -1391,11 +1393,18 @@ window.ItemEditor = {
                         <p class="text-[10px] text-slate-400 mb-3">Wpisz cenę POS za każdą opcję rozmiarową. Takeaway/Delivery zostaną auto-uzupełnione (+10% delivery).</p>
                         <div id="fs6-prices-matrix" class="space-y-2"></div>
                     </div>
-                    <!-- STEP 4 -->
+                    <!-- STEP 4 — F-S6.1 modifier groups -->
                     <div class="fs6-step-panel hidden" data-step-panel="4">
-                        <h4 class="text-white font-bold text-sm mb-3">Krok 4: Podsumowanie i generowanie</h4>
+                        <h4 class="text-white font-bold text-sm mb-3">Krok 4: Domyślne grupy modyfikatorów (F-S6.1)</h4>
+                        <p class="text-[10px] text-slate-400 mb-3">Wybierz <strong class="text-purple-300">grupy modyfikatorów</strong> które trafią do KAŻDEGO wariantu pizzy. Możesz pominąć — dodasz później ręcznie.</p>
+                        <div id="fs6-modifier-groups-list" class="space-y-2 max-h-64 overflow-y-auto"></div>
+                        <div class="mt-3 text-[10px] text-slate-500 italic">💡 Typowe grupy: „Dodatki" (salami, pieczarki), „Ciasto" (cienkie/grube), „Bezglutenowe" (toggle).</div>
+                    </div>
+                    <!-- STEP 5 -->
+                    <div class="fs6-step-panel hidden" data-step-panel="5">
+                        <h4 class="text-white font-bold text-sm mb-3">Krok 5: Podsumowanie i generowanie</h4>
                         <div id="fs6-summary" class="text-xs text-slate-300 space-y-2 bg-black/40 p-4 rounded-xl border border-white/10"></div>
-                        <p class="text-[10px] text-amber-300 mt-3">⚠️ Po kliknięciu „Generuj rodzinę" zostanie utworzony parent + N children w `sh_menu_items` (każdy ze swoimi cenami). Recepturę dodasz osobno w edytorze.</p>
+                        <p class="text-[10px] text-amber-300 mt-3">⚠️ Po kliknięciu „Generuj rodzinę" zostanie utworzony parent + N children w `sh_menu_items` (każdy ze swoimi cenami + modyfikatorami). Recepturę dodasz osobno w edytorze.</p>
                     </div>
                 </div>
                 <div class="px-5 py-4 border-t border-white/10 flex items-center justify-between">
@@ -1439,7 +1448,7 @@ window.ItemEditor = {
     },
 
     _fs6Step(direction) {
-        const total = 4;
+        const total = 5; // F-S6.1: 5 kroków
         const next = this._fs6CurrentStep + direction;
         if (next < 1 || next > total) return;
 
@@ -1464,7 +1473,6 @@ window.ItemEditor = {
                 this._fs6Data.scaleOptions = sid && scaleSel.selectedOptions[0].dataset.options
                     ? JSON.parse(scaleSel.selectedOptions[0].dataset.options) : [];
             } catch (e) { this._fs6Data.scaleOptions = []; }
-            // Build price matrix step 3
             this._fs6BuildPriceMatrix();
         }
         if (this._fs6CurrentStep === 3 && direction > 0) {
@@ -1475,10 +1483,16 @@ window.ItemEditor = {
                 const pos = parseFloat(inp.value) || 0;
                 this._fs6Data.prices[optKey] = { pos, takeaway: pos, delivery: +(pos * 1.10).toFixed(2) };
             });
+            // F-S6.1: ładuj modifier groups dla kroku 4.
+            this._fs6LoadModifierGroups();
+        }
+        if (this._fs6CurrentStep === 4 && direction > 0) {
+            // F-S6.1: zbierz wybrane grupy modyfikatorów.
+            const checks = document.querySelectorAll('#fs6-modifier-groups-list input[type=checkbox]:checked');
+            this._fs6Data.modifierGroupIds = Array.from(checks).map(c => parseInt(c.value, 10)).filter(Number.isInteger);
             this._fs6RenderSummary();
         }
 
-        // Update UI
         document.querySelectorAll('.fs6-step-panel').forEach(p => p.classList.toggle('hidden', parseInt(p.dataset.stepPanel, 10) !== next));
         document.querySelectorAll('.fs6-step-pill').forEach(p => {
             const step = parseInt(p.dataset.step, 10);
@@ -1488,6 +1502,36 @@ window.ItemEditor = {
         document.getElementById('fs6-next').classList.toggle('hidden', next === total);
         document.getElementById('fs6-generate').classList.toggle('hidden', next !== total);
         this._fs6CurrentStep = next;
+    },
+
+    // F-S6.1 — załaduj grupy modyfikatorów tenanta do listy w kroku 4.
+    async _fs6LoadModifierGroups() {
+        const listEl = document.getElementById('fs6-modifier-groups-list');
+        if (!listEl) return;
+        listEl.innerHTML = '<p class="text-slate-500 text-[10px] italic text-center py-4">⏳ Ładowanie grup...</p>';
+        try {
+            const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'get_modifiers_full' });
+            const groups = (r?.data?.groups || r?.data?.modifierGroups || []);
+            if (!groups.length) {
+                listEl.innerHTML = '<p class="text-slate-500 text-[10px] italic text-center py-4">Brak grup modyfikatorów w tenancie. Możesz pominąć krok 4 i dodać je później ręcznie.</p>';
+                return;
+            }
+            listEl.innerHTML = '';
+            groups.forEach(g => {
+                const optsCount = Array.isArray(g.modifiers) ? g.modifiers.length : (Array.isArray(g.options) ? g.options.length : 0);
+                const row = document.createElement('label');
+                row.className = 'flex items-center gap-3 bg-black/40 hover:bg-purple-500/15 border border-white/10 hover:border-purple-500/40 rounded-lg p-3 transition cursor-pointer';
+                row.innerHTML = `
+                    <input type="checkbox" value="${g.id}" class="w-4 h-4 rounded border-white/10 bg-black/50 text-purple-500">
+                    <div class="flex-1 min-w-0">
+                        <div class="text-white text-sm font-bold">${g.name}</div>
+                        <div class="text-slate-500 text-[10px] font-mono">${optsCount} opcji${g.minSelection !== undefined ? ` · min ${g.minSelection} / max ${g.maxSelection || '∞'}` : ''}</div>
+                    </div>`;
+                listEl.appendChild(row);
+            });
+        } catch (e) {
+            listEl.innerHTML = `<p class="text-rose-400 text-[10px] italic text-center py-4">Błąd ładowania: ${e.message}</p>`;
+        }
     },
 
     _fs6BuildPriceMatrix() {
@@ -1526,14 +1570,16 @@ window.ItemEditor = {
         const priceLines = Object.entries(d.prices).map(([k, p]) =>
             `<div>• <strong>${k}</strong>: POS ${p.pos.toFixed(2)} / Takeaway ${p.takeaway.toFixed(2)} / Delivery ${p.delivery.toFixed(2)}</div>`
         ).join('');
+        const modCount = (d.modifierGroupIds || []).length;
         sum.innerHTML = `
             <div>📛 Nazwa: <strong class="text-white">${d.name}</strong></div>
             <div>🔑 Klucz parent SKU: <code class="text-orange-300">${d.ascii}</code></div>
             <div>📁 Kategoria ID: <strong>${d.categoryId}</strong></div>
             ${d.desc ? `<div>📝 Opis: ${d.desc}</div>` : ''}
             <div>📏 Skala: <strong>${d.scaleId ? 'ID ' + d.scaleId + ' (' + optCount + ' opcji)' : 'brak (standalone)'}</strong></div>
+            <div>🧩 Grupy modyfikatorów: <strong>${modCount}</strong>${modCount ? ` (id: ${(d.modifierGroupIds || []).join(', ')})` : ''}</div>
             <div class="mt-2 pt-2 border-t border-white/5">${priceLines || '<em class="text-slate-500">(brak cen)</em>'}</div>
-            <div class="mt-2 text-[10px] text-emerald-300">→ Wygeneruje ${linesCount} ${linesCount === 1 ? 'pozycję' : 'wariantów'} z cenami per kanał.</div>
+            <div class="mt-2 text-[10px] text-emerald-300">→ Wygeneruje ${linesCount} ${linesCount === 1 ? 'pozycję' : 'wariantów'} z cenami per kanał${modCount ? ' i ' + modCount + ' grupami modyfikatorów' : ''}.</div>
         `;
     },
 
@@ -1624,6 +1670,26 @@ window.ItemEditor = {
                     const optKey = c.ascii_key.replace(d.ascii + '_', '');
                     const price = d.prices[optKey];
                     if (price) await updateOne(c.ascii_key, price);
+                }
+                // F-S6.1: przypisz modifier groups do każdego stworzonego child.
+                if (this._fs6Data.modifierGroupIds && this._fs6Data.modifierGroupIds.length) {
+                    for (const c of created) {
+                        let cid = 0;
+                        const fresh2 = window.StudioState?.menuTree || [];
+                        fresh2.forEach(cat => (cat.items || []).forEach(it => { if (it.asciiKey === c.ascii_key) cid = parseInt(it.id, 10); }));
+                        if (!cid) continue;
+                        const detRes = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'get_item_details', itemId: cid });
+                        const det = detRes?.data || {};
+                        await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
+                            action: 'update_item_full',
+                            itemId: cid,
+                            name: det.name, asciiKey: det.asciiKey, categoryId: det.categoryId,
+                            type: det.type || 'standard', publicationStatus: 'Live',
+                            vatRateDineIn: det.vatRateDineIn ?? 8, vatRateTakeaway: det.vatRateTakeaway ?? 5,
+                            priceTiers: det.priceTiers || [],
+                            modifierGroupIds: this._fs6Data.modifierGroupIds,
+                        });
+                    }
                 }
             } else {
                 // Standalone — zapisz ceny dla parent.

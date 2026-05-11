@@ -580,7 +580,7 @@ try {
             $custName     = isset($input['customer_name']) ? (string)$input['customer_name'] : null;
             $nip          = isset($input['nip']) ? (string)$input['nip'] : null;
 
-            // F5-B (2026-05-11): SERVER-AUTHORITATIVE CART REVALIDATION.
+            // F5-B / F-S7 (2026-05-11): SERVER-AUTHORITATIVE CART REVALIDATION.
             // Konstytucja v5 § Prawo IV (Zero Zaufania) — frontend NIGDY nie wysyła cen
             // jako autorytatywne. Przeliczamy przez CartEngine::calculate i nadpisujemy
             // ceny + total. Soft override: jeśli różnica > 1 grosz, logujemy warning ale
@@ -625,10 +625,35 @@ try {
                 if ($authoritativeTotal > 0) {
                     $diff = abs($authoritativeTotal - $totalGrosze);
                     if ($diff > 1) {
+                        // F-S7 (2026-05-11): tenant flag `price_mismatch_mode` ∈ {soft|hard}.
+                        // soft (default): log + override + kontynuuj
+                        // hard: 409 Conflict — POS musi przeładować menu i ponowić.
+                        $stmtMM = $pdo->prepare(
+                            "SELECT setting_value FROM sh_tenant_settings
+                              WHERE tenant_id = ? AND setting_key = 'price_mismatch_mode' LIMIT 1"
+                        );
+                        try {
+                            $stmtMM->execute([$tenant_id]);
+                            $mismatchMode = (string)($stmtMM->fetchColumn() ?: 'soft');
+                        } catch (\Throwable $e) {
+                            $mismatchMode = 'soft';
+                        }
+
                         error_log(sprintf(
-                            '[POS process_order] PRICE_MISMATCH tenant=%d total_grosze frontend=%d server=%d diff=%d',
-                            $tenant_id, $totalGrosze, $authoritativeTotal, $diff
+                            '[POS process_order] PRICE_MISMATCH tenant=%d total_grosze frontend=%d server=%d diff=%d mode=%s',
+                            $tenant_id, $totalGrosze, $authoritativeTotal, $diff, $mismatchMode
                         ));
+
+                        if ($mismatchMode === 'hard') {
+                            http_response_code(409);
+                            posResponse(false, [
+                                'error_code'         => 'PRICE_MISMATCH',
+                                'client_total_grosze' => $totalGrosze,
+                                'server_total_grosze' => $authoritativeTotal,
+                                'diff_grosze'         => $diff,
+                                'hint'                => 'Odśwież menu w POS — ceny się zmieniły.',
+                            ], 'Cena po stronie klienta różni się od serwerowej. Odśwież menu.');
+                        }
                     }
                     $totalGrosze = $authoritativeTotal;
                     $serverTotal = $authoritativeTotal;

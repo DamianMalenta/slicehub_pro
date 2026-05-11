@@ -2067,6 +2067,13 @@ try {
 
             // F-S5.1: LEFT JOIN żeby zwracało także linie półproduktów (warehouse_sku = ascii_key z sh_menu_items).
             // Wcześniej INNER JOIN sys_items pomijał półprodukty.
+            // F-S9: probe display_order (graceful gdy migracja 055 brak).
+            $hasDisplayOrder = false;
+            try { $pdo->query("SELECT display_order FROM sh_recipes LIMIT 0"); $hasDisplayOrder = true; }
+            catch (\PDOException $e) {}
+            $orderBy = $hasDisplayOrder ? "ORDER BY r.display_order ASC, r.id ASC" : "ORDER BY r.id ASC";
+            $displayOrderSelect = $hasDisplayOrder ? ", r.display_order" : ", r.id AS display_order";
+
             if ($hasSubrecipeColumns) {
                 $stmt = $pdo->prepare("
                     SELECT r.warehouse_sku,
@@ -2077,13 +2084,14 @@ try {
                            r.is_packaging,
                            r.is_subrecipe,
                            r.subrecipe_yield
+                           {$displayOrderSelect}
                     FROM sh_recipes r
                     LEFT JOIN sys_items s
                           ON s.sku = r.warehouse_sku AND s.tenant_id = r.tenant_id
                     LEFT JOIN sh_menu_items mi
                           ON mi.ascii_key = r.warehouse_sku AND mi.tenant_id = r.tenant_id
                     WHERE r.menu_item_sku = ? AND r.tenant_id = ?
-                    ORDER BY r.id ASC
+                    {$orderBy}
                 ");
                 $stmt->execute([$menuItemSku, $tenant_id]);
                 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -2096,9 +2104,11 @@ try {
                         'quantityBase'    => (float)$r['quantity_base'],
                         'wastePercent'    => (float)$r['waste_percent'],
                         'isPackaging'     => (bool)$r['is_packaging'],
-                        // F-S5.1 — nowe pola.
+                        // F-S5.1
                         'isSubrecipe'     => (int)($r['is_subrecipe'] ?? 0) === 1,
                         'subrecipeYield'  => (float)($r['subrecipe_yield'] ?? 1.0),
+                        // F-S9 — display order dla drag-and-drop UI
+                        'displayOrder'    => (int)($r['display_order'] ?? 0),
                     ];
                 }, $rows);
             } else {
@@ -2187,6 +2197,11 @@ try {
             try { $pdo->query("SELECT is_subrecipe FROM sh_recipes LIMIT 0"); $hasSubrecipeCols = true; }
             catch (\PDOException $e) {}
 
+            // F-S9: probe display_order column (graceful gdy migracja 055 brak).
+            $hasDisplayOrderSave = false;
+            try { $pdo->query("SELECT display_order FROM sh_recipes LIMIT 0"); $hasDisplayOrderSave = true; }
+            catch (\PDOException $e) {}
+
             // Anti-cycle: nie dopuść żeby półprodukt referował sam siebie.
             // Plus walidacja istnienia SKU (surowiec w sys_items / półprodukt w sh_menu_items).
             $pdo->beginTransaction();
@@ -2194,7 +2209,14 @@ try {
                 $stmtDel = $pdo->prepare("DELETE FROM sh_recipes WHERE menu_item_sku = ? AND tenant_id = ?");
                 $stmtDel->execute([$menuItemSku, $tenant_id]);
 
-                if ($hasSubrecipeCols) {
+                if ($hasSubrecipeCols && $hasDisplayOrderSave) {
+                    $stmtIns = $pdo->prepare(
+                        "INSERT INTO sh_recipes
+                            (tenant_id, menu_item_sku, warehouse_sku, quantity_base, waste_percent,
+                             is_packaging, is_subrecipe, subrecipe_yield, display_order)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                    );
+                } elseif ($hasSubrecipeCols) {
                     $stmtIns = $pdo->prepare(
                         "INSERT INTO sh_recipes
                             (tenant_id, menu_item_sku, warehouse_sku, quantity_base, waste_percent,
@@ -2212,6 +2234,7 @@ try {
                 $chkSysItem = $pdo->prepare("SELECT 1 FROM sys_items WHERE sku = ? AND tenant_id = ? LIMIT 1");
                 $chkMenuItem = $pdo->prepare("SELECT 1 FROM sh_menu_items WHERE ascii_key = ? AND tenant_id = ? AND is_deleted = 0 LIMIT 1");
                 $skipped = [];
+                $ord = 0;
                 foreach ($ingredients as $ing) {
                     $sku     = preg_replace('/[^a-zA-Z0-9_-]/', '', $ing['warehouseSku'] ?? '');
                     $qty     = floatval($ing['quantityBase']  ?? 0);
@@ -2219,10 +2242,11 @@ try {
                     $isPkg   = !empty($ing['isPackaging']) ? 1 : 0;
                     $isSub   = !empty($ing['isSubrecipe']) ? 1 : 0;
                     $yield   = max(0.0001, floatval($ing['subrecipeYield'] ?? 1.0));
+                    // F-S9: displayOrder — preferuj z payloadu, fallback do indeksu pętli.
+                    $displayOrder = isset($ing['displayOrder']) ? (int)$ing['displayOrder'] : $ord;
                     if (empty($sku) || $qty <= 0) continue;
 
                     if ($isSub) {
-                        // Anti-cycle: półprodukt nie może wskazywać sam na siebie.
                         if ($sku === $menuItemSku) {
                             $skipped[] = "{$sku} (cycle)";
                             continue;
@@ -2234,16 +2258,17 @@ try {
                         }
                     } else {
                         $chkSysItem->execute([$sku, $tenant_id]);
-                        if (!$chkSysItem->fetch()) {
-                            // Nie blokuje — sys_items może być uzupełnione później. Logujemy info.
-                        }
+                        if (!$chkSysItem->fetch()) { /* not blocking */ }
                     }
 
-                    if ($hasSubrecipeCols) {
+                    if ($hasSubrecipeCols && $hasDisplayOrderSave) {
+                        $stmtIns->execute([$tenant_id, $menuItemSku, $sku, $qty, $waste, $isPkg, $isSub, $yield, $displayOrder]);
+                    } elseif ($hasSubrecipeCols) {
                         $stmtIns->execute([$tenant_id, $menuItemSku, $sku, $qty, $waste, $isPkg, $isSub, $yield]);
                     } else {
                         $stmtIns->execute([$tenant_id, $menuItemSku, $sku, $qty, $waste, $isPkg]);
                     }
+                    $ord++;
                 }
                 $pdo->commit();
                 $response['success'] = true;
@@ -2879,6 +2904,33 @@ try {
             }
             $response['success'] = true;
             $response['data'] = $out;
+            break;
+
+        // F-S7 — Hard PRICE_MISMATCH tenant flag
+        case 'get_price_mismatch_mode':
+            $stmt = $pdo->prepare(
+                "SELECT setting_value FROM sh_tenant_settings
+                  WHERE tenant_id = ? AND setting_key = 'price_mismatch_mode' LIMIT 1"
+            );
+            $stmt->execute([$tenant_id]);
+            $val = (string)($stmt->fetchColumn() ?: 'soft');
+            $response['success'] = true;
+            $response['data'] = ['mode' => $val];
+            break;
+
+        case 'set_price_mismatch_mode':
+            $mode = (string)($input['mode'] ?? 'soft');
+            if (!in_array($mode, ['soft','hard'], true)) {
+                throw new Exception('mode must be: soft|hard');
+            }
+            $pdo->prepare(
+                "INSERT INTO sh_tenant_settings (tenant_id, setting_key, setting_value)
+                 VALUES (?, 'price_mismatch_mode', ?)
+                 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)"
+            )->execute([$tenant_id, $mode]);
+            $response['success'] = true;
+            $response['data'] = ['mode' => $mode];
+            $response['message'] = "PRICE_MISMATCH mode set to '{$mode}'.";
             break;
 
         case 'save_half_pricing_settings':
