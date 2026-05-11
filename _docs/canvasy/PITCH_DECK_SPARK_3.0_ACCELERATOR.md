@@ -7,7 +7,8 @@
 ---
 
 > **Jak używać:** każda sekcja poniżej = jeden slajd (nagłówek + punktory + notatki prelegenta).  
-> Eksport do Google Slides / Keynote / Gamma: kopiuj nagłówki jako tytuły, bullet jako treść, notatki do „Speaker notes”.
+> Eksport do Google Slides / Keynote / Gamma: kopiuj nagłówki jako tytuły, bullet jako treść, notatki do „Speaker notes”.  
+> **Wersja 3 min (10 slajdów, max 5 linii/slajd):** [`PITCH_DECK_SPARK_3.0_ACCELERATOR_10SLAJDOW.md`](./PITCH_DECK_SPARK_3.0_ACCELERATOR_10SLAJDOW.md)
 
 ---
 
