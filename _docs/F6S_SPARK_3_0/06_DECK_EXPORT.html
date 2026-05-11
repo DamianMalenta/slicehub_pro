@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SliceHub Enterprise — Pitch (Spark 3.0)</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --card: #111827;
+      --accent: #ea580c;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    .slide {
+      min-height: 100vh;
+      padding: 3.5rem 4rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      border-bottom: 1px solid #1f2937;
+      page-break-after: always;
+    }
+    .slide h1 {
+      font-size: 2.35rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+      letter-spacing: -0.02em;
+    }
+    .slide h2 {
+      font-size: 1.65rem;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 1.25rem;
+    }
+    .slide p, .slide li {
+      font-size: 1.15rem;
+      max-width: 46rem;
+    }
+    .slide ul { margin: 0.75rem 0 0 1.25rem; }
+    .slide li { margin: 0.45rem 0; color: var(--text); }
+    .tagline { font-size: 1.35rem; color: var(--muted); margin-top: 0.5rem; }
+    .footer {
+      margin-top: auto;
+      padding-top: 2rem;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+    pre.code {
+      background: var(--card);
+      padding: 1rem 1.25rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      margin-top: 1rem;
+      border: 1px solid #374151;
+      white-space: pre-wrap;
+    }
+    table {
+      border-collapse: collapse;
+      margin-top: 1rem;
+      font-size: 0.95rem;
+    }
+    th, td {
+      border: 1px solid #374151;
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+    }
+    th { background: var(--card); color: var(--accent); }
+    .hint {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #1e293b;
+      color: #94a3b8;
+      padding: 0.5rem 1rem;
+      font-size: 0.8rem;
+      text-align: center;
+      z-index: 9;
+    }
+    @media print {
+      .hint { display: none !important; }
+      .slide {
+        page-break-after: always;
+        min-height: auto;
+        padding: 2rem 2.5rem;
+        border: none;
+      }
+      body { background: #fff; color: #111; }
+      .slide h2 { color: #c2410c; }
+      .slide li, .tagline { color: #333; }
+      pre.code { border-color: #ccc; background: #f8fafc; color: #111; }
+      th { background: #f1f5f9; }
+      th, td { border-color: #cbd5e1; }
+    }
+  </style>
+</head>
+<body>
+  <p class="hint">Ekran: przewijaj slajdy. PDF: Chrome → Drukuj → Zapisz jako PDF → Tło: włączone.</p>
+
+  <section class="slide">
+    <h1>SliceHub Enterprise</h1>
+    <p class="tagline">System operacyjny gastronomii</p>
+    <p style="margin-top:1.5rem">Multi-tenant · Omnichannel · Magazyn · Dostawy · Integracje</p>
+    <div class="footer">[LOGO] · slicehub.pro · Spark 3.0 Accelerator</div>
+  </section>
+
+  <section class="slide">
+    <h2>Problem</h2>
+    <ul>
+      <li>Kasa, online, magazyn i dostawy to często osobne wyspy — dane się rozjeżdżają.</li>
+      <li>Cena powinna być inna na sali, wynosie i dostawie; wiele systemów wciąż myśli „jedną ceną”.</li>
+      <li>Food cost w Excelu, menu w panelu — brak bliźniaka magazynu w czasie rzeczywistym.</li>
+      <li>Sieci w CEE: mieszany krajobraz POS — integracje kosztowne i kruche.</li>
+    </ul>
+  </section>
+
+  <section class="slide">
+    <h2>Teza</h2>
+    <p><strong>Jedna platforma = jedna prawda operacyjna.</strong> SliceHub to OS restauracji: od pierwszego ekranu klienta, przez realizację w lokalu i kuchni, po magazyn i flotę — jeden model danych, twarde reguły bezpieczeństwa finansowego i tenantowego.</p>
+  </section>
+
+  <section class="slide">
+    <h2>Dla kogo (ICP)</h2>
+    <ul>
+      <li>Sieci pizza / QSR / dark kitchen z wieloma kanałami sprzedaży.</li>
+      <li>Operatorzy, którzy płacą marżą za chaos narzędzi.</li>
+      <li>Start: Polska / CEE.</li>
+    </ul>
+  </section>
+
+  <section class="slide">
+    <h2>Mapa modułów</h2>
+    <table>
+      <tr><th>Warstwa</th><th>Moduły</th></tr>
+      <tr><td>Klient</td><td>Online, śledzenie zamówienia</td></tr>
+      <tr><td>Backoffice</td><td>Studio menu, Director / warstwy, ustawienia sklepu</td></tr>
+      <tr><td>Sala</td><td>POS, Tables, Waiter</td></tr>
+      <tr><td>Kuchnia</td><td>KDS</td></tr>
+      <tr><td>Logistyka</td><td>Dispatcher, Driver PWA</td></tr>
+      <tr><td>Zaplecze</td><td>Warehouse, Settings</td></tr>
+      <tr><td>Start</td><td>Hub</td></tr>
+    </table>
+  </section>
+
+  <section class="slide">
+    <h2>Omnichannel + koszyk</h2>
+    <ul>
+      <li>Brak „płaskiej ceny” — macierz cen per kanał (sala / wynos / dostawa).</li>
+      <li>Front nie wysyła cen ani totali — tylko SKU i ilości.</li>
+      <li>CartEngine na serwerze — jedyna autorytatywna kalkulacja koszyka.</li>
+    </ul>
+  </section>
+
+  <section class="slide">
+    <h2>Bliźniak magazynowy</h2>
+    <ul>
+      <li>Modyfikatory spięte z magazynem: linked_warehouse_sku + linked_quantity.</li>
+      <li>Waste, half-and-half × 0.5, receptury BOM.</li>
+      <li>Food cost i stany w kontekście recept w Studio.</li>
+    </ul>
+  </section>
+
+  <section class="slide">
+    <h2>Menu w czasie</h2>
+    <ul>
+      <li>Statusy Draft / Live / Archived.</li>
+      <li>Publikacja valid_from / valid_to — bez kasowania historii.</li>
+      <li>Soft delete dla śladu audytowego.</li>
+    </ul>
+  </section>
+
+  <section class="slide">
+    <h2>Logistyka</h2>
+    <ul>
+      <li>Jeden silnik API dla kursów i kierowców.</li>
+      <li>Trzy filary: zamówienie × płatność × dostawa.</li>
+      <li>Payment Lock + Emergency Recall — mechanizmy anty-błędowe.</li>
+    </ul>
+  </section>
+
+  <section class="slide">
+    <h2>Integracje</h2>
+    <pre class="code">sh_event_outbox
+ ├─► worker_webhooks     → dowolny HTTP
+ └─► worker_integrations → Papu · Dotykačka · GastroSoft …</pre>
+    <p style="margin-top:1rem">Ten sam strumień zdarzeń — osobne ścieżki dostawy, retry, DLQ.</p>
+  </section>
+
+  <section class="slide">
+    <h2>Storefront</h2>
+    <p>„Okno do restauracji”, nie sztywny grid SKU. Droga produktowa: <strong>Counter + Drzwi</strong>. Wspólny renderer scen — SSOT między Directorem a sklepem klienta.</p>
+  </section>
+
+  <section class="slide">
+    <h2>Stack</h2>
+    <p>Vanilla JS + PHP 8 + MariaDB. Produkcja <strong>bez Node w runtime</strong> — niższy koszt hostingu, przewidywalne wdrożenia.</p>
+  </section>
+
+  <section class="slide">
+    <h2>Moat</h2>
+    <ul>
+      <li>Konstytucja produktu v5 — m.in. drift guard docs↔kod, datowane freeze.</li>
+      <li>Multi-tenant jako kultura zapytań, nie dopisek.</li>
+      <li>Silosy danych + mosty po SKU — granice domen.</li>
+    </ul>
+  </section>
+
+  <section class="slide">
+    <h2>Roadmapa</h2>
+    <ul>
+      <li>Domknięcie Counter + Living Table (klient).</li>
+      <li>Pilotaże + playbook wdrożenia + QA ścieżek krytycznych.</li>
+      <li>Kolejni adapterzy POS pod CEE.</li>
+    </ul>
+  </section>
+
+  <section class="slide">
+    <h2>Zespół</h2>
+    <p><strong>[Imię Nazwisko]</strong> — CEO / Product</p>
+    <p><strong>[Imię Nazwisko]</strong> — CTO / Engineering</p>
+    <p style="margin-top:1rem">[email] · [telefon] · slicehub.pro</p>
+  </section>
+
+  <section class="slide">
+    <h2>Ask — Spark 3.0</h2>
+    <p>Mentoring, sieć partnerów, środki na: produkt (storefront), QA, 2–3 pilotaże, GTM.</p>
+    <p style="margin-top:1.5rem"><strong>Dziękujemy.</strong></p>
+    <div class="footer">Materiał roboczy SliceHub · poufne</div>
+  </section>
+</body>
+</html>
