@@ -1,6 +1,6 @@
 # SliceHub Enterprise — Pitch Deck (wniosek: Startup Spark 3.0 Accelerator)
 
-> **Gotowa prezentacja (HTML, pełny ekran, druk):** otwórz w przeglądarce plik [`presentations/spark-30-slicehub/index.html`](../presentations/spark-30-slicehub/index.html) (strzałki / spacja / klik brzegu; przycisk pełnego ekranu; Ctrl+P).
+> **Gotowa prezentacja do wniosku (HTML → PDF):** [`presentations/spark-30-slicehub/index.html`](../presentations/spark-30-slicehub/index.html) — 22 slajdy merytoryczne + slajd instrukcji eksportu (ukryty przy druku). Druk: **Ctrl+P** → Zapisz jako PDF, format **A4 pionowo** (ustawienia w przeglądarce). Przed złożeniem: uzupełnij pola „uzupełnić", usuń lub pomiń ostatni slajd instrukcji.
 
 > **Źródła merytoryczne w repo:** `_docs/00_PAMIEC_SYSTEMU.md`, `_docs/01_KONSTYTUCJA.md`, `_docs/02_ARCHITEKTURA.md`, `_docs/15_KIERUNEK_ONLINE.md`, `_docs/canvasy/SliceHub Three Directions.md`, `_docs/19_LOGISTYKA_I_BEZPIECZENSTWO.md` (logistyka).  
 > **Uwaga prawna:** kryteria naboru Spark 3.0 weryfikuj na stronie PARP / operatora programu w aktualnej edycji — ten dokument to **szkielet narracji**, nie gotowy formularz urzędowy.
@@ -199,4 +199,4 @@ SliceHub to enterprise’owy OS dla restauracji: jeden silnik dla menu, magazynu
 
 ---
 
-*Koniec dokumentu — wersja robocza Markdown; **gotowy pokaz:** `presentations/spark-30-slicehub/index.html`. Do eksportu PDF: otwórz HTML → Ctrl+P. Do Google Slides: wklej treść slajd po slajdzie i dodaj screenshoty z `modules/online_studio/`, `modules/courses/`, `modules/studio/`.*
+*Koniec dokumentu Markdown — **wersja do złożenia z wnioskiem:** `presentations/spark-30-slicehub/index.html` (eksport PDF). Opcjonalnie: treść slajdów można przenieść do Google Slides i uzupełnić o zrzuty ekranu z produktu.*
