@@ -65,24 +65,75 @@ class WzEngine
             return ['success' => false, 'error' => "Order not found: {$orderId}"];
         }
 
-        // 1B — Order lines + menu metadata (tenant-safe via sh_orders)
-        $stmtLines = $pdo->prepare("
-            SELECT
-                ol.id              AS line_id,
-                ol.item_sku,
-                ol.quantity        AS line_qty,
-                ol.modifiers_json,
-                ol.removed_ingredients_json,
-                mi.type            AS item_type
-            FROM sh_order_lines ol
-            INNER JOIN sh_orders o
-                ON o.id = ol.order_id
-               AND o.tenant_id = :tid
-            LEFT JOIN sh_menu_items mi
-                ON mi.ascii_key = ol.item_sku
-               AND mi.tenant_id = :tid
-            WHERE ol.order_id = :oid
-        ");
+        // 1B — Order lines + menu metadata + VARIANT resolution.
+        //
+        // F-S1 (2026-05-11): Jeśli `ol.item_sku` to wariant (mi.parent_item_id != NULL),
+        // RECEPTURA jest na parent (pizza_master), a faktyczna konsumpcja = recipe × multiplier(option).
+        // Dla zwykłych itemów (`parent_item_id` NULL): recipe_sku = item_sku, multiplier = 1.0.
+        //
+        // Konstytucja v5 § Prawo II — Bliźniak Cyfrowy: jedna receptura, wiele rozmiarów.
+        //
+        // Schema-aware fetch — jeśli kolumny F-S1 nie istnieją (stara baza bez migracji 048),
+        // używamy fallback bez variant info.
+        $hasVariantColumns = false;
+        try {
+            $pdo->query("SELECT variant_scale_id FROM sh_menu_items LIMIT 0");
+            $hasVariantColumns = true;
+        } catch (\PDOException $e) {
+            $hasVariantColumns = false;
+        }
+
+        if ($hasVariantColumns) {
+            $stmtLines = $pdo->prepare("
+                SELECT
+                    ol.id              AS line_id,
+                    ol.item_sku,
+                    ol.quantity        AS line_qty,
+                    ol.modifiers_json,
+                    ol.removed_ingredients_json,
+                    mi.type            AS item_type,
+                    mi.parent_item_id,
+                    mi.variant_option_id,
+                    parent_mi.ascii_key AS parent_recipe_sku,
+                    opt.multiplier      AS variant_multiplier
+                FROM sh_order_lines ol
+                INNER JOIN sh_orders o
+                    ON o.id = ol.order_id
+                   AND o.tenant_id = :tid
+                LEFT JOIN sh_menu_items mi
+                    ON mi.ascii_key = ol.item_sku
+                   AND mi.tenant_id = :tid
+                LEFT JOIN sh_menu_items parent_mi
+                    ON parent_mi.id = mi.parent_item_id
+                   AND parent_mi.tenant_id = :tid
+                LEFT JOIN sh_variant_scale_options opt
+                    ON opt.id = mi.variant_option_id
+                   AND opt.tenant_id = :tid
+                WHERE ol.order_id = :oid
+            ");
+        } else {
+            $stmtLines = $pdo->prepare("
+                SELECT
+                    ol.id              AS line_id,
+                    ol.item_sku,
+                    ol.quantity        AS line_qty,
+                    ol.modifiers_json,
+                    ol.removed_ingredients_json,
+                    mi.type            AS item_type,
+                    NULL AS parent_item_id,
+                    NULL AS variant_option_id,
+                    NULL AS parent_recipe_sku,
+                    NULL AS variant_multiplier
+                FROM sh_order_lines ol
+                INNER JOIN sh_orders o
+                    ON o.id = ol.order_id
+                   AND o.tenant_id = :tid
+                LEFT JOIN sh_menu_items mi
+                    ON mi.ascii_key = ol.item_sku
+                   AND mi.tenant_id = :tid
+                WHERE ol.order_id = :oid
+            ");
+        }
         $stmtLines->execute([':tid' => $tenantId, ':oid' => $orderId]);
         $orderLines = $stmtLines->fetchAll(PDO::FETCH_ASSOC);
 
@@ -184,11 +235,18 @@ class WzEngine
             }
         }
 
-        // 1E — Collect all menu SKUs that need recipe rows
+        // 1E — Collect all menu SKUs that need recipe rows + variant resolution
+        // F-S1: jeśli linia to wariant, używamy parent_recipe_sku do pobrania receptury.
         $recipeSkuSet = [];
         foreach ($orderLines as $line) {
-            $itemSku = (string) $line['item_sku'];
-            $type    = $line['item_type'] ?? null;
+            $itemSku        = (string) $line['item_sku'];
+            $type           = $line['item_type'] ?? null;
+            $parentRecipeSku = $line['parent_recipe_sku'] ?? null;
+
+            // Effective recipe sku: parent dla wariantów, inaczej własny.
+            $recipeSku = ($parentRecipeSku !== null && $parentRecipeSku !== '')
+                ? (string) $parentRecipeSku
+                : $itemSku;
 
             if ($type === 'half_half') {
                 foreach ($childSkuMap[$itemSku] ?? [] as $childSku) {
@@ -201,7 +259,7 @@ class WzEngine
                     }
                 }
             } else {
-                $recipeSkuSet[$itemSku] = true;
+                $recipeSkuSet[$recipeSku] = true;
             }
         }
 
@@ -233,11 +291,20 @@ class WzEngine
         $deductions = [];
 
         foreach ($orderLines as $line) {
-            $lineQty     = (float) $line['line_qty'];
-            $lineId      = (string) $line['line_id'];
-            $removedSkus = $removedByLine[$lineId] ?? [];
-            $itemSku     = (string) $line['item_sku'];
-            $type        = $line['item_type'] ?? null;
+            $lineQty           = (float) $line['line_qty'];
+            $lineId            = (string) $line['line_id'];
+            $removedSkus       = $removedByLine[$lineId] ?? [];
+            $itemSku           = (string) $line['item_sku'];
+            $type              = $line['item_type'] ?? null;
+            $parentRecipeSku   = $line['parent_recipe_sku'] ?? null;
+            // F-S1: variant multiplier (default 1.0 dla zwykłych itemów / brakujących wpisów).
+            $variantMultiplier = ($line['variant_multiplier'] !== null && $line['variant_multiplier'] !== '')
+                ? (float) $line['variant_multiplier']
+                : 1.0;
+            // Effective recipe sku — z parent jeśli wariant, inaczej własny.
+            $recipeSku = ($parentRecipeSku !== null && $parentRecipeSku !== '')
+                ? (string) $parentRecipeSku
+                : $itemSku;
 
             if ($type === 'half_half') {
                 $children = $childSkuMap[$itemSku] ?? [];
@@ -245,7 +312,7 @@ class WzEngine
                     self::aggregateRecipes(
                         $recipesByItem[$childSku] ?? [],
                         $removedSkus,
-                        0.5,
+                        0.5 * $variantMultiplier,
                         $lineQty,
                         $deductions
                     );
@@ -258,16 +325,16 @@ class WzEngine
                     self::aggregateRecipes(
                         $recipesByItem[$part] ?? [],
                         $removedSkus,
-                        0.5,
+                        0.5 * $variantMultiplier,
                         $lineQty,
                         $deductions
                     );
                 }
             } else {
                 self::aggregateRecipes(
-                    $recipesByItem[$itemSku] ?? [],
+                    $recipesByItem[$recipeSku] ?? [],
                     $removedSkus,
-                    1.0,
+                    1.0 * $variantMultiplier,
                     $lineQty,
                     $deductions
                 );
