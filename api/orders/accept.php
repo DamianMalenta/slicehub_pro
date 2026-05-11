@@ -147,16 +147,34 @@ try {
     }
 
     // =========================================================================
+    // 4.5. WAREHOUSE CONSUME HOOK (F1 · 2026-05-11)
+    //
+    // Konstytucja v5 § Prawo II (Bliźniak Cyfrowy). Synchroniczna konsumpcja
+    // magazynu PO commit-cie outer transakcji. Failure NIE cofa akceptu —
+    // zamówienie zaakceptowane semantycznie, kuchnia gotuje. Manager naprawi
+    // korektą (KOR) jeśli stan ujemny.
+    // =========================================================================
+    require_once __DIR__ . '/../../core/WarehouseConsumeHook.php';
+    $acceptInputWarehouse = isset($input['warehouse_id']) ? trim((string) $input['warehouse_id']) : null;
+    if ($acceptInputWarehouse === '') {
+        $acceptInputWarehouse = null;
+    }
+    $consumeResult = WarehouseConsumeHook::onOrderAccepted(
+        $pdo, $tenant_id, $orderId, $user_id, $acceptInputWarehouse
+    );
+
+    // =========================================================================
     // 5. SUCCESS RESPONSE
     // =========================================================================
     echo json_encode([
         'success' => true,
         'data'    => [
-            'order_id'      => $orderId,
-            'order_number'  => $order['order_number'],
-            'status'        => 'accepted',
-            'promised_time' => $promisedTime,
-            'kds_tickets'   => $ticketsCreated,
+            'order_id'          => $orderId,
+            'order_number'      => $order['order_number'],
+            'status'            => 'accepted',
+            'promised_time'     => $promisedTime,
+            'kds_tickets'       => $ticketsCreated,
+            'warehouse_consume' => $consumeResult,
         ],
     ]);
 

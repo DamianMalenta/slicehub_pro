@@ -830,10 +830,32 @@ try {
             );
 
             $pdo->commit();
+
+            // ============================================================
+            // F1 (2026-05-11) — Pętla zużycia magazynu (post-commit hook).
+            // Konstytucja v5 § Prawo II (Bliźniak Cyfrowy).
+            //
+            // Po pomyślnej tranzycji `→ accepted` + commit-cie outer transakcji
+            // (tickety KDS już zapisane, event order.accepted już opublikowany)
+            // wywołujemy synchroniczny hook konsumpcji magazynu w niezależnej
+            // transakcji WzEngine. Failure hook NIE blokuje akceptu — zamówienie
+            // jest już zaakceptowane semantycznie. Loggujemy alert + zwracamy
+            // info w response, manager może naprawić korektą (KOR engine).
+            // ============================================================
+            require_once __DIR__ . '/../../core/WarehouseConsumeHook.php';
+            $consumeWarehouseId = isset($input['warehouse_id']) ? trim((string) $input['warehouse_id']) : null;
+            if ($consumeWarehouseId === '') {
+                $consumeWarehouseId = null;
+            }
+            $consumeResult = WarehouseConsumeHook::onOrderAccepted(
+                $pdo, $tenant_id, $oid, $user_id, $consumeWarehouseId
+            );
+
             $out = ['promised_time' => $parsedTime];
             if ($kdsTickets !== []) {
                 $out['kds_tickets'] = $kdsTickets;
             }
+            $out['warehouse_consume'] = $consumeResult;
             posResponse(true, $out);
         } catch (\Throwable $e) {
             if ($pdo->inTransaction()) {
