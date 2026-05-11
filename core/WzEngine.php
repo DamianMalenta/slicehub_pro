@@ -274,14 +274,30 @@ class WzEngine
             return ['success' => false, 'error' => 'Order has no line items.'];
         }
 
+        // F-S5 (2026-05-11): wykryj kolumny subrecipe (graceful gdy migracja 053 brak).
+        $hasSubrecipeCols = false;
+        try { $pdo->query("SELECT is_subrecipe FROM sh_recipes LIMIT 0"); $hasSubrecipeCols = true; }
+        catch (\PDOException $e) {}
+
         $phR = self::placeholders($recipeSkus);
         // PDO MySQL: positional parameters only when mixing with IN(...).
-        $stmtRecipes = $pdo->prepare("
-            SELECT menu_item_sku, warehouse_sku, quantity_base, waste_percent
-            FROM sh_recipes
-            WHERE tenant_id = ?
-              AND menu_item_sku IN ({$phR})
-        ");
+        if ($hasSubrecipeCols) {
+            $stmtRecipes = $pdo->prepare("
+                SELECT menu_item_sku, warehouse_sku, quantity_base, waste_percent,
+                       is_subrecipe, subrecipe_yield
+                FROM sh_recipes
+                WHERE tenant_id = ?
+                  AND menu_item_sku IN ({$phR})
+            ");
+        } else {
+            $stmtRecipes = $pdo->prepare("
+                SELECT menu_item_sku, warehouse_sku, quantity_base, waste_percent,
+                       0 AS is_subrecipe, 1.0 AS subrecipe_yield
+                FROM sh_recipes
+                WHERE tenant_id = ?
+                  AND menu_item_sku IN ({$phR})
+            ");
+        }
         $stmtRecipes->execute(array_merge([$tenantId], $recipeSkus));
 
         $recipesByItem = [];
@@ -290,7 +306,17 @@ class WzEngine
                 'warehouse_sku' => $r['warehouse_sku'],
                 'quantity_base' => (float) $r['quantity_base'],
                 'waste_percent' => (float) $r['waste_percent'],
+                'is_subrecipe'  => (int) ($r['is_subrecipe'] ?? 0) === 1,
+                'subrecipe_yield' => (float) ($r['subrecipe_yield'] ?? 1.0),
             ];
+        }
+
+        // F-S5: pre-fetch wszystkich subrecipe linii rekursywnie (max depth 3).
+        // Lazy resolver: gdy aggregateRecipes natrafi na is_subrecipe=true, używa $subrecipesCache.
+        if ($hasSubrecipeCols) {
+            $subrecipesCache = self::resolveSubrecipesRecursive($pdo, $tenantId, $recipesByItem, 3);
+        } else {
+            $subrecipesCache = [];
         }
 
         // 1F — Aggregate deductions: warehouse_sku => total quantity to deduct
@@ -320,7 +346,8 @@ class WzEngine
                         $removedSkus,
                         0.5 * $variantMultiplier,
                         $lineQty,
-                        $deductions
+                        $deductions,
+                        $subrecipesCache
                     );
                 }
             } elseif (str_contains($itemSku, '+')) {
@@ -333,7 +360,8 @@ class WzEngine
                         $removedSkus,
                         0.5 * $variantMultiplier,
                         $lineQty,
-                        $deductions
+                        $deductions,
+                        $subrecipesCache
                     );
                 }
             } else {
@@ -342,7 +370,8 @@ class WzEngine
                     $removedSkus,
                     1.0 * $variantMultiplier,
                     $lineQty,
-                    $deductions
+                    $deductions,
+                    $subrecipesCache
                 );
             }
 
@@ -770,19 +799,87 @@ class WzEngine
         array $removedSkus,
         float $multiplier,
         float $lineQty,
-        array &$deductions
+        array &$deductions,
+        array $subrecipesCache = []
     ): void {
         foreach ($recipes as $recipe) {
             if (in_array($recipe['warehouse_sku'], $removedSkus, true)) {
                 continue;
             }
-            $dedQty = $recipe['quantity_base']
+            $effectiveQty = $recipe['quantity_base']
                 * (1 + ($recipe['waste_percent'] / 100))
                 * $multiplier
                 * $lineQty;
+
+            // F-S5 (2026-05-11): jeśli linia jest subrecipe (półprodukt), expand rekurencyjnie.
+            if (!empty($recipe['is_subrecipe']) && isset($subrecipesCache[$recipe['warehouse_sku']])) {
+                $subYield = max(0.0001, (float)($recipe['subrecipe_yield'] ?? 1.0));
+                // 1 porcja subrecipe = (1 / yield) batchu surowców.
+                // qty głównej receptury × multiplier × lineQty × (1/yield) = batches do zużycia.
+                $batchesNeeded = $effectiveQty / $subYield;
+                self::aggregateRecipes(
+                    $subrecipesCache[$recipe['warehouse_sku']],
+                    [], // removed_skus nie propagują się do podreceptury
+                    1.0, // multiplier juz zaaplikowany w batchesNeeded
+                    $batchesNeeded,
+                    $deductions,
+                    $subrecipesCache
+                );
+                continue;
+            }
+
             $deductions[$recipe['warehouse_sku']]
-                = ($deductions[$recipe['warehouse_sku']] ?? 0.0) + $dedQty;
+                = ($deductions[$recipe['warehouse_sku']] ?? 0.0) + $effectiveQty;
         }
+    }
+
+    /**
+     * F-S5: rekurencyjne wczytanie subrecipes dla wszystkich półproduktów referencjowanych
+     * przez kolekcję `$recipesByItem`. Max depth zapobiega cycli A→B→A.
+     *
+     * @param array<string, list<array<string, mixed>>> $recipesByItem
+     * @return array<string, list<array<string, mixed>>> mapa menu_item_sku → linie receptury
+     */
+    private static function resolveSubrecipesRecursive(
+        PDO $pdo, int $tenantId, array $recipesByItem, int $maxDepth = 3
+    ): array {
+        $cache = [];
+        $toFetch = [];
+        foreach ($recipesByItem as $itemSku => $lines) {
+            foreach ($lines as $line) {
+                if (!empty($line['is_subrecipe'])) {
+                    $toFetch[$line['warehouse_sku']] = true;
+                }
+            }
+        }
+        $depth = 0;
+        while ($toFetch && $depth < $maxDepth) {
+            $toFetchKeys = array_keys($toFetch);
+            $toFetch = [];
+            $ph = implode(',', array_fill(0, count($toFetchKeys), '?'));
+            $stmt = $pdo->prepare(
+                "SELECT menu_item_sku, warehouse_sku, quantity_base, waste_percent,
+                        is_subrecipe, subrecipe_yield
+                   FROM sh_recipes
+                  WHERE tenant_id = ? AND menu_item_sku IN ({$ph})"
+            );
+            $stmt->execute(array_merge([$tenantId], $toFetchKeys));
+            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                $cache[$r['menu_item_sku']][] = [
+                    'warehouse_sku' => $r['warehouse_sku'],
+                    'quantity_base' => (float)$r['quantity_base'],
+                    'waste_percent' => (float)$r['waste_percent'],
+                    'is_subrecipe'  => (int)$r['is_subrecipe'] === 1,
+                    'subrecipe_yield' => (float)($r['subrecipe_yield'] ?? 1.0),
+                ];
+                // Kolejny poziom rekursji: jeśli ta linia też jest subrecipe.
+                if ((int)$r['is_subrecipe'] === 1 && !isset($cache[$r['warehouse_sku']])) {
+                    $toFetch[$r['warehouse_sku']] = true;
+                }
+            }
+            $depth++;
+        }
+        return $cache;
     }
 
     /**

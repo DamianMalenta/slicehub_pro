@@ -63,4 +63,5 @@ return [
     '050_meal_packages.sql',
     '051_publication_status_normalize.sql',
     '052_valid_from_to_datetime.sql',
+    '053_subrecipes.sql',
 ];

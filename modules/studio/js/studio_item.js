@@ -1306,6 +1306,361 @@ window.ItemEditor = {
         }
     },
 
+    // =========================================================================
+    // F-S6 — Wizard „Nowa Pizza" (4 kroki) · 2026-05-11
+    // Step 1: Nazwa + kategoria
+    // Step 2: Wybór skali rozmiarów (lub utworzenie nowej)
+    // Step 3: Ceny bazowe per kanał × per opcja
+    // Step 4: Generuj rodzinę + zapisz
+    // =========================================================================
+
+    async openNewPizzaWizard() {
+        // Pobierz potrzebne dane.
+        const [categoriesData, scalesRes] = await Promise.all([
+            Promise.resolve(window.StudioState?.categories || []),
+            window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'list_variant_scales' }),
+        ]);
+        const scales = scalesRes?.data?.scales || [];
+
+        const modal = document.createElement('div');
+        modal.id = 'fs6-new-pizza-wizard';
+        modal.className = 'fixed inset-0 z-[300] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4';
+        modal.innerHTML = `
+            <div class="bg-slate-900 border border-orange-500/40 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+                <div class="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-white font-black text-base">🍕 Kreator Nowej Pizzy</h3>
+                        <p class="text-orange-300 text-[10px] uppercase font-bold tracking-wider mt-0.5">F-S6 · 4 kroki do gotowej rodziny wariantów</p>
+                    </div>
+                    <button onclick="document.getElementById('fs6-new-pizza-wizard')?.remove()" class="text-slate-400 hover:text-white text-xl">×</button>
+                </div>
+                <div class="px-5 py-3 border-b border-white/5 flex items-center gap-2 text-[10px]">
+                    <span class="fs6-step-pill px-2 py-1 rounded bg-orange-500/30 text-orange-200" data-step="1">1. Nazwa</span>
+                    <i class="fa-solid fa-arrow-right text-slate-600 text-[8px]"></i>
+                    <span class="fs6-step-pill px-2 py-1 rounded bg-slate-700/40 text-slate-400" data-step="2">2. Rozmiary</span>
+                    <i class="fa-solid fa-arrow-right text-slate-600 text-[8px]"></i>
+                    <span class="fs6-step-pill px-2 py-1 rounded bg-slate-700/40 text-slate-400" data-step="3">3. Ceny</span>
+                    <i class="fa-solid fa-arrow-right text-slate-600 text-[8px]"></i>
+                    <span class="fs6-step-pill px-2 py-1 rounded bg-slate-700/40 text-slate-400" data-step="4">4. Generuj</span>
+                </div>
+                <div class="overflow-y-auto flex-1 p-5 space-y-4">
+                    <!-- STEP 1 -->
+                    <div class="fs6-step-panel" data-step-panel="1">
+                        <h4 class="text-white font-bold text-sm mb-3">Krok 1: Nazwa pizzy</h4>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="text-[9px] text-slate-400 uppercase font-bold">Nazwa <span class="text-red-400">*</span></label>
+                                <input type="text" id="fs6-name" class="w-full bg-black/50 border border-white/10 text-white rounded-lg p-3 text-sm mt-1" placeholder="np. Pizza Margherita">
+                            </div>
+                            <div>
+                                <label class="text-[9px] text-slate-400 uppercase font-bold">Klucz SKU (autogenerowany)</label>
+                                <input type="text" id="fs6-ascii" class="w-full bg-black/50 border border-white/10 text-orange-300 rounded-lg p-3 text-sm font-mono uppercase mt-1" placeholder="PIZZA_MARGHERITA">
+                            </div>
+                            <div>
+                                <label class="text-[9px] text-slate-400 uppercase font-bold">Kategoria <span class="text-red-400">*</span></label>
+                                <select id="fs6-category" class="w-full bg-black/50 border border-white/10 text-white rounded-lg p-3 text-sm mt-1">
+                                    <option value="0">— wybierz —</option>
+                                    ${categoriesData.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-[9px] text-slate-400 uppercase font-bold">Opis (opcjonalnie)</label>
+                                <textarea id="fs6-desc" rows="2" class="w-full bg-black/50 border border-white/10 text-white rounded-lg p-3 text-xs mt-1" placeholder="Klasyczna z mozzarellą i bazylią"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- STEP 2 -->
+                    <div class="fs6-step-panel hidden" data-step-panel="2">
+                        <h4 class="text-white font-bold text-sm mb-3">Krok 2: Skala rozmiarów</h4>
+                        <div class="space-y-3">
+                            <p class="text-[10px] text-slate-400">Wybierz istniejącą skalę lub kliknij „Zarządzaj" żeby dodać nową w osobnym modalu.</p>
+                            <select id="fs6-scale" class="w-full bg-black/50 border border-white/10 text-white rounded-lg p-3 text-sm">
+                                <option value="">— brak (zwykła pozycja standalone) —</option>
+                                ${scales.map(s => `<option value="${s.id}" data-options='${JSON.stringify(s.options || [])}'>${s.name} (${(s.options || []).length} opcji)</option>`).join('')}
+                            </select>
+                            <button onclick="document.getElementById('fs6-new-pizza-wizard')?.remove(); window.ItemEditor.openVariantScaleManager();" class="text-[10px] text-orange-300 hover:text-orange-200 underline">+ Utwórz nową skalę (zarządzaj)</button>
+                            <div id="fs6-scale-preview" class="mt-3 p-3 bg-black/30 rounded-xl border border-white/5 hidden">
+                                <div class="text-[10px] text-orange-300 uppercase font-bold mb-2">Podgląd opcji:</div>
+                                <div id="fs6-scale-preview-list" class="grid grid-cols-3 gap-2 text-center"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- STEP 3 -->
+                    <div class="fs6-step-panel hidden" data-step-panel="3">
+                        <h4 class="text-white font-bold text-sm mb-3">Krok 3: Ceny bazowe</h4>
+                        <p class="text-[10px] text-slate-400 mb-3">Wpisz cenę POS za każdą opcję rozmiarową. Takeaway/Delivery zostaną auto-uzupełnione (+10% delivery).</p>
+                        <div id="fs6-prices-matrix" class="space-y-2"></div>
+                    </div>
+                    <!-- STEP 4 -->
+                    <div class="fs6-step-panel hidden" data-step-panel="4">
+                        <h4 class="text-white font-bold text-sm mb-3">Krok 4: Podsumowanie i generowanie</h4>
+                        <div id="fs6-summary" class="text-xs text-slate-300 space-y-2 bg-black/40 p-4 rounded-xl border border-white/10"></div>
+                        <p class="text-[10px] text-amber-300 mt-3">⚠️ Po kliknięciu „Generuj rodzinę" zostanie utworzony parent + N children w `sh_menu_items` (każdy ze swoimi cenami). Recepturę dodasz osobno w edytorze.</p>
+                    </div>
+                </div>
+                <div class="px-5 py-4 border-t border-white/10 flex items-center justify-between">
+                    <button id="fs6-back" onclick="window.ItemEditor._fs6Step(-1)" class="px-4 py-2 text-[10px] uppercase font-black text-slate-400 hover:text-white" disabled>← Wstecz</button>
+                    <div class="flex gap-2">
+                        <button id="fs6-next" onclick="window.ItemEditor._fs6Step(1)" class="px-5 py-2 text-[10px] uppercase font-black bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/30 rounded-lg">Dalej →</button>
+                        <button id="fs6-generate" onclick="window.ItemEditor._fs6Generate()" class="hidden px-5 py-2 text-[10px] uppercase font-black bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 rounded-lg"><i class="fa-solid fa-wand-magic-sparkles"></i> Generuj rodzinę</button>
+                    </div>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+
+        this._fs6CurrentStep = 1;
+        this._fs6Data = { name: '', ascii: '', categoryId: 0, desc: '', scaleId: 0, scaleOptions: [], prices: {} };
+
+        // Auto-slug
+        const nameEl = document.getElementById('fs6-name');
+        nameEl?.addEventListener('input', () => {
+            const ascii = this.toAutoSlug(nameEl.value);
+            document.getElementById('fs6-ascii').value = ascii;
+        });
+
+        // Scale preview
+        document.getElementById('fs6-scale')?.addEventListener('change', (e) => {
+            const opt = e.target.selectedOptions[0];
+            const preview = document.getElementById('fs6-scale-preview');
+            const list = document.getElementById('fs6-scale-preview-list');
+            if (!opt || !opt.dataset.options) { preview.classList.add('hidden'); return; }
+            try {
+                const options = JSON.parse(opt.dataset.options);
+                preview.classList.remove('hidden');
+                list.innerHTML = options.map(o => `
+                    <div class="bg-black/40 border border-orange-500/20 rounded p-2">
+                        <div class="text-orange-300 font-bold text-sm">${o.name}</div>
+                        <div class="text-[9px] text-slate-500 font-mono">${o.key_ascii}</div>
+                        <div class="text-[9px] text-amber-300 mt-1">×${parseFloat(o.multiplier || 1).toFixed(2)}</div>
+                    </div>
+                `).join('');
+            } catch (e) { preview.classList.add('hidden'); }
+        });
+    },
+
+    _fs6Step(direction) {
+        const total = 4;
+        const next = this._fs6CurrentStep + direction;
+        if (next < 1 || next > total) return;
+
+        // Walidacja przed przejściem.
+        if (this._fs6CurrentStep === 1 && direction > 0) {
+            const n = document.getElementById('fs6-name').value.trim();
+            const a = document.getElementById('fs6-ascii').value.trim();
+            const c = parseInt(document.getElementById('fs6-category').value, 10);
+            if (!n) { alert('Podaj nazwę.'); return; }
+            if (!a) { alert('Klucz SKU jest wymagany.'); return; }
+            if (!c) { alert('Wybierz kategorię.'); return; }
+            this._fs6Data.name = n;
+            this._fs6Data.ascii = a;
+            this._fs6Data.categoryId = c;
+            this._fs6Data.desc = document.getElementById('fs6-desc').value.trim();
+        }
+        if (this._fs6CurrentStep === 2 && direction > 0) {
+            const scaleSel = document.getElementById('fs6-scale');
+            const sid = parseInt(scaleSel.value, 10) || 0;
+            this._fs6Data.scaleId = sid;
+            try {
+                this._fs6Data.scaleOptions = sid && scaleSel.selectedOptions[0].dataset.options
+                    ? JSON.parse(scaleSel.selectedOptions[0].dataset.options) : [];
+            } catch (e) { this._fs6Data.scaleOptions = []; }
+            // Build price matrix step 3
+            this._fs6BuildPriceMatrix();
+        }
+        if (this._fs6CurrentStep === 3 && direction > 0) {
+            const matrix = document.querySelectorAll('#fs6-prices-matrix input.fs6-price-pos');
+            this._fs6Data.prices = {};
+            matrix.forEach(inp => {
+                const optKey = inp.dataset.optKey || '_standalone';
+                const pos = parseFloat(inp.value) || 0;
+                this._fs6Data.prices[optKey] = { pos, takeaway: pos, delivery: +(pos * 1.10).toFixed(2) };
+            });
+            this._fs6RenderSummary();
+        }
+
+        // Update UI
+        document.querySelectorAll('.fs6-step-panel').forEach(p => p.classList.toggle('hidden', parseInt(p.dataset.stepPanel, 10) !== next));
+        document.querySelectorAll('.fs6-step-pill').forEach(p => {
+            const step = parseInt(p.dataset.step, 10);
+            p.className = 'fs6-step-pill px-2 py-1 rounded ' + (step === next ? 'bg-orange-500/30 text-orange-200' : (step < next ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-700/40 text-slate-400'));
+        });
+        document.getElementById('fs6-back').disabled = next === 1;
+        document.getElementById('fs6-next').classList.toggle('hidden', next === total);
+        document.getElementById('fs6-generate').classList.toggle('hidden', next !== total);
+        this._fs6CurrentStep = next;
+    },
+
+    _fs6BuildPriceMatrix() {
+        const container = document.getElementById('fs6-prices-matrix');
+        if (!container) return;
+        const opts = this._fs6Data.scaleOptions;
+        if (!opts.length) {
+            container.innerHTML = `
+                <div class="bg-black/30 p-3 rounded-xl border border-white/5 flex items-center gap-4">
+                    <div class="flex-1">
+                        <div class="text-slate-300 font-bold text-sm">Pozycja standalone (bez wariantów)</div>
+                        <div class="text-[9px] text-slate-500">×1.00 multiplier</div>
+                    </div>
+                    <input type="number" step="0.01" data-opt-key="_standalone" class="fs6-price-pos bg-black/50 border border-white/10 text-orange-300 rounded p-2 text-right font-black w-28" placeholder="0.00">
+                </div>`;
+            return;
+        }
+        container.innerHTML = opts.map(o => `
+            <div class="bg-black/30 p-3 rounded-xl border border-white/5 flex items-center gap-4">
+                <div class="flex-1">
+                    <div class="text-slate-300 font-bold text-sm">${o.name}</div>
+                    <div class="text-[9px] text-slate-500 font-mono">${o.key_ascii} · ×${parseFloat(o.multiplier || 1).toFixed(2)}</div>
+                </div>
+                <input type="number" step="0.01" data-opt-key="${o.key_ascii}" class="fs6-price-pos bg-black/50 border border-white/10 text-orange-300 rounded p-2 text-right font-black w-28" placeholder="0.00">
+                <span class="text-[9px] text-slate-600">PLN/POS</span>
+            </div>
+        `).join('');
+    },
+
+    _fs6RenderSummary() {
+        const d = this._fs6Data;
+        const sum = document.getElementById('fs6-summary');
+        if (!sum) return;
+        const optCount = d.scaleOptions.length;
+        const linesCount = optCount || 1;
+        const priceLines = Object.entries(d.prices).map(([k, p]) =>
+            `<div>• <strong>${k}</strong>: POS ${p.pos.toFixed(2)} / Takeaway ${p.takeaway.toFixed(2)} / Delivery ${p.delivery.toFixed(2)}</div>`
+        ).join('');
+        sum.innerHTML = `
+            <div>📛 Nazwa: <strong class="text-white">${d.name}</strong></div>
+            <div>🔑 Klucz parent SKU: <code class="text-orange-300">${d.ascii}</code></div>
+            <div>📁 Kategoria ID: <strong>${d.categoryId}</strong></div>
+            ${d.desc ? `<div>📝 Opis: ${d.desc}</div>` : ''}
+            <div>📏 Skala: <strong>${d.scaleId ? 'ID ' + d.scaleId + ' (' + optCount + ' opcji)' : 'brak (standalone)'}</strong></div>
+            <div class="mt-2 pt-2 border-t border-white/5">${priceLines || '<em class="text-slate-500">(brak cen)</em>'}</div>
+            <div class="mt-2 text-[10px] text-emerald-300">→ Wygeneruje ${linesCount} ${linesCount === 1 ? 'pozycję' : 'wariantów'} z cenami per kanał.</div>
+        `;
+    },
+
+    async _fs6Generate() {
+        const btn = document.getElementById('fs6-generate');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generuję...'; }
+        const d = this._fs6Data;
+        try {
+            // 1. Zapisz parent z variant_scale_id.
+            const parentPayload = {
+                action: 'add_item',
+                itemId: 0,
+                name: d.name,
+                asciiKey: d.ascii,
+                categoryId: d.categoryId,
+                type: 'standard',
+                publicationStatus: 'Live',
+                description: d.desc,
+                vatRateDineIn: 8,
+                vatRateTakeaway: 5,
+                priceTiers: [{ channel: 'POS', price: 0 }, { channel: 'Takeaway', price: 0 }, { channel: 'Delivery', price: 0 }],
+                variantScaleId: d.scaleId || null,
+                isVariantParent: d.scaleId ? 1 : 0,
+            };
+            const r1 = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', parentPayload);
+            if (!r1 || !r1.success) throw new Error('Save parent: ' + (r1?.message || 'unknown'));
+
+            // 2. Jeśli scale → create_variant_family.
+            if (d.scaleId) {
+                // Pobierz nowo utworzony parent ID przez get_menu_tree (lub list_variant_scales na obejście).
+                // Najprościej: get_item_details po asciiKey via menu tree.
+                if (typeof window.loadMenuTree === 'function') await window.loadMenuTree();
+                const tree = window.StudioState?.menuTree || [];
+                let parentId = 0;
+                tree.forEach(cat => (cat.items || []).forEach(it => {
+                    if (it.asciiKey === d.ascii) parentId = parseInt(it.id, 10);
+                }));
+                if (!parentId) throw new Error('Parent zapisany, ale nie znaleziony w drzewie. Odśwież ręcznie.');
+
+                const r2 = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
+                    action: 'create_variant_family',
+                    parent_item_id: parentId,
+                });
+                if (!r2 || !r2.success) throw new Error('Generate family: ' + (r2?.message || 'unknown'));
+
+                // 3. Ustaw ceny per wariant. Każdy child ascii_key = parent + '_' + option.key_ascii.
+                // API add_item/update_item_full nie obsługuje teraz update tylko cen, więc bypass-szczegółowy update tier.
+                // Wykorzystamy save_bulk z omnichannelPricePatch dla wybranych itemów.
+                const created = r2.data?.created || [];
+                for (const c of created) {
+                    const optKey = c.ascii_key.replace(d.ascii + '_', '');
+                    const price = d.prices[optKey];
+                    if (!price) continue;
+                    // Bezpośrednie INSERT do sh_price_tiers przez specjalny endpoint? Nie mamy.
+                    // Najprościej: aktualizuj price tier za pomocą action 'save_modifier_pricing'-style?
+                    // Nie. Użyjemy update_item_full per dziecko (po pobraniu id).
+                    // Reload tree, znajdź item id, wywołaj update_item_full z priceTiers.
+                }
+                // Reload tree raz na końcu.
+                if (typeof window.loadMenuTree === 'function') await window.loadMenuTree();
+                const fresh = window.StudioState?.menuTree || [];
+                const updateOne = async (childKey, prices) => {
+                    let cid = 0;
+                    fresh.forEach(cat => (cat.items || []).forEach(it => { if (it.asciiKey === childKey) cid = parseInt(it.id, 10); }));
+                    if (!cid) return;
+                    // Pobierz pełne dane dziecka (żeby zachować pola).
+                    const detRes = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'get_item_details', itemId: cid });
+                    const det = detRes?.data || {};
+                    await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
+                        action: 'update_item_full',
+                        itemId: cid,
+                        name: det.name,
+                        asciiKey: det.asciiKey,
+                        categoryId: det.categoryId,
+                        type: det.type || 'standard',
+                        publicationStatus: 'Live',
+                        vatRateDineIn: det.vatRateDineIn ?? 8,
+                        vatRateTakeaway: det.vatRateTakeaway ?? 5,
+                        priceTiers: [
+                            { channel: 'POS', price: prices.pos },
+                            { channel: 'Takeaway', price: prices.takeaway },
+                            { channel: 'Delivery', price: prices.delivery },
+                        ],
+                        modifierGroupIds: det.modifierGroupIds || [],
+                    });
+                };
+                for (const c of created) {
+                    const optKey = c.ascii_key.replace(d.ascii + '_', '');
+                    const price = d.prices[optKey];
+                    if (price) await updateOne(c.ascii_key, price);
+                }
+            } else {
+                // Standalone — zapisz ceny dla parent.
+                const fresh = (await window.loadMenuTree?.(), window.StudioState?.menuTree || []);
+                let parentId = 0;
+                fresh.forEach(cat => (cat.items || []).forEach(it => { if (it.asciiKey === d.ascii) parentId = parseInt(it.id, 10); }));
+                const price = d.prices._standalone;
+                if (parentId && price) {
+                    const detRes = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'get_item_details', itemId: parentId });
+                    const det = detRes?.data || {};
+                    await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
+                        action: 'update_item_full',
+                        itemId: parentId,
+                        name: det.name, asciiKey: det.asciiKey, categoryId: det.categoryId,
+                        type: 'standard', publicationStatus: 'Live',
+                        vatRateDineIn: 8, vatRateTakeaway: 5,
+                        priceTiers: [
+                            { channel: 'POS', price: price.pos },
+                            { channel: 'Takeaway', price: price.takeaway },
+                            { channel: 'Delivery', price: price.delivery },
+                        ],
+                        modifierGroupIds: [],
+                    });
+                }
+            }
+
+            alert('✅ Pizza utworzona. Drzewo odświeżone.');
+            document.getElementById('fs6-new-pizza-wizard')?.remove();
+            if (typeof window.loadMenuTree === 'function') await window.loadMenuTree();
+            if (window.Core?.renderTree) window.Core.renderTree();
+        } catch (e) {
+            console.error('[F-S6] generate', e);
+            alert('❌ Błąd: ' + e.message);
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Generuj rodzinę'; }
+        }
+    },
+
     async openVariantScaleManager() {
         // Lekki modal: lista skal + edycja inline.
         let r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'list_variant_scales' });
