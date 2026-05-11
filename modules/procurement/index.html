@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0e14">
+    <meta name="sh-tenant-id" content="1">
+    <script src="/tenant_config.php"></script>
+    <title>SliceHub — Inbox KSeF</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="../ui_shell/sh_mobile_shell.css">
+    <link rel="stylesheet" href="css/procurement.css">
+</head>
+<body>
+
+<header class="pi-topbar">
+    <div class="pi-logo"><i class="fa-solid fa-inbox"></i></div>
+    <div>
+        <div class="pi-title">Inbox KSeF <span class="pi-sub">faktury przychodzące od dostawców</span></div>
+    </div>
+    <div class="pi-spacer"></div>
+    <nav class="pi-links">
+        <a href="../hub/index.html"><i class="fa-solid fa-layer-group"></i> Hub</a>
+        <a href="../warehouse/manager_pz.html"><i class="fa-solid fa-truck-fast"></i> PZ ręczny</a>
+        <a href="../warehouse/index.html"><i class="fa-solid fa-boxes-stacked"></i> Magazyn</a>
+    </nav>
+    <button type="button" class="pi-btn" id="pi-btn-refresh" title="Odśwież"><i class="fa-solid fa-rotate"></i></button>
+</header>
+
+<div id="pi-auth-banner" class="pi-banner pi-banner--warn hidden">
+    Brak tokenu JWT — zaloguj się w <strong>Hub</strong> (login i hasło), potem wróć tutaj.
+    Moduł wymaga roli <strong>owner</strong> / <strong>admin</strong> / <strong>manager</strong>.
+</div>
+<div id="pi-error-banner" class="pi-banner pi-banner--error hidden"></div>
+
+<main class="pi-main">
+
+    <!-- HINT BOX -->
+    <section class="pi-card pi-card--hint">
+        <div class="pi-hint-icon"><i class="fa-solid fa-circle-info"></i></div>
+        <div>
+            <div class="pi-hint-title">Jak to działa?</div>
+            <div class="pi-hint-body">
+                <strong>F3 MVP (manual upload):</strong> przeciągnij FA(2) XML do strefy poniżej.
+                Parser wyciągnie linie, AutoScan dopasuje surowce (EXACT/ALIAS/NAME/FUZZY) z confidence,
+                manager akceptuje → automatycznie powstaje PZ + stany rosną w magazynie.
+                <br>
+                <strong>F4 (przyszłość):</strong> worker będzie pollował KSeF API, faktury same tu wpadną.
+            </div>
+        </div>
+    </section>
+
+    <!-- DROP ZONE -->
+    <section id="pi-dropzone" class="pi-dropzone">
+        <div class="pi-dropzone-icon"><i class="fa-solid fa-file-import"></i></div>
+        <div class="pi-dropzone-title">Przeciągnij FA(2) XML tutaj</div>
+        <div class="pi-dropzone-sub">albo <button type="button" class="pi-link-btn" id="pi-btn-pick">wybierz plik z dysku</button></div>
+        <input type="file" id="pi-file-input" accept=".xml,application/xml,text/xml" multiple style="display:none">
+        <div id="pi-upload-status" class="pi-upload-status hidden"></div>
+    </section>
+
+    <!-- STATS BAR -->
+    <section class="pi-stats">
+        <button type="button" class="pi-stat-pill pi-stat-pill--active" data-status="">
+            <i class="fa-solid fa-list"></i> Wszystkie <span class="pi-stat-count" id="pi-stat-total">0</span>
+        </button>
+        <button type="button" class="pi-stat-pill" data-status="draft">
+            <i class="fa-solid fa-hourglass-half"></i> Do akceptacji <span class="pi-stat-count" id="pi-stat-draft">0</span>
+        </button>
+        <button type="button" class="pi-stat-pill" data-status="accepted">
+            <i class="fa-solid fa-check-double"></i> Zaakceptowane <span class="pi-stat-count" id="pi-stat-accepted">0</span>
+        </button>
+        <button type="button" class="pi-stat-pill" data-status="rejected">
+            <i class="fa-solid fa-circle-xmark"></i> Odrzucone <span class="pi-stat-count" id="pi-stat-rejected">0</span>
+        </button>
+    </section>
+
+    <!-- INVOICES TABLE -->
+    <section class="pi-card">
+        <div id="pi-invoices-list">
+            <div class="pi-empty">
+                <i class="fa-solid fa-inbox"></i>
+                <div>Brak faktur w inbox-ie.</div>
+                <div class="pi-empty-hint">Wgraj FA(2) XML przez drop-zone powyżej.</div>
+            </div>
+        </div>
+    </section>
+</main>
+
+<!-- DETAIL MODAL -->
+<div id="pi-modal-backdrop" class="pi-modal-backdrop hidden">
+    <div class="pi-modal" id="pi-modal">
+        <header class="pi-modal-header">
+            <div>
+                <div class="pi-modal-title" id="pi-modal-title">Faktura</div>
+                <div class="pi-modal-sub" id="pi-modal-sub"></div>
+            </div>
+            <button type="button" class="pi-btn pi-btn--ghost" id="pi-modal-close">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </header>
+        <div class="pi-modal-body" id="pi-modal-body">
+            <!-- dynamicznie renderowane -->
+        </div>
+        <footer class="pi-modal-footer">
+            <button type="button" class="pi-btn pi-btn--ghost" id="pi-modal-rescan">
+                <i class="fa-solid fa-arrows-rotate"></i> Rescan AutoScan
+            </button>
+            <div class="pi-spacer"></div>
+            <button type="button" class="pi-btn pi-btn--danger" id="pi-modal-reject">
+                <i class="fa-solid fa-circle-xmark"></i> Odrzuć
+            </button>
+            <button type="button" class="pi-btn pi-btn--primary" id="pi-modal-accept">
+                <i class="fa-solid fa-check-double"></i> Akceptuj → PZ
+            </button>
+        </footer>
+    </div>
+</div>
+
+<script src="js/procurement_app.js"></script>
+</body>
+</html>
