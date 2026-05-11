@@ -83,6 +83,15 @@ class WzEngine
             $hasVariantColumns = false;
         }
 
+        // F-S3.2 (2026-05-11): probe combo_meta_json (graceful gdy migracja 054 brak).
+        $hasComboMeta = false;
+        try {
+            $pdo->query("SELECT combo_meta_json FROM sh_order_lines LIMIT 0");
+            $hasComboMeta = true;
+        } catch (\PDOException $e) {}
+
+        $comboMetaSelect = $hasComboMeta ? "ol.combo_meta_json," : "NULL AS combo_meta_json,";
+
         if ($hasVariantColumns) {
             $stmtLines = $pdo->prepare("
                 SELECT
@@ -91,6 +100,7 @@ class WzEngine
                     ol.quantity        AS line_qty,
                     ol.modifiers_json,
                     ol.removed_ingredients_json,
+                    {$comboMetaSelect}
                     mi.type            AS item_type,
                     mi.parent_item_id,
                     mi.variant_option_id,
@@ -119,6 +129,7 @@ class WzEngine
                     ol.quantity        AS line_qty,
                     ol.modifiers_json,
                     ol.removed_ingredients_json,
+                    {$comboMetaSelect}
                     mi.type            AS item_type,
                     NULL AS parent_item_id,
                     NULL AS variant_option_id,
@@ -140,6 +151,123 @@ class WzEngine
         if ($orderLines === [] || $orderLines === false) {
             return ['success' => false, 'error' => 'Order has no line items.'];
         }
+
+        // F-S3.2 (2026-05-11): expand combo lines.
+        // Linia z combo_meta_json zostaje wymieniona na N "wirtualnych" linii — po jednej
+        // dla każdego składnika combo (fixed_items + picks z category_choice). Każda linia
+        // dostaje swój item_sku + qty pomnożone przez line_qty combo.
+        //
+        // Wirtualne linie używają tych samych pól (modifiers_json, removed) puste,
+        // bo modyfikatory combo dotyczą całego bundle (nie pojedynczego składnika).
+        //
+        // Variant columns: jeśli składnik to wariant (np. PIZZA_FAMILY_L), to LEFT JOIN
+        // wykona się po expansion — robimy drugi fetch dla nowych SKU.
+        $expandedLines = [];
+        $comboExpandedSkus = [];
+        foreach ($orderLines as $line) {
+            $comboMetaJson = $line['combo_meta_json'] ?? null;
+            $meta = null;
+            if ($comboMetaJson) {
+                $meta = json_decode((string)$comboMetaJson, true);
+            }
+            if (!is_array($meta) || !isset($meta['meal_id'])) {
+                $expandedLines[] = $line;
+                continue;
+            }
+
+            // Zbierz wszystkie SKU składników combo.
+            $components = [];
+            if (!empty($meta['fixed_items']) && is_array($meta['fixed_items'])) {
+                foreach ($meta['fixed_items'] as $fi) {
+                    $sku = trim((string)($fi['sku'] ?? ''));
+                    $qty = max(1, (int)($fi['qty'] ?? 1));
+                    if ($sku !== '') $components[] = ['sku' => $sku, 'qty' => $qty];
+                }
+            }
+            if (!empty($meta['picks']) && is_array($meta['picks'])) {
+                foreach ($meta['picks'] as $p) {
+                    $sku = trim((string)($p['sku'] ?? ''));
+                    $qty = max(1, (int)($p['qty'] ?? 1));
+                    if ($sku !== '') $components[] = ['sku' => $sku, 'qty' => $qty];
+                }
+            }
+            if (!$components) {
+                // Brak składników w meta — zachowaj linię combo (legacy / niewspierane)
+                $expandedLines[] = $line;
+                continue;
+            }
+
+            $comboQty = (float)$line['line_qty'];
+            foreach ($components as $c) {
+                $virtSku = $c['sku'];
+                $virtQty = $comboQty * (float)$c['qty'];
+                $expandedLines[] = [
+                    'line_id'                  => $line['line_id'] . '__c_' . $virtSku,
+                    'item_sku'                 => $virtSku,
+                    'line_qty'                 => $virtQty,
+                    'modifiers_json'           => null,
+                    'removed_ingredients_json' => null,
+                    'combo_meta_json'          => null,
+                    // pozostałe pola wypełnimy z drugiego fetcha
+                    'item_type'                => null,
+                    'parent_item_id'           => null,
+                    'variant_option_id'        => null,
+                    'parent_recipe_sku'        => null,
+                    'variant_multiplier'       => null,
+                    '_is_combo_virtual'        => true,
+                    '_combo_meal_id'           => (int)$meta['meal_id'],
+                ];
+                $comboExpandedSkus[$virtSku] = true;
+            }
+        }
+
+        // Drugi fetch: dla wirtualnych linii combo wypełnij metadane menu (variant info etc.)
+        if ($comboExpandedSkus) {
+            $virtSkus = array_keys($comboExpandedSkus);
+            $phV = self::placeholders($virtSkus);
+            if ($hasVariantColumns) {
+                $stmtVirt = $pdo->prepare(
+                    "SELECT mi.ascii_key,
+                            mi.type AS item_type,
+                            mi.parent_item_id,
+                            mi.variant_option_id,
+                            parent_mi.ascii_key AS parent_recipe_sku,
+                            opt.multiplier AS variant_multiplier
+                       FROM sh_menu_items mi
+                       LEFT JOIN sh_menu_items parent_mi
+                            ON parent_mi.id = mi.parent_item_id AND parent_mi.tenant_id = mi.tenant_id
+                       LEFT JOIN sh_variant_scale_options opt
+                            ON opt.id = mi.variant_option_id AND opt.tenant_id = mi.tenant_id
+                      WHERE mi.tenant_id = ? AND mi.ascii_key IN ({$phV})"
+                );
+            } else {
+                $stmtVirt = $pdo->prepare(
+                    "SELECT ascii_key, type AS item_type,
+                            NULL AS parent_item_id, NULL AS variant_option_id,
+                            NULL AS parent_recipe_sku, NULL AS variant_multiplier
+                       FROM sh_menu_items
+                      WHERE tenant_id = ? AND ascii_key IN ({$phV})"
+                );
+            }
+            $stmtVirt->execute(array_merge([$tenantId], $virtSkus));
+            $virtMetaByKey = [];
+            foreach ($stmtVirt->fetchAll(PDO::FETCH_ASSOC) as $vm) {
+                $virtMetaByKey[$vm['ascii_key']] = $vm;
+            }
+            foreach ($expandedLines as &$el) {
+                if (!empty($el['_is_combo_virtual']) && isset($virtMetaByKey[$el['item_sku']])) {
+                    $vm = $virtMetaByKey[$el['item_sku']];
+                    $el['item_type']           = $vm['item_type'];
+                    $el['parent_item_id']      = $vm['parent_item_id'];
+                    $el['variant_option_id']   = $vm['variant_option_id'];
+                    $el['parent_recipe_sku']   = $vm['parent_recipe_sku'];
+                    $el['variant_multiplier']  = $vm['variant_multiplier'];
+                }
+            }
+            unset($el);
+        }
+
+        $orderLines = $expandedLines;
 
         // 1C — Modifier / removal rows scoped to the line's menu item (no global ascii_key join)
         $stmtScopedMod = $pdo->prepare("

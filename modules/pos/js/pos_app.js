@@ -807,6 +807,8 @@ const PosApp = (() => {
                     added: l.addedModifiers.map(m => ({ sku: m.ascii_key, ascii_key: m.ascii_key, name: m.name, price: (m.priceGrosze / 100).toFixed(2) })),
                     comment: l.comment,
                     is_half: l.isHalf, half_a: l.halfASku || null, half_b: l.halfBSku || null,
+                    // F-S3.2 (2026-05-11): combo meta (meal_id + picks + fixed_items) — backend zapisze do combo_meta_json
+                    combo_meta: l.comboMeta || null,
                 }));
 
                 const total = parseFloat(snapshot.subtotalFormatted);

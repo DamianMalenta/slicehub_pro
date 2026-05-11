@@ -64,4 +64,5 @@ return [
     '051_publication_status_normalize.sql',
     '052_valid_from_to_datetime.sql',
     '053_subrecipes.sql',
+    '054_order_line_combo_meta.sql',
 ];

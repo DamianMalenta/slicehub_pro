@@ -891,12 +891,27 @@ try {
             }
 
             // Insert order lines from cart
-            $stmtLine = $pdo->prepare(
-                "INSERT INTO sh_order_lines
-                    (id, order_id, item_sku, snapshot_name, unit_price, quantity, line_total,
-                     vat_rate, vat_amount, modifiers_json, removed_ingredients_json, comment, driver_action_type)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
-            );
+            // F-S3.2 (2026-05-11): schema-aware INSERT — z combo_meta_json gdy migracja 054 zaaplikowana.
+            $hasComboMetaInsert = false;
+            try { $pdo->query("SELECT combo_meta_json FROM sh_order_lines LIMIT 0"); $hasComboMetaInsert = true; }
+            catch (\PDOException $e) {}
+
+            if ($hasComboMetaInsert) {
+                $stmtLine = $pdo->prepare(
+                    "INSERT INTO sh_order_lines
+                        (id, order_id, item_sku, snapshot_name, unit_price, quantity, line_total,
+                         vat_rate, vat_amount, modifiers_json, removed_ingredients_json, comment,
+                         driver_action_type, combo_meta_json)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+                );
+            } else {
+                $stmtLine = $pdo->prepare(
+                    "INSERT INTO sh_order_lines
+                        (id, order_id, item_sku, snapshot_name, unit_price, quantity, line_total,
+                         vat_rate, vat_amount, modifiers_json, removed_ingredients_json, comment, driver_action_type)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
+                );
+            }
             $hasOIM = false;
             $stmtOIM = null;
             try {
@@ -956,12 +971,28 @@ try {
                     $driverActionType = 'none';
                 }
 
-                $stmtLine->execute([
-                    $lineId, $orderId, (string)$sku,
-                    $item['name'] ?? '', $price, $qty, $lineTotal,
-                    $vatRate, $vatAmount, $modsJson, $removedJson, $item['comment'] ?? null,
-                    $driverActionType
-                ]);
+                // F-S3.2 (2026-05-11): combo meta JSON (jeśli klient wysłał).
+                // Payload format: { meal_id, picks: [{component_id, sku, qty?}], fixed_items: [{sku, qty}] }
+                $comboMetaJson = null;
+                if (!empty($item['combo_meta']) && is_array($item['combo_meta']) && isset($item['combo_meta']['meal_id'])) {
+                    $comboMetaJson = json_encode($item['combo_meta'], JSON_UNESCAPED_UNICODE);
+                }
+
+                if ($hasComboMetaInsert) {
+                    $stmtLine->execute([
+                        $lineId, $orderId, (string)$sku,
+                        $item['name'] ?? '', $price, $qty, $lineTotal,
+                        $vatRate, $vatAmount, $modsJson, $removedJson, $item['comment'] ?? null,
+                        $driverActionType, $comboMetaJson
+                    ]);
+                } else {
+                    $stmtLine->execute([
+                        $lineId, $orderId, (string)$sku,
+                        $item['name'] ?? '', $price, $qty, $lineTotal,
+                        $vatRate, $vatAmount, $modsJson, $removedJson, $item['comment'] ?? null,
+                        $driverActionType
+                    ]);
+                }
 
                 if ($hasOIM && $stmtOIM) {
                     if (!empty($item['added']) && is_array($item['added'])) {
