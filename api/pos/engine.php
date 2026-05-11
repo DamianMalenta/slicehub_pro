@@ -95,16 +95,30 @@ try {
         // -- Items --
         if ($schemaV2) {
             $stmtItems = $pdo->prepare(
+                // F5-D (2026-05-11): Temporal Tables filter. POS pokazuje TYLKO opublikowane
+                // pozycje w aktualnym oknie czasowym — analogicznie do online checkout
+                // (Konstytucja v5 § Prawo II — Bliźniak Cyfrowy: ten sam stan w POS i Online).
                 "SELECT id, category_id, name, ascii_key, is_active, image_url, description,
                         vat_rate_dine_in, vat_rate_takeaway
-                 FROM sh_menu_items WHERE tenant_id = ? AND is_deleted = 0
+                 FROM sh_menu_items
+                 WHERE tenant_id = ?
+                   AND is_deleted = 0
+                   AND (publication_status IS NULL OR publication_status = 'published')
+                   AND (valid_from IS NULL OR valid_from <= CURDATE())
+                   AND (valid_to IS NULL OR valid_to >= CURDATE())
                  ORDER BY display_order ASC, name ASC"
             );
         } else {
             $stmtItems = $pdo->prepare(
+                // F5-D: jw. (legacy schema bez vat_rate_*).
                 "SELECT id, category_id, name, ascii_key, is_active, NULL AS image_url, description,
                         vat_rate AS vat_rate_dine_in, vat_rate AS vat_rate_takeaway, price
-                 FROM sh_menu_items WHERE tenant_id = ? AND is_deleted = 0
+                 FROM sh_menu_items
+                 WHERE tenant_id = ?
+                   AND is_deleted = 0
+                   AND (publication_status IS NULL OR publication_status = 'published')
+                   AND (valid_from IS NULL OR valid_from <= CURDATE())
+                   AND (valid_to IS NULL OR valid_to >= CURDATE())
                  ORDER BY display_order ASC, name ASC"
             );
         }
@@ -442,6 +456,77 @@ try {
             $phone        = isset($input['customer_phone']) ? (string)$input['customer_phone'] : null;
             $custName     = isset($input['customer_name']) ? (string)$input['customer_name'] : null;
             $nip          = isset($input['nip']) ? (string)$input['nip'] : null;
+
+            // F5-B (2026-05-11): SERVER-AUTHORITATIVE CART REVALIDATION.
+            // Konstytucja v5 § Prawo IV (Zero Zaufania) — frontend NIGDY nie wysyła cen
+            // jako autorytatywne. Przeliczamy przez CartEngine::calculate i nadpisujemy
+            // ceny + total. Soft override: jeśli różnica > 1 grosz, logujemy warning ale
+            // używamy serwerowych wartości. Hard fail (PRICE_MISMATCH) zostawiamy na
+            // później po sandbox testach (planowane F5.5).
+            $serverPrices = null; // map: cart_index → unit_price_grosze (serwerowe)
+            $serverTotal = null;
+            try {
+                require_once __DIR__ . '/../cart/CartEngine.php';
+                $channelMap = ['dine_in' => 'POS', 'takeaway' => 'Takeaway', 'delivery' => 'Delivery'];
+                $cartLinesForEngine = [];
+                foreach ($cart as $idx => $item) {
+                    $isk = (string) ($item['ascii_key'] ?? $item['id'] ?? '');
+                    if ($isk === '') continue;
+                    $addedSkus = [];
+                    if (!empty($item['added']) && is_array($item['added'])) {
+                        foreach ($item['added'] as $mod) {
+                            $modSku = is_array($mod) ? (string)($mod['sku'] ?? $mod['ascii_key'] ?? '') : (string)$mod;
+                            if ($modSku !== '') $addedSkus[] = $modSku;
+                        }
+                    }
+                    $cartLinesForEngine[] = [
+                        'line_id'             => $item['line_id'] ?? $item['cart_id'] ?? null,
+                        'item_sku'            => $isk,
+                        'quantity'            => (int)($item['qty'] ?? $item['quantity'] ?? 1),
+                        'added_modifier_skus' => $addedSkus,
+                        'is_half'             => !empty($item['is_half']),
+                        'half_a'              => $item['half_a'] ?? null,
+                        'half_b'              => $item['half_b'] ?? null,
+                    ];
+                }
+                $ceResult = CartEngine::calculate($pdo, $tenant_id, [
+                    'channel'    => $channelMap[$orderType] ?? 'POS',
+                    'order_type' => $orderType,
+                    'lines'      => $cartLinesForEngine,
+                ]);
+                // Wynik CartEngine: response.total_grosze + lines z item_sku + line_total_grosze
+                $authoritativeTotal = (int)($ceResult['response']['totals']['total_grosze']
+                    ?? $ceResult['totals']['total_grosze']
+                    ?? $ceResult['total_grosze']
+                    ?? 0);
+                if ($authoritativeTotal > 0) {
+                    $diff = abs($authoritativeTotal - $totalGrosze);
+                    if ($diff > 1) {
+                        error_log(sprintf(
+                            '[POS process_order] PRICE_MISMATCH tenant=%d total_grosze frontend=%d server=%d diff=%d',
+                            $tenant_id, $totalGrosze, $authoritativeTotal, $diff
+                        ));
+                    }
+                    $totalGrosze = $authoritativeTotal;
+                    $serverTotal = $authoritativeTotal;
+                }
+                // Per-line override
+                $ceLines = $ceResult['response']['lines'] ?? $ceResult['lines'] ?? [];
+                if (is_array($ceLines) && $ceLines !== []) {
+                    $serverPrices = [];
+                    foreach ($ceLines as $i => $ceL) {
+                        $serverPrices[$i] = (int) (
+                            $ceL['unit_price_grosze']
+                            ?? $ceL['unit_total_grosze']
+                            ?? 0
+                        );
+                    }
+                }
+            } catch (\Throwable $ceErr) {
+                // CartEngine failure NIE blokuje zamówienia — używamy cen z payloadu (legacy fallback).
+                // Loggujemy: na produkcji warning pojawi się w error_log uti.pl.
+                error_log('[POS process_order] CartEngine revalidation failed (using client prices): ' . $ceErr->getMessage());
+            }
             $promisedRaw  = isset($input['custom_datetime']) ? (string)$input['custom_datetime'] : null;
             $printKitchen = (int)($input['print_kitchen'] ?? 0);
             $printReceipt = (int)($input['print_receipt'] ?? 0);
@@ -597,22 +682,79 @@ try {
 
                 $deliveryStatus = ($orderType === 'delivery') ? 'unassigned' : null;
 
-                $pdo->prepare(
-                    "INSERT INTO sh_orders
-                        (id, tenant_id, order_number, channel, order_type, source, status,
-                         payment_method, payment_status, subtotal, grand_total,
-                         delivery_address, customer_phone, customer_name, nip,
-                         cart_json, promised_time, kitchen_ticket_printed, receipt_printed,
-                         delivery_status, user_id, table_id, waiter_id, guest_count,
-                         created_at)
-                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())"
-                )->execute([
-                    $orderId, $tenant_id, $orderNumber, $channel, $orderType, $source, $status,
-                    $payMethod, $payStatus, $totalGrosze, $totalGrosze,
-                    $address, $phone, $custName, $nip,
-                    $cartJson, $promised, $printKitchen, $printReceipt,
-                    $deliveryStatus, $user_id, $tableIdParam, $waiterIdParam, $guestCount
-                ]);
+                // F6 (2026-05-11): Geokodowanie adresu dla zamówień DELIVERY.
+                // Dispatcher dostaje real lat/lng zamiast losowego pinu na mapie.
+                // Konstytucja v5 § Prawo II — fizyczny bliźniak adresu.
+                $deliveryLat = null;
+                $deliveryLng = null;
+                $geocodeProvider = null;
+                $geocodeQuality  = null;
+                $geocodedAt      = null;
+                if ($orderType === 'delivery' && $address !== null && trim($address) !== '') {
+                    try {
+                        require_once __DIR__ . '/../../core/Geocoder.php';
+                        $geo = Geocoder::geocodeOrCache($pdo, $tenant_id, $address);
+                        $deliveryLat     = $geo['lat'];
+                        $deliveryLng     = $geo['lng'];
+                        $geocodeProvider = $geo['provider'];
+                        $geocodeQuality  = $geo['quality'];
+                        $geocodedAt      = ($geo['lat'] !== null) ? date('Y-m-d H:i:s') : null;
+                    } catch (\Throwable $geoErr) {
+                        error_log('[POS process_order] Geocoder failed: ' . $geoErr->getMessage());
+                    }
+                }
+
+                // F6: detekcja schema (kolumny dodaje migracja 047). Graceful degrade gdy
+                // serwer wisi na starszej wersji bazy.
+                static $hasGeocodeColumns = null;
+                if ($hasGeocodeColumns === null) {
+                    try {
+                        $pdo->query("SELECT delivery_lat FROM sh_orders LIMIT 0");
+                        $hasGeocodeColumns = true;
+                    } catch (\PDOException $e) {
+                        $hasGeocodeColumns = false;
+                    }
+                }
+
+                if ($hasGeocodeColumns) {
+                    $pdo->prepare(
+                        "INSERT INTO sh_orders
+                            (id, tenant_id, order_number, channel, order_type, source, status,
+                             payment_method, payment_status, subtotal, grand_total,
+                             delivery_address, delivery_lat, delivery_lng,
+                             geocode_provider, geocode_quality, geocoded_at,
+                             customer_phone, customer_name, nip,
+                             cart_json, promised_time, kitchen_ticket_printed, receipt_printed,
+                             delivery_status, user_id, table_id, waiter_id, guest_count,
+                             created_at)
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())"
+                    )->execute([
+                        $orderId, $tenant_id, $orderNumber, $channel, $orderType, $source, $status,
+                        $payMethod, $payStatus, $totalGrosze, $totalGrosze,
+                        $address, $deliveryLat, $deliveryLng,
+                        $geocodeProvider, $geocodeQuality, $geocodedAt,
+                        $phone, $custName, $nip,
+                        $cartJson, $promised, $printKitchen, $printReceipt,
+                        $deliveryStatus, $user_id, $tableIdParam, $waiterIdParam, $guestCount
+                    ]);
+                } else {
+                    $pdo->prepare(
+                        "INSERT INTO sh_orders
+                            (id, tenant_id, order_number, channel, order_type, source, status,
+                             payment_method, payment_status, subtotal, grand_total,
+                             delivery_address, customer_phone, customer_name, nip,
+                             cart_json, promised_time, kitchen_ticket_printed, receipt_printed,
+                             delivery_status, user_id, table_id, waiter_id, guest_count,
+                             created_at)
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())"
+                    )->execute([
+                        $orderId, $tenant_id, $orderNumber, $channel, $orderType, $source, $status,
+                        $payMethod, $payStatus, $totalGrosze, $totalGrosze,
+                        $address, $phone, $custName, $nip,
+                        $cartJson, $promised, $printKitchen, $printReceipt,
+                        $deliveryStatus, $user_id, $tableIdParam, $waiterIdParam, $guestCount
+                    ]);
+                }
 
                 // Mark table as occupied when a dine-in order is created
                 if ($orderType === 'dine_in' && $tableIdParam !== null) {
@@ -670,7 +812,12 @@ try {
                     mt_rand(0,0xffff), mt_rand(0,0xffff), mt_rand(0,0xffff)
                 );
                 $qty = (int)($item['qty'] ?? $item['quantity'] ?? 1);
-                $price = (int)round(((float)($item['price'] ?? 0)) * 100);
+                $clientPrice = (int)round(((float)($item['price'] ?? 0)) * 100);
+                // F5-B: użyj serwerowej ceny jeśli CartEngine policzył, inaczej fallback do payloadu.
+                $cartIdx = array_search($item, $cart, true);
+                $price = ($serverPrices !== null && isset($serverPrices[$cartIdx]) && $serverPrices[$cartIdx] > 0)
+                    ? (int)$serverPrices[$cartIdx]
+                    : $clientPrice;
                 $lineTotal = $price * $qty;
                 $sku = $item['ascii_key'] ?? $item['id'] ?? '';
 
@@ -1061,6 +1208,17 @@ try {
             posResponse(false, null, 'order_id is required.');
         }
 
+        // F5-C: snapshot order_type i table_id PRZED tranzycją (gdyby OSM coś nullował).
+        $stmtSnap = $pdo->prepare(
+            "SELECT order_type, table_id, status FROM sh_orders
+              WHERE id = :oid AND tenant_id = :tid LIMIT 1"
+        );
+        $stmtSnap->execute([':oid' => $oid, ':tid' => $tenant_id]);
+        $orderSnap = $stmtSnap->fetch(PDO::FETCH_ASSOC) ?: [];
+        $wasAccepted = in_array((string)($orderSnap['status'] ?? ''), ['accepted','preparing','ready','dispatched'], true);
+        $orderTypeSnap = (string)($orderSnap['order_type'] ?? '');
+        $tableIdSnap   = $orderSnap['table_id'] ?? null;
+
         $pdo->beginTransaction();
         try {
             $result = OrderStateMachine::transitionOrder(
@@ -1072,11 +1230,40 @@ try {
                 posResponse(false, null, $result['message']);
             }
 
-            // [FF-HOOK] Future: if 'auto_stock_return' flag is active,
-            // trigger warehouse reversal here using returnStock flag.
+            // F5-C: zwolnij stolik dla dine_in (Konstytucja v5 § Prawo II — Bliźniak fizyczny).
+            $tableFreed = false;
+            if ($orderTypeSnap === 'dine_in' && $tableIdSnap) {
+                try {
+                    $pdo->prepare(
+                        "UPDATE sh_tables
+                            SET physical_status = 'free',
+                                updated_at = NOW()
+                          WHERE id = :tid_tab AND tenant_id = :tid
+                            AND physical_status IN ('occupied','reserved','dirty','merged')"
+                    )->execute([':tid_tab' => $tableIdSnap, ':tid' => $tenant_id]);
+                    $tableFreed = true;
+                } catch (\Throwable $tabErr) {
+                    error_log('[POS Engine] cancel_order: free table failed: ' . $tabErr->getMessage());
+                }
+            }
 
             $pdo->commit();
-            posResponse(true, ['old_status' => $result['old_status']]);
+
+            // F5-C: reverse magazynu POST-COMMIT (analogicznie do F1 consume hook).
+            // Tylko jeśli zamówienie zostało wcześniej `accepted` (lub dalej) — wtedy WZ istnieje.
+            $reverseResult = null;
+            if ($wasAccepted) {
+                require_once __DIR__ . '/../../core/WarehouseReverseHook.php';
+                $reverseResult = WarehouseReverseHook::onOrderCancelled(
+                    $pdo, $tenant_id, $oid, $user_id
+                );
+            }
+
+            posResponse(true, [
+                'old_status'        => $result['old_status'],
+                'table_freed'       => $tableFreed,
+                'warehouse_reverse' => $reverseResult,
+            ]);
         } catch (\Throwable $e) {
             $pdo->rollBack();
             error_log('[POS Engine] cancel_order: ' . $e->getMessage());

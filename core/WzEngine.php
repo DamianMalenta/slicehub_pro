@@ -113,7 +113,12 @@ class WzEngine
             $itemSku = (string) $line['item_sku'];
 
             foreach (self::decodeJsonObjectList($line['modifiers_json'] ?? null) as $modEntry) {
-                $modSku = trim((string) ($modEntry['sku'] ?? ''));
+                // F5-A (2026-05-11): back-compat reader.
+                // POS przed F5 zapisywał `ascii_key` zamiast `sku` w modifiers_json
+                // (online checkout / CartEngine zawsze pisał `sku`). Aby ten WzEngine
+                // konsumował magazyn dla historycznych zamówień z POS-a, akceptujemy oba klucze.
+                // Konstytucja v5 § Prawo II (Bliźniak Cyfrowy) — magazyn musi spadać też dla modów ADD.
+                $modSku = trim((string) ($modEntry['sku'] ?? $modEntry['ascii_key'] ?? ''));
                 if ($modSku === '') {
                     continue;
                 }
@@ -139,7 +144,8 @@ class WzEngine
             }
 
             foreach (self::decodeJsonObjectList($line['removed_ingredients_json'] ?? null) as $remEntry) {
-                $remSku = trim((string) ($remEntry['sku'] ?? ''));
+                // F5-A: back-compat reader (akceptuje `sku` i `ascii_key`).
+                $remSku = trim((string) ($remEntry['sku'] ?? $remEntry['ascii_key'] ?? ''));
                 if ($remSku === '') {
                     continue;
                 }
