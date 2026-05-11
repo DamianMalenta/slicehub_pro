@@ -270,7 +270,8 @@ Shared CSS dla wszystkich modułów: safe-area-inset, viewport-fit, mobilne nawi
 | Ścieżka | Opis |
 |---------|------|
 | `procurement/suggest.php` | AutoScan endpoint — action-based: `suggest`, `suggest_bulk`, `learn`, `learn_bulk`, `threshold_get`, `threshold_set`. RBAC: suggest = owner/admin/manager, learn = owner/manager, threshold_set = owner. Audit do `sh_settings_audit`. Fundament pod F3 (Procurement Inbox UI) + F4 (KSeF API client). |
-| `procurement/inbox.php` (NEW · F3 · 2026-05-11) | KSeF Inbox endpoint — action-based: `list`, `show`, `upload_xml`, `reparse`, `update_line`, `accept`, `reject`. RBAC: list/show/upload = owner/admin/manager, reparse/update/accept/reject = owner/manager. Parsuje FA(2) XML przez `core/Ksef/Parser`, match przez AutoScan, accept tworzy PZ przez PzEngine. Konsumowane przez `modules/procurement/`. |
+| `procurement/inbox.php` (F3 · 2026-05-11, rozszerzony F4.5) | KSeF Inbox endpoint — action-based: `list`, `show`, `upload_xml`, `reparse`, `update_line`, `accept`, `reject` + **F4.5**: `smart_create_sku` (tworzy nowy `sys_items` + auto-mapping), `reverse` (owner-only — KOR dokument + reverse magazynu + status→draft). RBAC granularny. Audit do `sh_settings_audit`. |
+| `procurement/ksef_config.php` (NEW · F4 · 2026-05-11) | KSeF konfiguracja — action-based: `config_get`, `config_save` (owner-only, token przez CredentialVault), `test_connection` (real HTTP do sandbox/prod albo mock), `poll_now` (manual trigger), `state`, `toggle_auto_poll` (włącz/wyłącz worker). |
 
 #### Utility
 | Ścieżka | Status |
@@ -315,6 +316,8 @@ Wszystkie orphan/planned endpointy mają w nagłówku komentarz `// STATUS: …`
 | `WzEngine.php` | Zużycie surowców po acceptance (waste + modyfikatory). **`consumeForOrder` wpięty od F1 · 2026-05-11** przez `core/WarehouseConsumeHook` w `api/pos/engine.php#accept_order` + `api/orders/accept.php`. `checkAvailability` wpięty w online checkout. Formuła Prawa II Konstytucji v5: `needed = recipe_qty × (1 + waste%/100) × multiplier`. |
 | `WarehouseConsumeHook.php` (NEW · F1 2026-05-11) | Helper post-commit hook konsumpcji magazynu po `transitionOrder('accepted')`. Wywołuje `WzEngine::consumeForOrder` w niezależnej transakcji. Failure NIE blokuje akceptu zamówienia (kuchnia gotuje, manager może naprawić korektą KOR). |
 | `AutoScanEngine.php` (NEW · F2 2026-05-11) | **Shared AutoScan Engine** dla nazw zewnętrznych z faktur dostawców (KSeF inbox, PZ import). 4-stopniowe confidence scoring: `EXACT (100)` → `ALIAS (85)` → `NAME (60-80)` → `FUZZY (≤59)` → `NONE`. Self-learning przez `sh_product_mapping` (`learnMapping()`). API: `match()`, `matchBulk()`, `learnMapping()`. Threshold auto-accept w `sh_tenant_settings.autoscan_auto_accept_threshold` (default 70). Wpięty w `api/procurement/suggest.php`. Fundament pod F3 (Procurement Inbox UI) i F4 (KSeF API client). |
+| `Ksef/Parser.php` (NEW · F3 2026-05-11) | Parser polskiego standardu FA(2) XML (KSeF). Namespace-aware SimpleXML, ekstraktuje Podmiot1/Podmiot2/Fa/FaWiersz/totals. Konsumowane przez `api/procurement/inbox.php#upload_xml` i `core/Ksef/Client.php` mock-mode. |
+| `Ksef/Client.php` (NEW · F4 2026-05-11) | REST client do KSeF API. 3 environments: `mock` (fixtures z `mockQueryInbox/mockFetchInvoiceXml`), `sandbox` (`ksef-test.mf.gov.pl`), `prod` (`ksef.mf.gov.pl`). Auth: KSeF Token (`SessionToken` header). Auto-load konfigu z `sh_tenant_integrations.credentials` (CredentialVault decrypt). API: `testConnection()`, `queryInbox()`, `fetchInvoiceXml()`. Konsumowane przez `scripts/worker_ksef_inbox.php` i `api/procurement/ksef_config.php#poll_now`. |
 | `InwEngine.php` | Inwentaryzacja |
 | `KorEngine.php` | Korekta |
 | `MmEngine.php` | Międzymagazynowe |
