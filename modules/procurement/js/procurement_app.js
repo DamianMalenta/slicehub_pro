@@ -314,6 +314,44 @@
         $('#pi-modal-accept').disabled = isAccepted || isRejected;
         $('#pi-modal-reject').disabled = isAccepted || isRejected;
         $('#pi-modal-rescan').disabled = isAccepted;
+
+        // F4.5: gdy accepted, pokaż przycisk Reverse + zamień Accept/Reject style
+        let reverseBtn = $('#pi-modal-reverse');
+        if (isAccepted) {
+            if (!reverseBtn) {
+                reverseBtn = document.createElement('button');
+                reverseBtn.id = 'pi-modal-reverse';
+                reverseBtn.type = 'button';
+                reverseBtn.className = 'pi-btn pi-btn--danger';
+                reverseBtn.innerHTML = '<i class="fa-solid fa-rotate-left"></i> Wycofaj PZ (KOR)';
+                $('#pi-modal-accept').parentElement.insertBefore(reverseBtn, $('#pi-modal-accept'));
+                reverseBtn.addEventListener('click', handleReverse);
+            }
+            reverseBtn.style.display = '';
+        } else if (reverseBtn) {
+            reverseBtn.style.display = 'none';
+        }
+
+        // F4.5: NONE linie — przycisk Smart-create per linia
+        $$('#pi-modal-body tr[data-line-id]').forEach(tr => {
+            const lineId = parseInt(tr.dataset.lineId, 10);
+            const line = lines.find(l => l.id === lineId);
+            if (!line || isAccepted) return;
+            if ((line.match_type === 'NONE' || !line.resolved_sku) && !tr.querySelector('.pi-smart-create-btn')) {
+                const skuCell = tr.querySelector('td:last-child');
+                if (skuCell) {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'pi-btn pi-smart-create-btn';
+                    btn.style.marginLeft = '0.4rem';
+                    btn.style.fontSize = '0.72rem';
+                    btn.innerHTML = '<i class="fa-solid fa-plus"></i> Nowy';
+                    btn.title = 'Utwórz nowy SKU (F4.5)';
+                    btn.addEventListener('click', () => openSmartCreate(line));
+                    skuCell.appendChild(btn);
+                }
+            }
+        });
     }
 
     // -------------------------------------------------------------------------
@@ -427,6 +465,130 @@
             closeModal();
             loadList();
         });
+
+        // F4: KSeF Config modal
+        $('#pi-btn-config').addEventListener('click', openConfigModal);
+        $('#pi-cfg-close').addEventListener('click', () => $('#pi-cfg-backdrop').classList.add('hidden'));
+        $('#pi-cfg-save').addEventListener('click', saveConfig);
+        $('#pi-cfg-test').addEventListener('click', testConnection);
+
+        // F4: Pull now button
+        $('#pi-btn-poll-now').addEventListener('click', pollNow);
+
+        // F4.5: Smart-create modal
+        $('#pi-create-close').addEventListener('click', () => $('#pi-create-backdrop').classList.add('hidden'));
+        $('#pi-create-submit').addEventListener('click', submitSmartCreate);
+    }
+
+    // -------------------------------------------------------------------------
+    // F4: KSeF Config
+    // -------------------------------------------------------------------------
+    async function openConfigModal() {
+        const r = await api('config_get', {}, '/api/procurement/ksef_config.php');
+        if (!r.success) { showError(r.message || 'Nie udało się załadować konfiguracji.'); return; }
+        const d = r.data;
+        $('#pi-cfg-env').value = d.environment || 'mock';
+        $('#pi-cfg-token').value = '';
+        $('#pi-cfg-token-preview').textContent = d.token_preview ? 'Aktualny token: ' + d.token_preview : 'Brak tokenu.';
+        $('#pi-cfg-auto-poll').checked = !!d.auto_poll_enabled;
+        $('#pi-cfg-state').classList.add('hidden');
+        $('#pi-cfg-backdrop').classList.remove('hidden');
+    }
+
+    async function saveConfig() {
+        const env = $('#pi-cfg-env').value;
+        const token = $('#pi-cfg-token').value.trim();
+        const autoPoll = $('#pi-cfg-auto-poll').checked;
+
+        const r = await api('config_save', { environment: env, token }, '/api/procurement/ksef_config.php');
+        if (!r.success) { showError(r.message || 'Save padł.'); return; }
+
+        // Auto-poll osobno (osobna akcja)
+        const rA = await api('toggle_auto_poll', { enabled: autoPoll }, '/api/procurement/ksef_config.php');
+        if (!rA.success) showError(rA.message || 'Toggle auto-poll padł.');
+
+        const stateEl = $('#pi-cfg-state');
+        stateEl.className = 'pi-cfg-state ok';
+        stateEl.textContent = '✓ Zapisano. ' + r.message;
+        stateEl.classList.remove('hidden');
+        setTimeout(() => { $('#pi-cfg-backdrop').classList.add('hidden'); }, 1500);
+    }
+
+    async function testConnection() {
+        const stateEl = $('#pi-cfg-state');
+        stateEl.className = 'pi-cfg-state';
+        stateEl.textContent = '⏳ Testuję połączenie...';
+        stateEl.classList.remove('hidden');
+        const r = await api('test_connection', {}, '/api/procurement/ksef_config.php');
+        stateEl.className = 'pi-cfg-state ' + (r.success ? 'ok' : 'err');
+        stateEl.textContent = (r.success ? '✓ ' : '✗ ') + (r.message || (r.data && r.data.message) || '');
+    }
+
+    async function pollNow() {
+        const orig = $('#pi-btn-poll-now').innerHTML;
+        $('#pi-btn-poll-now').disabled = true;
+        $('#pi-btn-poll-now').innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Pobieram…';
+        const r = await api('poll_now', {}, '/api/procurement/ksef_config.php');
+        $('#pi-btn-poll-now').disabled = false;
+        $('#pi-btn-poll-now').innerHTML = orig;
+        if (!r.success) { showError(r.message || 'Poll padł.'); return; }
+        const s = r.data.stats;
+        alert(`KSeF poll OK (${r.data.environment}):\n• Pobrano: ${s.fetched}\n• Wstawiono: ${s.inserted}\n• Pominięto (dedup): ${s.skipped}\n• Błędy: ${s.errors}`);
+        loadList();
+    }
+
+    // -------------------------------------------------------------------------
+    // F4.5: Smart-create modal
+    // -------------------------------------------------------------------------
+    let smartCreateContext = null;
+
+    function openSmartCreate(line) {
+        smartCreateContext = { invoice_id: state.currentInvoice.id, line_id: line.id, external_name: line.external_name };
+        $('#pi-create-from').value = line.external_name;
+        // Auto-generate SKU z external_name: pierwsze 2-3 słowa, A-Z + _
+        const auto = String(line.external_name || '')
+            .toUpperCase().replace(/[ĄĆĘŁŃÓŚŹŻ]/g, c => ({Ą:'A',Ć:'C',Ę:'E',Ł:'L',Ń:'N',Ó:'O',Ś:'S',Ź:'Z',Ż:'Z'}[c] || c))
+            .replace(/[^A-Z0-9 ]/g, '').trim().split(/\s+/).slice(0, 3).join('_').slice(0, 40);
+        $('#pi-create-sku').value = auto || 'NEW_SKU_001';
+        $('#pi-create-name').value = line.external_name;
+        $('#pi-create-unit').value = (line.unit && ['kg','l','szt','m'].includes(line.unit)) ? line.unit : 'kg';
+        $('#pi-create-backdrop').classList.remove('hidden');
+    }
+
+    async function submitSmartCreate() {
+        if (!smartCreateContext) return;
+        const sku = $('#pi-create-sku').value.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+        const name = $('#pi-create-name').value.trim();
+        const unit = $('#pi-create-unit').value;
+        if (!sku || !name) { alert('SKU i nazwa są wymagane.'); return; }
+
+        const r = await api('smart_create_sku', {
+            invoice_id: smartCreateContext.invoice_id,
+            line_id: smartCreateContext.line_id,
+            sku, name, unit,
+        });
+        if (!r.success) { showError(r.message || 'Smart-create padł.'); return; }
+        alert(`✓ Utworzony SKU '${sku}'. Linia zaktualizowana. Network effect aktywny.`);
+        $('#pi-create-backdrop').classList.add('hidden');
+        smartCreateContext = null;
+        // Reload modal żeby odświeżyć SKU select per linia
+        openInvoice(state.currentInvoice.id);
+        loadSkuOptions(); // refresh dropdown source
+    }
+
+    // -------------------------------------------------------------------------
+    // F4.5: Reverse-PZ
+    // -------------------------------------------------------------------------
+    async function handleReverse() {
+        if (!state.currentInvoice) return;
+        const reason = prompt('Powód wycofania (KOR + reverse magazynu):');
+        if (reason === null) return;
+        if (!confirm('Wycofać zaakceptowaną fakturę? Magazyn zostanie pomniejszony przez KOR, faktura wróci do statusu "draft".')) return;
+        const r = await api('reverse', { invoice_id: state.currentInvoice.id, reason });
+        if (!r.success) { showError(r.message || 'Reverse padł.'); return; }
+        alert(`✓ Wycofano. KOR ${r.data.kor_doc_number} utworzony.`);
+        closeModal();
+        loadList();
     }
 
     document.addEventListener('DOMContentLoaded', async () => {

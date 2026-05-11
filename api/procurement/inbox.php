@@ -541,6 +541,211 @@ try {
         }
 
         // ---------------------------------------------------------------------
+        // F4.5: Smart-create — utwórz nowy sys_items + zmapuj do linii faktury
+        case 'smart_create_sku': {
+            inboxRequireRole($actorRole, ['owner', 'manager']);
+            $iid = (int) ($input['invoice_id'] ?? 0);
+            $lid = (int) ($input['line_id'] ?? 0);
+            $sku = strtoupper(preg_replace('/[^A-Z0-9_]/', '_', strtoupper(trim((string) ($input['sku'] ?? '')))) ?? '');
+            $name = trim((string) ($input['name'] ?? ''));
+            $unit = trim((string) ($input['unit'] ?? 'kg'));
+            if ($iid <= 0 || $lid <= 0 || $sku === '' || $name === '') {
+                inboxFail(400, 'INVALID_INPUT', 'Wymagane: invoice_id, line_id, sku, name.');
+            }
+            if (strlen($sku) > 64) inboxFail(400, 'SKU_TOO_LONG', 'SKU max 64 znaki.');
+
+            // Tenant scope check (linia musi należeć do tenanta przez sh_ksef_invoices)
+            $own = $pdo->prepare(
+                "SELECT l.external_name, i.status FROM sh_ksef_invoice_lines l
+                   JOIN sh_ksef_invoices i ON i.id = l.ksef_invoice_id
+                  WHERE i.tenant_id = :tid AND i.id = :iid AND l.id = :lid LIMIT 1"
+            );
+            $own->execute([':tid' => $tenant_id, ':iid' => $iid, ':lid' => $lid]);
+            $row = $own->fetch(PDO::FETCH_ASSOC);
+            if (!$row) inboxFail(404, 'NOT_FOUND');
+            if ($row['status'] === 'accepted') inboxFail(400, 'ALREADY_ACCEPTED');
+            $extName = (string) $row['external_name'];
+
+            $pdo->beginTransaction();
+            try {
+                // 1. Sprawdź czy SKU już istnieje (idempotent)
+                $check = $pdo->prepare("SELECT id FROM sys_items WHERE tenant_id = :tid AND sku = :sku LIMIT 1");
+                $check->execute([':tid' => $tenant_id, ':sku' => $sku]);
+                $existingId = $check->fetchColumn();
+                if (!$existingId) {
+                    // INSERT do sys_items
+                    $pdo->prepare(
+                        "INSERT INTO sys_items (tenant_id, sku, name, base_unit, is_active, is_deleted)
+                         VALUES (:tid, :sku, :name, :unit, 1, 0)"
+                    )->execute([':tid' => $tenant_id, ':sku' => $sku, ':name' => $name, ':unit' => $unit]);
+                }
+
+                // 2. Update linię — sku + match_type='MANUAL'
+                $pdo->prepare(
+                    "UPDATE sh_ksef_invoice_lines
+                        SET resolved_sku = :sku, match_type = 'MANUAL', match_confidence = 100,
+                            resolved_at = NOW(), resolved_by_user_id = :uid
+                      WHERE id = :lid"
+                )->execute([':sku' => $sku, ':uid' => $user_id, ':lid' => $lid]);
+
+                // 3. Auto-learn do sh_product_mapping (network effect — kolejny PZ z tej nazwy = EXACT)
+                $pdo->prepare(
+                    "INSERT IGNORE INTO sh_product_mapping (tenant_id, external_name, internal_sku)
+                     VALUES (:tid, :ext, :sku)"
+                )->execute([':tid' => $tenant_id, ':ext' => $extName, ':sku' => $sku]);
+
+                $pdo->commit();
+            } catch (\Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                inboxFail(500, 'CREATE_FAILED', 'Smart-create padł: ' . $e->getMessage());
+            }
+
+            inboxAudit($pdo, $tenant_id, $user_id, 'ksef_smart_create', $iid, [
+                'sku' => $sku, 'name' => $name, 'unit' => $unit, 'external_name' => $extName,
+            ]);
+
+            inboxResponse(true, [
+                'sku' => $sku, 'name' => $name, 'unit' => $unit,
+                'line_id' => $lid, 'external_name' => $extName,
+            ], "Utworzono SKU '{$sku}' i przypisano do linii. Network effect: kolejne faktury z '{$extName}' będą EXACT 100%.");
+            break;
+        }
+
+        // ---------------------------------------------------------------------
+        // F4.5: Reverse — wycofaj zaakceptowaną fakturę (status → draft, KOR PZ)
+        case 'reverse': {
+            inboxRequireRole($actorRole, ['owner']);
+            $iid = (int) ($input['invoice_id'] ?? 0);
+            $reason = trim((string) ($input['reason'] ?? ''));
+            if ($iid <= 0) inboxFail(400, 'INVALID_INVOICE_ID');
+
+            $invSt = $pdo->prepare(
+                "SELECT id, status, linked_wh_document_id FROM sh_ksef_invoices WHERE id = :id AND tenant_id = :tid LIMIT 1"
+            );
+            $invSt->execute([':id' => $iid, ':tid' => $tenant_id]);
+            $inv = $invSt->fetch(PDO::FETCH_ASSOC);
+            if (!$inv) inboxFail(404, 'NOT_FOUND');
+            if ($inv['status'] !== 'accepted') {
+                inboxFail(400, 'NOT_ACCEPTED', 'Można wycofać tylko zaakceptowane faktury (obecnie: ' . $inv['status'] . ').');
+            }
+            if (empty($inv['linked_wh_document_id'])) {
+                inboxFail(400, 'NO_PZ', 'Faktura nie ma powiązanego PZ — nie można wycofać.');
+            }
+
+            $pzDocId = (int) $inv['linked_wh_document_id'];
+
+            // Reverse stocks z wh_documents PZ — wyciągnij linie i odwróć
+            // (proste podejście — bez KorEngine bo on jest dla zwrotów do dostawcy
+            //  z dokumentu WZ, tu mamy PZ. Robimy bezpośredni reverse w transakcji.)
+            $pdo->beginTransaction();
+            try {
+                $linesSt = $pdo->prepare(
+                    "SELECT sku, quantity, unit_net_cost, old_avco FROM wh_document_lines WHERE document_id = :did"
+                );
+                $linesSt->execute([':did' => $pzDocId]);
+                $pzLines = $linesSt->fetchAll(PDO::FETCH_ASSOC);
+                if ($pzLines === []) {
+                    throw new \RuntimeException('PZ document ma 0 linii — nic do reverse.');
+                }
+
+                // Tworzymy KOR-PZ dokument
+                $korSt = $pdo->prepare(
+                    "INSERT INTO wh_documents
+                        (tenant_id, doc_number, type, warehouse_id, references_wz, status, notes, created_by)
+                     VALUES (:tid, '', 'KOR', (SELECT warehouse_id FROM wh_documents WHERE id=:did2),
+                             :ref, 'completed', :notes, :uid)"
+                );
+                $pzDocNumberSt = $pdo->prepare("SELECT doc_number, warehouse_id FROM wh_documents WHERE id = :did");
+                $pzDocNumberSt->execute([':did' => $pzDocId]);
+                $pzMeta = $pzDocNumberSt->fetch(PDO::FETCH_ASSOC);
+                $korSt->execute([
+                    ':tid'   => $tenant_id,
+                    ':did2'  => $pzDocId,
+                    ':ref'   => $pzMeta['doc_number'] ?? '',
+                    ':notes' => 'Reverse KSeF invoice #' . $iid . ($reason ? ' — ' . $reason : ''),
+                    ':uid'   => $user_id,
+                ]);
+                $korId = (int) $pdo->lastInsertId();
+                $korNumber = sprintf('KOR/%s/%05d', date('Y/m/d'), $korId);
+                $pdo->prepare("UPDATE wh_documents SET doc_number = :dn WHERE id = :id")
+                    ->execute([':dn' => $korNumber, ':id' => $korId]);
+
+                $korLineSt = $pdo->prepare(
+                    "INSERT INTO wh_document_lines
+                        (document_id, sku, quantity, unit_net_cost, line_net_value, vat_rate, old_avco, new_avco)
+                     VALUES (:did, :sku, :qty, :unc, :lnv, 0, :oa, :na)"
+                );
+                $updStock = $pdo->prepare(
+                    "UPDATE wh_stock SET quantity = quantity - :qty
+                      WHERE tenant_id = :tid AND warehouse_id = :wid AND sku = :sku"
+                );
+                $stockLog = $pdo->prepare(
+                    "INSERT INTO wh_stock_logs
+                        (tenant_id, warehouse_id, sku, change_qty, after_qty, document_type, document_id, created_by)
+                     VALUES (:tid, :wid, :sku, :chg, :after, 'KOR', :did, :uid)"
+                );
+
+                foreach ($pzLines as $pzL) {
+                    $sku = (string) $pzL['sku'];
+                    $qty = (float) $pzL['quantity'];
+
+                    // Negative line w KOR
+                    $korLineSt->execute([
+                        ':did' => $korId, ':sku' => $sku,
+                        ':qty' => -$qty, ':unc' => $pzL['unit_net_cost'],
+                        ':lnv' => -1 * (float) $pzL['unit_net_cost'] * $qty,
+                        ':oa'  => $pzL['old_avco'], ':na' => $pzL['old_avco'],
+                    ]);
+                    // Update stock
+                    $updStock->execute([
+                        ':qty' => $qty, ':tid' => $tenant_id,
+                        ':wid' => $pzMeta['warehouse_id'], ':sku' => $sku,
+                    ]);
+                    // Log
+                    $currentQty = (float) ($pdo->query("SELECT quantity FROM wh_stock WHERE tenant_id={$tenant_id}
+                        AND warehouse_id='" . addslashes($pzMeta['warehouse_id']) . "' AND sku='" . addslashes($sku) . "'")
+                        ->fetchColumn() ?: 0);
+                    $stockLog->execute([
+                        ':tid' => $tenant_id, ':wid' => $pzMeta['warehouse_id'], ':sku' => $sku,
+                        ':chg' => -$qty, ':after' => $currentQty, ':did' => $korId, ':uid' => $user_id,
+                    ]);
+                }
+
+                // Update sh_ksef_invoices: status='draft', clear linked_wh_document_id
+                $pdo->prepare(
+                    "UPDATE sh_ksef_invoices
+                        SET status = 'draft', linked_wh_document_id = NULL,
+                            processed_at = NULL, processed_by_user_id = NULL,
+                            status_message = :msg
+                      WHERE id = :id AND tenant_id = :tid"
+                )->execute([
+                    ':msg' => 'Zwrócona z accepted przez ' . $actorRole . '. KOR doc: ' . $korNumber . ($reason ? ' — ' . $reason : ''),
+                    ':id'  => $iid, ':tid' => $tenant_id,
+                ]);
+
+                $pdo->commit();
+
+                inboxAudit($pdo, $tenant_id, $user_id, 'ksef_reverse', $iid, [
+                    'pz_doc_id'  => $pzDocId,
+                    'kor_doc_id' => $korId,
+                    'kor_doc_number' => $korNumber,
+                    'reason'     => $reason,
+                ]);
+
+                inboxResponse(true, [
+                    'invoice_id'     => $iid,
+                    'kor_doc_id'     => $korId,
+                    'kor_doc_number' => $korNumber,
+                    'status'         => 'draft',
+                ], "Wycofano: utworzony KOR {$korNumber}, magazyn pomniejszony. Faktura wraca do statusu 'draft'.");
+            } catch (\Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                inboxFail(500, 'REVERSE_FAILED', 'Reverse padł: ' . $e->getMessage());
+            }
+            break;
+        }
+
+        // ---------------------------------------------------------------------
         case 'reject': {
             inboxRequireRole($actorRole, ['owner', 'manager']);
             $iid = (int) ($input['invoice_id'] ?? 0);
