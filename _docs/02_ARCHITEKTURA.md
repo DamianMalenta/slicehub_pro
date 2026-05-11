@@ -16,6 +16,11 @@
 > - F-S6 Wizard „Nowa Pizza" (4-step modal: nazwa → skala → ceny → generuj)
 > - F-S3.2 WzEngine combo expansion (combo line → wirtualne linie → konsumpcja per składnik; pełna kompozycja z variant + subrecipe)
 > - F-S5.1 Studio UI dla półproduktów (toggle recycle + picker + yield input; backend walidacja anti-cycle + LEFT JOIN sys_items/sh_menu_items)
+> - F-S8 (verify) — Combo reverse stock działa BEZ dodatkowego kodu (WarehouseReverseHook czyta wh_document_lines per surowiec, F-S3.2 expansion produkuje per-surowiec WZ)
+> - F-S1.2 — Variant scale presets (5 gotowych skal w Studio UI) + auto-multiplier w skrypcie migracji legacy parent_sku (z mapy XS=0.55, S=0.70, M=1.00, L=1.30, XL=1.60, XXL=2.00, MINI/BIG/REG/STD/NORMAL, średnice 26..45 cm)
+> - F-S6.1 — Wizard "Nowa Pizza" rozbudowany do 5 kroków (krok 4: modifier groups checkbox lista, krok 5: generuj)
+> - F-S7 — Hard PRICE_MISMATCH (tenant flag `price_mismatch_mode`: soft|hard; hard → HTTP 409 z error_code)
+> - F-S9 — Recipe drag-and-drop reorder (migracja 055 + native HTML5 drag w studio_recipe.js + schema-aware ORDER BY display_order)
 > **North Star:** [`_docs/00_PAMIEC_SYSTEMU.md`](00_PAMIEC_SYSTEMU.md) — master reference.
 > **Hub & Kiosk dedykowany doc:** [`_docs/19_HUB_AND_KIOSK.md`](19_HUB_AND_KIOSK.md).
 
