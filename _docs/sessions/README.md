@@ -24,3 +24,4 @@ Zawartość — 4 sekcje:
 - [`2026-05-11_constitution_v5.md`](2026-05-11_constitution_v5.md) — Konstytucja v5: Prawa VIII / IX / X + naprawa drift-u kod-docs.
 - [`2026-05-11_phase_f1_consume_loop.md`](2026-05-11_phase_f1_consume_loop.md) — F1 Pętla zużycia POS↔Magazyn: hook `WzEngine::consumeForOrder` w `accept_order`, naprawa 3 bug-ów PDO w WzEngine, `consumeForOrder` zdjęte z `@planned`.
 - [`2026-05-11_phase_f2_autoscan.md`](2026-05-11_phase_f2_autoscan.md) — F2 Shared AutoScan Engine: 4-stopniowy confidence (EXACT/ALIAS/NAME/FUZZY/NONE) + self-learning + endpoint `api/procurement/suggest.php` z RBAC. Fundament pod F3 (Procurement Inbox) i F4 (KSeF).
+- [`2026-05-11_phase_f2_5_pz_autoscan.md`](2026-05-11_phase_f2_5_pz_autoscan.md) — F2.5 PzEngine na shared AutoScan + UI sugestie. Network effect potwierdzony (ALIAS match → mapping memory → następny PZ EXACT). UI `warehouse_pz.js` z confidence pill + auto-fill SKU.
