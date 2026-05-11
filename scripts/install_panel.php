@@ -492,16 +492,79 @@ function action_list_users(array $body): void
 function action_create_tenant(array $body): void
 {
     $name = trim((string) ($body['name'] ?? ''));
+    $slug = trim(strtolower((string) ($body['slug'] ?? '')));
+    $nip  = preg_replace('/\D+/', '', (string) ($body['nip'] ?? '')) ?? '';
+
     if ($name === '') {
         panel_json(false, 'Wymagana nazwa tenanta.');
     }
+    // Slug — opcjonalny, ale jeżeli podany to musi pasować do regexa
+    if ($slug !== '' && !preg_match('/^[a-z][a-z0-9_-]{1,63}$/', $slug)) {
+        panel_json(false, 'Slug: dozwolone małe litery, cyfry, "-", "_". Start z litery, max 64.');
+    }
+    // NIP — opcjonalny, ale jeżeli podany to checksum (algorytm GUS)
+    if ($nip !== '') {
+        if (!preg_match('/^\d{10}$/', $nip)) {
+            panel_json(false, 'NIP: musi mieć dokładnie 10 cyfr.');
+        }
+        $weights = [6, 5, 7, 2, 3, 4, 5, 6, 7];
+        $sum = 0;
+        for ($i = 0; $i < 9; $i++) {
+            $sum += (int)$nip[$i] * $weights[$i];
+        }
+        $check = $sum % 11;
+        if ($check === 10 || $check !== (int)$nip[9]) {
+            panel_json(false, 'NIP: nieprawidłowa checksuma.');
+        }
+    }
+
     try {
         $pdo = panel_connect();
-        $st = $pdo->prepare('INSERT INTO sh_tenant (name) VALUES (:n)');
-        $st->execute([':n' => $name]);
+
+        // Czy schemat już ma kolumny slug/nip (po m045)?
+        $hasSlugCol = (bool) $pdo->query("SELECT COUNT(*) FROM information_schema.columns
+            WHERE table_schema = DATABASE() AND table_name = 'sh_tenant' AND column_name = 'slug'")
+            ->fetchColumn();
+        $hasNipCol = (bool) $pdo->query("SELECT COUNT(*) FROM information_schema.columns
+            WHERE table_schema = DATABASE() AND table_name = 'sh_tenant' AND column_name = 'nip'")
+            ->fetchColumn();
+
+        $cols = ['name'];
+        $vals = [':n'];
+        $params = [':n' => $name];
+        if ($hasSlugCol && $slug !== '') {
+            $cols[] = 'slug';
+            $vals[] = ':s';
+            $params[':s'] = $slug;
+        }
+        if ($hasNipCol && $nip !== '') {
+            $cols[] = 'nip';
+            $vals[] = ':p';
+            $params[':p'] = $nip;
+        }
+        $sql = 'INSERT INTO sh_tenant (' . implode(',', $cols) . ') VALUES (' . implode(',', $vals) . ')';
+        $st = $pdo->prepare($sql);
+        $st->execute($params);
         $id = (int) $pdo->lastInsertId();
-        panel_json(true, "Tenant utworzony (id={$id}).", ['tenant_id' => $id, 'name' => $name]);
+
+        $note = '';
+        if ($slug !== '' && !$hasSlugCol) {
+            $note = ' (slug pominięty — brak kolumny, uruchom migrację 045)';
+        } elseif ($nip !== '' && !$hasNipCol) {
+            $note = ' (NIP pominięty — brak kolumny, uruchom migrację 045)';
+        }
+
+        panel_json(true, "Tenant utworzony (id={$id}).{$note}", [
+            'tenant_id' => $id,
+            'name'      => $name,
+            'slug'      => $hasSlugCol ? $slug : null,
+            'nip'       => $hasNipCol  ? $nip  : null,
+        ]);
     } catch (Throwable $e) {
+        $msg = $e->getMessage();
+        if (str_contains($msg, '1062') && str_contains($msg, 'uq_tenant_slug')) {
+            panel_json(false, 'Slug zajęty — wybierz inny.');
+        }
         panel_json(false, panel_friendly_pdo_message('Tworzenie tenanta', $e));
     }
 }
@@ -769,10 +832,13 @@ define('SLICEHUB_SCRIPT_KEY', 'losowy_dlugi_string_min_32_znaki');</pre>
     <section class="grid-2">
         <div class="glass p-5">
             <h2 class="font-semibold text-lg mb-3">4. Tenant</h2>
-            <div class="flex gap-2 mb-3">
-                <input id="t-name" placeholder="Nazwa pizzerii (np. SliceHub Test)">
-                <button id="btn-create-tenant" class="btn btn-ok whitespace-nowrap">Utwórz</button>
+            <div class="grid grid-cols-2 gap-2 mb-2">
+                <div><span class="label">Nazwa</span><input id="t-name" placeholder="np. Pizzeria Mario"></div>
+                <div><span class="label">Slug (opcjonalnie, m045+)</span><input id="t-slug" placeholder="np. pizzeria-mario"></div>
+                <div class="col-span-2"><span class="label">NIP (opcjonalnie, m045+, 10 cyfr)</span><input id="t-nip" placeholder="np. 5252344078" inputmode="numeric"></div>
             </div>
+            <button id="btn-create-tenant" class="btn btn-ok w-full">Utwórz tenanta</button>
+            <p class="text-xs text-slate-400 mt-2">Slug i NIP są opcjonalne — wymagają migracji 045 (jest w „Pełnym resecie"). Resztę (REGON, IBAN, adres rejestrowy) ustawisz później w module „Profil Firmy".</p>
             <div class="mb-2 flex items-center justify-between">
                 <span class="label" style="margin:0">Istniejące tenanty</span>
                 <button id="btn-refresh-tenants" class="text-xs text-slate-400 hover:text-slate-200">↻ odśwież</button>
@@ -1051,10 +1117,18 @@ define('SLICEHUB_SCRIPT_KEY', 'losowy_dlugi_string_min_32_znaki');</pre>
     $('#btn-refresh-tenants').addEventListener('click', refreshTenants);
     $('#btn-create-tenant').addEventListener('click', async () => {
         const name = $('#t-name').value.trim();
+        const slug = $('#t-slug').value.trim();
+        const nip  = $('#t-nip').value.trim();
         if (!name) return;
-        const r = await api('create_tenant', { name });
-        if (r.success) { $('#t-name').value = ''; refreshTenants(); }
-        else { alert(r.message); }
+        const r = await api('create_tenant', { name, slug, nip });
+        if (r.success) {
+            $('#t-name').value = '';
+            $('#t-slug').value = '';
+            $('#t-nip').value = '';
+            refreshTenants();
+        } else {
+            alert(r.message);
+        }
     });
 
     // --- OWNER ---
