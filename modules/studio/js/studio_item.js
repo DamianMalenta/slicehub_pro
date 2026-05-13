@@ -1407,7 +1407,7 @@ window.ItemEditor = {
                     <div class="fs6-step-panel hidden" data-step-panel="5">
                         <h4 class="text-white font-bold text-sm mb-3">Krok 5: Podsumowanie i generowanie</h4>
                         <div id="fs6-summary" class="text-xs text-slate-300 space-y-2 bg-black/40 p-4 rounded-xl border border-white/10"></div>
-                        <p class="text-[10px] text-amber-300 mt-3">⚠️ Po kliknięciu „Generuj rodzinę" zostanie utworzony parent + N children w `sh_menu_items` (każdy ze swoimi cenami + modyfikatorami). Recepturę dodasz osobno w edytorze.</p>
+                        <p class="text-[10px] text-amber-300 mt-3">⚠️ Po kliknięciu „Generuj rodzinę" zostanie utworzony parent + N children w <code>sh_menu_items</code> (każdy ze swoimi cenami + modyfikatorami). Recepturę dodasz osobno w edytorze.</p>
                     </div>
                 </div>
                 <div class="px-5 py-4 border-t border-white/10 flex items-center justify-between">
