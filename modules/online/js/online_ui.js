@@ -161,6 +161,72 @@ function formatPricePl(v) {
     return Number(v).toFixed(2).replace('.', ',');
 }
 
+/**
+ * F-S1 — Modal wyboru rozmiaru dla storefrontu Online.
+ * Wywoływany gdy użytkownik kliknie item z isVariantFamily=true.
+ * @param {object} item — item z tablicą `variants`
+ * @param {function} onPickVariant — callback(variantSku: string)
+ */
+export function openOnlineVariantPicker(item, onPickVariant) {
+    const variants = Array.isArray(item.variants) ? item.variants : [];
+    if (variants.length === 0) { onPickVariant(item.sku); return; }
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'online-variant-backdrop';
+    backdrop.setAttribute('role', 'dialog');
+    backdrop.setAttribute('aria-modal', 'true');
+
+    const panel = document.createElement('div');
+    panel.className = 'online-variant-panel';
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'online-variant-header';
+    const headerText = document.createElement('div');
+    headerText.className = 'online-variant-header__text';
+    headerText.innerHTML = `
+        <h3 class="online-variant-title">${escapeHtml(item.name)}</h3>
+        <p class="online-variant-subtitle">Wybierz rozmiar</p>`;
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'online-variant-close';
+    closeBtn.setAttribute('aria-label', 'Zamknij');
+    closeBtn.innerHTML = '&times;';
+    closeBtn.addEventListener('click', () => backdrop.remove());
+    header.appendChild(headerText);
+    header.appendChild(closeBtn);
+    panel.appendChild(header);
+
+    // Variant list
+    const list = document.createElement('div');
+    list.className = 'online-variant-list';
+    variants.forEach((v) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'online-variant-option';
+        const priceTxt = v.price != null ? `${formatPricePl(v.price)} zł` : '—';
+        btn.innerHTML = `
+            <div class="online-variant-option__left">
+                <span class="online-variant-option__name">${escapeHtml(v.name || v.sku)}</span>
+                <span class="online-variant-option__key">${escapeHtml(v.optionKey || v.sku)}</span>
+            </div>
+            <div class="online-variant-option__right">
+                <span class="online-variant-option__price">${escapeHtml(priceTxt)}</span>
+                <i class="fa-solid fa-chevron-right online-variant-option__arrow" aria-hidden="true"></i>
+            </div>`;
+        btn.addEventListener('click', () => {
+            backdrop.remove();
+            onPickVariant(v.sku);
+        });
+        list.appendChild(btn);
+    });
+    panel.appendChild(list);
+
+    backdrop.appendChild(panel);
+    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) backdrop.remove(); });
+    document.body.appendChild(backdrop);
+    closeBtn.focus();
+}
+
 export function buildMenuAccordion(categories, onPickItem) {
     const frag = document.createDocumentFragment();
     if (!categories || !categories.length) {
@@ -196,11 +262,12 @@ export function buildMenuAccordion(categories, onPickItem) {
         });
 
         (cat.items || []).forEach((item) => {
-            // Cena: gdy pozycja ma warianty (np. pizza 32/40/50 cm), pokazujemy
-            // "od X,XX zł". Inaczej bierzemy item.price.
-            let priceHtml = '—';
             const variants = Array.isArray(item.variants) ? item.variants : [];
-            if (variants.length > 0) {
+            const isVariantFamily = item.isVariantFamily === true || variants.length > 0;
+
+            // Cena: gdy pozycja ma warianty (np. pizza 32/40/50 cm), pokazujemy "od X,XX zł".
+            let priceHtml = '—';
+            if (isVariantFamily && variants.length > 0) {
                 const prices = variants.map((v) => Number(v.price || 0)).filter((p) => p > 0);
                 if (prices.length) {
                     const min = Math.min(...prices);
@@ -238,6 +305,7 @@ export function buildMenuAccordion(categories, onPickItem) {
             main.innerHTML = `
                 <span class="menu-ticket__name">${escapeHtml(item.name)}</span>
                 <span class="menu-ticket__desc">${escapeHtml((item.description || '').slice(0, 140))}</span>
+                ${isVariantFamily ? `<span class="menu-ticket__variant-badge"><i class="fa-solid fa-ruler" aria-hidden="true"></i> Rozmiary &rsaquo;</span>` : ''}
             `;
 
             const priceEl = document.createElement('span');
@@ -259,7 +327,11 @@ export function buildMenuAccordion(categories, onPickItem) {
 
             row.addEventListener('click', (e) => {
                 e.stopPropagation();
-                onPickItem(item.sku);
+                if (isVariantFamily) {
+                    openOnlineVariantPicker(item, (variantSku) => onPickItem(variantSku));
+                } else {
+                    onPickItem(item.sku);
+                }
             });
             body.appendChild(row);
         });

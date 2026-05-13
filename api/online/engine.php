@@ -509,8 +509,17 @@ try {
 
     // =========================================================================
     // ACTION: get_menu — categories + items + prices (for accordion view)
+    // F-S1 (variant families): gdy w schemacie są kolumny variant_scale_id/is_variant_parent/parent_item_id,
+    // filtrujemy ghost parents i grupujemy dzieci w tablicę `variants` per parent.
     // =========================================================================
     if ($action === 'get_menu') {
+        // F-S1: probe czy tabela ma kolumny systemu wariantów (migration 048+).
+        $hasVariantColsOnline = false;
+        try {
+            $pdo->query("SELECT is_variant_parent FROM sh_menu_items LIMIT 0");
+            $hasVariantColsOnline = true;
+        } catch (\PDOException $e) {}
+
         // Categories
         $stmtCats = $pdo->prepare(
             "SELECT id, name, display_order, is_menu
@@ -521,14 +530,47 @@ try {
         $stmtCats->execute([':tid' => $tenantId]);
         $catRows = $stmtCats->fetchAll(PDO::FETCH_ASSOC);
 
-        // Items (active, non-deleted)
-        $stmtItems = $pdo->prepare(
-            "SELECT mi.ascii_key AS sku, mi.name, mi.description, mi.image_url,
-                    mi.category_id, mi.display_order
-             FROM sh_menu_items mi
-             WHERE mi.tenant_id = :tid AND mi.is_active = 1 AND mi.is_deleted = 0
-             ORDER BY mi.display_order ASC, mi.name ASC"
-        );
+        // Items (active, non-deleted) — jeśli F-S1: wyklucz ghost parents, pobierz parent info dla dzieci.
+        if ($hasVariantColsOnline) {
+            $stmtItems = $pdo->prepare(
+                "SELECT mi.ascii_key AS sku, mi.name, mi.description, mi.image_url,
+                        mi.category_id, mi.display_order,
+                        mi.is_variant_parent,
+                        mi.parent_item_id,
+                        parent_mi.ascii_key AS parent_sku_key,
+                        parent_mi.name AS parent_name,
+                        parent_mi.description AS parent_description,
+                        parent_mi.image_url AS parent_image_url,
+                        parent_mi.category_id AS parent_category_id,
+                        parent_mi.display_order AS parent_display_order,
+                        opt.name AS variant_option_name,
+                        opt.key_ascii AS variant_option_key,
+                        opt.display_order AS variant_option_order
+                   FROM sh_menu_items mi
+                   LEFT JOIN sh_menu_items parent_mi
+                        ON parent_mi.id = mi.parent_item_id AND parent_mi.tenant_id = mi.tenant_id
+                   LEFT JOIN sh_variant_scale_options opt
+                        ON opt.id = mi.variant_option_id AND opt.tenant_id = mi.tenant_id
+                  WHERE mi.tenant_id = :tid
+                    AND mi.is_active = 1 AND mi.is_deleted = 0
+                    AND mi.is_variant_parent = 0
+                  ORDER BY mi.display_order ASC, mi.name ASC"
+            );
+        } else {
+            $stmtItems = $pdo->prepare(
+                "SELECT mi.ascii_key AS sku, mi.name, mi.description, mi.image_url,
+                        mi.category_id, mi.display_order,
+                        0 AS is_variant_parent, NULL AS parent_item_id,
+                        NULL AS parent_sku_key, NULL AS parent_name,
+                        NULL AS parent_description, NULL AS parent_image_url,
+                        NULL AS parent_category_id, NULL AS parent_display_order,
+                        NULL AS variant_option_name, NULL AS variant_option_key,
+                        NULL AS variant_option_order
+                   FROM sh_menu_items mi
+                  WHERE mi.tenant_id = :tid AND mi.is_active = 1 AND mi.is_deleted = 0
+                  ORDER BY mi.display_order ASC, mi.name ASC"
+            );
+        }
         $stmtItems->execute([':tid' => $tenantId]);
         $itemRows = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
 
@@ -558,38 +600,110 @@ try {
             }
         } catch (\PDOException $e) { /* m022 niezainstalowane — cicho */ }
 
-        // Group items by category
-        $itemsByCat = [];
+        // F-S1 — Grupuj variant children w ambassador items.
+        // Dzieci (parent_item_id nie-null) → jeden ambassador per family z tablicą `variants`.
+        // Items bez rodzica → normalne items.
+        $variantFamilies = []; // parentSku → ambassador item array
+        $regularItems    = [];
+
         foreach ($itemRows as $mi) {
-            $cid = (int)($mi['category_id'] ?? 0);
-            if (!isset($itemsByCat[$cid])) $itemsByCat[$cid] = [];
-            $p = $priceMap[$mi['sku']] ?? null;
-            $itemsByCat[$cid][] = [
-                'sku'                => $mi['sku'],
-                'name'               => $mi['name'],
-                'description'        => $mi['description'],
-                'imageUrl'           => normalizePublicAssetUrl($mi['image_url'] ?? null),
-                'visualLayers'       => $resolveVisualLayersForSku($mi['sku']),
-                'atmosphericEffects' => $effectsMap[$mi['sku']] ?? [],
-                'activeCamera'       => $cameraMap[$mi['sku']] ?? null,
-                'price'              => $p ? $p['price'] : null,
-                'priceFallback'      => $p ? $p['fallback'] : true,
-            ];
+            $sku = (string)$mi['sku'];
+            $p   = $priceMap[$sku] ?? null;
+
+            if (!empty($mi['parent_item_id']) && !empty($mi['parent_sku_key'])) {
+                // Dziecko wariantu — agreguj do rodziny.
+                $parentKey = (string)$mi['parent_sku_key'];
+                if (!isset($variantFamilies[$parentKey])) {
+                    $variantFamilies[$parentKey] = [
+                        'sku'                => $parentKey,
+                        'name'               => (string)($mi['parent_name'] ?? $parentKey),
+                        'description'        => $mi['parent_description'] ?? null,
+                        'imageUrl'           => normalizePublicAssetUrl($mi['parent_image_url'] ?? null),
+                        'visualLayers'       => [],
+                        'atmosphericEffects' => [],
+                        'activeCamera'       => null,
+                        'price'              => null,
+                        'priceFallback'      => true,
+                        'isVariantFamily'    => true,
+                        'variants'           => [],
+                        '_categoryId'        => (int)($mi['parent_category_id'] ?? $mi['category_id']),
+                        '_displayOrder'      => (int)($mi['parent_display_order'] ?? $mi['display_order']),
+                    ];
+                }
+                $variantFamilies[$parentKey]['variants'][] = [
+                    'sku'        => $sku,
+                    'name'       => (string)($mi['variant_option_name'] ?? $mi['name']),
+                    'optionKey'  => $mi['variant_option_key'] ?? $sku,
+                    'price'      => $p ? (float)$p['price'] : null,
+                    'imageUrl'   => normalizePublicAssetUrl($mi['image_url'] ?? null),
+                ];
+            } else {
+                // Normalny item — bez wariantów.
+                $regularItems[] = [
+                    'sku'                => $sku,
+                    'name'               => (string)($mi['name']),
+                    'description'        => $mi['description'] ?? null,
+                    'imageUrl'           => normalizePublicAssetUrl($mi['image_url'] ?? null),
+                    'visualLayers'       => $resolveVisualLayersForSku($sku),
+                    'atmosphericEffects' => $effectsMap[$sku] ?? [],
+                    'activeCamera'       => $cameraMap[$sku] ?? null,
+                    'price'              => $p ? (float)$p['price'] : null,
+                    'priceFallback'      => $p ? $p['fallback'] : true,
+                    '_categoryId'        => (int)$mi['category_id'],
+                    '_displayOrder'      => (int)$mi['display_order'],
+                ];
+            }
         }
 
-        // m021 Asset Studio override — jeśli w sh_asset_links jest aktywny hero
-        // dla tego SKU, nadpisuje imageUrl (bez tego assety wgrane w Asset Studio
-        // byłyby niewidoczne na storefront).
+        // Finalizuj ambassador items: ustaw cenę min z wariantów, pobierz wizualne layers dla pierwszego child.
+        foreach ($variantFamilies as $parentKey => &$fam) {
+            $varPrices = array_filter(array_column($fam['variants'], 'price'), fn($v) => $v !== null && $v > 0);
+            if (!empty($varPrices)) {
+                $fam['price']        = min($varPrices);
+                $fam['priceFallback'] = false;
+            }
+            // Jeśli parent nie ma własnego obrazka, użyj pierwszego child.
+            if (!$fam['imageUrl']) {
+                foreach ($fam['variants'] as $vv) {
+                    if (!empty($vv['imageUrl'])) { $fam['imageUrl'] = $vv['imageUrl']; break; }
+                }
+            }
+            // Warstwy wizualne z pierwszego child, który ma SKU.
+            if (empty($fam['visualLayers']) && !empty($fam['variants'][0]['sku'])) {
+                $fam['visualLayers'] = $resolveVisualLayersForSku($fam['variants'][0]['sku']);
+                $fam['atmosphericEffects'] = $effectsMap[$fam['variants'][0]['sku']] ?? [];
+                $fam['activeCamera'] = $cameraMap[$fam['variants'][0]['sku']] ?? null;
+            }
+            // Sortuj warianty po optionKey.
+            usort($fam['variants'], fn($a, $b) => strnatcmp((string)$a['optionKey'], (string)$b['optionKey']));
+        }
+        unset($fam);
+
+        // Buduj listę items per kategoria (ambassadors + regular).
+        $allDisplayItems = array_merge($regularItems, array_values($variantFamilies));
+
+        // Grupuj per kategoria.
+        $itemsByCat = [];
+        foreach ($allDisplayItems as $it) {
+            $cid = (int)($it['_categoryId'] ?? 0);
+            unset($it['_categoryId'], $it['_displayOrder']);
+            if (!isset($itemsByCat[$cid])) $itemsByCat[$cid] = [];
+            $itemsByCat[$cid][] = $it;
+        }
+
+        // m021 Asset Studio override.
         foreach ($itemsByCat as $cid => &$list) {
             AssetResolver::injectHeros($pdo, $tenantId, $list, 'sku', 'imageUrl');
         }
         unset($list);
 
         // Assemble categories (only those with items)
+        $totalItems = 0;
         $categories = [];
         foreach ($catRows as $cat) {
             $cid = (int)$cat['id'];
             if (empty($itemsByCat[$cid])) continue;
+            $totalItems += count($itemsByCat[$cid]);
             $categories[] = [
                 'id'    => $cid,
                 'name'  => $cat['name'],
@@ -600,13 +714,14 @@ try {
 
         // Items without category (orphans) — bucket "Inne"
         if (!empty($itemsByCat[0])) {
+            $totalItems += count($itemsByCat[0]);
             $categories[] = ['id' => 0, 'name' => 'Inne', 'isMenu' => true, 'items' => $itemsByCat[0]];
         }
 
         onlineResponse(true, [
             'channel'    => $channel,
             'categories' => $categories,
-            'totalItems' => count($itemRows),
+            'totalItems' => $totalItems,
         ], 'OK');
     }
 
@@ -1679,9 +1794,17 @@ try {
     // Zwraca kategorie + items WZBOGACONE o mini-scene-contract per pozycja
     // (composition_profile, hero_url, active_style_preset, has_scene).
     // NIE łamie istniejącego `get_menu`; to osobna akcja dla storefrontu The Table.
+    // F-S1 post-processing: grupuje warianty gdy schema je obsługuje.
     // =========================================================================
     if ($action === 'get_scene_menu') {
         require_once __DIR__ . '/../../core/SceneResolver.php';
+
+        // F-S1: probe czy schema ma kolumny systemu wariantów.
+        $hasVariantColsScene = false;
+        try {
+            $pdo->query("SELECT is_variant_parent FROM sh_menu_items LIMIT 0");
+            $hasVariantColsScene = true;
+        } catch (\PDOException $e) {}
 
         $catsHave022 = false;
         try {
@@ -1701,6 +1824,118 @@ try {
         );
         $stmtCats->execute([':tid' => $tenantId]);
         $catRows = $stmtCats->fetchAll(PDO::FETCH_ASSOC);
+
+        // Helper: grupuj enriched items w variant families (F-S1 post-processing).
+        // Zwraca nową tablicę items z ghost parents zastąpionymi przez ambassadors.
+        $groupVariantsForSceneItems = function (array $enriched, array $skus) use ($pdo, $tenantId, $resolvePrices, $channel, $hasVariantColsScene): array {
+            if (!$hasVariantColsScene || empty($skus)) {
+                return $enriched;
+            }
+            // Pobierz relacje variant dla tych SKUs (batch).
+            try {
+                $ph = implode(',', array_fill(0, count($skus), '?'));
+                $stV = $pdo->prepare(
+                    "SELECT mi.ascii_key, mi.is_variant_parent, mi.parent_item_id,
+                            parent_mi.ascii_key AS parent_sku_key,
+                            parent_mi.name AS parent_name,
+                            opt.name AS variant_option_name,
+                            opt.key_ascii AS variant_option_key
+                       FROM sh_menu_items mi
+                       LEFT JOIN sh_menu_items parent_mi
+                            ON parent_mi.id = mi.parent_item_id AND parent_mi.tenant_id = mi.tenant_id
+                       LEFT JOIN sh_variant_scale_options opt
+                            ON opt.id = mi.variant_option_id AND opt.tenant_id = mi.tenant_id
+                      WHERE mi.tenant_id = ? AND mi.ascii_key IN ($ph)"
+                );
+                $stV->execute(array_merge([$tenantId], $skus));
+                $variantMeta = [];
+                foreach ($stV->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                    $variantMeta[(string)$r['ascii_key']] = $r;
+                }
+            } catch (\Throwable $e) {
+                return $enriched; // fallback — nie psuj menu
+            }
+
+            $ghostParentSkus   = [];
+            $childrenByParent  = []; // parentSku → [child enriched item + option info]
+
+            foreach ($enriched as $it) {
+                $sku = (string)$it['sku'];
+                $vm  = $variantMeta[$sku] ?? null;
+                if ($vm && !empty($vm['is_variant_parent'])) {
+                    $ghostParentSkus[$sku] = $it; // zapamiętaj ghost parent dane
+                } elseif ($vm && !empty($vm['parent_item_id']) && !empty($vm['parent_sku_key'])) {
+                    $pKey = (string)$vm['parent_sku_key'];
+                    if (!isset($childrenByParent[$pKey])) $childrenByParent[$pKey] = [];
+                    $childrenByParent[$pKey][] = array_merge($it, [
+                        '_variantOptionName' => $vm['variant_option_name'] ?? $it['name'],
+                        '_variantOptionKey'  => $vm['variant_option_key'] ?? $sku,
+                        '_parentName'        => $vm['parent_name'] ?? null,
+                    ]);
+                }
+            }
+
+            if (empty($childrenByParent)) {
+                return $enriched; // żadnych rodzin — zwróć bez zmian (ale bez ghost parents)
+            }
+
+            // Pobierz ceny dla wszystkich children (batch).
+            $allChildSkus = [];
+            foreach ($childrenByParent as $children) {
+                foreach ($children as $c) { $allChildSkus[] = $c['sku']; }
+            }
+            $childPriceMap = $resolvePrices($allChildSkus, 'ITEM');
+
+            $result = [];
+            $ambassadorsAdded = [];
+
+            foreach ($enriched as $it) {
+                $sku = (string)$it['sku'];
+                $vm  = $variantMeta[$sku] ?? null;
+
+                if ($vm && !empty($vm['is_variant_parent'])) {
+                    // Ghost parent — skip, zastąpimy przez ambassadoran.
+                    // Ambassador budujemy przy pierwszym child tej rodziny.
+                    if (!isset($ambassadorsAdded[$sku]) && isset($childrenByParent[$sku])) {
+                        $children = $childrenByParent[$sku];
+                        $variants = [];
+                        $varPrices = [];
+                        foreach ($children as $ch) {
+                            $cp = $childPriceMap[$ch['sku']] ?? null;
+                            $price = $cp ? (float)$cp['price'] : null;
+                            if ($price) $varPrices[] = $price;
+                            $variants[] = [
+                                'sku'      => $ch['sku'],
+                                'name'     => $ch['_variantOptionName'],
+                                'optionKey'=> $ch['_variantOptionKey'],
+                                'price'    => $price,
+                                'heroUrl'  => $ch['heroUrl'] ?? null,
+                            ];
+                        }
+                        usort($variants, fn($a, $b) => strnatcmp((string)$a['optionKey'], (string)$b['optionKey']));
+                        $minPrice    = empty($varPrices) ? null : min($varPrices);
+                        // Ambassador item: dane sceny z ghost parent (ma scene/layers), varianti z dzieci.
+                        $amb = array_merge($it, [
+                            'name'            => $children[0]['_parentName'] ?? $it['name'],
+                            'price'           => $minPrice,
+                            'priceFallback'   => empty($varPrices),
+                            'isVariantFamily' => true,
+                            'variants'        => $variants,
+                        ]);
+                        unset($amb['_variantOptionName'], $amb['_variantOptionKey'], $amb['_parentName']);
+                        $result[] = $amb;
+                        $ambassadorsAdded[$sku] = true;
+                    }
+                } elseif ($vm && !empty($vm['parent_item_id'])) {
+                    // Child — pominięty (jest w rodzinie ambassadora).
+                    continue;
+                } else {
+                    // Normalny item — dodaj wprost.
+                    $result[] = $it;
+                }
+            }
+            return $result;
+        };
 
         $categories = [];
         $totalItems = 0;
@@ -1735,6 +1970,9 @@ try {
                     'priceFallback'      => $p ? $p['fallback'] : true,
                 ];
             }, $items);
+
+            // F-S1 — post-process: grupuj variant families (ghost parents → ambassadors).
+            $enriched = $groupVariantsForSceneItems($enriched, $skus);
 
             $totalItems += count($enriched);
 

@@ -12,7 +12,7 @@
  *               hasScene, activeStyle, price, priceFallback }] }
  */
 
-import { resolveAssetUrl } from './online_ui.js';
+import { resolveAssetUrl, openOnlineVariantPicker } from './online_ui.js';
 
 function escapeHtml(s) {
     const d = document.createElement('div');
@@ -53,11 +53,29 @@ function buildItemCard(item, onPick) {
     card.dataset.sku = item.sku;
     if (item.hasScene) card.classList.add('table-card--scene');
 
+    const variants = Array.isArray(item.variants) ? item.variants : [];
+    const isVariantFamily = item.isVariantFamily === true || variants.length > 0;
+
     const heroUrl = item.heroUrl || '';
-    const priceTxt = formatPricePl(item.price);
-    const priceBadge = item.priceFallback ? ' table-card__price--fallback' : '';
+
+    // Cena: dla rodzin wariantów pokaż "od X,XX zł", inaczej normalną cenę.
+    let priceTxt;
+    let priceBadge = item.priceFallback ? ' table-card__price--fallback' : '';
+    if (isVariantFamily && variants.length > 0) {
+        const prices = variants.map((v) => Number(v.price || 0)).filter((p) => p > 0);
+        priceTxt = prices.length
+            ? `<small>od</small> ${escapeHtml(formatPricePl(Math.min(...prices)))} zł`
+            : '—';
+        priceBadge = '';
+    } else {
+        priceTxt = escapeHtml(formatPricePl(item.price));
+    }
+
     const styleChip = item.activeStyle?.name
         ? `<span class="table-card__chip" title="Styl: ${escapeHtml(item.activeStyle.name)}"><i class="fa-solid fa-palette"></i> ${escapeHtml(item.activeStyle.name)}</span>`
+        : '';
+    const variantBadge = isVariantFamily
+        ? `<span class="table-card__variant-badge"><i class="fa-solid fa-ruler" aria-hidden="true"></i> Rozmiary &rsaquo;</span>`
         : '';
 
     card.innerHTML = `
@@ -70,14 +88,20 @@ function buildItemCard(item, onPick) {
         <div class="table-card__body">
             <h3 class="table-card__name">${escapeHtml(item.name || '')}</h3>
             <p class="table-card__desc">${escapeHtml((item.description || '').slice(0, 120))}</p>
+            ${variantBadge}
             <div class="table-card__foot">
-                <span class="table-card__price${priceBadge}">${escapeHtml(priceTxt)}</span>
-                <span class="table-card__cta" aria-hidden="true"><i class="fa-solid fa-plus"></i></span>
+                <span class="table-card__price${priceBadge}">${priceTxt}</span>
+                <span class="table-card__cta" aria-hidden="true"><i class="fa-solid fa-${isVariantFamily ? 'expand' : 'plus'}"></i></span>
             </div>
         </div>
     `;
     card.addEventListener('click', () => {
-        if (typeof onPick === 'function') onPick(item.sku);
+        if (typeof onPick !== 'function') return;
+        if (isVariantFamily) {
+            openOnlineVariantPicker(item, (variantSku) => onPick(variantSku));
+        } else {
+            onPick(item.sku);
+        }
     });
     return card;
 }

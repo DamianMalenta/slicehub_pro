@@ -390,6 +390,9 @@ function normalizeSceneMenuCategories(cats) {
             atmosphericEffects: Array.isArray(it.atmosphericEffects) ? it.atmosphericEffects : [],
             // M3 #4 · propagujemy active_camera_preset (dla tile/popular/surface)
             activeCamera: it.activeCamera || null,
+            // F-S1 · propagujemy warianty (rozmiary)
+            isVariantFamily: it.isVariantFamily === true,
+            variants: Array.isArray(it.variants) ? it.variants : [],
         })),
     }));
 }
