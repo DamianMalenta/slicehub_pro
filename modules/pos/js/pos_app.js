@@ -506,48 +506,91 @@ const PosApp = (() => {
 
         const modal = document.createElement('div');
         modal.id = 'fs31-meal-wizard';
-        modal.className = 'fixed inset-0 z-[300] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4';
-        const choicesHtml = choices.map((c, idx) => {
+        modal.className = 'sh-modal-backdrop';
+
+        const panel = document.createElement('div');
+        panel.className = 'sh-meal-panel';
+
+        // Header
+        const header = document.createElement('div');
+        header.className = 'sh-modal-header';
+        header.innerHTML = `
+            <div>
+                <h3 class="sh-modal-title">${meal.name}</h3>
+                <p class="sh-meal-subtitle">F-S3.1 · Combo</p>
+            </div>`;
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'sh-modal-close-btn';
+        closeBtn.innerHTML = '×';
+        closeBtn.onclick = () => modal.remove();
+        header.appendChild(closeBtn);
+        panel.appendChild(header);
+
+        // Body
+        const body = document.createElement('div');
+        body.className = 'sh-modal-body';
+
+        if (fixedItems.length) {
+            const fixedDiv = document.createElement('div');
+            fixedDiv.className = 'sh-meal-fixed-section';
+            fixedDiv.innerHTML = `<div class="sh-meal-fixed-label">W zestawie:</div>`;
+            const ul = document.createElement('ul');
+            ul.className = 'sh-meal-fixed-list';
+            fixedItems.forEach(c => {
+                const li = document.createElement('li');
+                li.className = 'sh-meal-fixed-item';
+                li.innerHTML = `<i class="fa-solid fa-check sh-meal-fixed-check"></i> ${c.qty}× <span class="sh-meal-fixed-sku">${c.item_sku}</span>`;
+                ul.appendChild(li);
+            });
+            fixedDiv.appendChild(ul);
+            body.appendChild(fixedDiv);
+        }
+
+        choices.forEach((c, idx) => {
             const catItems = _menuData.items.filter(i =>
                 i.category_id === parseInt(c.category_id, 10) && !i.parentAsciiKey
             );
-            return `
-                <div class="bg-black/30 border border-amber-500/20 rounded-xl p-3">
-                    <div class="text-[10px] text-amber-300 uppercase font-bold mb-2">Wybór #${idx+1} (${c.qty}× z kategorii)</div>
-                    <select data-choice-idx="${idx}" data-component-id="${c.id}" class="fs31-choice-pick w-full bg-black/60 border border-white/10 text-white rounded p-2 text-sm">
-                        <option value="">— wybierz —</option>
-                        ${catItems.map(ci => `<option value="${ci.ascii_key}" data-price="${ci.priceGrosze}">${ci.name} — ${ci.price} zł</option>`).join('')}
-                    </select>
-                </div>`;
-        }).join('');
+            const choiceDiv = document.createElement('div');
+            choiceDiv.className = 'sh-meal-choice-block';
+            choiceDiv.innerHTML = `<div class="sh-meal-choice-label">Wybór #${idx+1} (${c.qty}× z kategorii)</div>`;
+            const select = document.createElement('select');
+            select.className = 'sh-meal-select fs31-choice-pick';
+            select.dataset.choiceIdx = String(idx);
+            select.dataset.componentId = String(c.id);
+            const defaultOpt = document.createElement('option');
+            defaultOpt.value = '';
+            defaultOpt.textContent = '— wybierz —';
+            select.appendChild(defaultOpt);
+            catItems.forEach(ci => {
+                const opt = document.createElement('option');
+                opt.value = ci.ascii_key;
+                opt.dataset.price = String(ci.priceGrosze);
+                opt.textContent = `${ci.name} — ${ci.price} zł`;
+                select.appendChild(opt);
+            });
+            choiceDiv.appendChild(select);
+            body.appendChild(choiceDiv);
+        });
 
-        modal.innerHTML = `
-            <div class="bg-slate-900 border border-amber-500/40 rounded-2xl max-w-md w-full overflow-hidden flex flex-col max-h-[90vh]">
-                <div class="px-5 py-4 border-b border-white/10 flex items-center justify-between">
-                    <div>
-                        <h3 class="text-white font-black text-base">${meal.name}</h3>
-                        <p class="text-amber-300 text-[10px] uppercase font-bold tracking-wider mt-0.5">F-S3.1 · Combo</p>
-                    </div>
-                    <button onclick="document.getElementById('fs31-meal-wizard')?.remove()" class="text-slate-400 hover:text-white text-xl">×</button>
-                </div>
-                <div class="p-4 overflow-y-auto space-y-3 flex-1">
-                    ${fixedItems.length ? `
-                        <div>
-                            <div class="text-[10px] text-emerald-300 uppercase font-bold mb-2">W zestawie:</div>
-                            <ul class="space-y-1">
-                                ${fixedItems.map(c => `<li class="text-slate-300 text-[12px] flex items-center gap-2"><i class="fa-solid fa-check text-emerald-400 text-[9px]"></i> ${c.qty}× <span class="font-mono text-slate-500">${c.item_sku}</span></li>`).join('')}
-                            </ul>
-                        </div>` : ''}
-                    ${choices.length ? `<div class="space-y-2">${choicesHtml}</div>` : ''}
-                    <div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-center">
-                        <div class="text-[9px] text-amber-300 uppercase font-bold">Cena combo</div>
-                        <div class="text-white text-2xl font-black tabular-nums">${meal.price} zł</div>
-                    </div>
-                </div>
-                <div class="px-5 py-4 border-t border-white/10">
-                    <button id="fs31-add-meal-btn" onclick="window.PosMealCart._confirm(${meal._mealId})" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black uppercase text-sm py-3 rounded-xl flex items-center justify-center gap-2"><i class="fa-solid fa-cart-plus"></i> Dodaj zestaw do koszyka</button>
-                </div>
-            </div>`;
+        const priceBlock = document.createElement('div');
+        priceBlock.className = 'sh-meal-price-block';
+        priceBlock.innerHTML = `<div class="sh-meal-price-label">Cena combo</div><div class="sh-meal-price-val">${meal.price} zł</div>`;
+        body.appendChild(priceBlock);
+        panel.appendChild(body);
+
+        // Footer
+        const footer = document.createElement('div');
+        footer.className = 'sh-meal-footer';
+        const addBtn = document.createElement('button');
+        addBtn.id = 'fs31-add-meal-btn';
+        addBtn.className = 'sh-meal-add-btn';
+        addBtn.innerHTML = '<i class="fa-solid fa-cart-plus"></i> Dodaj zestaw do koszyka';
+        addBtn.onclick = () => window.PosMealCart._confirm(meal._mealId);
+        footer.appendChild(addBtn);
+        panel.appendChild(footer);
+
+        modal.appendChild(panel);
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
         document.body.appendChild(modal);
 
         // Eksponuj confirm jako method do button onclick
@@ -593,33 +636,43 @@ const PosApp = (() => {
 
         const modal = document.createElement('div');
         modal.id = 'fs1-variant-picker';
-        modal.className = 'fixed inset-0 z-[300] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4';
-        modal.innerHTML = `
-            <div class="bg-slate-900 border border-orange-500/40 rounded-2xl max-w-md w-full overflow-hidden">
-                <div class="px-5 py-4 border-b border-white/10 flex items-center justify-between">
-                    <div>
-                        <h3 class="text-white font-black text-base">${ambassadorItem.parentName || ambassadorItem.name}</h3>
-                        <p class="text-orange-300 text-[10px] uppercase font-bold tracking-wider mt-0.5">Wybierz rozmiar</p>
-                    </div>
-                    <button onclick="document.getElementById('fs1-variant-picker')?.remove()" class="text-slate-400 hover:text-white text-xl">×</button>
-                </div>
-                <div class="p-4 space-y-2" id="fs1-variant-list"></div>
-            </div>`;
-        document.body.appendChild(modal);
+        modal.className = 'sh-modal-backdrop';
 
-        const listEl = modal.querySelector('#fs1-variant-list');
+        const panel = document.createElement('div');
+        panel.className = 'sh-modal-panel';
+
+        // Header
+        const header = document.createElement('div');
+        header.className = 'sh-modal-header';
+        header.innerHTML = `
+            <div>
+                <h3 class="sh-modal-title">${ambassadorItem.parentName || ambassadorItem.name}</h3>
+                <p class="sh-modal-subtitle">Wybierz rozmiar</p>
+            </div>`;
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'sh-modal-close-btn';
+        closeBtn.innerHTML = '×';
+        closeBtn.onclick = () => modal.remove();
+        header.appendChild(closeBtn);
+        panel.appendChild(header);
+
+        // Variant list
+        const listEl = document.createElement('div');
+        listEl.className = 'sh-modal-body';
+        listEl.id = 'fs1-variant-list';
+
         siblings.forEach(v => {
             const priceTxt = (v.priceGrosze / 100).toFixed(2);
             const btn = document.createElement('button');
-            btn.className = 'w-full bg-black/40 hover:bg-orange-500/15 border border-white/10 hover:border-orange-500/40 rounded-xl p-4 flex items-center justify-between transition group';
+            btn.className = 'sh-variant-option-btn';
             btn.innerHTML = `
-                <div class="flex flex-col items-start text-left">
-                    <span class="text-white font-bold text-sm">${v.variantOptionName || v.name}</span>
-                    <span class="text-slate-500 text-[10px] font-mono uppercase">${v.ascii_key}</span>
+                <div class="sh-variant-option-left">
+                    <span class="sh-variant-option-name">${v.variantOptionName || v.name}</span>
+                    <span class="sh-variant-option-key">${v.ascii_key}</span>
                 </div>
-                <div class="flex items-center gap-3">
-                    <span class="text-orange-300 text-lg font-black tabular-nums">${priceTxt} zł</span>
-                    <i class="fa-solid fa-chevron-right text-slate-500 group-hover:text-orange-300"></i>
+                <div class="sh-variant-option-right">
+                    <span class="sh-variant-option-price">${priceTxt} zł</span>
+                    <i class="fa-solid fa-chevron-right sh-variant-option-arrow"></i>
                 </div>`;
             btn.onclick = () => {
                 modal.remove();
@@ -627,6 +680,11 @@ const PosApp = (() => {
             };
             listEl.appendChild(btn);
         });
+
+        panel.appendChild(listEl);
+        modal.appendChild(panel);
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+        document.body.appendChild(modal);
     }
 
     // =========================================================================
