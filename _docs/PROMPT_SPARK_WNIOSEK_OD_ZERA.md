@@ -145,7 +145,7 @@ Storyboard (60s, 1920×1080):
 | 0:26–0:38 | Studio — otwórz pizzę, pokaż recepturę (drag-and-drop składników), pokaż warianty | „Studio menu z recepturami, wariantami z multiplikatorami, półproduktami." |
 | 0:38–0:48 | Courses — mapa dyspozytorni, klik na kierowcę | „Logistyka — dyspozytor i aplikacja kierowcy w jednym systemie. Payment lock, emergency recall." |
 | 0:48–0:56 | KSeF Inbox — pokaż listę faktur (jeśli pusto, zacytuj UI), albo Magazyn | „Natywny KSeF z AutoScan. Faktura dostawcy → magazyn w 30 sekund." |
-| 0:56–0:60 | Slajd końcowy z logo + `slicehub.pro` | „SliceHub. Mniej chaosu, więcej marży." |
+| 0:56–0:60 | Slajd końcowy z logo + `slicehub.net` | „SliceHub. Mniej chaosu, więcej marży." |
 
 **Procedura nagrania**:
 1. `computerUse` subagent — otwórz Chrome, zaloguj się jako `Damian`.

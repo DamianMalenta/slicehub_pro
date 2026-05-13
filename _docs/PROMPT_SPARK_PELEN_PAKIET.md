@@ -97,7 +97,7 @@ Jedna strona A4 portrait w PDF zawierająca:
   - **Rozwiązanie** (4 wyróżniki: variant scales z multiplierami, KSeF AutoScan, omnichannel native, zero-reload na shared hostingu)
   - **Status** (działa produkcyjnie na slicehub.net, 11 modułów, multi-tenant)
 - 3 mini-thumbnaile innych screenów (z Deliverable 2)
-- Footer: `slicehub.pro` + CTA „Aplikacja: SPARK 3.0 Accelerator"
+- Footer: `slicehub.net` + CTA „Aplikacja: SPARK 3.0 Accelerator"
 
 **Format**: HTML + CSS print stylesheet → Chrome headless → PDF.
 - HTML źródłowy: `_docs/SPARK_materialy/onepager.html`
@@ -120,7 +120,7 @@ Slajdy 1920×1080 (PDF landscape) — do załącznika we wniosku jako „Investo
 7. **Why now?** — KSeF obowiązkowy 2026, presja kosztów surowca, konsolidacja sieci CEE
 8. **Konkurencja** — porównanie: Papu (omnichannel ale brak magazynu/KSeF), Dotykačka (CZ), LSI (PL), SliceHub (wszystko w jednym)
 9. **Roadmapa SPARK** — co zostanie zrobione w akceleracji (pilotaże, lokalizacja CEE, materiały sprzedażowe)
-10. **Cover end** — slicehub.pro + kontakt
+10. **Cover end** — slicehub.net + kontakt
 
 Każdy slajd: dark theme, screeny z Deliverable 2 jako wizualizacje.
 
@@ -139,7 +139,7 @@ Strona HTML standalone do wstawienia we wniosku jako „Demo URL" lub do wysłan
 - **Sekcja „Liczby"**: 11 modułów, X feature tagów, Y migracji bazy
 - **Sekcja „Innowacje"**: 4 wyróżniki z ikonami
 - **Sekcja „Demo wideo"**: embed wideo (placeholder dla YouTube)
-- **Footer**: linki, slicehub.pro, GitHub
+- **Footer**: linki, slicehub.net, GitHub
 
 **Wykonanie**: HTML + Tailwind CSS (CDN) + ciemny motyw glassmorphism.
 - Plik: `_docs/SPARK_materialy/landing.html`
@@ -170,7 +170,7 @@ Screeny:
 | `hero_01_hub.png` ... `hero_07_ksef.png` | Załączyć do wniosku w sekcji „Screenshots" lub „Załączniki wizualne". Można też wkleić do Deliverable 3 i 4 (one-pager / pitch deck używają tych obrazów). |
 | `spark_onepager.pdf` | Wysłać mentorom / akceleratorowi mailem jako szybkie info o produkcie. Można też załączyć do wniosku jako „Executive Summary". |
 | `spark_pitchdeck.pdf` | Załączyć do wniosku w sekcji „Pitch Deck" / „Investor Deck". |
-| `landing.html` | Hostować na własnej domenie (np. https://slicehub.pro/demo) i wkleić link do formularza w polu „Demo URL" / „Product Website". |
+| `landing.html` | Hostować na własnej domenie (np. https://slicehub.net/demo lub jako podstrona głównego site'u) i wkleić link do formularza w polu „Demo URL" / „Product Website". |
 ```
 
 ### Sekcja 3: PR i branch
