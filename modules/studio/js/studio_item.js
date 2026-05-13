@@ -1,7 +1,10 @@
 window.ItemEditor = {
     _debounceTimers: {},
     _vatInheritEnabled: true,
-    _currentPubStatus: 'Draft',
+    // F-S4-fix (2026-05-13): default 'Live' żeby nowo dodana pozycja była natychmiast widoczna w POS.
+    // POS engine filtruje publication_status IN ('Live', 'published'). Stary default 'Draft' powodował
+    // że manager musiał ręcznie kliknąć "Live" przed save, inaczej pizza znikała z POS.
+    _currentPubStatus: 'Live',
     _currentItemType: 'standard',
     _observer: null,
 

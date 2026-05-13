@@ -1411,7 +1411,11 @@ try {
             $availableStart = $toNull($input['availableStart'] ?? null);
             $availableEnd = $toNull($input['availableEnd'] ?? null);
 
-            $pubStatus = in_array($input['publicationStatus'] ?? '', ['Draft', 'Live', 'Archived']) ? $input['publicationStatus'] : 'Draft';
+            // F-S4-fix (2026-05-13): default 'Live' dla NEW item (itemId=0), 'Draft' dla update bez explicit.
+            // Stary default 'Draft' powodował że nowe pozycje były niewidoczne w POS (filter Live/published).
+            $itemIdForDefault = (int)($input['itemId'] ?? 0);
+            $defaultPubStatus = $itemIdForDefault > 0 ? 'Draft' : 'Live';
+            $pubStatus = in_array($input['publicationStatus'] ?? '', ['Draft', 'Live', 'Archived']) ? $input['publicationStatus'] : $defaultPubStatus;
             $validFrom = $toNull($input['validFrom'] ?? null);
             $validTo = $toNull($input['validTo'] ?? null);
             $description = trim($input['description'] ?? '');
