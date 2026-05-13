@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SliceHub Pro — One-Pager SPARK 3.0</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --glass-bg: rgba(255,255,255,0.04);
+    --glass-border: rgba(255,255,255,0.10);
+    --accent: #a78bfa;
+    --accent2: #60a5fa;
+    --green: #34d399;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --bg: #0a0a14;
+  }
+
+  html, body {
+    width: 210mm;
+    height: 297mm;
+    background: var(--bg);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--text-primary);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .page {
+    width: 210mm;
+    height: 297mm;
+    padding: 10mm 11mm;
+    display: flex;
+    flex-direction: column;
+    gap: 5mm;
+    overflow: hidden;
+    background: linear-gradient(135deg, #0a0a14 0%, #0d0d22 50%, #0a0a14 100%);
+  }
+
+  /* HEADER */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 4mm;
+    border-bottom: 1px solid var(--glass-border);
+  }
+  .logo-area { display: flex; align-items: center; gap: 3mm; }
+  .logo-badge {
+    width: 10mm; height: 10mm;
+    background: linear-gradient(135deg, #7c3aed, #2563eb);
+    border-radius: 2.5mm;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 13pt; color: white;
+    letter-spacing: -0.5px;
+  }
+  .logo-text { font-size: 14pt; font-weight: 700; color: var(--text-primary); }
+  .logo-text span { color: var(--accent); }
+  .tagline-header {
+    font-size: 7pt;
+    color: var(--text-secondary);
+    text-align: right;
+    line-height: 1.4;
+    max-width: 90mm;
+  }
+
+  /* HERO */
+  .hero-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4mm;
+    flex: 0 0 auto;
+  }
+  .hero-img-wrap {
+    border-radius: 3mm;
+    overflow: hidden;
+    border: 1px solid var(--glass-border);
+    background: var(--glass-bg);
+  }
+  .hero-img-wrap img {
+    width: 100%;
+    height: 52mm;
+    object-fit: cover;
+    object-position: top center;
+    display: block;
+  }
+  .hero-text-wrap {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3mm;
+  }
+  .hero-headline {
+    font-size: 15pt;
+    font-weight: 800;
+    line-height: 1.2;
+    color: var(--text-primary);
+  }
+  .hero-headline span { color: var(--accent); }
+  .hero-sub {
+    font-size: 7.5pt;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 1.5mm;
+    background: rgba(52,211,153,0.10);
+    border: 1px solid rgba(52,211,153,0.25);
+    color: var(--green);
+    padding: 1.5mm 3mm;
+    border-radius: 20px;
+    font-size: 6.5pt;
+    font-weight: 600;
+    width: fit-content;
+  }
+  .status-dot {
+    width: 2mm; height: 2mm;
+    background: var(--green);
+    border-radius: 50%;
+  }
+
+  /* CONTENT GRID */
+  .content-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 4mm;
+    flex: 0 0 auto;
+  }
+  .card {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 3mm;
+    padding: 4mm;
+    backdrop-filter: blur(8px);
+  }
+  .card-title {
+    font-size: 7pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--accent);
+    margin-bottom: 2.5mm;
+    padding-bottom: 2mm;
+    border-bottom: 1px solid var(--glass-border);
+  }
+  .card-title.blue { color: var(--accent2); }
+  .card-title.green { color: var(--green); }
+  .bullet-list { list-style: none; display: flex; flex-direction: column; gap: 1.8mm; }
+  .bullet-list li {
+    font-size: 6.5pt;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    padding-left: 3mm;
+    position: relative;
+  }
+  .bullet-list li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-size: 6pt;
+  }
+  .bullet-list li strong { color: var(--text-primary); }
+
+  /* FEATURE TAGS */
+  .feature-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5mm;
+    margin-top: 2mm;
+  }
+  .feature-tag {
+    background: rgba(167,139,250,0.10);
+    border: 1px solid rgba(167,139,250,0.20);
+    color: var(--accent);
+    padding: 1mm 2.5mm;
+    border-radius: 8px;
+    font-size: 5.5pt;
+    font-weight: 600;
+  }
+
+  /* MODULES ROW */
+  .modules-row {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2mm;
+    flex: 0 0 auto;
+  }
+  .module-thumb {
+    border-radius: 2mm;
+    overflow: hidden;
+    border: 1px solid var(--glass-border);
+    background: var(--glass-bg);
+  }
+  .module-thumb img {
+    width: 100%;
+    height: 18mm;
+    object-fit: cover;
+    object-position: top center;
+    display: block;
+  }
+  .module-thumb-label {
+    padding: 1mm;
+    font-size: 5pt;
+    color: var(--text-secondary);
+    text-align: center;
+    font-weight: 500;
+  }
+
+  /* FOOTER */
+  .footer {
+    margin-top: auto;
+    padding-top: 3mm;
+    border-top: 1px solid var(--glass-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .footer-url {
+    font-size: 7pt;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .footer-cta {
+    font-size: 6.5pt;
+    color: var(--text-secondary);
+    text-align: center;
+  }
+  .footer-cta strong { color: var(--text-primary); }
+  .footer-note {
+    font-size: 6pt;
+    color: var(--text-secondary);
+    text-align: right;
+  }
+
+  /* TECH STACK */
+  .tech-badges { display: flex; gap: 1.5mm; flex-wrap: wrap; margin-top: 2mm; }
+  .tech-badge {
+    background: rgba(96,165,250,0.10);
+    border: 1px solid rgba(96,165,250,0.20);
+    color: var(--accent2);
+    padding: 1mm 2mm;
+    border-radius: 6px;
+    font-size: 5pt;
+    font-weight: 600;
+  }
+
+  @media print {
+    html, body { background: #0a0a14 !important; }
+    .page { page-break-after: avoid; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="logo-area">
+      <div class="logo-badge">SH</div>
+      <div class="logo-text">SliceHub <span>Pro</span></div>
+    </div>
+    <div class="tagline-header">
+      System operacyjny gastronomii<br>
+      POS · Magazyn · Dostawy · KSeF · Omnichannel<br>
+      <span style="color: var(--accent);">slicehub.net</span>
+    </div>
+  </div>
+
+  <!-- HERO -->
+  <div class="hero-section">
+    <div class="hero-img-wrap">
+      <img src="hero_04_studio.png" alt="Studio Menu Editor" />
+    </div>
+    <div class="hero-text-wrap">
+      <div class="hero-headline">
+        System operacyjny<br>dla <span>gastronomii</span>
+      </div>
+      <div class="hero-sub">
+        Jedna platforma obejmuje POS, magazyn z AVCO, dostawy z dyspozytornią,
+        Studio menu z recepturami, integracją KSeF oraz sprzedaż online — bez dodatkowych
+        subskrypcji per-moduł.
+      </div>
+      <div class="status-pill">
+        <div class="status-dot"></div>
+        Działa produkcyjnie · slicehub.net · multi-tenant
+      </div>
+      <div class="tech-badges">
+        <div class="tech-badge">PHP 8.3</div>
+        <div class="tech-badge">MariaDB</div>
+        <div class="tech-badge">Vanilla JS</div>
+        <div class="tech-badge">Zero Node w produkcji</div>
+        <div class="tech-badge">Shared hosting 30 zł/mies.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTENT: Problem / Rozwiązanie / Status -->
+  <div class="content-grid">
+    <div class="card">
+      <div class="card-title">Problem</div>
+      <ul class="bullet-list">
+        <li><strong>Chaos narzędzi:</strong> POS od jednego dostawcy, magazyn od drugiego, dostawy od trzeciego — każdy z własną ceną i osobnymi danymi</li>
+        <li><strong>Brak omnichannel pricing:</strong> Restauracje nie mogą mieć różnych cen sala/wynos/dostawa w jednym miejscu bez manualnych obejść</li>
+        <li><strong>Ręczne wpisywanie faktur:</strong> Faktura dostawcy → pracownik przepisuje pozycje do systemu — 15–20 minut straty na dokument</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title blue">Rozwiązanie</div>
+      <ul class="bullet-list">
+        <li><strong>Variant scales z multiplierami:</strong> Jedna receptura, rozmiar mały = 1.0×, średni = 1.5×, duży = 2.0× — automatyczne przeliczanie kosztów i cen</li>
+        <li><strong>KSeF AutoScan:</strong> Faktura dostawcy → magazyn w ~30s. Fuzzy matching SKU eliminuje ręczne przepisywanie</li>
+        <li><strong>Omnichannel native:</strong> Różne ceny sala/wynos/dostawa to first-class feature modelu danych, nie obejście</li>
+        <li><strong>Zero-reload runtime:</strong> Działa na shared hostingu za 30 zł/mies. bez Node.js w produkcji</li>
+      </ul>
+      <div class="feature-tags">
+        <div class="feature-tag">Server-authoritative cart</div>
+        <div class="feature-tag">Multi-stage recipes</div>
+        <div class="feature-tag">AVCO costing</div>
+        <div class="feature-tag">PWA Driver App</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title green">Status</div>
+      <ul class="bullet-list">
+        <li><strong>Produkcja:</strong> slicehub.net działa na prawdziwym hostingu, dostępne publicznie</li>
+        <li><strong>11 modułów:</strong> Hub, POS, Kiosk, KDS, Studio Menu, Magazyn, Dostawy, KSeF Inbox, Online Storefront, Kadry, Plan sali</li>
+        <li><strong>Multi-tenant:</strong> Architektura wielu restauracji w jednej instancji, izolacja danych przez tenant_id</li>
+        <li><strong>Stack:</strong> Zero zewnętrznych zależności w runtime — git clone → działa bez npm install</li>
+        <li><strong>Solo projekt:</strong> Zaprojektowany i zbudowany przez Damiana Malentę</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- MODULES THUMBNAILS -->
+  <div class="modules-row">
+    <div class="module-thumb">
+      <img src="hero_01_hub.png" alt="Hub" />
+      <div class="module-thumb-label">Hub</div>
+    </div>
+    <div class="module-thumb">
+      <img src="hero_02_online.png" alt="Online" />
+      <div class="module-thumb-label">Online</div>
+    </div>
+    <div class="module-thumb">
+      <img src="hero_03_pos.png" alt="POS" />
+      <div class="module-thumb-label">POS</div>
+    </div>
+    <div class="module-thumb">
+      <img src="hero_04_studio.png" alt="Studio" />
+      <div class="module-thumb-label">Studio</div>
+    </div>
+    <div class="module-thumb">
+      <img src="hero_05_courses.png" alt="Dostawy" />
+      <div class="module-thumb-label">Dostawy</div>
+    </div>
+    <div class="module-thumb">
+      <img src="hero_06_warehouse.png" alt="Magazyn" />
+      <div class="module-thumb-label">Magazyn</div>
+    </div>
+    <div class="module-thumb">
+      <img src="hero_07_ksef.png" alt="KSeF" />
+      <div class="module-thumb-label">KSeF Inbox</div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div class="footer-url">slicehub.net</div>
+    <div class="footer-cta">
+      <strong>Aplikacja: PFR SPARK 3.0 Accelerator</strong><br>
+      Ścieżka „go global" · Gastronomia PL → CEE
+    </div>
+    <div class="footer-note">
+      Solo founder: Damian Malenta<br>
+      kontakt przez slicehub.net
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
