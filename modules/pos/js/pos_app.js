@@ -256,6 +256,10 @@ const PosApp = (() => {
         _menuData.drivers = d.drivers || [];
         _menuData.waiters = d.waiters || [];
         _menuData.modifierGroups = d.modifierGroups || [];
+        // F-S1 (2026-05-11): variant groups — kazda grupa to parent + lista wariantow.
+        _menuData.variantGroups = d.variantGroups || [];
+        // F-S3.1 (2026-05-11): meal packages — kafelki combo w POS.
+        _menuData.mealPackages = d.mealPackages || [];
 
         const channel = PosCart.getChannel();
         _menuData.items = (d.items || []).map(item => {
@@ -269,6 +273,12 @@ const PosApp = (() => {
                 priceGrosze, price: (priceGrosze / 100).toFixed(2),
                 vatDine: parseFloat(item.vatDineIn || 8), vatTake: parseFloat(item.vatTakeaway || 5),
                 priceTiers: tiers,
+                // F-S1 — variant meta (kazdy wariant wie ze nalezy do rodziny)
+                parentAsciiKey: item.parentAsciiKey || null,
+                parentName: item.parentName || null,
+                variantOptionName: item.variantOptionName || null,
+                variantOptionKey: item.variantOptionKey || null,
+                variantMultiplier: item.variantMultiplier ?? 1.0,
             };
         });
 
@@ -440,8 +450,183 @@ const PosApp = (() => {
             _activeCategoryId = catId;
             _renderMenu();
         });
-        const filtered = _menuData.items.filter(i => i.category_id === _activeCategoryId);
-        PosUI.renderItemGrid(filtered, _onItemClick);
+        // F-S1 (2026-05-11): dedup wariantow w kafelkach.
+        // Z kazdej variant family pokazujemy jeden „ambassador" (pierwszy wariant)
+        // z badge'm „RM" (rozmiary). Klikniecie wymusza wybor rozmiaru.
+        const all = _menuData.items.filter(i => i.category_id === _activeCategoryId);
+        const seenParents = new Set();
+        const displayItems = [];
+        for (const it of all) {
+            if (it.parentAsciiKey) {
+                if (seenParents.has(it.parentAsciiKey)) continue;
+                seenParents.add(it.parentAsciiKey);
+                displayItems.push({
+                    ...it,
+                    name: it.parentName || it.name,
+                    _isVariantAmbassador: true,
+                });
+            } else {
+                displayItems.push(it);
+            }
+        }
+        // F-S3.1 (2026-05-11): meal packages — wirtualne kafelki combo w aktualnej kategorii.
+        // Combo bez kategorii (`category_id IS NULL`) trafia do wszystkich.
+        const meals = (_menuData.mealPackages || []).filter(m =>
+            !m.category_id || parseInt(m.category_id, 10) === parseInt(_activeCategoryId, 10)
+        );
+        for (const m of meals) {
+            const priceTxt = m.final_price_grosze
+                ? (parseInt(m.final_price_grosze, 10) / 100).toFixed(2)
+                : '—';
+            displayItems.push({
+                id: 'meal_' + m.id,
+                _isMealPackage: true,
+                _mealId: parseInt(m.id, 10),
+                category_id: parseInt(_activeCategoryId, 10),
+                name: '🍔 ' + m.name,
+                ascii_key: m.ascii_key,
+                image_url: m.image_url || '',
+                description: m.description || '',
+                priceGrosze: m.final_price_grosze ? parseInt(m.final_price_grosze, 10) : 0,
+                price: priceTxt,
+                vatDine: 8, vatTake: 5,
+                priceTiers: [],
+                _components: m.components || [],
+            });
+        }
+        PosUI.renderItemGrid(displayItems, _onItemClick);
+    }
+
+    // F-S3.1 — Combo wizard (Petpooja-style).
+    // Dla `fixed` combo: wszystkie składniki są ustalone, idą do koszyka jako paczka.
+    // Dla `choice` combo: pokaż wizard z dropdown'ami per `category_choice` component.
+    function _openMealWizard(meal) {
+        const fixedItems = (meal._components || []).filter(c => c.component_type === 'fixed_item');
+        const choices    = (meal._components || []).filter(c => c.component_type === 'category_choice');
+
+        const modal = document.createElement('div');
+        modal.id = 'fs31-meal-wizard';
+        modal.className = 'fixed inset-0 z-[300] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4';
+        const choicesHtml = choices.map((c, idx) => {
+            const catItems = _menuData.items.filter(i =>
+                i.category_id === parseInt(c.category_id, 10) && !i.parentAsciiKey
+            );
+            return `
+                <div class="bg-black/30 border border-amber-500/20 rounded-xl p-3">
+                    <div class="text-[10px] text-amber-300 uppercase font-bold mb-2">Wybór #${idx+1} (${c.qty}× z kategorii)</div>
+                    <select data-choice-idx="${idx}" data-component-id="${c.id}" class="fs31-choice-pick w-full bg-black/60 border border-white/10 text-white rounded p-2 text-sm">
+                        <option value="">— wybierz —</option>
+                        ${catItems.map(ci => `<option value="${ci.ascii_key}" data-price="${ci.priceGrosze}">${ci.name} — ${ci.price} zł</option>`).join('')}
+                    </select>
+                </div>`;
+        }).join('');
+
+        modal.innerHTML = `
+            <div class="bg-slate-900 border border-amber-500/40 rounded-2xl max-w-md w-full overflow-hidden flex flex-col max-h-[90vh]">
+                <div class="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-white font-black text-base">${meal.name}</h3>
+                        <p class="text-amber-300 text-[10px] uppercase font-bold tracking-wider mt-0.5">F-S3.1 · Combo</p>
+                    </div>
+                    <button onclick="document.getElementById('fs31-meal-wizard')?.remove()" class="text-slate-400 hover:text-white text-xl">×</button>
+                </div>
+                <div class="p-4 overflow-y-auto space-y-3 flex-1">
+                    ${fixedItems.length ? `
+                        <div>
+                            <div class="text-[10px] text-emerald-300 uppercase font-bold mb-2">W zestawie:</div>
+                            <ul class="space-y-1">
+                                ${fixedItems.map(c => `<li class="text-slate-300 text-[12px] flex items-center gap-2"><i class="fa-solid fa-check text-emerald-400 text-[9px]"></i> ${c.qty}× <span class="font-mono text-slate-500">${c.item_sku}</span></li>`).join('')}
+                            </ul>
+                        </div>` : ''}
+                    ${choices.length ? `<div class="space-y-2">${choicesHtml}</div>` : ''}
+                    <div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-center">
+                        <div class="text-[9px] text-amber-300 uppercase font-bold">Cena combo</div>
+                        <div class="text-white text-2xl font-black tabular-nums">${meal.price} zł</div>
+                    </div>
+                </div>
+                <div class="px-5 py-4 border-t border-white/10">
+                    <button id="fs31-add-meal-btn" onclick="window.PosMealCart._confirm(${meal._mealId})" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black uppercase text-sm py-3 rounded-xl flex items-center justify-center gap-2"><i class="fa-solid fa-cart-plus"></i> Dodaj zestaw do koszyka</button>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+
+        // Eksponuj confirm jako method do button onclick
+        window.PosMealCart = window.PosMealCart || {};
+        window.PosMealCart._confirm = (mealId) => {
+            const picks = [];
+            modal.querySelectorAll('.fs31-choice-pick').forEach(sel => {
+                if (sel.value) picks.push({ component_id: parseInt(sel.dataset.componentId, 10), sku: sel.value });
+            });
+            // Walidacja: wszystkie choices muszą być wybrane.
+            if (picks.length < choices.length) {
+                alert('Wybierz wszystkie pozycje z wymaganych kategorii.');
+                return;
+            }
+            // Dodaj jako 1 linię koszyka z meta combo.
+            const comboItem = {
+                id: 'meal_' + mealId,
+                ascii_key: meal.ascii_key,
+                name: meal.name.replace('🍔 ', ''),
+                image_url: meal.image_url,
+                priceGrosze: meal.priceGrosze,
+                price: meal.price,
+                vatDine: 8, vatTake: 5,
+                _isMealLine: true,
+                _mealId: mealId,
+                _mealPicks: picks,
+                _mealFixedItems: fixedItems.map(c => ({ sku: c.item_sku, qty: c.qty })),
+            };
+            PosCart.addItem(comboItem, 1, [], [], `Combo #${mealId} | picks: ${picks.map(p=>p.sku).join(', ')}`);
+            PosUI.toast(`${meal.name} dodano`, 'success');
+            modal.remove();
+        };
+    }
+
+    // F-S1 — Modal wyboru rozmiaru (przed dish card).
+    // Pokazywany gdy kliknieto ambassador wariantu lub gdy item jest czescia rodziny.
+    function _openVariantPicker(ambassadorItem, onSelected) {
+        const parentKey = ambassadorItem.parentAsciiKey;
+        const siblings = _menuData.items
+            .filter(i => i.parentAsciiKey === parentKey)
+            .sort((a, b) => (a.variantOptionKey || '').localeCompare(b.variantOptionKey || ''));
+        if (siblings.length === 0) { onSelected(ambassadorItem); return; }
+
+        const modal = document.createElement('div');
+        modal.id = 'fs1-variant-picker';
+        modal.className = 'fixed inset-0 z-[300] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4';
+        modal.innerHTML = `
+            <div class="bg-slate-900 border border-orange-500/40 rounded-2xl max-w-md w-full overflow-hidden">
+                <div class="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-white font-black text-base">${ambassadorItem.parentName || ambassadorItem.name}</h3>
+                        <p class="text-orange-300 text-[10px] uppercase font-bold tracking-wider mt-0.5">Wybierz rozmiar</p>
+                    </div>
+                    <button onclick="document.getElementById('fs1-variant-picker')?.remove()" class="text-slate-400 hover:text-white text-xl">×</button>
+                </div>
+                <div class="p-4 space-y-2" id="fs1-variant-list"></div>
+            </div>`;
+        document.body.appendChild(modal);
+
+        const listEl = modal.querySelector('#fs1-variant-list');
+        siblings.forEach(v => {
+            const priceTxt = (v.priceGrosze / 100).toFixed(2);
+            const btn = document.createElement('button');
+            btn.className = 'w-full bg-black/40 hover:bg-orange-500/15 border border-white/10 hover:border-orange-500/40 rounded-xl p-4 flex items-center justify-between transition group';
+            btn.innerHTML = `
+                <div class="flex flex-col items-start text-left">
+                    <span class="text-white font-bold text-sm">${v.variantOptionName || v.name}</span>
+                    <span class="text-slate-500 text-[10px] font-mono uppercase">${v.ascii_key}</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="text-orange-300 text-lg font-black tabular-nums">${priceTxt} zł</span>
+                    <i class="fa-solid fa-chevron-right text-slate-500 group-hover:text-orange-300"></i>
+                </div>`;
+            btn.onclick = () => {
+                modal.remove();
+                onSelected(v);
+            };
+            listEl.appendChild(btn);
+        });
     }
 
     // =========================================================================
@@ -449,6 +634,32 @@ const PosApp = (() => {
     // =========================================================================
     function _onItemClick(item) {
         if (_isCartLocked) { PosUI.toast('Koszyk zablokowany — wydrukowano paragon', 'error'); return; }
+
+        // F-S3.1 (2026-05-11): kafelek combo otwiera meal wizard.
+        if (item._isMealPackage) {
+            _openMealWizard(item);
+            return;
+        }
+
+        // F-S1 (2026-05-11): jesli kafelek to ambassador rodziny — otworz picker rozmiaru.
+        if (item._isVariantAmbassador && item.parentAsciiKey) {
+            _openVariantPicker(item, (chosenVariant) => {
+                if (_halfMode) {
+                    if (!_halfA) {
+                        _halfA = chosenVariant;
+                        PosUI.toast(`½ ${chosenVariant.name} — teraz drugą połowę`, 'info');
+                    } else {
+                        _openHalfDishCard(_halfA, chosenVariant);
+                        _halfA = null; _halfMode = false;
+                        const btn = document.querySelector('#btn-half');
+                        if (btn) btn.classList.remove('active');
+                    }
+                } else {
+                    _openDishCard(chosenVariant);
+                }
+            });
+            return;
+        }
 
         if (_halfMode) {
             if (!_halfA) {
@@ -589,10 +800,15 @@ const PosApp = (() => {
                     name: l.snapshotName, price: (l.unitPriceGrosze / 100).toFixed(2),
                     qty: l.quantity, quantity: l.quantity,
                     vat_rate: l.vatRate ?? 8,
+                    // F5-A (2026-05-11): ujednolicenie kontraktu z online checkout (CartEngine).
+                    // POS wysyła `sku` (nie `ascii_key`) żeby WzEngine::consumeForOrder konsumował
+                    // magazyn dla modyfikatorów ADD. Konstytucja v5 § Prawo II (Bliźniak Cyfrowy).
                     removed: l.removedIngredients.map(r => ({ sku: r.sku, name: r.name })),
-                    added: l.addedModifiers.map(m => ({ ascii_key: m.ascii_key, name: m.name, price: (m.priceGrosze / 100).toFixed(2) })),
+                    added: l.addedModifiers.map(m => ({ sku: m.ascii_key, ascii_key: m.ascii_key, name: m.name, price: (m.priceGrosze / 100).toFixed(2) })),
                     comment: l.comment,
                     is_half: l.isHalf, half_a: l.halfASku || null, half_b: l.halfBSku || null,
+                    // F-S3.2 (2026-05-11): combo meta (meal_id + picks + fixed_items) — backend zapisze do combo_meta_json
+                    combo_meta: l.comboMeta || null,
                 }));
 
                 const total = parseFloat(snapshot.subtotalFormatted);

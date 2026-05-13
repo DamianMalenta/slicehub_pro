@@ -208,8 +208,13 @@
                     <div class="absolute top-0 left-0 w-1.5 h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]"></div>
                     <h3 class="text-[12px] font-black uppercase text-blue-400 tracking-widest relative z-10"><i class="fa-solid fa-truck-fast mr-3"></i> Logistyka</h3>
                     <div class="grid grid-cols-2 gap-8 relative z-10">
+                        <!-- F-S4 (2026-05-11): bulk-vat poprawiony — value to teraz stawka procentowa (była ID 1/2/3/4 = drift). -->
                         <select id="bulk-vat" class="w-full bg-[#050508] border border-white/10 rounded-xl p-5 text-[12px] font-bold text-white outline-none focus:border-blue-500 focus:shadow-[0_0_15px_rgba(59,130,246,0.2)] transition-all">
-                            <option value="">-- VAT (Ignoruj) --</option><option value="1">VAT 5%</option><option value="2">VAT 8%</option><option value="3">VAT 23%</option><option value="4">VAT 0%</option>
+                            <option value="">-- VAT (Ignoruj) --</option>
+                            <option value="0">VAT 0%</option>
+                            <option value="5">VAT 5%</option>
+                            <option value="8">VAT 8%</option>
+                            <option value="23">VAT 23%</option>
                         </select>
                         <select id="bulk-printer" class="w-full bg-[#050508] border border-white/10 rounded-xl p-5 text-[12px] font-bold text-white outline-none focus:border-blue-500 focus:shadow-[0_0_15px_rgba(59,130,246,0.2)] transition-all">
                             <option value="">-- KDS Station (Ignoruj) --</option><option value="KITCHEN_1">Kuchnia Glowna</option><option value="BAR">Bar Zimny</option><option value="NONE">Brak</option>

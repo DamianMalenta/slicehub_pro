@@ -714,6 +714,18 @@ window.ModifierInspector = {
                     <input type="number" step="0.001" class="opt-qty w-full bg-black/50 border border-white/10 text-white text-[9px] rounded p-2 outline-none text-center ${actionType!=='ADD' ? 'opacity-30 cursor-not-allowed' : ''}" placeholder="0.000" value="${qty}" ${actionType!=='ADD' ? 'disabled' : ''}>
                 </div>
 
+                <!-- F-S2.1 (2026-05-11): Size Pricing — przycisk otwiera modal z macierzą cen per rozmiar -->
+                <div class="col-span-12 pt-3 mt-1 border-t border-orange-500/15">
+                    <button type="button"
+                            onclick="window.ModifierInspector.openSizePricingModal(${id}, '${(name || '').replace(/'/g, "\\'")}')"
+                            ${id > 0 ? '' : 'disabled'}
+                            class="text-[9px] uppercase font-black bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 text-orange-300 rounded-lg px-3 py-2 transition flex items-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="${id > 0 ? 'Edytuj cenę modyfikatora per rozmiar pizzy (Toast-style)' : 'Najpierw zapisz grupę, potem ustaw Size Pricing'}">
+                        <i class="fa-solid fa-arrows-left-right-to-line"></i> Cennik per rozmiar
+                        <span class="text-[8px] text-slate-500">${id > 0 ? '(F-S2.1)' : '(zapisz grupę najpierw)'}</span>
+                    </button>
+                </div>
+
                 <div class="col-span-12 pt-4 mt-2 border-t border-violet-500/25 visual-mod-panel lock-opt-visual">
                     <div class="flex items-center justify-between mb-3">
                         <div class="text-[9px] font-black uppercase text-violet-400 tracking-wider"><i class="fa-solid fa-layer-group mr-2"></i>Surface — wizualne sloty</div>
@@ -1282,6 +1294,129 @@ window.ModifierInspector = {
         } catch (error) {
             alert("Błąd połączenia z bazą danych.");
             btn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-2"></i> Zapisz Grupę';
+        }
+    },
+
+    // =========================================================================
+    // F-S2.1 — Size Pricing Modal (2026-05-11)
+    // Modal: macierz cen modyfikatora per (skala × opcje).
+    // Backend: get_modifier_pricing / save_modifier_pricing.
+    // =========================================================================
+
+    async openSizePricingModal(modifierId, modifierName) {
+        if (!modifierId || modifierId <= 0) {
+            alert('Najpierw zapisz grupę żeby modyfikator dostał ID.');
+            return;
+        }
+
+        // Pobierz aktualne pricing + listę skal.
+        let scalesRes, pricingRes;
+        try {
+            [scalesRes, pricingRes] = await Promise.all([
+                window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'list_variant_scales' }),
+                window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'get_modifier_pricing', modifier_id: modifierId })
+            ]);
+        } catch (e) {
+            alert('Błąd pobierania danych: ' + e.message);
+            return;
+        }
+
+        const scales = scalesRes?.data?.scales || [];
+        const existingPricing = pricingRes?.data?.pricing || [];
+
+        // Map: option_id → price_grosze
+        const priceMap = {};
+        existingPricing.forEach(p => { priceMap[p.variant_option_id] = (p.price_grosze / 100).toFixed(2); });
+
+        const modal = document.createElement('div');
+        modal.id = 'fs21-size-pricing-modal';
+        modal.className = 'fixed inset-0 z-[300] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4';
+        modal.innerHTML = `
+            <div class="bg-slate-900 border border-orange-500/40 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+                <div class="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-white font-black text-base">Cennik per rozmiar — ${modifierName}</h3>
+                        <p class="text-orange-300 text-[10px] uppercase font-bold tracking-wider mt-0.5">F-S2.1 · Toast-style Size Pricing</p>
+                    </div>
+                    <button onclick="document.getElementById('fs21-size-pricing-modal')?.remove()" class="text-slate-400 hover:text-white text-xl">×</button>
+                </div>
+                <div class="p-5 overflow-y-auto flex-1 space-y-5">
+                    <p class="text-[10px] text-slate-400 leading-relaxed">
+                        Wprowadź <strong class="text-orange-300">cenę modyfikatora</strong> dla każdego rozmiaru ze skali.
+                        Jeśli pole jest puste, CartEngine spadnie do <strong>fallback ceny channel</strong> (POS/Takeaway/Delivery).
+                    </p>
+                    <div id="fs21-pricing-scales" class="space-y-4">
+                        ${scales.length === 0 ? '<p class="text-slate-500 italic text-center py-6">Brak skal w systemie. Utwórz skalę w sekcji „Rozmiary / Warianty" pozycji menu.</p>' : ''}
+                    </div>
+                </div>
+                <div class="px-5 py-4 border-t border-white/10 flex justify-end gap-2">
+                    <button onclick="document.getElementById('fs21-size-pricing-modal')?.remove()" class="px-4 py-2 text-[10px] uppercase font-black text-slate-400 hover:text-white">Anuluj</button>
+                    <button onclick="window.ModifierInspector._saveSizePricing(${modifierId})" id="fs21-save-btn" class="px-5 py-2 text-[10px] uppercase font-black bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 rounded-lg flex items-center gap-2"><i class="fa-solid fa-floppy-disk"></i> Zapisz cennik</button>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+
+        const scalesEl = modal.querySelector('#fs21-pricing-scales');
+        scales.forEach(s => {
+            const opts = s.options || [];
+            const card = document.createElement('div');
+            card.className = 'bg-black/40 border border-white/10 rounded-xl p-4';
+            card.innerHTML = `
+                <div class="flex items-center gap-2 mb-3">
+                    <i class="fa-solid fa-arrows-left-right-to-line text-orange-400"></i>
+                    <strong class="text-white text-sm">${s.name}</strong>
+                    <span class="text-slate-500 text-[10px] font-mono">${s.key_ascii} · ${opts.length} opcji</span>
+                </div>
+                <div class="grid grid-cols-${Math.max(1, Math.min(4, opts.length))} gap-3">
+                    ${opts.map(o => `
+                        <div class="flex flex-col gap-1">
+                            <label class="text-[8px] font-black uppercase text-slate-400">${o.name}</label>
+                            <div class="text-[7px] text-slate-600 font-mono">${o.key_ascii} · ×${parseFloat(o.multiplier || 1).toFixed(2)}</div>
+                            <input type="number" step="0.01" min="0"
+                                   data-option-id="${o.id}"
+                                   class="fs21-price-input bg-black/50 border border-white/10 rounded p-2 text-orange-300 text-sm font-black text-right outline-none focus:border-orange-500"
+                                   placeholder="0.00"
+                                   value="${priceMap[o.id] || ''}">
+                            <span class="text-[7px] text-slate-600 text-center">PLN brutto</span>
+                        </div>
+                    `).join('')}
+                </div>`;
+            scalesEl.appendChild(card);
+        });
+    },
+
+    async _saveSizePricing(modifierId) {
+        const inputs = document.querySelectorAll('#fs21-pricing-scales .fs21-price-input');
+        const pricing = [];
+        inputs.forEach(inp => {
+            const optId = parseInt(inp.dataset.optionId, 10);
+            const val = inp.value.trim();
+            if (val !== '' && !isNaN(parseFloat(val))) {
+                pricing.push({ variant_option_id: optId, price: parseFloat(val) });
+            }
+        });
+        if (pricing.length === 0) {
+            if (!confirm('Brak żadnej ceny — to usunie cały Size Pricing dla tego modyfikatora. Kontynuować?')) return;
+        }
+        const btn = document.getElementById('fs21-save-btn');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Zapisywanie...'; }
+        try {
+            const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
+                action: 'save_modifier_pricing',
+                modifier_id: modifierId,
+                pricing
+            });
+            if (r && r.success) {
+                if (btn) btn.innerHTML = '<i class="fa-solid fa-check"></i> Zapisano';
+                setTimeout(() => document.getElementById('fs21-size-pricing-modal')?.remove(), 800);
+            } else {
+                alert('❌ ' + (r?.message || 'unknown'));
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Zapisz cennik'; }
+            }
+        } catch (e) {
+            console.error('[F-S2.1] save_modifier_pricing', e);
+            alert('Krytyczny błąd: ' + e.message);
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Zapisz cennik'; }
         }
     }
 };

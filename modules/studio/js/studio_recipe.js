@@ -646,6 +646,96 @@ window.RecipeMapper = {
         this.renderRecipeList();
     },
 
+    // F-S5.1 (2026-05-11): toggle linii receptury między surowcem a półproduktem.
+    // Półprodukt = warehouse_sku to ascii_key INNEJ pozycji menu (sh_menu_items),
+    // WzEngine rekurencyjnie expanduje recepturę półproduktu przez subrecipe_yield.
+    async toggleSubrecipe(index) {
+        const row = this.state.currentRecipe[index];
+        if (!row) return;
+        if (!row.isSubrecipe) {
+            // Otwórz picker półproduktu — lista kandydatów z list_subrecipe_candidates.
+            try {
+                const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
+                    action: 'list_subrecipe_candidates',
+                    exclude_sku: this.state.currentMenuItemSku || ''
+                });
+                const candidates = r?.data?.candidates || [];
+                if (candidates.length === 0) {
+                    alert('Brak kandydatów na półprodukt. Najpierw zdefiniuj recepturę dla pozycji która ma być półproduktem (np. „Sos pomidorowy").');
+                    return;
+                }
+                this._openSubrecipePicker(candidates, (chosen) => {
+                    row.isSubrecipe = true;
+                    row.warehouseSku = chosen.asciiKey;
+                    row.name = chosen.name + ' (półprodukt)';
+                    row.baseUnit = 'porcja';
+                    row.subrecipeYield = row.subrecipeYield || 10; // domyślnie 10 porcji z batchu
+                    this.renderRecipeList();
+                });
+            } catch (e) {
+                alert('Błąd pobrania kandydatów: ' + e.message);
+            }
+        } else {
+            if (!confirm('Wyłączyć tryb półproduktu? Linia zostanie usunięta (musisz dodać ją ponownie jako zwykły surowiec z magazynu).')) return;
+            this.state.currentRecipe.splice(index, 1);
+            this.renderRecipeList();
+        }
+    },
+
+    updateSubrecipeYield(index, newYield) {
+        const row = this.state.currentRecipe[index];
+        if (!row) return;
+        const y = Math.max(0.1, parseFloat(newYield) || 1);
+        row.subrecipeYield = y;
+        this.renderRecipeList();
+    },
+
+    _openSubrecipePicker(candidates, onPicked) {
+        const modal = document.createElement('div');
+        modal.id = 'fs51-subrecipe-picker';
+        modal.className = 'fixed inset-0 z-[300] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4';
+        modal.innerHTML = `
+            <div class="bg-slate-900 border border-orange-500/40 rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden">
+                <div class="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-white font-black text-base"><i class="fa-solid fa-recycle text-orange-400"></i> Wybierz półprodukt</h3>
+                        <p class="text-orange-300 text-[10px] uppercase font-bold tracking-wider mt-0.5">F-S5.1 · iiko-style „заготовка"</p>
+                    </div>
+                    <button onclick="document.getElementById('fs51-subrecipe-picker')?.remove()" class="text-slate-400 hover:text-white text-xl">×</button>
+                </div>
+                <div class="p-4 space-y-2 overflow-y-auto">
+                    <input type="text" id="fs51-search" placeholder="Szukaj..." class="w-full bg-black/50 border border-white/10 text-white rounded p-2 text-sm">
+                    <div id="fs51-list" class="space-y-1.5 mt-2 max-h-96 overflow-y-auto"></div>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+
+        const listEl = modal.querySelector('#fs51-list');
+        const searchEl = modal.querySelector('#fs51-search');
+        const renderList = (filter) => {
+            const flt = (filter || '').toLowerCase();
+            listEl.innerHTML = '';
+            candidates
+                .filter(c => !flt || c.asciiKey.toLowerCase().includes(flt) || (c.name || '').toLowerCase().includes(flt))
+                .slice(0, 100)
+                .forEach(c => {
+                    const btn = document.createElement('button');
+                    btn.className = 'w-full bg-black/40 hover:bg-orange-500/15 border border-white/10 hover:border-orange-500/40 rounded-lg p-3 flex items-center justify-between transition text-left';
+                    btn.innerHTML = `
+                        <div>
+                            <div class="text-white text-sm font-bold">${c.name}</div>
+                            <div class="text-slate-500 text-[10px] font-mono">${c.asciiKey} · ${c.recipeLines} składników w recepturze</div>
+                        </div>
+                        <i class="fa-solid fa-arrow-right text-orange-400"></i>`;
+                    btn.onclick = () => { modal.remove(); onPicked(c); };
+                    listEl.appendChild(btn);
+                });
+            if (!listEl.children.length) listEl.innerHTML = '<p class="text-center text-slate-500 text-[10px] italic py-4">Brak wyników</p>';
+        };
+        renderList('');
+        searchEl.addEventListener('input', () => renderList(searchEl.value));
+    },
+
     renderRecipeList() {
         const container = document.getElementById('recipe-ingredients-list');
         if (!container) return;
@@ -727,14 +817,25 @@ window.RecipeMapper = {
                 ? d.rowCost.toLocaleString('pl-PL', { style: 'currency', currency: 'PLN', minimumFractionDigits: 2, maximumFractionDigits: 4 })
                 : '—';
 
+            // F-S5.1 (2026-05-11): wizualne odróżnienie półproduktu (orange highlight + badge SUB).
+            const isSub = !!d.ing.isSubrecipe;
+            const subBadge = isSub
+                ? `<span class="inline-flex items-center gap-1 text-[7px] font-black uppercase px-1.5 py-0.5 rounded border bg-orange-900/40 border-orange-500/50 text-orange-300" title="Półprodukt — własna receptura (rekurencyjna ekspansja w WzEngine)"><i class="fa-solid fa-recycle text-[7px]"></i> SUB ×${(d.ing.subrecipeYield || 1).toFixed(0)}</span>`
+                : '';
+            const rowBg = isSub
+                ? 'border-orange-500/30 bg-orange-950/20'
+                : 'border-white/10 bg-black/40';
+
             html += `
-            <div class="recipe-row flex items-center justify-between gap-2 p-2 border border-white/10 bg-black/40 rounded-lg hover:border-white/20 transition" data-sku="${_eR(d.ing.warehouseSku)}">
+            <div class="recipe-row flex items-center justify-between gap-2 p-2 border ${rowBg} rounded-lg hover:border-white/20 transition" data-sku="${_eR(d.ing.warehouseSku)}" data-row-idx="${index}" draggable="true">
+                <span class="recipe-drag-handle cursor-grab text-slate-500 hover:text-white px-1 text-[12px]" title="F-S9: przeciągnij aby zmienić kolejność"><i class="fa-solid fa-grip-vertical"></i></span>
                 <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-2 flex-wrap">
                         <span class="text-white text-[11px] font-black truncate">${_eR(d.ing.name)}</span>
-                        ${stockBadge}
+                        ${subBadge}
+                        ${isSub ? '' : stockBadge}
                     </div>
-                    <div class="text-slate-600 text-[8px] font-mono truncate">${_eR(d.ing.warehouseSku)} · base: ${_eR(d.ing.baseUnit || 'kg')}</div>
+                    <div class="text-slate-600 text-[8px] font-mono truncate">${_eR(d.ing.warehouseSku)} · base: ${_eR(d.ing.baseUnit || 'kg')}${isSub ? ' · <span class="text-orange-400">półprodukt</span>' : ''}</div>
                 </div>
                 <input type="number" step="0.001" min="0" value="${d.ing.quantityBase}"
                        class="w-16 bg-transparent border border-white/20 text-white text-center text-[11px] p-1 rounded outline-none focus:border-blue-500"
@@ -746,6 +847,15 @@ window.RecipeMapper = {
                 <input type="number" step="0.1" min="0" max="100" value="${d.wastePct}"
                        class="w-12 bg-transparent border border-amber-500/30 text-amber-300 text-center text-[10px] p-1 rounded outline-none focus:border-amber-500"
                        onchange="window.RecipeMapper.updateWaste(${index}, this.value)" title="Ubytek %">
+                ${isSub
+                    ? `<input type="number" step="0.1" min="0.1" value="${d.ing.subrecipeYield || 1}" title="Yield: liczba porcji z 1 batchu półproduktu" class="w-14 bg-transparent border border-orange-500/40 text-orange-300 text-center text-[10px] p-1 rounded outline-none focus:border-orange-500" onchange="window.RecipeMapper.updateSubrecipeYield(${index}, this.value)" placeholder="yield">`
+                    : '<span class="w-14 inline-block"></span>'
+                }
+                <button class="text-[9px] font-black uppercase px-2 py-1 rounded ${isSub ? 'bg-orange-500/20 border border-orange-500/40 text-orange-300 hover:bg-orange-500/30' : 'bg-slate-800/50 border border-white/10 text-slate-400 hover:bg-slate-700'} transition"
+                        onclick="window.RecipeMapper.toggleSubrecipe(${index})"
+                        title="F-S5.1: ${isSub ? 'Wyłącz tryb półproduktu (wróci do surowca z magazynu)' : 'Włącz tryb półproduktu (warehouse_sku = ascii_key innej pozycji menu)'}">
+                    <i class="fa-solid fa-recycle"></i>
+                </button>
                 <span class="text-slate-400 text-[10px] font-mono w-20 text-right shrink-0" title="Koszt wiersza (AVCO × qty × (1+waste%))">${rowCostStr}</span>
                 <button class="bg-red-900/30 hover:bg-red-600 text-red-200 hover:text-white w-7 h-7 rounded transition text-[10px] flex items-center justify-center shrink-0"
                         onclick="window.RecipeMapper.removeIngredient(${index})" title="Usuń z receptury">
@@ -757,7 +867,13 @@ window.RecipeMapper = {
         html += '</div>';
 
         html += `
-            <div class="recipe-footer sticky bottom-0 mt-3 pt-3 border-t border-white/10 bg-[#0a0a0f]/95 backdrop-blur">
+            <div class="recipe-footer sticky bottom-0 mt-3 pt-3 border-t border-white/10 bg-[#0a0a0f]/95 backdrop-blur space-y-2">
+                <button type="button"
+                        onclick="window.RecipeMapper.openCloneRecipeModal()"
+                        class="w-full bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 font-black text-[10px] uppercase tracking-widest py-2 rounded-xl transition flex items-center justify-center gap-2"
+                        title="F-S4: skopiuj recepturę z innej pozycji menu">
+                    <i class="fa-solid fa-copy"></i> Skopiuj z innej pozycji
+                </button>
                 <button type="button" id="btn-save-recipe"
                         onclick="window.RecipeMapper.saveItemRecipe()"
                         class="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-black text-[11px] uppercase tracking-widest py-3 rounded-xl shadow-[0_0_15px_rgba(147,51,234,0.3)] transition-all flex items-center justify-center gap-2">
@@ -768,6 +884,49 @@ window.RecipeMapper = {
 
         container.innerHTML = html;
         this._triggerMarginUpdate();
+        // F-S9 (2026-05-11): native HTML5 drag-and-drop dla recipe rows.
+        this._wireRecipeDragDrop();
+    },
+
+    // F-S9 — drag-and-drop handler. Reorderuje `this.state.currentRecipe` w pamięci
+    // + automatycznie aktualizuje displayOrder na bazie aktualnej kolejności.
+    // Save propaguje displayOrder do backendu w save_recipe (już obsłużone).
+    _wireRecipeDragDrop() {
+        const rows = document.querySelectorAll('.recipe-grid .recipe-row');
+        rows.forEach(row => {
+            row.addEventListener('dragstart', (e) => {
+                row.classList.add('opacity-50');
+                e.dataTransfer.setData('text/plain', row.dataset.rowIdx);
+                e.dataTransfer.effectAllowed = 'move';
+            });
+            row.addEventListener('dragend', () => {
+                row.classList.remove('opacity-50');
+                document.querySelectorAll('.recipe-row').forEach(r => r.classList.remove('border-orange-500'));
+            });
+            row.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                row.classList.add('border-orange-500');
+            });
+            row.addEventListener('dragleave', () => {
+                row.classList.remove('border-orange-500');
+            });
+            row.addEventListener('drop', (e) => {
+                e.preventDefault();
+                row.classList.remove('border-orange-500');
+                const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                const toIdx = parseInt(row.dataset.rowIdx, 10);
+                if (Number.isNaN(fromIdx) || Number.isNaN(toIdx) || fromIdx === toIdx) return;
+
+                // Reorder in-memory
+                const arr = this.state.currentRecipe;
+                const [moved] = arr.splice(fromIdx, 1);
+                arr.splice(toIdx, 0, moved);
+                // Re-assign displayOrder w aktualnej kolejności.
+                arr.forEach((r, i) => { r.displayOrder = i; });
+                this.renderRecipeList();
+            });
+        });
     },
 
     async saveItemRecipe() {
@@ -820,6 +979,97 @@ window.RecipeMapper = {
                 btn.disabled = false;
                 btn.innerHTML = origHtml || `<i class="fa-solid fa-floppy-disk"></i> Zapisz Recepturę`;
             }
+        }
+    },
+
+    // =========================================================================
+    // F-S4 — RECIPE CLONE (Skopiuj recepturę z innej pozycji menu) · 2026-05-11
+    // =========================================================================
+
+    async openCloneRecipeModal() {
+        if (!this.state.currentMenuItemSku) { alert('Najpierw wybierz pozycję menu z drzewa.'); return; }
+        const targetKey = this.state.currentMenuItemSku;
+
+        // Lista dostępnych pozycji z aktualnego StudioState (uniknij ekstra API call).
+        const tree = window.StudioState?.menuTree || [];
+        const allItems = [];
+        tree.forEach(cat => (cat.items || []).forEach(it => {
+            if (it.asciiKey && it.asciiKey !== targetKey) {
+                allItems.push({ asciiKey: it.asciiKey, name: it.name, categoryName: cat.name });
+            }
+        }));
+        if (!allItems.length) { alert('Brak innych pozycji do skopiowania.'); return; }
+
+        const modal = document.createElement('div');
+        modal.id = 'fs4-clone-recipe-modal';
+        modal.className = 'fixed inset-0 z-[300] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4';
+        modal.innerHTML = `
+            <div class="bg-slate-900 border border-amber-500/40 rounded-2xl w-full max-w-xl overflow-hidden">
+                <div class="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-white font-black text-base">Skopiuj recepturę</h3>
+                        <p class="text-amber-300 text-[10px] uppercase font-bold tracking-wider mt-0.5">F-S4 · Z innej pozycji menu → <code>${targetKey}</code></p>
+                    </div>
+                    <button onclick="document.getElementById('fs4-clone-recipe-modal')?.remove()" class="text-slate-400 hover:text-white text-xl">×</button>
+                </div>
+                <div class="p-4 space-y-3">
+                    <input type="text" id="fs4-clone-search" placeholder="Szukaj pozycji..." class="w-full bg-black/50 border border-white/10 text-white rounded-lg p-3 text-sm focus:border-amber-500 outline-none">
+                    <div id="fs4-clone-list" class="max-h-80 overflow-y-auto space-y-1.5"></div>
+                    <p class="text-[10px] text-amber-300/70 leading-snug">⚠️ Istniejąca receptura <code>${targetKey}</code> zostanie ZASTĄPIONA przez wybraną.</p>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+
+        const listEl = modal.querySelector('#fs4-clone-list');
+        const searchEl = modal.querySelector('#fs4-clone-search');
+
+        const renderList = (filter) => {
+            const flt = (filter || '').toLowerCase();
+            listEl.innerHTML = '';
+            allItems
+                .filter(i => !flt || i.asciiKey.toLowerCase().includes(flt) || (i.name || '').toLowerCase().includes(flt))
+                .slice(0, 50)
+                .forEach(i => {
+                    const btn = document.createElement('button');
+                    btn.className = 'w-full bg-black/40 hover:bg-amber-500/15 border border-white/10 hover:border-amber-500/40 rounded-lg p-3 flex items-center justify-between transition text-left';
+                    btn.innerHTML = `
+                        <div>
+                            <div class="text-white text-sm font-bold">${i.name}</div>
+                            <div class="text-slate-500 text-[10px] font-mono">${i.asciiKey} <span class="text-slate-600">· ${i.categoryName || ''}</span></div>
+                        </div>
+                        <i class="fa-solid fa-arrow-right text-amber-400"></i>`;
+                    btn.onclick = () => this.confirmCloneRecipe(i.asciiKey, targetKey);
+                    listEl.appendChild(btn);
+                });
+            if (!listEl.children.length) listEl.innerHTML = '<p class="text-center text-slate-500 text-[10px] italic py-4">Brak wyników</p>';
+        };
+        renderList('');
+        searchEl.addEventListener('input', () => renderList(searchEl.value));
+    },
+
+    async confirmCloneRecipe(srcKey, dstKey) {
+        if (!confirm(`Skopiować recepturę z "${srcKey}" do "${dstKey}"?\n\nIstniejąca receptura ${dstKey} zostanie ZASTĄPIONA.`)) return;
+        try {
+            const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
+                action: 'clone_recipe',
+                source_ascii_key: srcKey,
+                target_ascii_key: dstKey,
+            });
+            if (r && r.success) {
+                alert(`✅ ${r.message || 'Skopiowano.'}`);
+                document.getElementById('fs4-clone-recipe-modal')?.remove();
+                // Reload bieżącej receptury w UI.
+                if (this.loadItemRecipe) {
+                    await this.loadItemRecipe(dstKey);
+                } else if (typeof window.loadMenuTree === 'function') {
+                    await window.loadMenuTree();
+                }
+            } else {
+                alert('❌ ' + (r?.message || 'unknown error'));
+            }
+        } catch (e) {
+            console.error('[RecipeMapper] confirmCloneRecipe', e);
+            alert('Krytyczny błąd: ' + e.message);
         }
     }
 };

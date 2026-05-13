@@ -398,12 +398,58 @@ class CartEngine
         // =====================================================================
         // 3. PREPARE REUSABLE STATEMENTS
         // =====================================================================
+        // F-S2 (2026-05-11): probe czy istnieją kolumny variant (graceful fallback dla starych baz).
+        $hasVariantColsCE = false;
+        try { $pdo->query("SELECT variant_option_id FROM sh_menu_items LIMIT 0"); $hasVariantColsCE = true; }
+        catch (\PDOException $e) {}
+
         $stmtItem = $pdo->prepare(
-            "SELECT ascii_key, name, vat_rate_dine_in, vat_rate_takeaway
-             FROM sh_menu_items
-             WHERE ascii_key = :sku AND tenant_id = :tid AND is_deleted = 0
-             LIMIT 1"
+            $hasVariantColsCE
+            ? "SELECT ascii_key, name, vat_rate_dine_in, vat_rate_takeaway,
+                      variant_option_id, parent_item_id
+                 FROM sh_menu_items
+                WHERE ascii_key = :sku AND tenant_id = :tid AND is_deleted = 0
+                LIMIT 1"
+            : "SELECT ascii_key, name, vat_rate_dine_in, vat_rate_takeaway,
+                      NULL AS variant_option_id, NULL AS parent_item_id
+                 FROM sh_menu_items
+                WHERE ascii_key = :sku AND tenant_id = :tid AND is_deleted = 0
+                LIMIT 1"
         );
+
+        // F-S2: prepared statement do pricing per (modifier, variant_option).
+        $stmtModSizePricing = $hasVariantColsCE
+            ? $pdo->prepare(
+                "SELECT mp.price_grosze
+                   FROM sh_modifier_pricing mp
+                   JOIN sh_modifiers m ON m.id = mp.modifier_id
+                  WHERE m.ascii_key = :mod_sku
+                    AND mp.variant_option_id = :opt_id
+                    AND mp.tenant_id = :tid
+                    AND mp.is_deleted = 0
+                  LIMIT 1"
+            ) : null;
+
+        // F-S2: tenant settings dla half-half pricing strategy.
+        $halfStrategy = 'percentage';
+        $halfPercent  = 50;
+        try {
+            $stmtHS = $pdo->prepare(
+                "SELECT setting_key, setting_value FROM sh_tenant_settings
+                  WHERE tenant_id = :tid
+                    AND setting_key IN ('half_pricing_strategy','half_pricing_percent')"
+            );
+            $stmtHS->execute([':tid' => $tenantId]);
+            foreach ($stmtHS->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                if ($r['setting_key'] === 'half_pricing_strategy') {
+                    $halfStrategy = (string)$r['setting_value'];
+                } elseif ($r['setting_key'] === 'half_pricing_percent') {
+                    $halfPercent = (int)$r['setting_value'];
+                }
+            }
+        } catch (\Throwable $e) {
+            // Settings table missing — defaults remain.
+        }
 
         $stmtItemPrice = $pdo->prepare(
             "SELECT price FROM sh_price_tiers
@@ -449,7 +495,21 @@ class CartEngine
         $fmtMoney = fn(int $grosze): string => number_format($grosze / 100, 2, '.', '');
         $fmtRate  = fn(float $rate): string => number_format($rate, 2, '.', '');
 
-        $resolveModPrice = function (string $modSku) use ($stmtModPrice, $stmtModPriceFallback, $channel, $tenantId): int {
+        // F-S2: jeśli variantOptionId, najpierw szuka w sh_modifier_pricing (Toast-style Size Pricing).
+        $resolveModPrice = function (string $modSku, ?int $variantOptionId = null) use (
+            $stmtModPrice, $stmtModPriceFallback, $stmtModSizePricing, $channel, $tenantId
+        ): int {
+            if ($variantOptionId && $stmtModSizePricing) {
+                $stmtModSizePricing->execute([
+                    ':mod_sku' => $modSku,
+                    ':opt_id'  => $variantOptionId,
+                    ':tid'     => $tenantId,
+                ]);
+                $row = $stmtModSizePricing->fetch(PDO::FETCH_ASSOC);
+                if ($row && isset($row['price_grosze'])) {
+                    return (int)$row['price_grosze'];
+                }
+            }
             $stmtModPrice->execute([':sku' => $modSku, ':channel' => $channel, ':tid' => $tenantId]);
             $row = $stmtModPrice->fetch(PDO::FETCH_ASSOC);
             if ($row) {
@@ -602,7 +662,32 @@ class CartEngine
                         throw new CartEngineException("Line #{$idx}: modifier SKU '{$modSku}' not found for this tenant.");
                     }
 
-                    $modPriceGrosze        = $resolveModPrice($modSku);
+                    // F-S2: pobierz variant_option_id z resolved item (jeśli wariant).
+                    // Dla half-half bierzemy variant_option_id z half_a (pierwsza połowa).
+                    $variantOptId = null;
+                    if ($isHalf && isset($halfA) && !empty($halfA['variant_option_id'])) {
+                        $variantOptId = (int)$halfA['variant_option_id'];
+                    } elseif (isset($item) && !empty($item['variant_option_id'])) {
+                        $variantOptId = (int)$item['variant_option_id'];
+                    }
+                    $modPriceGrosze = $resolveModPrice($modSku, $variantOptId);
+
+                    // F-S2: jeśli linia jest half/half, zastosuj tenant strategy.
+                    // Modyfikator dodany do połowy = pewien % normalnej ceny.
+                    // Modyfikator do całej pizzy (rzadziej) = bez modyfikacji.
+                    // Tutaj dish-level half (line ma is_half=true) — strategy aplikuje się do KAŻDEGO modyfikatora.
+                    if ($isHalf) {
+                        if ($halfStrategy === 'percentage') {
+                            $modPriceGrosze = (int)round($modPriceGrosze * ($halfPercent / 100));
+                        } elseif ($halfStrategy === 'average') {
+                            // Cena modyfikatora pozostaje, bo average dotyczy bazy pizzy.
+                        } elseif ($halfStrategy === 'higher') {
+                            // Modyfikator pełną cenę.
+                        } elseif ($halfStrategy === 'full') {
+                            // Pełna cena.
+                        }
+                    }
+
                     $modifiersTotalGrosze += $modPriceGrosze;
 
                     $resolvedModifiers[] = [

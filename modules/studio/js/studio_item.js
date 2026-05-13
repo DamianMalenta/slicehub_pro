@@ -124,6 +124,7 @@ window.ItemEditor = {
         nav.classList.remove('hidden');
         const items = [
             { id:'sec-identity',   icon:'fa-fingerprint',    tip:'Tożsamość',    hc:'hover:text-purple-400 hover:border-purple-500/30 hover:bg-purple-500/10' },
+            { id:'sec-variants',   icon:'fa-arrows-left-right-to-line', tip:'Rozmiary / Warianty', hc:'hover:text-orange-400 hover:border-orange-500/30 hover:bg-orange-500/10' },
             { id:'sec-matrix',     icon:'fa-table-cells',    tip:'Macierz Cen',  hc:'hover:text-cyan-400 hover:border-cyan-500/30 hover:bg-cyan-500/10' },
             { id:'sec-vat',        icon:'fa-receipt',        tip:'VAT',          hc:'hover:text-amber-400 hover:border-amber-500/30 hover:bg-amber-500/10' },
             { id:'sec-modifiers',  icon:'fa-puzzle-piece',   tip:'Modyfikatory', hc:'hover:text-purple-400 hover:border-purple-500/30 hover:bg-purple-500/10' },
@@ -230,6 +231,38 @@ window.ItemEditor = {
                             <button type="button" data-type="half_half" onclick="window.ItemEditor.setItemType('half_half')" class="type-btn flex-1 px-3 py-3 text-[9px] font-black uppercase bg-white/5 text-slate-500 hover:text-white transition-all flex items-center justify-center gap-1.5"><i class="fa-solid fa-circle-half-stroke text-[6px]"></i> Pół/Pół</button>
                         </div>
                     </div>
+                </div>
+            `)}
+
+            ${this._glassCard('sec-variants', 'orange', 'fa-arrows-left-right-to-line', 'Rozmiary / Warianty (F-S1)', `
+                <p class="text-[10px] text-slate-400 mb-3 leading-relaxed">
+                    Wybierz <strong class="text-orange-300">Skalę Rozmiarów</strong> żeby ta pozycja stała się
+                    <strong class="text-orange-300">parentem</strong> — sprzedaż w POS dostanie kafelek z wyborem rozmiaru.
+                    Receptura wpisana RAZ na parent, mnożona przez <code class="text-orange-300">multiplier(option)</code>.
+                </p>
+                <div class="grid grid-cols-12 gap-4">
+                    <div class="col-span-7 flex flex-col gap-1.5">
+                        <label class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Skala Rozmiarów</label>
+                        <select id="item-variant-scale" class="bg-black/50 border border-white/10 text-white rounded-xl p-3 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500/30 focus:outline-none transition cursor-pointer">
+                            <option value="">— Brak (zwykła pozycja standalone) —</option>
+                        </select>
+                    </div>
+                    <div class="col-span-5 flex flex-col gap-1.5">
+                        <label class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Akcje</label>
+                        <div class="flex gap-2">
+                            <button type="button" onclick="window.ItemEditor.openVariantScaleManager()" class="flex-1 text-[8px] font-black uppercase text-orange-400 bg-orange-500/10 border border-orange-500/20 rounded-lg px-3 py-2 hover:bg-orange-500/20 transition flex items-center justify-center gap-1.5"><i class="fa-solid fa-list"></i> Zarządzaj skalami</button>
+                            <button type="button" onclick="window.ItemEditor.generateVariantFamily()" class="flex-1 text-[8px] font-black uppercase text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2 hover:bg-emerald-500/20 transition flex items-center justify-center gap-1.5" id="btn-generate-variant-family" disabled><i class="fa-solid fa-wand-magic-sparkles"></i> Wygeneruj rodzinę</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="variant-children-preview" class="mt-4 hidden">
+                    <div class="text-[9px] text-slate-400 uppercase font-bold mb-2">Warianty (children):</div>
+                    <div id="variant-children-list" class="grid grid-cols-3 gap-2"></div>
+                </div>
+                <div class="mt-3 text-[10px] text-slate-500 leading-relaxed bg-black/30 rounded-lg p-2 border border-white/5">
+                    <i class="fa-solid fa-circle-info text-orange-400 mr-1"></i>
+                    <strong>Bliźniak Cyfrowy (Konstytucja v5 § Prawo II):</strong>
+                    parent = abstrakcyjny szablon, nie sprzedawalny w POS. Children = realne SKU (np. <code>PIZZA_MARGHERITA_S</code>) z własnymi cenami i mnożnikiem receptury.
                 </div>
             `)}
 
@@ -654,6 +687,16 @@ window.ItemEditor = {
         if ($('item-available-start')) $('item-available-start').value = itemData.availableStart || '';
         if ($('item-available-end')) $('item-available-end').value = itemData.availableEnd || '';
 
+        // F-S1 — variant scale (parent only)
+        this._currentParentItemId    = itemData.parentItemId || null;
+        this._currentVariantOptionId = itemData.variantOptionId || null;
+        this._currentIsVariantParent = !!itemData.isVariantParent;
+        this._currentVariantScaleId  = itemData.variantScaleId || null;
+        this._loadVariantScalesIntoSelect(itemData.variantScaleId || null);
+        this._renderVariantChildrenPreview(itemData.id || 0);
+        const genBtn = $('btn-generate-variant-family');
+        if (genBtn) genBtn.disabled = !(itemData.id > 0 && (itemData.variantScaleId || itemData.isVariantParent));
+
         const days = (itemData.availableDays || '1,2,3,4,5,6,7').split(',').map(d => d.trim());
         document.querySelectorAll('.day-checkbox').forEach(cb => {
             cb.checked = days.includes(cb.value);
@@ -855,7 +898,10 @@ window.ItemEditor = {
             parentSku: val('item-parent-sku') || null,
             allergens: Array.from(document.querySelectorAll('.allergen-checkbox:checked')).map(cb => cb.value),
             modifierGroupIds: Array.from(document.querySelectorAll('.modifier-group-checkbox:checked'))
-                .map(cb => parseInt(cb.value, 10)).filter(Number.isInteger)
+                .map(cb => parseInt(cb.value, 10)).filter(Number.isInteger),
+            // F-S1 — variant scale fields
+            variantScaleId: parseInt(val('item-variant-scale'), 10) || null,
+            isVariantParent: (parseInt(val('item-variant-scale'), 10) > 0) ? 1 : 0
         };
 
         const btn = $('btn-save-item');
@@ -1171,5 +1217,716 @@ window.ItemEditor = {
                 btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> <span>Wygeneruj automatycznie</span>';
             }
         }
+    },
+
+    // =========================================================================
+    // F-S1 — VARIANT SCALES (Rozmiary / Warianty) · 2026-05-11
+    // Reuzywalna skala (Mala/Srednia/Duza) z multiplier-em dla receptury.
+    // Konstytucja v5 § Prawo II — jedna receptura, wiele rozmiarow.
+    // =========================================================================
+
+    async _loadVariantScalesIntoSelect(selectedId) {
+        const sel = document.getElementById('item-variant-scale');
+        if (!sel) return;
+        sel.innerHTML = '<option value="">— Brak (zwykła pozycja standalone) —</option>';
+        try {
+            const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'list_variant_scales' });
+            const scales = (r && r.success && r.data && r.data.scales) ? r.data.scales : [];
+            scales.forEach(s => {
+                const optsCount = Array.isArray(s.options) ? s.options.length : 0;
+                const opt = new Option(`${s.name}  ·  ${optsCount} opcji  (${s.key_ascii})`, s.id);
+                sel.appendChild(opt);
+            });
+            if (selectedId) sel.value = String(selectedId);
+        } catch (e) {
+            console.warn('[ItemEditor] _loadVariantScalesIntoSelect failed', e);
+        }
+        sel.onchange = () => {
+            const genBtn = document.getElementById('btn-generate-variant-family');
+            const itemId = parseInt(document.getElementById('item-id')?.value || '0', 10);
+            if (genBtn) genBtn.disabled = !(itemId > 0 && parseInt(sel.value, 10) > 0);
+        };
+    },
+
+    async _renderVariantChildrenPreview(parentItemId) {
+        const wrap = document.getElementById('variant-children-preview');
+        const list = document.getElementById('variant-children-list');
+        if (!wrap || !list) return;
+        list.innerHTML = '';
+        if (!parentItemId || parentItemId <= 0) { wrap.classList.add('hidden'); return; }
+        try {
+            // Czytamy children z aktualnego drzewa (lokalny stan), zamiast osobnego API call.
+            const tree = window.StudioState?.menuTree || [];
+            const children = [];
+            tree.forEach(cat => (cat.items || []).forEach(it => {
+                if (parseInt(it.parentItemId, 10) === parseInt(parentItemId, 10)) children.push(it);
+            }));
+            if (children.length === 0) { wrap.classList.add('hidden'); return; }
+            wrap.classList.remove('hidden');
+            list.innerHTML = children.map(c => `
+                <div class="bg-black/30 border border-orange-500/20 rounded-lg p-2 flex flex-col gap-0.5">
+                    <span class="text-[10px] text-orange-300 font-bold uppercase">${c.name || c.asciiKey}</span>
+                    <span class="text-[8px] text-slate-500 font-mono">${c.asciiKey}</span>
+                </div>
+            `).join('');
+        } catch (e) {
+            console.warn('[ItemEditor] _renderVariantChildrenPreview failed', e);
+        }
+    },
+
+    async generateVariantFamily() {
+        const itemId = parseInt(document.getElementById('item-id')?.value || '0', 10);
+        if (!itemId) { alert('Najpierw zapisz pozycję (parent), potem wygeneruj rodzinę.'); return; }
+        const scaleId = parseInt(document.getElementById('item-variant-scale')?.value || '0', 10);
+        if (!scaleId) { alert('Wybierz skalę rozmiarów.'); return; }
+
+        if (!confirm('Wygenerować rodzinę wariantów na podstawie wybranej skali?\n\nKażdy wariant dostanie własne SKU (np. PIZZA_X_S, _M, _L) i własną cenę. Istniejące warianty z tym samym SKU zostaną pominięte.')) return;
+
+        try {
+            // Najpierw zapisz parent (żeby variant_scale_id było w bazie).
+            await this.saveItem();
+            // Następnie wygeneruj rodzinę.
+            const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
+                action: 'create_variant_family',
+                parent_item_id: itemId
+            });
+            if (r && r.success) {
+                const created = (r.data && r.data.created) || [];
+                const skipped = (r.data && r.data.skipped) || [];
+                alert(`✅ Utworzono ${created.length} wariantów.\nPominięto (już istniały): ${skipped.length}.\n\nLista:\n${created.map(c => '• ' + c.ascii_key).join('\n')}`);
+                if (typeof window.loadMenuTree === 'function') await window.loadMenuTree();
+                if (window.Core?.renderTree) window.Core.renderTree();
+                this._renderVariantChildrenPreview(itemId);
+            } else {
+                alert('❌ Błąd: ' + (r?.message || 'unknown'));
+            }
+        } catch (e) {
+            console.error('[ItemEditor] generateVariantFamily', e);
+            alert('Krytyczny błąd: ' + e.message);
+        }
+    },
+
+    // =========================================================================
+    // F-S6 — Wizard „Nowa Pizza" (4 kroki) · 2026-05-11
+    // Step 1: Nazwa + kategoria
+    // Step 2: Wybór skali rozmiarów (lub utworzenie nowej)
+    // Step 3: Ceny bazowe per kanał × per opcja
+    // Step 4: Generuj rodzinę + zapisz
+    // =========================================================================
+
+    async openNewPizzaWizard() {
+        // Pobierz potrzebne dane.
+        const [categoriesData, scalesRes] = await Promise.all([
+            Promise.resolve(window.StudioState?.categories || []),
+            window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'list_variant_scales' }),
+        ]);
+        const scales = scalesRes?.data?.scales || [];
+
+        const modal = document.createElement('div');
+        modal.id = 'fs6-new-pizza-wizard';
+        modal.className = 'fixed inset-0 z-[300] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4';
+        modal.innerHTML = `
+            <div class="bg-slate-900 border border-orange-500/40 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+                <div class="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-white font-black text-base">🍕 Kreator Nowej Pizzy</h3>
+                        <p class="text-orange-300 text-[10px] uppercase font-bold tracking-wider mt-0.5">F-S6 · 4 kroki do gotowej rodziny wariantów</p>
+                    </div>
+                    <button onclick="document.getElementById('fs6-new-pizza-wizard')?.remove()" class="text-slate-400 hover:text-white text-xl">×</button>
+                </div>
+                <div class="px-5 py-3 border-b border-white/5 flex items-center gap-2 text-[10px]">
+                    <span class="fs6-step-pill px-2 py-1 rounded bg-orange-500/30 text-orange-200" data-step="1">1. Nazwa</span>
+                    <i class="fa-solid fa-arrow-right text-slate-600 text-[8px]"></i>
+                    <span class="fs6-step-pill px-2 py-1 rounded bg-slate-700/40 text-slate-400" data-step="2">2. Rozmiary</span>
+                    <i class="fa-solid fa-arrow-right text-slate-600 text-[8px]"></i>
+                    <span class="fs6-step-pill px-2 py-1 rounded bg-slate-700/40 text-slate-400" data-step="3">3. Ceny</span>
+                    <i class="fa-solid fa-arrow-right text-slate-600 text-[8px]"></i>
+                    <span class="fs6-step-pill px-2 py-1 rounded bg-slate-700/40 text-slate-400" data-step="4">4. Modyfikatory</span>
+                    <i class="fa-solid fa-arrow-right text-slate-600 text-[8px]"></i>
+                    <span class="fs6-step-pill px-2 py-1 rounded bg-slate-700/40 text-slate-400" data-step="5">5. Generuj</span>
+                </div>
+                <div class="overflow-y-auto flex-1 p-5 space-y-4">
+                    <!-- STEP 1 -->
+                    <div class="fs6-step-panel" data-step-panel="1">
+                        <h4 class="text-white font-bold text-sm mb-3">Krok 1: Nazwa pizzy</h4>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="text-[9px] text-slate-400 uppercase font-bold">Nazwa <span class="text-red-400">*</span></label>
+                                <input type="text" id="fs6-name" class="w-full bg-black/50 border border-white/10 text-white rounded-lg p-3 text-sm mt-1" placeholder="np. Pizza Margherita">
+                            </div>
+                            <div>
+                                <label class="text-[9px] text-slate-400 uppercase font-bold">Klucz SKU (autogenerowany)</label>
+                                <input type="text" id="fs6-ascii" class="w-full bg-black/50 border border-white/10 text-orange-300 rounded-lg p-3 text-sm font-mono uppercase mt-1" placeholder="PIZZA_MARGHERITA">
+                            </div>
+                            <div>
+                                <label class="text-[9px] text-slate-400 uppercase font-bold">Kategoria <span class="text-red-400">*</span></label>
+                                <select id="fs6-category" class="w-full bg-black/50 border border-white/10 text-white rounded-lg p-3 text-sm mt-1">
+                                    <option value="0">— wybierz —</option>
+                                    ${categoriesData.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-[9px] text-slate-400 uppercase font-bold">Opis (opcjonalnie)</label>
+                                <textarea id="fs6-desc" rows="2" class="w-full bg-black/50 border border-white/10 text-white rounded-lg p-3 text-xs mt-1" placeholder="Klasyczna z mozzarellą i bazylią"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- STEP 2 -->
+                    <div class="fs6-step-panel hidden" data-step-panel="2">
+                        <h4 class="text-white font-bold text-sm mb-3">Krok 2: Skala rozmiarów</h4>
+                        <div class="space-y-3">
+                            <p class="text-[10px] text-slate-400">Wybierz istniejącą skalę lub kliknij „Zarządzaj" żeby dodać nową w osobnym modalu.</p>
+                            <select id="fs6-scale" class="w-full bg-black/50 border border-white/10 text-white rounded-lg p-3 text-sm">
+                                <option value="">— brak (zwykła pozycja standalone) —</option>
+                                ${scales.map(s => `<option value="${s.id}" data-options='${JSON.stringify(s.options || [])}'>${s.name} (${(s.options || []).length} opcji)</option>`).join('')}
+                            </select>
+                            <button onclick="document.getElementById('fs6-new-pizza-wizard')?.remove(); window.ItemEditor.openVariantScaleManager();" class="text-[10px] text-orange-300 hover:text-orange-200 underline">+ Utwórz nową skalę (zarządzaj)</button>
+                            <div id="fs6-scale-preview" class="mt-3 p-3 bg-black/30 rounded-xl border border-white/5 hidden">
+                                <div class="text-[10px] text-orange-300 uppercase font-bold mb-2">Podgląd opcji:</div>
+                                <div id="fs6-scale-preview-list" class="grid grid-cols-3 gap-2 text-center"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- STEP 3 -->
+                    <div class="fs6-step-panel hidden" data-step-panel="3">
+                        <h4 class="text-white font-bold text-sm mb-3">Krok 3: Ceny bazowe</h4>
+                        <p class="text-[10px] text-slate-400 mb-3">Wpisz cenę POS za każdą opcję rozmiarową. Takeaway/Delivery zostaną auto-uzupełnione (+10% delivery).</p>
+                        <div id="fs6-prices-matrix" class="space-y-2"></div>
+                    </div>
+                    <!-- STEP 4 — F-S6.1 modifier groups -->
+                    <div class="fs6-step-panel hidden" data-step-panel="4">
+                        <h4 class="text-white font-bold text-sm mb-3">Krok 4: Domyślne grupy modyfikatorów (F-S6.1)</h4>
+                        <p class="text-[10px] text-slate-400 mb-3">Wybierz <strong class="text-purple-300">grupy modyfikatorów</strong> które trafią do KAŻDEGO wariantu pizzy. Możesz pominąć — dodasz później ręcznie.</p>
+                        <div id="fs6-modifier-groups-list" class="space-y-2 max-h-64 overflow-y-auto"></div>
+                        <div class="mt-3 text-[10px] text-slate-500 italic">💡 Typowe grupy: „Dodatki" (salami, pieczarki), „Ciasto" (cienkie/grube), „Bezglutenowe" (toggle).</div>
+                    </div>
+                    <!-- STEP 5 -->
+                    <div class="fs6-step-panel hidden" data-step-panel="5">
+                        <h4 class="text-white font-bold text-sm mb-3">Krok 5: Podsumowanie i generowanie</h4>
+                        <div id="fs6-summary" class="text-xs text-slate-300 space-y-2 bg-black/40 p-4 rounded-xl border border-white/10"></div>
+                        <p class="text-[10px] text-amber-300 mt-3">⚠️ Po kliknięciu „Generuj rodzinę" zostanie utworzony parent + N children w `sh_menu_items` (każdy ze swoimi cenami + modyfikatorami). Recepturę dodasz osobno w edytorze.</p>
+                    </div>
+                </div>
+                <div class="px-5 py-4 border-t border-white/10 flex items-center justify-between">
+                    <button id="fs6-back" onclick="window.ItemEditor._fs6Step(-1)" class="px-4 py-2 text-[10px] uppercase font-black text-slate-400 hover:text-white" disabled>← Wstecz</button>
+                    <div class="flex gap-2">
+                        <button id="fs6-next" onclick="window.ItemEditor._fs6Step(1)" class="px-5 py-2 text-[10px] uppercase font-black bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/30 rounded-lg">Dalej →</button>
+                        <button id="fs6-generate" onclick="window.ItemEditor._fs6Generate()" class="hidden px-5 py-2 text-[10px] uppercase font-black bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 rounded-lg"><i class="fa-solid fa-wand-magic-sparkles"></i> Generuj rodzinę</button>
+                    </div>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+
+        this._fs6CurrentStep = 1;
+        this._fs6Data = { name: '', ascii: '', categoryId: 0, desc: '', scaleId: 0, scaleOptions: [], prices: {} };
+
+        // Auto-slug
+        const nameEl = document.getElementById('fs6-name');
+        nameEl?.addEventListener('input', () => {
+            const ascii = this.toAutoSlug(nameEl.value);
+            document.getElementById('fs6-ascii').value = ascii;
+        });
+
+        // Scale preview
+        document.getElementById('fs6-scale')?.addEventListener('change', (e) => {
+            const opt = e.target.selectedOptions[0];
+            const preview = document.getElementById('fs6-scale-preview');
+            const list = document.getElementById('fs6-scale-preview-list');
+            if (!opt || !opt.dataset.options) { preview.classList.add('hidden'); return; }
+            try {
+                const options = JSON.parse(opt.dataset.options);
+                preview.classList.remove('hidden');
+                list.innerHTML = options.map(o => `
+                    <div class="bg-black/40 border border-orange-500/20 rounded p-2">
+                        <div class="text-orange-300 font-bold text-sm">${o.name}</div>
+                        <div class="text-[9px] text-slate-500 font-mono">${o.key_ascii}</div>
+                        <div class="text-[9px] text-amber-300 mt-1">×${parseFloat(o.multiplier || 1).toFixed(2)}</div>
+                    </div>
+                `).join('');
+            } catch (e) { preview.classList.add('hidden'); }
+        });
+    },
+
+    _fs6Step(direction) {
+        const total = 5; // F-S6.1: 5 kroków
+        const next = this._fs6CurrentStep + direction;
+        if (next < 1 || next > total) return;
+
+        // Walidacja przed przejściem.
+        if (this._fs6CurrentStep === 1 && direction > 0) {
+            const n = document.getElementById('fs6-name').value.trim();
+            const a = document.getElementById('fs6-ascii').value.trim();
+            const c = parseInt(document.getElementById('fs6-category').value, 10);
+            if (!n) { alert('Podaj nazwę.'); return; }
+            if (!a) { alert('Klucz SKU jest wymagany.'); return; }
+            if (!c) { alert('Wybierz kategorię.'); return; }
+            this._fs6Data.name = n;
+            this._fs6Data.ascii = a;
+            this._fs6Data.categoryId = c;
+            this._fs6Data.desc = document.getElementById('fs6-desc').value.trim();
+        }
+        if (this._fs6CurrentStep === 2 && direction > 0) {
+            const scaleSel = document.getElementById('fs6-scale');
+            const sid = parseInt(scaleSel.value, 10) || 0;
+            this._fs6Data.scaleId = sid;
+            try {
+                this._fs6Data.scaleOptions = sid && scaleSel.selectedOptions[0].dataset.options
+                    ? JSON.parse(scaleSel.selectedOptions[0].dataset.options) : [];
+            } catch (e) { this._fs6Data.scaleOptions = []; }
+            this._fs6BuildPriceMatrix();
+        }
+        if (this._fs6CurrentStep === 3 && direction > 0) {
+            const matrix = document.querySelectorAll('#fs6-prices-matrix input.fs6-price-pos');
+            this._fs6Data.prices = {};
+            matrix.forEach(inp => {
+                const optKey = inp.dataset.optKey || '_standalone';
+                const pos = parseFloat(inp.value) || 0;
+                this._fs6Data.prices[optKey] = { pos, takeaway: pos, delivery: +(pos * 1.10).toFixed(2) };
+            });
+            // F-S6.1: ładuj modifier groups dla kroku 4.
+            this._fs6LoadModifierGroups();
+        }
+        if (this._fs6CurrentStep === 4 && direction > 0) {
+            // F-S6.1: zbierz wybrane grupy modyfikatorów.
+            const checks = document.querySelectorAll('#fs6-modifier-groups-list input[type=checkbox]:checked');
+            this._fs6Data.modifierGroupIds = Array.from(checks).map(c => parseInt(c.value, 10)).filter(Number.isInteger);
+            this._fs6RenderSummary();
+        }
+
+        document.querySelectorAll('.fs6-step-panel').forEach(p => p.classList.toggle('hidden', parseInt(p.dataset.stepPanel, 10) !== next));
+        document.querySelectorAll('.fs6-step-pill').forEach(p => {
+            const step = parseInt(p.dataset.step, 10);
+            p.className = 'fs6-step-pill px-2 py-1 rounded ' + (step === next ? 'bg-orange-500/30 text-orange-200' : (step < next ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-700/40 text-slate-400'));
+        });
+        document.getElementById('fs6-back').disabled = next === 1;
+        document.getElementById('fs6-next').classList.toggle('hidden', next === total);
+        document.getElementById('fs6-generate').classList.toggle('hidden', next !== total);
+        this._fs6CurrentStep = next;
+    },
+
+    // F-S6.1 — załaduj grupy modyfikatorów tenanta do listy w kroku 4.
+    async _fs6LoadModifierGroups() {
+        const listEl = document.getElementById('fs6-modifier-groups-list');
+        if (!listEl) return;
+        listEl.innerHTML = '<p class="text-slate-500 text-[10px] italic text-center py-4">⏳ Ładowanie grup...</p>';
+        try {
+            const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'get_modifiers_full' });
+            const groups = (r?.data?.groups || r?.data?.modifierGroups || []);
+            if (!groups.length) {
+                listEl.innerHTML = '<p class="text-slate-500 text-[10px] italic text-center py-4">Brak grup modyfikatorów w tenancie. Możesz pominąć krok 4 i dodać je później ręcznie.</p>';
+                return;
+            }
+            listEl.innerHTML = '';
+            groups.forEach(g => {
+                const optsCount = Array.isArray(g.modifiers) ? g.modifiers.length : (Array.isArray(g.options) ? g.options.length : 0);
+                const row = document.createElement('label');
+                row.className = 'flex items-center gap-3 bg-black/40 hover:bg-purple-500/15 border border-white/10 hover:border-purple-500/40 rounded-lg p-3 transition cursor-pointer';
+                row.innerHTML = `
+                    <input type="checkbox" value="${g.id}" class="w-4 h-4 rounded border-white/10 bg-black/50 text-purple-500">
+                    <div class="flex-1 min-w-0">
+                        <div class="text-white text-sm font-bold">${g.name}</div>
+                        <div class="text-slate-500 text-[10px] font-mono">${optsCount} opcji${g.minSelection !== undefined ? ` · min ${g.minSelection} / max ${g.maxSelection || '∞'}` : ''}</div>
+                    </div>`;
+                listEl.appendChild(row);
+            });
+        } catch (e) {
+            listEl.innerHTML = `<p class="text-rose-400 text-[10px] italic text-center py-4">Błąd ładowania: ${e.message}</p>`;
+        }
+    },
+
+    _fs6BuildPriceMatrix() {
+        const container = document.getElementById('fs6-prices-matrix');
+        if (!container) return;
+        const opts = this._fs6Data.scaleOptions;
+        if (!opts.length) {
+            container.innerHTML = `
+                <div class="bg-black/30 p-3 rounded-xl border border-white/5 flex items-center gap-4">
+                    <div class="flex-1">
+                        <div class="text-slate-300 font-bold text-sm">Pozycja standalone (bez wariantów)</div>
+                        <div class="text-[9px] text-slate-500">×1.00 multiplier</div>
+                    </div>
+                    <input type="number" step="0.01" data-opt-key="_standalone" class="fs6-price-pos bg-black/50 border border-white/10 text-orange-300 rounded p-2 text-right font-black w-28" placeholder="0.00">
+                </div>`;
+            return;
+        }
+        container.innerHTML = opts.map(o => `
+            <div class="bg-black/30 p-3 rounded-xl border border-white/5 flex items-center gap-4">
+                <div class="flex-1">
+                    <div class="text-slate-300 font-bold text-sm">${o.name}</div>
+                    <div class="text-[9px] text-slate-500 font-mono">${o.key_ascii} · ×${parseFloat(o.multiplier || 1).toFixed(2)}</div>
+                </div>
+                <input type="number" step="0.01" data-opt-key="${o.key_ascii}" class="fs6-price-pos bg-black/50 border border-white/10 text-orange-300 rounded p-2 text-right font-black w-28" placeholder="0.00">
+                <span class="text-[9px] text-slate-600">PLN/POS</span>
+            </div>
+        `).join('');
+    },
+
+    _fs6RenderSummary() {
+        const d = this._fs6Data;
+        const sum = document.getElementById('fs6-summary');
+        if (!sum) return;
+        const optCount = d.scaleOptions.length;
+        const linesCount = optCount || 1;
+        const priceLines = Object.entries(d.prices).map(([k, p]) =>
+            `<div>• <strong>${k}</strong>: POS ${p.pos.toFixed(2)} / Takeaway ${p.takeaway.toFixed(2)} / Delivery ${p.delivery.toFixed(2)}</div>`
+        ).join('');
+        const modCount = (d.modifierGroupIds || []).length;
+        sum.innerHTML = `
+            <div>📛 Nazwa: <strong class="text-white">${d.name}</strong></div>
+            <div>🔑 Klucz parent SKU: <code class="text-orange-300">${d.ascii}</code></div>
+            <div>📁 Kategoria ID: <strong>${d.categoryId}</strong></div>
+            ${d.desc ? `<div>📝 Opis: ${d.desc}</div>` : ''}
+            <div>📏 Skala: <strong>${d.scaleId ? 'ID ' + d.scaleId + ' (' + optCount + ' opcji)' : 'brak (standalone)'}</strong></div>
+            <div>🧩 Grupy modyfikatorów: <strong>${modCount}</strong>${modCount ? ` (id: ${(d.modifierGroupIds || []).join(', ')})` : ''}</div>
+            <div class="mt-2 pt-2 border-t border-white/5">${priceLines || '<em class="text-slate-500">(brak cen)</em>'}</div>
+            <div class="mt-2 text-[10px] text-emerald-300">→ Wygeneruje ${linesCount} ${linesCount === 1 ? 'pozycję' : 'wariantów'} z cenami per kanał${modCount ? ' i ' + modCount + ' grupami modyfikatorów' : ''}.</div>
+        `;
+    },
+
+    async _fs6Generate() {
+        const btn = document.getElementById('fs6-generate');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generuję...'; }
+        const d = this._fs6Data;
+        try {
+            // 1. Zapisz parent z variant_scale_id.
+            const parentPayload = {
+                action: 'add_item',
+                itemId: 0,
+                name: d.name,
+                asciiKey: d.ascii,
+                categoryId: d.categoryId,
+                type: 'standard',
+                publicationStatus: 'Live',
+                description: d.desc,
+                vatRateDineIn: 8,
+                vatRateTakeaway: 5,
+                priceTiers: [{ channel: 'POS', price: 0 }, { channel: 'Takeaway', price: 0 }, { channel: 'Delivery', price: 0 }],
+                variantScaleId: d.scaleId || null,
+                isVariantParent: d.scaleId ? 1 : 0,
+            };
+            const r1 = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', parentPayload);
+            if (!r1 || !r1.success) throw new Error('Save parent: ' + (r1?.message || 'unknown'));
+
+            // 2. Jeśli scale → create_variant_family.
+            if (d.scaleId) {
+                // Pobierz nowo utworzony parent ID przez get_menu_tree (lub list_variant_scales na obejście).
+                // Najprościej: get_item_details po asciiKey via menu tree.
+                if (typeof window.loadMenuTree === 'function') await window.loadMenuTree();
+                const tree = window.StudioState?.menuTree || [];
+                let parentId = 0;
+                tree.forEach(cat => (cat.items || []).forEach(it => {
+                    if (it.asciiKey === d.ascii) parentId = parseInt(it.id, 10);
+                }));
+                if (!parentId) throw new Error('Parent zapisany, ale nie znaleziony w drzewie. Odśwież ręcznie.');
+
+                const r2 = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
+                    action: 'create_variant_family',
+                    parent_item_id: parentId,
+                });
+                if (!r2 || !r2.success) throw new Error('Generate family: ' + (r2?.message || 'unknown'));
+
+                // 3. Ustaw ceny per wariant. Każdy child ascii_key = parent + '_' + option.key_ascii.
+                // API add_item/update_item_full nie obsługuje teraz update tylko cen, więc bypass-szczegółowy update tier.
+                // Wykorzystamy save_bulk z omnichannelPricePatch dla wybranych itemów.
+                const created = r2.data?.created || [];
+                for (const c of created) {
+                    const optKey = c.ascii_key.replace(d.ascii + '_', '');
+                    const price = d.prices[optKey];
+                    if (!price) continue;
+                    // Bezpośrednie INSERT do sh_price_tiers przez specjalny endpoint? Nie mamy.
+                    // Najprościej: aktualizuj price tier za pomocą action 'save_modifier_pricing'-style?
+                    // Nie. Użyjemy update_item_full per dziecko (po pobraniu id).
+                    // Reload tree, znajdź item id, wywołaj update_item_full z priceTiers.
+                }
+                // Reload tree raz na końcu.
+                if (typeof window.loadMenuTree === 'function') await window.loadMenuTree();
+                const fresh = window.StudioState?.menuTree || [];
+                const updateOne = async (childKey, prices) => {
+                    let cid = 0;
+                    fresh.forEach(cat => (cat.items || []).forEach(it => { if (it.asciiKey === childKey) cid = parseInt(it.id, 10); }));
+                    if (!cid) return;
+                    // Pobierz pełne dane dziecka (żeby zachować pola).
+                    const detRes = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'get_item_details', itemId: cid });
+                    const det = detRes?.data || {};
+                    await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
+                        action: 'update_item_full',
+                        itemId: cid,
+                        name: det.name,
+                        asciiKey: det.asciiKey,
+                        categoryId: det.categoryId,
+                        type: det.type || 'standard',
+                        publicationStatus: 'Live',
+                        vatRateDineIn: det.vatRateDineIn ?? 8,
+                        vatRateTakeaway: det.vatRateTakeaway ?? 5,
+                        priceTiers: [
+                            { channel: 'POS', price: prices.pos },
+                            { channel: 'Takeaway', price: prices.takeaway },
+                            { channel: 'Delivery', price: prices.delivery },
+                        ],
+                        modifierGroupIds: det.modifierGroupIds || [],
+                    });
+                };
+                for (const c of created) {
+                    const optKey = c.ascii_key.replace(d.ascii + '_', '');
+                    const price = d.prices[optKey];
+                    if (price) await updateOne(c.ascii_key, price);
+                }
+                // F-S6.1: przypisz modifier groups do każdego stworzonego child.
+                if (this._fs6Data.modifierGroupIds && this._fs6Data.modifierGroupIds.length) {
+                    for (const c of created) {
+                        let cid = 0;
+                        const fresh2 = window.StudioState?.menuTree || [];
+                        fresh2.forEach(cat => (cat.items || []).forEach(it => { if (it.asciiKey === c.ascii_key) cid = parseInt(it.id, 10); }));
+                        if (!cid) continue;
+                        const detRes = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'get_item_details', itemId: cid });
+                        const det = detRes?.data || {};
+                        await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
+                            action: 'update_item_full',
+                            itemId: cid,
+                            name: det.name, asciiKey: det.asciiKey, categoryId: det.categoryId,
+                            type: det.type || 'standard', publicationStatus: 'Live',
+                            vatRateDineIn: det.vatRateDineIn ?? 8, vatRateTakeaway: det.vatRateTakeaway ?? 5,
+                            priceTiers: det.priceTiers || [],
+                            modifierGroupIds: this._fs6Data.modifierGroupIds,
+                        });
+                    }
+                }
+            } else {
+                // Standalone — zapisz ceny dla parent.
+                const fresh = (await window.loadMenuTree?.(), window.StudioState?.menuTree || []);
+                let parentId = 0;
+                fresh.forEach(cat => (cat.items || []).forEach(it => { if (it.asciiKey === d.ascii) parentId = parseInt(it.id, 10); }));
+                const price = d.prices._standalone;
+                if (parentId && price) {
+                    const detRes = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'get_item_details', itemId: parentId });
+                    const det = detRes?.data || {};
+                    await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
+                        action: 'update_item_full',
+                        itemId: parentId,
+                        name: det.name, asciiKey: det.asciiKey, categoryId: det.categoryId,
+                        type: 'standard', publicationStatus: 'Live',
+                        vatRateDineIn: 8, vatRateTakeaway: 5,
+                        priceTiers: [
+                            { channel: 'POS', price: price.pos },
+                            { channel: 'Takeaway', price: price.takeaway },
+                            { channel: 'Delivery', price: price.delivery },
+                        ],
+                        modifierGroupIds: [],
+                    });
+                }
+            }
+
+            alert('✅ Pizza utworzona. Drzewo odświeżone.');
+            document.getElementById('fs6-new-pizza-wizard')?.remove();
+            if (typeof window.loadMenuTree === 'function') await window.loadMenuTree();
+            if (window.Core?.renderTree) window.Core.renderTree();
+        } catch (e) {
+            console.error('[F-S6] generate', e);
+            alert('❌ Błąd: ' + e.message);
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Generuj rodzinę'; }
+        }
+    },
+
+    async openVariantScaleManager() {
+        // Lekki modal: lista skal + edycja inline.
+        let r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'list_variant_scales' });
+        const scales = (r && r.success && r.data && r.data.scales) ? r.data.scales : [];
+
+        const modal = document.createElement('div');
+        modal.id = 'variant-scale-mgr';
+        modal.className = 'fixed inset-0 bg-black/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4';
+        modal.innerHTML = `
+            <div class="bg-slate-900 border border-orange-500/30 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+                <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-orange-300 font-black uppercase text-sm tracking-wider"><i class="fa-solid fa-arrows-left-right-to-line"></i> Skale Rozmiarów</h3>
+                        <p class="text-[10px] text-slate-500 mt-0.5">Reużywalne między pozycjami (iiko-style). Multiplier wpływa na recepturę.</p>
+                    </div>
+                    <button onclick="document.getElementById('variant-scale-mgr')?.remove()" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="flex-1 overflow-y-auto p-6 space-y-4">
+                    <div id="vs-list" class="space-y-3"></div>
+                    <div class="flex gap-2">
+                        <button onclick="window.ItemEditor._vsAddNew()" class="flex-1 bg-orange-500/10 border border-dashed border-orange-500/30 text-orange-300 rounded-xl py-3 text-[10px] font-black uppercase tracking-wider hover:bg-orange-500/20 transition"><i class="fa-solid fa-plus mr-2"></i> Nowa Skala</button>
+                        <!-- F-S1.2 (2026-05-11): Presety z gotowymi multiplier-ami -->
+                        <button onclick="window.ItemEditor._vsAddPreset()" class="bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-wider hover:bg-amber-500/20 transition" title="F-S1.2: gotowe presety (Pizza S/M/L/XL, Coffee S/M/L, etc.)"><i class="fa-solid fa-magic-wand-sparkles mr-2"></i> Preset</button>
+                    </div>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+
+        const renderList = () => {
+            const root = document.getElementById('vs-list');
+            if (!root) return;
+            if (scales.length === 0) {
+                root.innerHTML = '<p class="text-center text-slate-500 text-[10px] italic py-6">Brak skal. Dodaj nową poniżej.</p>';
+                return;
+            }
+            root.innerHTML = scales.map((s, idx) => `
+                <div class="bg-black/40 border border-white/10 rounded-xl p-4">
+                    <div class="grid grid-cols-12 gap-3 mb-3">
+                        <div class="col-span-6">
+                            <label class="text-[8px] text-slate-500 font-bold uppercase">Nazwa</label>
+                            <input data-vs-idx="${idx}" data-vs-field="name" class="w-full bg-black/50 border border-white/10 rounded-lg p-2 text-xs text-white" value="${s.name || ''}" placeholder="Rozmiary pizzy">
+                        </div>
+                        <div class="col-span-4">
+                            <label class="text-[8px] text-slate-500 font-bold uppercase">Klucz ASCII</label>
+                            <input data-vs-idx="${idx}" data-vs-field="key_ascii" class="w-full bg-black/50 border border-white/10 rounded-lg p-2 text-xs font-mono text-white uppercase" value="${s.key_ascii || ''}" placeholder="SCALE_PIZZA">
+                        </div>
+                        <div class="col-span-2 flex items-end">
+                            <button onclick="window.ItemEditor._vsSave(${idx})" class="w-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg py-2 text-[9px] font-black uppercase hover:bg-emerald-500/30"><i class="fa-solid fa-floppy-disk"></i></button>
+                        </div>
+                    </div>
+                    <div class="space-y-1.5 mt-3" id="vs-opts-${idx}">
+                        ${(s.options || []).map((o, oi) => `
+                            <div class="grid grid-cols-12 gap-2 items-center bg-black/30 rounded-lg p-2">
+                                <input data-vs-idx="${idx}" data-vs-opt="${oi}" data-vs-field="name" class="col-span-3 bg-black/50 border border-white/5 rounded p-1.5 text-[11px] text-white" value="${o.name || ''}" placeholder="Mała">
+                                <input data-vs-idx="${idx}" data-vs-opt="${oi}" data-vs-field="key_ascii" class="col-span-2 bg-black/50 border border-white/5 rounded p-1.5 text-[11px] font-mono text-white uppercase" value="${o.key_ascii || ''}" placeholder="S">
+                                <input type="number" step="0.01" data-vs-idx="${idx}" data-vs-opt="${oi}" data-vs-field="multiplier" class="col-span-2 bg-black/50 border border-white/5 rounded p-1.5 text-[11px] text-white text-center" value="${o.multiplier ?? 1}" placeholder="1.0">
+                                <input type="number" data-vs-idx="${idx}" data-vs-opt="${oi}" data-vs-field="diameter_cm" class="col-span-2 bg-black/50 border border-white/5 rounded p-1.5 text-[11px] text-white text-center" value="${o.diameter_cm ?? ''}" placeholder="cm">
+                                <div class="col-span-1 text-[8px] text-slate-500 text-center">× recipe</div>
+                                <button onclick="window.ItemEditor._vsRemoveOpt(${idx}, ${oi})" class="col-span-2 bg-rose-500/10 border border-rose-500/20 rounded py-1.5 text-rose-400 text-[9px] font-black uppercase hover:bg-rose-500/20"><i class="fa-solid fa-trash"></i> Usuń</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <button onclick="window.ItemEditor._vsAddOpt(${idx})" class="mt-2 text-[9px] text-orange-300 hover:text-orange-200"><i class="fa-solid fa-plus"></i> dodaj opcję</button>
+                    <button onclick="window.ItemEditor._vsDelete(${idx})" class="mt-2 ml-3 text-[9px] text-rose-400 hover:text-rose-300"><i class="fa-solid fa-trash"></i> usuń skalę</button>
+                </div>
+            `).join('');
+
+            // Bind inputs to in-memory scales[] for autosave-on-action
+            root.querySelectorAll('input[data-vs-idx]').forEach(input => {
+                input.addEventListener('input', () => {
+                    const i = parseInt(input.dataset.vsIdx, 10);
+                    const oi = input.dataset.vsOpt !== undefined ? parseInt(input.dataset.vsOpt, 10) : null;
+                    const field = input.dataset.vsField;
+                    if (oi !== null) {
+                        scales[i].options[oi][field] = input.value;
+                    } else {
+                        scales[i][field] = input.value;
+                    }
+                });
+            });
+        };
+
+        window.ItemEditor._vsAddNew = () => {
+            scales.push({ id: 0, name: 'Nowa Skala', key_ascii: 'SCALE_NEW_' + Math.floor(Math.random()*1000), options: [{ name: 'Mała', key_ascii: 'S', multiplier: 0.7, display_order: 0 }] });
+            renderList();
+        };
+
+        // F-S1.2 — Presety
+        window.ItemEditor._vsAddPreset = () => {
+            const presets = [
+                { label: '🍕 Pizza 4 rozmiary (26/32/36/40 cm)', scale: { name: 'Rozmiary pizzy', key_ascii: 'SCALE_PIZZA_4',
+                    options: [
+                        { name: 'Mała (26 cm)', key_ascii: 'S', multiplier: 0.70, diameter_cm: 26, display_order: 0 },
+                        { name: 'Średnia (32 cm)', key_ascii: 'M', multiplier: 1.00, diameter_cm: 32, display_order: 1, is_default: 1 },
+                        { name: 'Duża (36 cm)', key_ascii: 'L', multiplier: 1.30, diameter_cm: 36, display_order: 2 },
+                        { name: 'XL (40 cm)', key_ascii: 'XL', multiplier: 1.60, diameter_cm: 40, display_order: 3 },
+                    ]
+                } },
+                { label: '🍕 Pizza 3 rozmiary (S/M/L)', scale: { name: 'Rozmiary pizzy S/M/L', key_ascii: 'SCALE_PIZZA_3',
+                    options: [
+                        { name: 'Mała', key_ascii: 'S', multiplier: 0.70, display_order: 0 },
+                        { name: 'Średnia', key_ascii: 'M', multiplier: 1.00, display_order: 1, is_default: 1 },
+                        { name: 'Duża', key_ascii: 'L', multiplier: 1.30, display_order: 2 },
+                    ]
+                } },
+                { label: '☕ Coffee S/M/L', scale: { name: 'Rozmiar kawy', key_ascii: 'SCALE_COFFEE',
+                    options: [
+                        { name: 'Small (180ml)', key_ascii: 'S', multiplier: 0.75, display_order: 0 },
+                        { name: 'Medium (250ml)', key_ascii: 'M', multiplier: 1.00, display_order: 1, is_default: 1 },
+                        { name: 'Large (350ml)', key_ascii: 'L', multiplier: 1.40, display_order: 2 },
+                    ]
+                } },
+                { label: '🥤 Napój 0.33/0.5/1.0L', scale: { name: 'Rozmiar napoju', key_ascii: 'SCALE_BEVERAGE',
+                    options: [
+                        { name: '0.33L', key_ascii: 'S033', multiplier: 0.33, display_order: 0 },
+                        { name: '0.5L', key_ascii: 'M050', multiplier: 0.50, display_order: 1, is_default: 1 },
+                        { name: '1.0L', key_ascii: 'L100', multiplier: 1.00, display_order: 2 },
+                    ]
+                } },
+                { label: '🍟 Frytki Standard/Duże', scale: { name: 'Rozmiar frytek', key_ascii: 'SCALE_FRIES',
+                    options: [
+                        { name: 'Standard', key_ascii: 'STD', multiplier: 1.00, display_order: 0, is_default: 1 },
+                        { name: 'Duże', key_ascii: 'L', multiplier: 1.50, display_order: 1 },
+                    ]
+                } },
+            ];
+
+            // Modal wyboru
+            const presetModal = document.createElement('div');
+            presetModal.className = 'fixed inset-0 z-[400] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4';
+            presetModal.innerHTML = `
+                <div class="bg-slate-900 border border-amber-500/40 rounded-2xl w-full max-w-lg overflow-hidden">
+                    <div class="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                        <h4 class="text-white font-black text-base">Wybierz preset skali</h4>
+                        <button onclick="this.closest('.fixed').remove()" class="text-slate-400 hover:text-white text-xl">×</button>
+                    </div>
+                    <div class="p-4 space-y-2 max-h-96 overflow-y-auto"></div>
+                </div>`;
+            const listBox = presetModal.querySelector('div.space-y-2');
+            presets.forEach(p => {
+                const btn = document.createElement('button');
+                btn.className = 'w-full bg-black/40 hover:bg-amber-500/15 border border-white/10 hover:border-amber-500/40 rounded-lg p-3 text-left transition';
+                btn.innerHTML = `
+                    <div class="text-white text-sm font-bold">${p.label}</div>
+                    <div class="text-slate-500 text-[10px] mt-1 font-mono">${p.scale.options.map(o => `${o.key_ascii}=${o.multiplier}`).join(' · ')}</div>`;
+                btn.onclick = () => {
+                    // Unikalność klucza: dopiszemy random sufiks jeśli istnieje
+                    let key = p.scale.key_ascii;
+                    if (scales.some(s => s.key_ascii === key)) {
+                        key = key + '_' + Math.floor(Math.random()*1000);
+                    }
+                    scales.push({ id: 0, name: p.scale.name, key_ascii: key, options: p.scale.options.map(o => ({ ...o })) });
+                    presetModal.remove();
+                    renderList();
+                };
+                listBox.appendChild(btn);
+            });
+            document.body.appendChild(presetModal);
+        };
+        window.ItemEditor._vsAddOpt = (i) => {
+            if (!scales[i].options) scales[i].options = [];
+            scales[i].options.push({ name: 'Nowy', key_ascii: 'NEW' + scales[i].options.length, multiplier: 1.0, display_order: scales[i].options.length });
+            renderList();
+        };
+        window.ItemEditor._vsRemoveOpt = (i, oi) => {
+            scales[i].options.splice(oi, 1);
+            renderList();
+        };
+        window.ItemEditor._vsSave = async (i) => {
+            const s = scales[i];
+            const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
+                action: 'save_variant_scale',
+                id: s.id || 0,
+                name: s.name,
+                key_ascii: s.key_ascii,
+                description: s.description || '',
+                options: s.options || []
+            });
+            if (r && r.success) {
+                alert('✅ Zapisano skalę.');
+                if (r.data && r.data.scale_id) scales[i].id = r.data.scale_id;
+                // Reload select w głównym widoku
+                this._loadVariantScalesIntoSelect(this._currentVariantScaleId);
+            } else {
+                alert('❌ ' + (r?.message || 'unknown'));
+            }
+        };
+        window.ItemEditor._vsDelete = async (i) => {
+            if (!confirm('Usunąć tę skalę?')) return;
+            const s = scales[i];
+            if (s.id) {
+                const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
+                    action: 'delete_variant_scale', id: s.id
+                });
+                if (!r || !r.success) { alert('❌ ' + (r?.message || 'unknown')); return; }
+            }
+            scales.splice(i, 1);
+            renderList();
+        };
+
+        renderList();
     }
 };

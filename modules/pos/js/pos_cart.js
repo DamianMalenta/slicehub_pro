@@ -91,6 +91,12 @@ const PosCart = (() => {
             lineTotalGrosze: unitPriceGrosze * qty,
             vatRate: _orderType === 'dine_in' ? item.vatDine : item.vatTake,
             comment,
+            // F-S3.2 (2026-05-11): propagacja meta combo do backendu.
+            comboMeta: item._isMealLine ? {
+                meal_id: item._mealId,
+                picks: item._mealPicks || [],
+                fixed_items: item._mealFixedItems || [],
+            } : null,
         });
         _emit();
     }

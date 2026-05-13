@@ -4,7 +4,7 @@
 > Jeśli coś jest tu napisane — to jest prawda. Jeśli nie ma — idź do `_docs/`, `database/migrations/` lub `core/`.
 > **NIGDY nie zgaduj.** Nigdy nie wymyślaj tabel, kolumn, akcji API. Nigdy nie zmieniaj struktury bazy bez wyraźnej zgody użytkownika.
 
-**Kompilacja:** 2026-05-04 (Hub-Centric Shell + Staff Fleet Presence + UI Kadry)
+**Kompilacja:** 2026-05-11 (F5 POS Integrity Pass: server-authoritative cart + reverse stock + temporal filter + F6 Geocoder Nominatim)
 **Źródła:** `START_TUTAJ.md`, `01_KONSTYTUCJA.md`, `02_ARCHITEKTURA.md`, `04_BAZA_DANYCH.md`, `05_INSTRUKCJA_FOTO_UPLOAD.md`, `18_BACKOFFICE_HR_LOGIC.md`, `19_HUB_AND_KIOSK.md`, `ustalenia.md`, `LEGACY_BUSINESS_LOGIC_EXTRACTION.md`, `OPTIMIZED_CORE_LOGIC_V2.md`, `.cursorrules`, migracje 001–044.
 
 ---

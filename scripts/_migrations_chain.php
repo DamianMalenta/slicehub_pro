@@ -57,4 +57,13 @@ return [
     '044_hr_advances.sql',
     '045_tenant_legal_profile.sql',
     '046_ksef_inbox.sql',
+    '047_order_geocoding.sql',
+    '048_variant_scales.sql',
+    '049_modifier_size_pricing.sql',
+    '050_meal_packages.sql',
+    '051_publication_status_normalize.sql',
+    '052_valid_from_to_datetime.sql',
+    '053_subrecipes.sql',
+    '054_order_line_combo_meta.sql',
+    '055_recipe_display_order.sql',
 ];

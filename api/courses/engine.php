@@ -72,6 +72,17 @@ try {
     // =========================================================================
     // Auto-migration: ensure delivery_status + cancellation_reason columns exist
     // =========================================================================
+    // F6 auto-heal: delivery_lat/delivery_lng/geocode_quality (migracja 047).
+    // Idempotentnie, żeby dispatcher SELECT z COALESCE(o.delivery_lat, o.lat) nie wybuchał.
+    try { $pdo->query("SELECT delivery_lat FROM sh_orders LIMIT 0"); }
+    catch (\Throwable $ignore) {
+        try { $pdo->exec("ALTER TABLE sh_orders ADD COLUMN delivery_lat DECIMAL(10,7) NULL"); } catch (\Throwable $ignore) {}
+        try { $pdo->exec("ALTER TABLE sh_orders ADD COLUMN delivery_lng DECIMAL(10,7) NULL"); } catch (\Throwable $ignore) {}
+        try { $pdo->exec("ALTER TABLE sh_orders ADD COLUMN geocode_provider VARCHAR(32) NULL"); } catch (\Throwable $ignore) {}
+        try { $pdo->exec("ALTER TABLE sh_orders ADD COLUMN geocode_quality VARCHAR(16) NULL"); } catch (\Throwable $ignore) {}
+        try { $pdo->exec("ALTER TABLE sh_orders ADD COLUMN geocoded_at DATETIME NULL"); } catch (\Throwable $ignore) {}
+    }
+
     $hasDeliveryStatus = false;
     try {
         $pdo->query("SELECT delivery_status FROM sh_orders LIMIT 0");
@@ -175,7 +186,12 @@ try {
                     o.grand_total, o.subtotal, o.delivery_fee, o.discount_amount,
                     o.payment_status, o.payment_method, o.tip_amount,
                     o.customer_name, o.customer_phone, o.delivery_address,
-                    o.lat, o.lng, o.promised_time,
+                    /* F6 (2026-05-11): preferuj `delivery_lat`/`delivery_lng` z geokodowania,
+                       fallback do legacy `lat`/`lng` (kolumny istnieją w schemacie od 001). */
+                    COALESCE(o.delivery_lat, o.lat) AS lat,
+                    COALESCE(o.delivery_lng, o.lng) AS lng,
+                    o.geocode_quality,
+                    o.promised_time,
                     o.driver_id, o.course_id, o.stop_number,
                     o.delivery_status,
                     o.created_at, o.updated_at

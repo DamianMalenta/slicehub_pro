@@ -55,6 +55,10 @@ window.Core = {
                         <button onclick="event.stopPropagation(); window.Core.addNewItem(${cat.id})" class="text-green-400 hover:text-white text-[10px] font-black uppercase">
                             <i class="fa-solid fa-plus"></i> Nowe
                         </button>
+                        <!-- F-S6 (2026-05-11): Kreator Nowej Pizzy (4-step) -->
+                        <button onclick="event.stopPropagation(); window.ItemEditor.openNewPizzaWizard()" class="text-orange-300 hover:text-orange-100 text-[10px] font-black uppercase" title="F-S6: 4-step wizard z wariantami rozmiaru">
+                            <i class="fa-solid fa-pizza-slice"></i> Pizza
+                        </button>
                     </div>
                 </div>
                 <div id="cat-items-${cat.id}" class="flex flex-col border-t border-white/5 transition-all">
