@@ -1,11 +1,19 @@
 -- ============================================================================
 -- SliceHub — Demo Data Fixture do nagrywania video (SPARK 3.0)
 -- ============================================================================
--- Tenant: 1 (domyślny po install_panel.php → Register owner)
 -- Wgranie: phpMyAdmin uti.pl → wybierz bazę → SQL → wklej całość → Wykonaj
 -- Może być uruchamiane wielokrotnie (cleanup na początku — idempotentne)
+--
+-- ⚠️ TENANT_ID ⚠️
+-- Sprawdź swój tenant_id ZANIM wkleisz! W phpMyAdmin → SQL:
+--     SELECT id, name, tenant_id FROM sh_users WHERE email = 'twoj_email_owner';
+-- Lub zobacz wszystkich userów: SELECT id, email, tenant_id FROM sh_users;
+--
+-- install_panel.php często tworzy tenant_id=1 jako "Demo Tenant" a ownera dodaje
+-- jako tenant_id=2. Niżej zmień @tid := 1 na właściwą wartość.
 -- ============================================================================
 
+-- TUTAJ wpisz tenant_id swojego ownera (z SELECT powyżej):
 SET @tid := 1;
 
 -- ============================================================================
