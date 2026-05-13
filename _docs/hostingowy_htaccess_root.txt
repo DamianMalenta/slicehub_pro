@@ -31,6 +31,13 @@ SetEnv SLICEHUB_DB_USER <TUTAJ_USER_BAZY>
 SetEnv SLICEHUB_DB_PASS <TUTAJ_HASLO_BAZY>
 SetEnv JWT_SECRET <TUTAJ_LOSOWY_CIAG_64_ZNAKI_HEX>
 
+# OPCJONALNIE: SLICEHUB_TENANT_ID — wymuś konkretny tenant dla tego hostingu.
+# Domyślnie tenant_config.php sam wykrywa pierwszego aktywnego tenanta z bazy
+# (auto-discovery). Ustaw poniższe TYLKO jeśli na jednej domenie hostujesz wielu
+# tenantów i chcesz forsować konkretnego, albo jeśli auto-discovery zwraca nie
+# tego, którego chcesz. Wartość = ID z tabeli sh_tenant (SELECT id, name FROM sh_tenant).
+# SetEnv SLICEHUB_TENANT_ID 2
+
 
 # =============================================================================
 # [2] REWRITE — Authorization header + alias /slicehub/
