@@ -4,13 +4,14 @@
 # Wgranie: menedżer plików hostingu → public_html/.htaccess
 #          (root domeny, NIE głębiej!)
 #
-# CO MUSISZ UZUPEŁNIĆ (sekcja [1]):
-#   - SLICEHUB_DB_NAME  ← nazwa Twojej bazy z panelu hostingu
-#   - SLICEHUB_DB_USER  ← użytkownik bazy
-#   - SLICEHUB_DB_PASS  ← hasło bazy
-#   - JWT_SECRET        ← losowy ciąg min. 32 znaki (np. openssl rand -hex 32)
+# CO MUSISZ UZUPEŁNIĆ — TYLKO 2 LINIJKI w sekcji [1]:
+#   - SLICEHUB_DB_PASS  ← hasło Twojego użytkownika bazy (linia 36)
+#   - JWT_SECRET        ← losowy 64-znakowy hex (wygeneruj: openssl rand -hex 32)
+#                          (linia 37)
 #
-# OSOBNO STWÓRZ PLIK `slicehub.net/core/local_secrets.php` z drugim kluczem
+# Reszta (DB_HOST/NAME/USER, TENANT_ID) jest już wypełniona pod Twoją instalację.
+#
+# OSOBNO STWÓRZ PLIK `core/local_secrets.php` z drugim kluczem
 # SLICEHUB_SCRIPT_KEY — szablon w pliku `local_secrets_template.php` w tym
 # samym folderze _docs/.
 #
@@ -19,24 +20,31 @@
 
 
 # =============================================================================
-# [1] DB CREDENTIALS + JWT — wstrzykiwane do PHP-FPM przez SetEnv
+# [1] DB CREDENTIALS + JWT + TENANT — wstrzykiwane do PHP-FPM przez SetEnv
 # -----------------------------------------------------------------------------
-# Czytane przez core/db_config.php (PDO connection + define JWT_SECRET).
-# Bez nich PHP fallbackuje na XAMPP defaulty (root / '') → 1045 Access denied.
+# Czytane przez core/db_config.php (PDO connection + define JWT_SECRET)
+# oraz tenant_config.php (poprawne ID tenant'a dla POS PIN login + meta tagi).
+# Bez DB-envów PHP fallbackuje na XAMPP defaulty (root / '') → 1045 Access denied.
 # =============================================================================
 
 SetEnv SLICEHUB_DB_HOST localhost
-SetEnv SLICEHUB_DB_NAME <TUTAJ_NAZWA_BAZY>
-SetEnv SLICEHUB_DB_USER <TUTAJ_USER_BAZY>
-SetEnv SLICEHUB_DB_PASS <TUTAJ_HASLO_BAZY>
-SetEnv JWT_SECRET <TUTAJ_LOSOWY_CIAG_64_ZNAKI_HEX>
+SetEnv SLICEHUB_DB_NAME slicehub_testA
+SetEnv SLICEHUB_DB_USER damian
 
-# OPCJONALNIE: SLICEHUB_TENANT_ID — wymuś konkretny tenant dla tego hostingu.
-# Domyślnie tenant_config.php sam wykrywa pierwszego aktywnego tenanta z bazy
-# (auto-discovery). Ustaw poniższe TYLKO jeśli na jednej domenie hostujesz wielu
-# tenantów i chcesz forsować konkretnego, albo jeśli auto-discovery zwraca nie
-# tego, którego chcesz. Wartość = ID z tabeli sh_tenant (SELECT id, name FROM sh_tenant).
-# SetEnv SLICEHUB_TENANT_ID 2
+# ⬇⬇⬇ UZUPEŁNIJ TE DWIE LINIJKI ⬇⬇⬇
+SetEnv SLICEHUB_DB_PASS <TUTAJ_TWOJE_HASLO_BAZY_17_ZNAKOW>
+SetEnv JWT_SECRET <TUTAJ_64_ZNAKI_HEX_Z_openssl_rand_hex_32>
+# ⬆⬆⬆ UZUPEŁNIJ TE DWIE LINIJKI ⬆⬆⬆
+
+# SLICEHUB_TENANT_ID — forsuje konkretnego tenant'a dla tego hostingu.
+# U Ciebie owner siedzi w tenant_id=2 (zmieniłeś z 1 wcześniej), więc ten
+# SetEnv jest WAŻNY — bez niego POS PIN login szukałby PIN-u w tenant_id=1
+# (hardcoded fallback) i zwracałby "Invalid credentials".
+#
+# Jeśli kiedyś założysz drugą instalację z innym tenant_id, zmień wartość poniżej.
+# Aby sprawdzić jaki masz tenant_id: w phpMyAdmin →
+#   SELECT id, name FROM sh_tenant WHERE COALESCE(is_deleted,0)=0;
+SetEnv SLICEHUB_TENANT_ID 2
 
 
 # =============================================================================
@@ -145,6 +153,14 @@ ServerSignature Off
     ExpiresByType image/svg+xml                     "access plus 30 days"
     ExpiresByType font/woff2                        "access plus 90 days"
 </IfModule>
+
+# tenant_config.php MUSI być świeży (każde wejście do modułu = sprawdź tenant)
+<FilesMatch "tenant_config\.php$">
+    <IfModule mod_headers.c>
+        Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+        Header set Pragma "no-cache"
+    </IfModule>
+</FilesMatch>
 
 # Service Workery muszą być zawsze świeże (krytyczne dla PWA POS/Online)
 <FilesMatch "sw\.js$">
