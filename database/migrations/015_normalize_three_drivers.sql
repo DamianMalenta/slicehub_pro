@@ -2,7 +2,7 @@
 -- Keeps usernames: driver_marek, driver_kasia, driver_tomek (PINs 1111 / 2222 / 3333).
 -- Removes other driver-role users and removes non-drivers from sh_drivers.
 
-USE slicehub_pro_v2;
+-- USE slicehub_pro_v2; -- removed (used to break deploys on non-default DB names)
 
 DELETE d FROM sh_driver_locations d
 WHERE d.tenant_id = 1

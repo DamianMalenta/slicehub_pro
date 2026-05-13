@@ -4,7 +4,7 @@
 -- Depends on: 001_init_slicehub_pro_v2.sql (sh_drivers, sh_users, sh_tenant)
 -- =============================================================================
 
-USE slicehub_pro_v2;
+-- USE slicehub_pro_v2; -- removed (used to break deploys on non-default DB names)
 
 CREATE TABLE IF NOT EXISTS sh_driver_locations (
   driver_id   BIGINT UNSIGNED NOT NULL,

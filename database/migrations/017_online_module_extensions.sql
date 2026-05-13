@@ -12,7 +12,7 @@
 -- Respects: tenant_id isolation, soft-delete, multi-tenancy.
 -- =============================================================================
 
-USE slicehub_pro_v2;
+-- USE slicehub_pro_v2; -- removed (used to break deploys on non-default DB names)
 SET NAMES utf8mb4;
 
 -- ---------------------------------------------------------------------------
