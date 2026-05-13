@@ -24,6 +24,18 @@
     const NS = (window.SliceHubPOS = window.SliceHubPOS || {});
     const LOG_PREFIX = '[SliceHub POS · SW]';
 
+    // ── BASE_PATH — dynamicznie wyliczany z aktualnego URL skryptu ────────
+    // Pozwala POS-owi działać zarówno pod /slicehub/modules/pos/ (XAMPP lokalnie)
+    // jak i pod /modules/pos/ (uti.pl i inne shared hostingi w root domeny).
+    // Bez tego hardcoded '/slicehub/...' import() i SW register fail na produkcji.
+    const SCRIPT_URL = (document.currentScript && document.currentScript.src) || '';
+    let BASE_PATH = '';
+    try {
+        const m = new URL(SCRIPT_URL).pathname.match(/^(.*?)\/modules\/pos\/js\/pos_sw_register\.js/);
+        if (m) BASE_PATH = m[1] || '';
+    } catch (e) { /* zostawiamy '' = root */ }
+    // BASE_PATH: '' na uti.pl, '/slicehub' na XAMPP — bez trailing slasha
+
     // ── Connectivity singleton ────────────────────────────────────────────
     const listeners = new Set();
     const state = {
@@ -284,7 +296,7 @@
     // jemy na window.SliceHubPOS.{store,sync} dla pos_app.js i debug konsoli.
     (async () => {
         try {
-            const storeMod = await import('/slicehub/modules/pos/js/PosLocalStore.js');
+            const storeMod = await import(BASE_PATH + '/modules/pos/js/PosLocalStore.js');
             const store = storeMod.PosLocalStore;
             await store.open();
             NS.store = store;
@@ -311,7 +323,7 @@
 
         // Sync Engine — tylko jeśli store się podniosło.
         try {
-            const engineMod = await import('/slicehub/modules/pos/js/PosSyncEngine.js');
+            const engineMod = await import(BASE_PATH + '/modules/pos/js/PosSyncEngine.js');
             const engine = engineMod.PosSyncEngine;
             NS.sync = engine;
 
@@ -365,7 +377,7 @@
         // P4 — PosApiOutbox replay loop (niezależny od sync.php — replayuje
         // mutacje przez oryginalne engine.php endpoints)
         try {
-            const outboxMod = await import('/slicehub/modules/pos/js/PosApiOutbox.js');
+            const outboxMod = await import(BASE_PATH + '/modules/pos/js/PosApiOutbox.js');
             const outbox = outboxMod.PosApiOutbox;
             NS.apiOutbox = outbox;
 
@@ -399,8 +411,8 @@
     window.addEventListener('load', async () => {
         try {
             const reg = await navigator.serviceWorker.register(
-                '/slicehub/modules/pos/sw.js',
-                { scope: '/slicehub/modules/pos/' }
+                BASE_PATH + '/modules/pos/sw.js',
+                { scope: BASE_PATH + '/modules/pos/' }
             );
             state.swReady = true;
             notify();

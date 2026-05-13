@@ -18,31 +18,39 @@
  * wszystkich klientów — `pos_sw_register.js` pokazuje toast z opcją reload.
  */
 
-const CACHE_VERSION = 'slicehub-pos-v5';
+const CACHE_VERSION = 'slicehub-pos-v6';
 const STATIC_CACHE  = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const API_CACHE     = `${CACHE_VERSION}-api`;
 
-const OFFLINE_URL = '/slicehub/modules/pos/offline.html';
+// BASE_PATH — dynamicznie wyliczany z URL aktualnego SW (self.location).
+// Pozwala POS-owi dzialac zarowno pod /slicehub/modules/pos/ (XAMPP lokalnie)
+// jak i pod /modules/pos/ (uti.pl i inne shared hostingi w root domeny).
+// self.location.pathname np. '/modules/pos/sw.js' lub '/slicehub/modules/pos/sw.js'.
+// BASE_PATH zwroci '' lub '/slicehub' (bez trailing slasha).
+const SW_DIR = self.location.pathname.replace(/\/sw\.js$/, ''); // /modules/pos lub /slicehub/modules/pos
+const BASE_PATH = SW_DIR.replace(/\/modules\/pos$/, '');         // '' lub '/slicehub'
+
+const OFFLINE_URL = BASE_PATH + '/modules/pos/offline.html';
 
 const PRECACHE = [
-    '/slicehub/modules/pos/index.html',
-    '/slicehub/modules/pos/offline.html',
-    '/slicehub/modules/pos/manifest.webmanifest',
-    '/slicehub/modules/pos/icon.svg',
-    '/slicehub/modules/pos/icon-maskable.svg',
-    '/slicehub/modules/pos/icons/shortcut-new.svg',
-    '/slicehub/modules/pos/screenshots/wide.svg',
-    '/slicehub/modules/pos/screenshots/narrow.svg',
-    '/slicehub/modules/pos/css/style.css',
-    '/slicehub/modules/pos/js/pos_app.js',
-    '/slicehub/modules/pos/js/pos_api.js',
-    '/slicehub/modules/pos/js/pos_ui.js',
-    '/slicehub/modules/pos/js/pos_cart.js',
-    '/slicehub/modules/pos/js/pos_sw_register.js',
-    '/slicehub/modules/pos/js/PosLocalStore.js',
-    '/slicehub/modules/pos/js/PosSyncEngine.js',
-    '/slicehub/modules/pos/js/PosApiOutbox.js',
+    BASE_PATH + '/modules/pos/index.html',
+    BASE_PATH + '/modules/pos/offline.html',
+    BASE_PATH + '/modules/pos/manifest.webmanifest',
+    BASE_PATH + '/modules/pos/icon.svg',
+    BASE_PATH + '/modules/pos/icon-maskable.svg',
+    BASE_PATH + '/modules/pos/icons/shortcut-new.svg',
+    BASE_PATH + '/modules/pos/screenshots/wide.svg',
+    BASE_PATH + '/modules/pos/screenshots/narrow.svg',
+    BASE_PATH + '/modules/pos/css/style.css',
+    BASE_PATH + '/modules/pos/js/pos_app.js',
+    BASE_PATH + '/modules/pos/js/pos_api.js',
+    BASE_PATH + '/modules/pos/js/pos_ui.js',
+    BASE_PATH + '/modules/pos/js/pos_cart.js',
+    BASE_PATH + '/modules/pos/js/pos_sw_register.js',
+    BASE_PATH + '/modules/pos/js/PosLocalStore.js',
+    BASE_PATH + '/modules/pos/js/PosSyncEngine.js',
+    BASE_PATH + '/modules/pos/js/PosApiOutbox.js',
 ];
 
 // Tylko read-only akcje API — pozwalamy na stale-while-revalidate. Mutacje
@@ -124,12 +132,12 @@ self.addEventListener('fetch', (event) => {
     if (url.origin !== self.location.origin) return;
 
     // POS operuje tylko w swoim scope — ignoruj reszty repo.
-    if (!url.pathname.startsWith('/slicehub/modules/pos/') &&
-        !url.pathname.startsWith('/slicehub/api/pos/') &&
-        !url.pathname.startsWith('/slicehub/api/tables/') &&
-        !url.pathname.startsWith('/slicehub/api/courses/') &&
-        !url.pathname.startsWith('/slicehub/api/orders/') &&
-        !url.pathname.startsWith('/slicehub/core/')) {
+    if (!url.pathname.startsWith(BASE_PATH + '/modules/pos/') &&
+        !url.pathname.startsWith(BASE_PATH + '/api/pos/') &&
+        !url.pathname.startsWith(BASE_PATH + '/api/tables/') &&
+        !url.pathname.startsWith(BASE_PATH + '/api/courses/') &&
+        !url.pathname.startsWith(BASE_PATH + '/api/orders/') &&
+        !url.pathname.startsWith(BASE_PATH + '/core/')) {
         return;
     }
 
@@ -139,7 +147,7 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    if (url.pathname.startsWith('/slicehub/api/')) {
+    if (url.pathname.startsWith(BASE_PATH + '/api/')) {
         event.respondWith(apiStrategy(request, url));
         return;
     }
@@ -161,7 +169,7 @@ async function navigateStrategy(request) {
         return res;
     } catch (_) {
         const cached = await caches.match(request, { ignoreSearch: true }) ||
-                       await caches.match('/slicehub/modules/pos/index.html');
+                       await caches.match(BASE_PATH + '/modules/pos/index.html');
         if (cached) return cached;
         const offline = await caches.match(OFFLINE_URL);
         if (offline) return offline;
