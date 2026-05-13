@@ -633,6 +633,17 @@ const PosApp = (() => {
     // ITEM CLICK → DISH CARD
     // =========================================================================
     function _onItemClick(item) {
+        // Defensive log — pozwala debugowac przypadki gdy kafelek nie reaguje na klik.
+        // Pojawia sie tylko gdy _onItemClick faktycznie zostal wywolany.
+        console.log('[POS] _onItemClick:', {
+            id: item?.id,
+            name: item?.name,
+            asciiKey: item?.ascii_key,
+            isVariantAmbassador: item?._isVariantAmbassador,
+            parentAsciiKey: item?.parentAsciiKey,
+            isMealPackage: item?._isMealPackage,
+        });
+
         if (_isCartLocked) { PosUI.toast('Koszyk zablokowany — wydrukowano paragon', 'error'); return; }
 
         // F-S3.1 (2026-05-11): kafelek combo otwiera meal wizard.
