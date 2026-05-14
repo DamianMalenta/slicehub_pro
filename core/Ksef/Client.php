@@ -67,7 +67,8 @@ class Client
     }
 
     /**
-     * Wczytaj config z sh_tenant_integrations (provider='ksef') + NIP tenanta.
+     * Wczytaj config z sh_tenant_integrations (provider='ksef') + NIP z sh_tenant
+     * (ten sam co w Backoffice → Profil firmy / pole „NIP”).
      */
     private function loadConfig(): void
     {
@@ -170,7 +171,7 @@ class Client
             return [
                 'success'     => false,
                 'environment' => $this->environment,
-                'message'     => 'Brak poprawnego NIP tenanta (10 cyfr) w sh_tenant.nip — wymagany do uwierzytelnienia KSeF API v2.',
+                'message'     => 'Brak poprawnego NIP (10 cyfr). Uzupełnij go w Backoffice → Profil firmy — wymagany do uwierzytelnienia KSeF API v2.',
             ];
         }
 
@@ -219,7 +220,7 @@ class Client
             return ['success' => false, 'invoices' => [], 'message' => 'Brak KSeF Token.'];
         }
         if ($this->tenantNip === null || strlen($this->tenantNip) !== 10) {
-            return ['success' => false, 'invoices' => [], 'message' => 'Brak NIP tenanta (sh_tenant.nip).'];
+            return ['success' => false, 'invoices' => [], 'message' => 'Brak NIP. Uzupełnij w Backoffice → Profil firmy.'];
         }
 
         $err = $this->ensureAccessToken();
@@ -292,7 +293,7 @@ class Client
             return ['success' => false, 'message' => 'Brak KSeF Token.'];
         }
         if ($this->tenantNip === null || strlen($this->tenantNip) !== 10) {
-            return ['success' => false, 'message' => 'Brak NIP tenanta (sh_tenant.nip).'];
+            return ['success' => false, 'message' => 'Brak NIP. Uzupełnij w Backoffice → Profil firmy.'];
         }
 
         $err = $this->ensureAccessToken();
@@ -362,7 +363,7 @@ class Client
         }
         $nip = $this->tenantNip;
         if ($nip === null || strlen($nip) !== 10) {
-            return 'Brak poprawnego NIP tenanta (10 cyfr) w sh_tenant.nip.';
+            return 'Brak poprawnego NIP (10 cyfr). Uzupełnij w Backoffice → Profil firmy.';
         }
 
         $certs = $this->httpRequest('GET', '/security/public-key-certificates', null, [], null);
