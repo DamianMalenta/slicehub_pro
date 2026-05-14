@@ -1471,6 +1471,20 @@ try {
                 throw new Exception("Brakujące lub nieprawidłowe dane przedmiotu (Nazwa, SKU, Kategoria).");
             }
 
+            // BUGFIX 2026-05-13: defensive check przed INSERT — friendly error gdy SKU duplicate.
+            // Zamiast lecieć w PDO Duplicate Entry → "Internal server error", od razu user-friendly.
+            // Tylko dla add_item; update_item_full ma własną logikę bo edytuje istniejący rekord.
+            if ($action === 'add_item') {
+                $stmtChkSku = $pdo->prepare(
+                    "SELECT id, name FROM sh_menu_items WHERE tenant_id = ? AND ascii_key = ? AND is_deleted = 0 LIMIT 1"
+                );
+                $stmtChkSku->execute([$tenant_id, $asciiKey]);
+                $existingItem = $stmtChkSku->fetch(PDO::FETCH_ASSOC);
+                if ($existingItem) {
+                    throw new Exception("Pozycja z SKU '{$asciiKey}' juz istnieje w menu (nazwa: '{$existingItem['name']}', id: {$existingItem['id']}). Zmien nazwe pozycji w kreatorze albo edytuj istniejaca.");
+                }
+            }
+
             $pdo->beginTransaction();
 
             try {
@@ -3230,13 +3244,45 @@ try {
             throw new Exception("Nieznana akcja API: [{$unknown}] - Prawdopodobnie stara wersja JS!");
     }
 } catch (Exception $e) {
+    // Defensive rollback — jesli ktoras case'a beginTransaction() i wyleci wyjatek,
+    // global catch musi cleanup'nac transakcje. Bez tego kolejne requesty failuja
+    // z "There is already an active transaction" albo zostawiaja partial INSERTs.
+    if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
+        try { $pdo->rollBack(); } catch (Throwable $rbErr) { error_log('[MenuStudio] rollback fail: ' . $rbErr->getMessage()); }
+    }
+
     $response['success'] = false;
     $response['data'] = null;
     $msg = $e->getMessage();
+
+    // Defensive: rozpoznaj typowe blledy i zwroc user-friendly komunikat zamiast "Internal server error".
+    // (1) Duplicate UNIQUE — najczestszy przypadek, np. 'PIZZA_DIAVOLA' juz istnieje (poprzedni test).
+    // (2) FK constraint — np. categoryId nie istnieje, parent_item_id nie istnieje.
+    // (3) NOT NULL violation — brakujace wymagane pole.
+    $friendlyMsg = null;
+    if ($e instanceof PDOException || str_contains($msg, 'SQLSTATE')) {
+        if (preg_match("/Duplicate entry '([^']+)' for key '([^']+)'/i", $msg, $m)) {
+            $key = $m[2];
+            $val = $m[1];
+            if (str_contains(strtolower($key), 'ascii') || str_contains(strtolower($key), 'sku')) {
+                $friendlyMsg = "SKU '{$val}' juz istnieje w menu — zmien nazwe pozycji albo edytuj istniejaca.";
+            } elseif (str_contains(strtolower($key), 'barcode')) {
+                $friendlyMsg = "Kod kreskowy '{$val}' juz istnieje. Pozycje moga miec rozne kody.";
+            } else {
+                $friendlyMsg = "Wartosc '{$val}' juz istnieje w polu '{$key}'. Zmien dane.";
+            }
+        } elseif (preg_match('/foreign key constraint fails.*REFERENCES `?(\w+)`?/i', $msg, $m)) {
+            $friendlyMsg = "Powiazany rekord w tabeli '{$m[1]}' nie istnieje. Sprawdz wybrana kategorie/dostawce/parent.";
+        } elseif (str_contains($msg, "doesn't have a default value") || preg_match("/Column '([^']+)' cannot be null/i", $msg, $m)) {
+            $col = $m[1] ?? '?';
+            $friendlyMsg = "Brak wymaganej wartosci w polu '{$col}'. Wypelnij wszystkie wymagane pola.";
+        }
+    }
+
     $isBizLogic = !($e instanceof PDOException)
                && !str_contains($msg, 'SQLSTATE')
                && !str_contains($msg, 'Base table');
-    $response['message'] = $isBizLogic ? $msg : 'Internal server error.';
+    $response['message'] = $friendlyMsg ?: ($isBizLogic ? $msg : 'Internal server error.');
     error_log('[MenuStudio] ' . $msg . ' in ' . $e->getFile() . ':' . $e->getLine());
 }
 
