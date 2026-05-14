@@ -1,5 +1,9 @@
 # Sesja 2026-05-14 — KSeF inbox: etykiety statusów, sortowanie, kategorie kosztów
 
+## Uwaga (współistnienie z migracją 057)
+
+Gdy w bazie są kolumny `sh_ksef_invoice_lines.line_type` oraz `expense_category_id` (migracja `057_ksef_line_opex_expense_categories.sql`), akcja `set_cost_category` w `api/procurement/inbox.php` zwraca odpowiedź z kodem `USE_LINE_OPEX` (HTTP 400). Model nagłówkowy z tej sesji (m056) dotyczy instancji **bez** tych kolumn; podział kosztów per linia opisuje `_docs/sessions/2026-05-14_ksef_opex_line_types.md`.
+
 ## Cel
 
 - Polskie nazwy statusów w UI (`draft` → Nowe, `rejected` → Odrzucone).

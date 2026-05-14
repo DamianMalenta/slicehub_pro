@@ -287,7 +287,8 @@ Shared CSS dla wszystkich modułów: safe-area-inset, viewport-fit, mobilne nawi
 | Ścieżka | Opis |
 |---------|------|
 | `procurement/suggest.php` | AutoScan endpoint — action-based: `suggest`, `suggest_bulk`, `learn`, `learn_bulk`, `threshold_get`, `threshold_set`. RBAC: suggest = owner/admin/manager, learn = owner/manager, threshold_set = owner. Audit do `sh_settings_audit`. Fundament pod F3 (Procurement Inbox UI) + F4 (KSeF API client). |
-| `procurement/inbox.php` (F3 · 2026-05-11, rozszerzony F4.5) | KSeF Inbox endpoint — action-based: `list`, `show`, `upload_xml`, `reparse`, `update_line`, `accept`, `reject` + **F4.5**: `smart_create_sku` (tworzy nowy `sys_items` + auto-mapping), `reverse` (owner-only — KOR dokument + reverse magazynu + status→draft). RBAC granularny. Audit do `sh_settings_audit`. |
+| `procurement/inbox.php` (F3 · 2026-05-11, F4.5, 057 · 2026-05-14) | KSeF Inbox — action-based: `list`, `show`, `upload_xml`, `reparse`, `update_line`, `set_cost_category`, `accept`, `reject`, `smart_create_sku`, `reverse`. **F4.5:** `smart_create_sku`, `reverse` (owner-only, KOR + magazyn lub cofnięcie bez PZ). **m057:** przy istniejących kolumnach `line_type` / `expense_category_id` na `sh_ksef_invoice_lines` — `accept` / `update_line` / `reparse` (AutoScan tylko dla `INVENTORY`) oraz `set_cost_category` → kod `USE_LINE_OPEX`. RBAC + audyt `sh_settings_audit`. |
+| `procurement/expense_categories.php` (2026-05-14 · m057) | Słownik `sh_expense_categories` — akcje: `list`, `create`, `update`, `delete` (POST JSON, `tenant_id` z JWT). Usunięcie rekordu z `is_system = 1` → HTTP 403. |
 | `procurement/ksef_config.php` (NEW · F4 · 2026-05-11) | KSeF konfiguracja — action-based: `config_get`, `config_save` (owner-only, token przez CredentialVault), `test_connection` (real HTTP do sandbox/prod albo mock), `poll_now` (manual trigger), `state`, `toggle_auto_poll` (włącz/wyłącz worker). |
 
 #### Utility

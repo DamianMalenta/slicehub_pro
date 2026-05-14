@@ -1,5 +1,7 @@
 # Sesja 2026-05-14 — KSeF Inbox: linie INVENTORY vs EXPENSE + słownik OPEX
 
+> **Status wdrożenia:** scalone do `main` (commit `71a0e3f`).
+
 ## Cel
 
 - Rozdzielić linie faktury KSeF: **INVENTORY** (jak dotychczas → PzEngine / PZ) oraz **EXPENSE** (tag + kategoria OPEX, bez magazynu i bez wpływu na AVCO).

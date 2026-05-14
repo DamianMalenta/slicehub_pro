@@ -87,6 +87,7 @@
 **sh_orders.channel:** `pos` · `online`
 **sh_orders.order_type:** `dine_in` · `takeaway` · `delivery`
 **sh_orders.course_id / stop_number:** wypełniane po dispatch (np. `K1`, `L1`)
+**sh_orders.commission_amount:** grosze — kolumna z migracji `057_ksef_line_opex_expense_categories.sql` (domyślnie `0`).
 
 ---
 
