@@ -36,6 +36,7 @@
     Moduł wymaga roli <strong>owner</strong> / <strong>admin</strong> / <strong>manager</strong>.
 </div>
 <div id="pi-error-banner" class="pi-banner pi-banner--error hidden"></div>
+<div id="pi-success-banner" class="pi-banner pi-banner--ok hidden"></div>
 
 <main class="pi-main">
 
@@ -111,6 +112,9 @@
         <footer class="pi-modal-footer">
             <button type="button" class="pi-btn pi-btn--ghost" id="pi-modal-rescan">
                 <i class="fa-solid fa-arrows-rotate"></i> Rescan AutoScan
+            </button>
+            <button type="button" class="pi-btn pi-btn--ghost" id="pi-modal-save" title="Zapisz przypisania SKU do linii (status faktury bez zmian)">
+                <i class="fa-solid fa-floppy-disk"></i> Zapisz zmiany
             </button>
             <div class="pi-spacer"></div>
             <button type="button" class="pi-btn pi-btn--danger" id="pi-modal-reject">
