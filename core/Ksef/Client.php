@@ -229,16 +229,15 @@ class Client
         }
 
         $fromIso = $this->buildDateFrom($sinceDate);
+        // Subject2 = faktury, gdzie uwierzytelniony podmiot jest Podmiotem 2 (nabywca).
+        // MF: przy Subject2 identyfikator nabywcy pochodzi z kontekstu JWT — nie wolno
+        // przekazywać buyerIdentifier (21405: buyer musi być null).
         $body = [
             'subjectType' => 'Subject2',
             'dateRange'   => [
                 'dateType' => 'Invoicing',
                 'from'     => $fromIso,
                 'to'       => null,
-            ],
-            'buyerIdentifier' => [
-                'type'  => 'Nip',
-                'value' => $this->tenantNip,
             ],
         ];
 
