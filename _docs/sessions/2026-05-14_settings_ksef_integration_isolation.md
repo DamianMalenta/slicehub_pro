@@ -1,23 +1,24 @@
-# Sesja: Settings — izolacja wpisu `provider=ksef`
+# Sesja: Settings — KSeF widoczny + szablon bez Papu
 
 ## Cel
 
-Zapobiec sytuacji, w której zapis KSeF z modułu Inbox (`sh_tenant_integrations`, `provider=ksef`) pojawia się w Settings → Integrations, a formularz edycji (dropdown bez `ksef`) przy zapisie nadpisuje provider (np. na Papu).
+- Nie ukrywać rekordu `provider=ksef` w Settings (wspólna tabela pod inbox i **przyszły** wysył faktur).
+- Zapobiec przypadkowemu otwarciu formularza POS z dropdownem bez `ksef` (ryzyko nadpisania providera na Papu).
 
 ## Pliki dotknięte
 
 | Plik | Zmiana |
 |------|--------|
-| `api/settings/engine.php` | Lista integracji filtruje `provider <> 'ksef'`; odpowiedź z `ksef_integration_present`; blokada UPDATE wiersza ksef, INSERT z `provider=ksef`, toggle i test_ping dla ksef. |
-| `modules/settings/js/settings_app.js` | Baner informacyjny gdy `ksef_integration_present`. |
-| `_docs/sessions/2026-05-14_settings_ksef_integration_isolation.md` | Ten plik (Prawo XII). |
+| `api/settings/engine.php` | Lista znów zwraca wszystkie integracje; `provider_labels` z etykietą `ksef`; usunięto filtr SQL i blokady toggle/test_ping; zachowano blokadę `integrations_save` dla wiersza `ksef` i INSERT `provider=ksef`. |
+| `modules/settings/js/settings_app.js` | Karta `st-card--ksef`, przycisk „Szczegóły” + modal z linkiem do Inbox KSeF; `Edit` / formularz POS nie otwiera się dla `ksef`; dropdown edycji tylko z `available_providers`. |
+| `modules/settings/css/style.css` | Styl `.st-card--ksef`. |
 
 ## Decyzje architektoniczne
 
-- **Jedno źródło prawdy dla KSeF:** mutacja credentials / environment pozostaje w `api/procurement/ksef_config.php`.
-- **Settings:** tylko adaptery z `AdapterRegistry` (+ `custom` / `webhook`); rekord `ksef` jest ukryty przed listą i chroniony przed przypadkową mutacją z tego panelu.
-- **Usuwanie:** `integrations_delete` dla `ksef` nie jest blokowane (np. wywołanie API / skrypt administracyjny); z UI i tak nie da się trafić w ukryty wiersz.
+- **Token / środowisko:** nadal wyłącznie `ksef_config.php` (Inbox); Settings tylko podgląd + link.
+- **Etykieta:** `provider_labels['ksef']` z PHP — jedna prawda dla listy kart.
+- **Outbound:** ten sam rekord `sh_tenant_integrations`; UI wyśle/rozwinie się później bez zmiany sensu listy.
 
 ## Otwarte pytania
 
-- Czy w Inbox KSeF dodać jawny „usuń integrację” (DELETE wiersza `ksef`) — dziś brak w UI.
+- Czy `Client` / worker mają respektować `is_active` na wierszu `ksef` (dziś `Client` tego nie czyta).

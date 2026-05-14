@@ -199,6 +199,11 @@ body {
     gap: 14px;
     align-items: center;
 }
+/* KSeF — wyróżnienie względem kart POS (ten sam rekord co Inbox KSeF). */
+.st-card--ksef {
+    border-left: 3px solid rgba(34, 211, 238, 0.75);
+    background: linear-gradient(90deg, rgba(34, 211, 238, 0.07) 0%, var(--panel) 56px);
+}
 .st-card__main h3 {
     margin: 0 0 4px;
     font-size: 15px;
