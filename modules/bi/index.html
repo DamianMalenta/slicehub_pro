@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0e14">
+    <meta name="sh-tenant-id" content="1">
+    <script src="/tenant_config.php"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>SliceHub — BI P&amp;L</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="../ui_shell/sh_mobile_shell.css">
+    <style>
+        body { font-family: Inter, system-ui, sans-serif; background: linear-gradient(165deg, #0a0e14 0%, #111827 45%, #0f172a 100%); min-height: 100vh; color: #e5e7eb; }
+        .glass { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(12px); border-radius: 1rem; }
+        .alert-86 { color: #ef4444; font-weight: 700; }
+    </style>
+</head>
+<body class="p-4 md:p-8 pb-24">
+
+<header class="glass max-w-6xl mx-auto mb-6 px-4 py-3 flex flex-wrap items-center gap-4 justify-between">
+    <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+            <i class="fa-solid fa-chart-line"></i>
+        </div>
+        <div>
+            <h1 class="text-lg font-semibold text-white">BI — P&amp;L</h1>
+            <p class="text-xs text-gray-400">Przychód, Prime Cost, OPEX, zysk operacyjny</p>
+        </div>
+    </div>
+    <nav class="flex flex-wrap gap-2 text-sm">
+        <a href="../hub/index.html" class="px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition">Hub</a>
+        <a href="../procurement/index.html" class="px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition">KSeF</a>
+    </nav>
+</header>
+
+<div id="bi-auth-banner" class="max-w-6xl mx-auto mb-4 px-4 py-3 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-100 text-sm hidden">
+    Zaloguj się w <strong>Hub</strong> (konto <strong>owner</strong> lub <strong>admin</strong>), aby wczytać dane.
+</div>
+<div id="bi-error" class="max-w-6xl mx-auto mb-4 px-4 py-3 rounded-lg border border-red-500/40 bg-red-500/10 text-red-200 text-sm hidden"></div>
+
+<section class="max-w-6xl mx-auto mb-6 flex flex-wrap items-end gap-4 glass px-4 py-4">
+    <div>
+        <label class="block text-xs text-gray-400 mb-1" for="bi-start">Od</label>
+        <input id="bi-start" type="date" class="rounded-lg bg-black/30 border border-white/10 px-3 py-2 text-gray-100">
+    </div>
+    <div>
+        <label class="block text-xs text-gray-400 mb-1" for="bi-end">Do</label>
+        <input id="bi-end" type="date" class="rounded-lg bg-black/30 border border-white/10 px-3 py-2 text-gray-100">
+    </div>
+    <button type="button" id="bi-btn-load" class="mt-5 px-4 py-2 rounded-lg bg-emerald-600/80 hover:bg-emerald-600 text-white font-medium border border-emerald-500/30">
+        <i class="fa-solid fa-rotate mr-2"></i>Odśwież
+    </button>
+</section>
+
+<main id="bi-main" class="max-w-6xl mx-auto space-y-6 hidden">
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4" id="bi-cards"></div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <section class="glass p-4">
+            <h2 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                <i class="fa-solid fa-water text-sky-400"></i> Capital flow
+            </h2>
+            <ul id="bi-flow" class="space-y-2 text-sm"></ul>
+        </section>
+        <section class="glass p-4">
+            <h2 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                <i class="fa-solid fa-tags text-violet-400"></i> OPEX wg kategorii
+            </h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left">
+                    <thead>
+                        <tr class="text-gray-400 border-b border-white/10">
+                            <th class="py-2 pr-2">Kategoria</th>
+                            <th class="py-2 text-right">Netto</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bi-opex-body"></tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+</main>
+
+<script src="js/bi_app.js" defer></script>
+</body>
+</html>
