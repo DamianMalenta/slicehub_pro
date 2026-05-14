@@ -6,6 +6,13 @@
 
 `POST /invoices/query/metadata` z `subjectType: Subject2`: pole **`buyerIdentifier` nie może być ustawione** — nabywca wynika z kontekstu JWT po uwierzytelnieniu. Wcześniejsze wysłanie NIP w body powodowało HTTP 400 (`buyer` must be null). W `Client::queryInbox` usunięto `buyerIdentifier` z payloadu.
 
+## Poprawka (zakres dat, paginacja, timeout)
+
+- Pierwszy poll używał tylko **14 dni** wstecz i **jednej strony** (50 rekordów) — starsze faktury oraz nadmiar pozycji w oknie nie trafiały do SliceHuba.
+- Domyślnie: **`from` maks. 90 dni wstecz** (bezpiecznie w limicie MF ok. 3 mies.), z **clamp** gdy worker podaje starsze `sinceDate` (szeroki zakres → obcięcie do 90 dni, żeby MF nie zwracał błędu zakresu).
+- **Paginacja** `pageOffset` / `hasMore` (strona po 100, do 100 stron = 10 000 rekordów).
+- **Timeout cURL** podniesiony do **90 s** (pierwsze pobranie wielu stron + auth).
+
 ## Cel
 
 Zastąpienie martwego kontraktu API 1.0 (`ksef*.mf.gov.pl/api/online/…`, nagłówek `SessionToken`) oficjalnym **KSeF API v2** (`api*.ksef.mf.gov.pl/v2`), tak aby ten sam `core/Ksef/Client.php` obsługiwał sandbox i produkcję z tokenem z portalu oraz **kontekstem NIP** tenanta, bez osobnego modułu równoległego.

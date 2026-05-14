@@ -51,7 +51,15 @@ class Client
     /** Token KSeF z portalu MF (pole `token` w credentials). */
     private ?string $token = null;
     private string $baseUrl = '';
-    private int $timeout = 30;
+    /** Timeout cURL (s) — pierwsze pobranie metadanych + wiele stron może trwać dłużej niż 30 s. */
+    private int $timeout = 90;
+
+    /** MF: maks. okres zapytania metadata ~3 mies.; bezpiecznie 90 dni wstecz od „teraz”. */
+    private const METADATA_MAX_RANGE_DAYS = 90;
+    /** Rozmiar strony /invoices/query/metadata (MF: 10–250). */
+    private const METADATA_PAGE_SIZE = 100;
+    /** Zabezpieczenie przed nieskończoną pętlą (100 × 100 = 10 000 zgodnie z limitem przycinania MF). */
+    private const METADATA_MAX_PAGES = 100;
 
     private ?string $tenantNip = null;
 
@@ -205,7 +213,7 @@ class Client
     /**
      * Lista faktur (metadata). ref_id = numer KSeF (ksefNumber) — używany przez worker i deduplikację.
      *
-     * @param string|null $sinceDate Y-m-d — dolna granica zakresu (Invoicing); null = ostatnie 14 dni
+     * @param string|null $sinceDate Y-m-d — dolna granica zakresu (Invoicing); null = maks. okres wstecz (90 dni, limit MF)
      * @param string|null $lastSeenId zapisany cursor (legacy API 1.0) — ignorowany w v2; deduplikacja po stronie DB
      * @return array{success:bool, invoices: list<array{ref_id:string, supplier_nip:string, invoice_number:string, issue_date:string}>, message?:string}
      */
@@ -228,7 +236,7 @@ class Client
             return ['success' => false, 'invoices' => [], 'message' => $err];
         }
 
-        $fromIso = $this->buildDateFrom($sinceDate);
+        $fromIso = $this->buildMetadataDateFrom($sinceDate);
         // Subject2 = faktury, gdzie uwierzytelniony podmiot jest Podmiotem 2 (nabywca).
         // MF: przy Subject2 identyfikator nabywcy pochodzi z kontekstu JWT — nie wolno
         // przekazywać buyerIdentifier (21405: buyer musi być null).
@@ -241,40 +249,50 @@ class Client
             ],
         ];
 
-        $query = [
-            'sortOrder'  => 'Asc',
-            'pageOffset' => 0,
-            'pageSize'   => 50,
-        ];
-
-        $res = $this->requestWithAccessToken('POST', '/invoices/query/metadata', $body, $query);
-        if ($res['code'] !== 200) {
-            return ['success' => false, 'invoices' => [], 'message' => $this->formatHttpFailure('POST /invoices/query/metadata', $res)];
-        }
-        $json = $res['json'];
-        if (!is_array($json)) {
-            return ['success' => false, 'invoices' => [], 'message' => 'Invalid JSON response (metadata)'];
-        }
-
         $invoices = [];
-        foreach (($json['invoices'] ?? []) as $inv) {
-            if (!is_array($inv)) {
-                continue;
-            }
-            $ksefNo = (string) ($inv['ksefNumber'] ?? '');
-            if ($ksefNo === '') {
-                continue;
-            }
-            $seller = $inv['seller'] ?? [];
-            $sellerNip = is_array($seller) ? (string) ($seller['nip'] ?? '') : '';
-            $nipNorm = self::normalizeNip($sellerNip);
-            $invoices[] = [
-                'ref_id'         => $ksefNo,
-                'supplier_nip'   => $nipNorm ?? $sellerNip,
-                'invoice_number' => (string) ($inv['invoiceNumber'] ?? ''),
-                'issue_date'     => (string) ($inv['issueDate'] ?? ''),
+        $pageOffset = 0;
+        for ($page = 0; $page < self::METADATA_MAX_PAGES; $page++) {
+            $query = [
+                'sortOrder'  => 'Asc',
+                'pageOffset' => $pageOffset,
+                'pageSize'   => self::METADATA_PAGE_SIZE,
             ];
+
+            $res = $this->requestWithAccessToken('POST', '/invoices/query/metadata', $body, $query);
+            if ($res['code'] !== 200) {
+                return ['success' => false, 'invoices' => [], 'message' => $this->formatHttpFailure('POST /invoices/query/metadata', $res)];
+            }
+            $json = $res['json'];
+            if (!is_array($json)) {
+                return ['success' => false, 'invoices' => [], 'message' => 'Invalid JSON response (metadata)'];
+            }
+
+            foreach (($json['invoices'] ?? []) as $inv) {
+                if (!is_array($inv)) {
+                    continue;
+                }
+                $ksefNo = (string) ($inv['ksefNumber'] ?? '');
+                if ($ksefNo === '') {
+                    continue;
+                }
+                $seller = $inv['seller'] ?? [];
+                $sellerNip = is_array($seller) ? (string) ($seller['nip'] ?? '') : '';
+                $nipNorm = self::normalizeNip($sellerNip);
+                $invoices[] = [
+                    'ref_id'         => $ksefNo,
+                    'supplier_nip'   => $nipNorm ?? $sellerNip,
+                    'invoice_number' => (string) ($inv['invoiceNumber'] ?? ''),
+                    'issue_date'     => (string) ($inv['issueDate'] ?? ''),
+                ];
+            }
+
+            $hasMore = !empty($json['hasMore']);
+            if (!$hasMore) {
+                break;
+            }
+            $pageOffset += self::METADATA_PAGE_SIZE;
         }
+
         return ['success' => true, 'invoices' => $invoices];
     }
 
@@ -697,12 +715,31 @@ class Client
         return "{$ctx}: HTTP {$code} — {$snippet}";
     }
 
-    private function buildDateFrom(?string $sinceDate): string
+    /**
+     * Dolna granica `dateRange.from` dla Invoicing — nie szersza niż MF (~3 mies.) i nie w przyszłość.
+     */
+    private function buildMetadataDateFrom(?string $sinceDate): string
     {
+        $now = time();
+        $maxBack = self::METADATA_MAX_RANGE_DAYS * 86400;
+
         if (is_string($sinceDate) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $sinceDate)) {
-            return $sinceDate . 'T00:00:00';
+            $fromTs = strtotime($sinceDate . 'T00:00:00');
+            if ($fromTs === false) {
+                $fromTs = $now - $maxBack;
+            }
+        } else {
+            $fromTs = $now - $maxBack;
         }
-        return date('Y-m-d', strtotime('-14 days')) . 'T00:00:00';
+
+        if ($now - $fromTs > $maxBack) {
+            $fromTs = $now - $maxBack;
+        }
+        if ($fromTs > $now) {
+            $fromTs = $now - 86400;
+        }
+
+        return date('Y-m-d', $fromTs) . 'T00:00:00';
     }
 
     private static function normalizeNip(string $nip): ?string
