@@ -1,8 +1,8 @@
 # Audyt fundamentów BI: sprzedaż, AVCO, HR, KSeF → PZ
 
 **Typ:** READ-ONLY (analiza kodu i schematu, bez zmian w aplikacji).  
-**Data:** 2026-05-14  
-**Zakres (rozszerzony po drugiej weryfikacji kodu):** `api/pos/engine.php`, `api/orders/checkout.php`, `api/online/engine.php`, `api/tables/engine.php`, `api/orders/accept.php`, `api/gateway/intake.php`, silos zamówień (`sh_*`), `core/PzEngine.php`, `core/WzEngine.php`, HR (`HrClockEngine`, `api/backoffice/hr/engine.php`, worker payroll), `api/procurement/inbox.php` (akcja `accept`).
+**Data:** 2026-05-14 · **Aktualizacja KSeF / inbox:** zsynchronizowana z aktualnym `api/procurement/inbox.php` (stan repozytorium po zmianach użytkownika).  
+**Zakres (rozszerzony po drugiej weryfikacji kodu):** `api/pos/engine.php`, `api/orders/checkout.php`, `api/online/engine.php`, `api/tables/engine.php`, `api/orders/accept.php`, `api/gateway/intake.php`, silos zamówień (`sh_*`), `core/PzEngine.php`, `core/WzEngine.php`, HR (`HrClockEngine`, `api/backoffice/hr/engine.php`, worker payroll), **`api/procurement/inbox.php`** (pełny router KSeF Inbox + `core/Ksef/InboxInvoiceRepository.php`).
 
 ---
 
@@ -118,6 +118,8 @@ Oba prowadzą do **jednej** funkcji `WzEngine::consumeForOrder` na to samo `orde
 
 Oprócz **PZ** (`PzEngine`) i **WZ** (`WzEngine`) w repo występują m.in. **`InwEngine`** (inwentaryzacja), **`MmEngine`** (przesunięcia), **`KorEngine`** / **`WarehouseReverseHook`** (korekty, cofanie zużycia). Dla BI stanów i AVCO zmiany pochodzą z **sumy wpływów wszystkich typów dokumentów**; dla **COGS sprzedaży** sensowne jest węższe filtrowanie: **`type = 'WZ'`** i powiązanie z `wh_documents.order_id` (gdy wypełnione).
 
+**Dokumenty `KOR` z KSeF Inbox (`reverse`):** osobna ścieżka w `api/procurement/inbox.php` — **nie** jest to ten sam kod co `KorEngine`; służy do **cofnięcia ilości** po przyjęciu PZ z faktury, bez pełnego odtworzenia krzywej AVCO w `wh_stock` (patrz §4.2).
+
 **Ryzyko wielokrotnego WZ na jedno zamówienie:** w schemacie `wh_documents` jest **`order_id`** bez unikalnego indeksu `(tenant_id, type, order_id)` — `WzEngine` **nie sprawdza** „czy WZ już istnieje”; idempotencja opiera się na tym, że **drugie** `accept` nie przejdzie stanu w `OrderStateMachine`. Raporty COGS powinny mieć straż: **1 aktywny WZ na `order_id`** lub suma z deduplikacją po `order_id`+`doc_number`.
 
 ---
@@ -162,29 +164,49 @@ Oprócz **PZ** (`PzEngine`) i **WZ** (`WzEngine`) w repo występują m.in. **`In
 
 ---
 
-## 4. KSeF i zakupy (Procurement) → PzEngine
+## 4. KSeF i zakupy (Procurement) — `api/procurement/inbox.php`
 
-### 4.1 Endpoint
+Router **action-based** (JSON `action`), auth przez `auth_guard.php` (`tenant_id`, `user_id`). Destrukcyjne operacje loguje **`inboxAudit()`** → `sh_settings_audit` (`entity_type = 'ksef_invoice'`, `action` np. `ksef_accept`, `before_json` może być NULL).
 
-`api/procurement/inbox.php` — akcja **`accept`** (role: `owner`, `manager`).
+### 4.1 RBAC (role z `sh_users.role`)
 
-### 4.2 Przepływ `accept` → `PzEngine`
+| Akcja | Dozwolone role |
+|--------|----------------|
+| `list`, `show`, `upload_xml` | `owner`, `admin`, `manager` |
+| `reparse`, `update_line`, `accept`, `reject`, `smart_create_sku` | `owner`, `manager` |
+| **`reverse`** | **`owner`** wyłącznie |
 
-1. Wczytanie `sh_ksef_invoices` + linii `sh_ksef_invoice_lines` (`qty`, `unit_net`, `vat_rate`, `resolved_sku` — **wszystkie linie muszą mieć SKU**).
-2. Zbudowanie tablicy `$pzLines[]`:
-   - `quantity` ← `(float) qty`
-   - `unit_net_cost` ← `(float) unit_net`
-   - `vat_rate` ← `(float) vat_rate`
-   - `external_name`, `resolved_sku`
-3. Wywołanie **`PzEngine::processReceipt($pdo, $tenant_id, $warehouseId, { supplier_name, supplier_invoice, lines }, (string)$user_id)`**.
-4. Aktualizacja nagłówka faktury: `status = 'accepted'`, `linked_wh_document_id = doc_id` PZ, `processed_at`, `processed_by_user_id`.
-5. Audyt: `inboxAudit(..., 'ksef_accept', ...)`.
+### 4.2 Katalog akcji (aktualny kod)
 
-**Wniosek:** linie KSeF są **1:1 mapowane** na payload PZ; **nie ma** w tym kroku osobnej ścieżki „tylko OPEX” — wszystko wchodzi do magazynu jako PZ na rozwiązane **SKU** (`sys_items` / `wh_stock`).
+| `action` | Zachowanie skrótowo |
+|----------|---------------------|
+| **`list`** | Lista `sh_ksef_invoices` (m.in. `total_gross_minor`, `status`, `status_message`, `linked_wh_document_id`, daty) + **`stats`**: `COUNT(*)` grupowane po `status` (liczniki UI). |
+| **`show`** | Nagłówek + linie z `sh_ksef_invoice_lines` (kandydaci matchowania dekodowane z JSON do pola `match_candidates`). **`xml_blob` jest usuwany** z odpowiedzi; `parsed_json` zwracany jako tablica PHP. Prog **auto-accept** AutoScan: `sh_tenant_settings.setting_key = 'autoscan_auto_accept_threshold'` lub domyślny z `AutoScanEngine::DEFAULT_AUTO_ACCEPT_THRESHOLD`. |
+| **`upload_xml`** | Parse FA(2) przez `SliceHub\Ksef\Parser`; **walidacja NIP nabywcy** w XML vs `sh_tenant.nip` (gdy tenant ma NIP); duplikat `(tenant_id, numer FA, cyfry NIP dostawcy)` → HTTP **409** `DUPLICATE_INVOICE` albo **`duplicate_resolution: replace`** (zablokowane dla `accepted` oraz gdy `linked_wh_document_id` ustawione). Zapis atomowy: **`InboxInvoiceRepository::insertInvoiceWithLines`** (status początkowy **`draft`**, XML + `parsed_json`, sumy z parsera), potem **`inboxRescanLines`** = `AutoScanEngine::match` per linia. Audyt: `ksef_upload` / przy replace `ksef_upload_replace`. |
+| **`reparse`** | Ponowny `inboxRescanLines`; zabronione gdy faktura już `accepted`. |
+| **`update_line`** | Ręczne `resolved_sku`; **walidacja**: SKU musi istnieć w **`sys_items`** (`tenant_id`, `is_deleted=0`, `is_active=1`). `match_type = 'MANUAL'`, `resolved_by_user_id`. |
+| **`accept`** | Wszystkie linie muszą mieć `resolved_sku` → payload **`PzEngine::processReceipt`** (jak wcześniej: `qty`→`quantity`, `unit_net`→`unit_net_cost`, `supplier_name` / `invoice_number` z nagłówka). UPDATE faktury: `status='accepted'`, `linked_wh_document_id`, `processed_at`, `processed_by_user_id`. Audyt: `ksef_accept`. |
+| **`smart_create_sku`** | Tworzy brakujący **`sys_items`** (SKU, nazwa, `base_unit`), przypisuje linię (`MANUAL`), **`INSERT IGNORE` do `sh_product_mapping`** (external_name → SKU). Transakcja DB. Audyt: `ksef_smart_create`. |
+| **`reverse`** | Tylko `status === 'accepted'` i jest `linked_wh_document_id`. Tworzy dokument magazynowy **`wh_documents.type = 'KOR'`** (numer `KOR/YYYY/mm/dd/#####`), linie ujemne w `wh_document_lines`, **`UPDATE wh_stock` quantity −= ilość z linii PZ** (cofnięcie przyjęcia), `wh_stock_logs` z `document_type='KOR'`. Faktura wraca do **`status='draft'`**, `linked_wh_document_id = NULL`, `status_message` opisuje KOR. Audyt: `ksef_reverse`. **Uwaga BI / magazyn:** logika jest **uproszczona** (komentarz w kodzie: bez `KorEngine`); **nie przelicza `wh_stock.current_avco_price` wstecz** — tylko korekta **ilości**. Raporty kosztu partii / AVCO po reverse mogą wymagać osobnej polityki lub raportu „różnice AVCO”. |
+| **`reject`** | `status='rejected'`, `rejected_reason`, `processed_*`; tylko jeśli status nie był `accepted`. Audyt: `ksef_reject`. |
+| *(default)* | `UNKNOWN_ACTION` |
 
-### 4.3 Tabele KSeF (nagłówek i linie)
+**Funkcje pomocnicze w pliku:** `inboxFindDuplicateInvoice`, `inboxRescanLines` (per-linia `AutoScanEngine::match`, nie `matchBulk` mimo komentarza w nagłówku pliku — **implementacja = pętla `match`**).
 
-`sh_ksef_invoices` (m.in. `total_net_minor`, `total_vat_minor`, `total_gross_minor`, `xml_blob`, `status`, `linked_wh_document_id`), `sh_ksef_invoice_lines` (m.in. `external_name`, `qty`, `unit_net`, `line_net_minor`, `vat_rate`, pola matchowania AutoScan).
+### 4.3 Zapis faktury z XML — `InboxInvoiceRepository::insertInvoiceWithLines`
+
+Wspólna ścieżka INSERT nagłówka + wszystkich linii z tablicy `$parsed['lines']` (pola m.in. `line_no`, `external_name`, `gtu_code`, `pkwiu`, `unit`, `qty`, `unit_net`, `line_net_minor`, `vat_rate`). Używana przez **upload** (i potencjalnie worker KSeF — zgodnie z docblockiem repozytorium).
+
+### 4.4 `accept` → `PzEngine` (bez zmian kontraktu)
+
+Mapowanie linii KSeF → payload PzEngine pozostaje: `external_name`, `resolved_sku`, `quantity` ← `qty`, `unit_net_cost` ← `unit_net`, `vat_rate`. Nagłówek PZ: `supplier_name`, `supplier_invoice` ← `invoice_number`.
+
+### 4.5 Tabele i powiązania (BI)
+
+- **`sh_ksef_invoices`**, **`sh_ksef_invoice_lines`** — źródło prawdy dla faktur zakupowych przed i po akceptacji; `linked_wh_document_id` → **`wh_documents.id`** (PZ z `PzEngine`).
+- **`sys_items`** — walidacja i smart-create SKU (silos `sys_`).
+- **`sh_product_mapping`** — uczenie aliasów nazw zewnętrznych → SKU (efekt sieciowy przy kolejnych fakturach).
+- **`wh_documents`** / **`wh_document_lines`** / **`wh_stock`** / **`wh_stock_logs`** — PZ z `accept`; dodatkowo dokumenty **`KOR`** przy `reverse`.
 
 ---
 
@@ -255,6 +277,8 @@ Faktury zaakceptowane do PZ zwiększają magazyn i AVCO; **nie cały zakup jest 
 
 Praktyczny wariant startowy: **OPEX\_approx** = suma `total_net_minor` zaakceptowanych faktur minus suma netto linii zmapowanych na SKU sklasyfikowane jako „food inventory”.
 
+**Status faktury:** do raportów zakupowych/OPEX brać pod uwagę **`status`** (`accepted` vs `draft` po **`reverse`**) oraz istnienie **`linked_wh_document_id`** — faktura w `draft` po wycofaniu nie powinna być liczona podwójnie z pierwotnym PZ i dokumentem **KOR**.
+
 ### 5.6 Zysk netto operacyjny (uproszczony realtime)
 
 W modelu jednej waluty (PLN) i bez pełnego CIT/ZUS w czasie rzeczywistym:
@@ -271,6 +295,7 @@ gdzie **Commissions** — jeśli brak w DB, import z paneli agregatorów lub sza
 - **POS vs gateway:** spójność `discount_amount` / `delivery_fee` między ścieżkami — w raportach należy ujednolicić źródło prawdy (preferencyjnie `CartEngine` + nagłówek zamówienia).
 - **KSeF → tylko PZ:** paliwo/prąd wchodzą jako PZ na SKU; **klasyfikacja kont** musi być warstwą referencyjną BI, nie jest wbudowana w `accept`.
 - **Pipeline zakup → sprzedaż:** PZ (KSeF lub ręczny) **zwiększa stan i przesuwa AVCO**; WZ przy akceptacji zamówienia **pomniejsza stan** i generuje koszt w `wh_document_lines`. **Nie** dodawać do OPEX pełnej wartości faktury zakupowej **i** jednocześnie pełnego COGS z WZ dla tych samych surowców — OPEX z KSeF dotyczy pozycji **nie** przechodzących przez ten łańcuch (np. usługi, paliwo sklasyfikowane jako poza COGS) albo okresów, gdy zużycie nie jest śledzone WZ.
+- **KSeF `reverse`:** faktura wraca do **`draft`** i powstaje dokument **`KOR`** — w raportach zakupowych liczyć albo okres **accepted**, albo wyłączać / oznaczać anulowane PZ (i brać pod uwagę, że **AVCO może nie wrócić** do wartości sprzed PZ — tylko ilość jest cofnięta w `reverse`, patrz §4.2).
 
 ---
 
@@ -281,7 +306,7 @@ gdzie **Commissions** — jeśli brak w DB, import z paneli agregatorów lub sza
 | POS / zamówienia | `api/pos/engine.php`, `api/tables/engine.php`, `api/orders/checkout.php`, `api/online/engine.php`, `api/cart/CartEngine.php`, `api/gateway/intake.php`, `api/orders/accept.php`, `core/OrderStateMachine.php` |
 | Magazyn / AVCO / zużycie | `core/PzEngine.php`, `core/WzEngine.php`, `core/WarehouseConsumeHook.php`, `core/WarehouseReverseHook.php`, `core/InwEngine.php`, `core/MmEngine.php`, `core/KorEngine.php`, `core/FoodCostEngine.php` |
 | HR / payroll | `core/HrClockEngine.php`, `api/backoffice/hr/engine.php`, `scripts/worker_payroll_accrual.php`, `core/PayrollLedger.php`, `core/PayrollEngine.php`, `core/TeamPayrollEngine.php` |
-| KSeF / PZ | `api/procurement/inbox.php`, `core/AutoScanEngine.php` |
+| KSeF / PZ / reverse | `api/procurement/inbox.php`, `core/Ksef/Parser.php`, `core/Ksef/InboxInvoiceRepository.php`, `core/PzEngine.php`, `core/AutoScanEngine.php` |
 
 ---
 
@@ -292,10 +317,10 @@ gdzie **Commissions** — jeśli brak w DB, import z paneli agregatorów lub sza
 | Przychód | Uzupełniono: checkout, online, `open_table`. | `grand_total` vs \(\sum line\_total\) + `delivery_fee`. | Przychód: **`grand_total`**; VAT z linii; sprawdzać nagłówek vs linie tam, gdzie gateway/checkout zapisują `delivery_fee` / `discount_amount`. |
 | VAT | — | Sumowanie VAT z linii **i** z zewnętrznej faktury dla tej samej sprzedaży. | Jedno źródło prawdy dla sprzedaży wewnętrznej: **`sh_order_lines.vat_amount`**. |
 | COGS | Uzupełniono: Inw/Mm/Kor, brak UNIQUE WZ/order. | Dwa dokumenty WZ na jedno `order_id`; WZ + `FoodCostEngine` w jednym wierszu P&L. | Dedup po `order_id`; wybrać **albo** WZ **albo** koszt teoretyczny. |
-| Zakup / KSeF | — | Suma faktur KSeF (OPEX) + suma PZ jako „zakup” + COGS z WZ z tych samych SKU w tym samym okresie bez alokacji. | OPEX z faktur tylko dla pozycji **nie** mapowanych na magazyn żywnościowy **albo** wyłącznie różnica / koszt okresu wg polityki (§5.5). |
+| Zakup / KSeF | Uzupełniono: `reverse`, `smart_create_sku`, `InboxInvoiceRepository`, walidacja NIP nabywcy, `update_line`→`sys_items`. | Faktura `accepted`+PZ vs po **`reverse`** (`draft`+`KOR`); suma nagłówków faktur + PZ + KOR bez reguły net effect; OPEX+COGS jak wcześniej. | Status `sh_ksef_invoices` + `linked_wh_document_id`; **KOR** z inbox jako korekta **ilości**; AVCO po reverse — osobna polityka (§4.2); OPEX wg §5.5. |
 | Labor | Uzupełniono: `PayrollEngine` / `TeamPayrollEngine`. | Ledger + raport „na żywo” z `sh_work_sessions` × stawka + `preview_earnings`. | Koszt okresu: **`sh_payroll_ledger`** `work_earnings` (po workerze). |
 | Płatności | — | `SUM(sh_order_payments)` jako przychód. | To **wpływy**, nie przychód księgowy — stosować tylko w raportach cash; przychód z `sh_orders`. |
 
 ---
 
-*Koniec raportu (z uzupełnieniem po drugiej weryfikacji kodu).*
+*Koniec raportu (w tym pełny opis KSeF Inbox zgodny z `api/procurement/inbox.php`).*
