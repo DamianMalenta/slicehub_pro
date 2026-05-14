@@ -6,7 +6,7 @@
  *   1. User dragguje FA(2) XML do dropzone → readAsText → POST upload_xml.
  *   2. Lista invoices ładuje się przez `list` action (stats badge).
  *   3. Klik na row → modal z `show` action: invoice + lines + match.
- *   4. Per linia: wybór SKU — zapis przez **Zapisz zmiany** (update_line) lub automatycznie przed Rescan / Akceptuj.
+ *   4. Per linia: combobox SKU (wyszukiwarka + lista) — zapis przez **Zapisz zmiany** lub przed Rescan / Akceptuj.
  *   5. Klik "Akceptuj" → `accept` action → PzEngine utworzy PZ → stany rosną.
  */
 (function () {
@@ -25,8 +25,11 @@
         currentInvoice: null,
         currentLines: [],
         threshold: 70,
-        skuOptions: [], // dla select-ów per linia (cache sys_items)
+        skuOptions: [], // dla comboboxów SKU (cache sys_items)
     };
+
+    /** Pływająca lista SKU (poza overflow modala) */
+    const skuDropdown = { host: null, activeCombo: null, reposition: null };
 
     // -------------------------------------------------------------------------
     // API
@@ -92,27 +95,263 @@
         return n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' zł';
     }
 
+    function flashModalFeedback(msg, kind) {
+        const fb = $('#pi-modal-feedback');
+        if (!fb) return;
+        fb.textContent = msg;
+        fb.classList.remove('hidden', 'pi-modal-feedback--ok', 'pi-modal-feedback--err');
+        fb.classList.add(kind === 'err' ? 'pi-modal-feedback--err' : 'pi-modal-feedback--ok');
+        clearTimeout(fb._t);
+        fb._t = setTimeout(() => {
+            fb.classList.add('hidden');
+            fb.textContent = '';
+        }, 5500);
+    }
+
     function showError(msg) {
+        const modalOpen = $('#pi-modal-backdrop') && !$('#pi-modal-backdrop').classList.contains('hidden');
+        if (modalOpen) {
+            flashModalFeedback(msg, 'err');
+            return;
+        }
         const el = $('#pi-error-banner');
         el.textContent = msg;
         el.classList.remove('hidden');
         $('#pi-success-banner').classList.add('hidden');
-        setTimeout(() => el.classList.add('hidden'), 6000);
+        clearTimeout(el._t);
+        el._t = setTimeout(() => el.classList.add('hidden'), 6000);
     }
 
     function showSuccess(msg) {
+        const modalOpen = $('#pi-modal-backdrop') && !$('#pi-modal-backdrop').classList.contains('hidden');
+        if (modalOpen) {
+            flashModalFeedback(msg, 'ok');
+            return;
+        }
         const el = $('#pi-success-banner');
         el.textContent = msg;
         el.classList.remove('hidden');
         $('#pi-error-banner').classList.add('hidden');
-        setTimeout(() => el.classList.add('hidden'), 5000);
+        clearTimeout(el._t);
+        el._t = setTimeout(() => el.classList.add('hidden'), 5000);
+    }
+
+    function normSearch(s) {
+        return String(s || '')
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '');
+    }
+
+    function skuOptionLabel(o) {
+        return `${o.name} [${o.sku}] · ${o.unit || ''}`.trim();
+    }
+
+    function findSkuOption(sku) {
+        const s = String(sku || '').trim();
+        return state.skuOptions.find(o => o.sku === s) || null;
+    }
+
+    function filterSkuOptions(q) {
+        const n = normSearch(q);
+        const list = state.skuOptions;
+        if (!Array.isArray(list) || list.length === 0) return [];
+        if (!n) return list.slice(0, 60);
+        const out = [];
+        for (const o of list) {
+            const hay = normSearch(`${o.sku} ${o.name} ${o.unit || ''}`);
+            if (hay.includes(n)) out.push(o);
+            if (out.length >= 100) break;
+        }
+        return out;
+    }
+
+    function getSkuDropdownHost() {
+        let el = document.getElementById('pi-sku-global-dropdown');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'pi-sku-global-dropdown';
+            el.className = 'hidden';
+            document.body.appendChild(el);
+        }
+        return el;
+    }
+
+    function closeSkuDropdown() {
+        if (skuDropdown.activeCombo) {
+            skuDropdown.activeCombo.classList.remove('pi-sku-combo-open');
+        }
+        const host = skuDropdown.host || document.getElementById('pi-sku-global-dropdown');
+        if (host) host.classList.add('hidden');
+        skuDropdown.activeCombo = null;
+        skuDropdown.host = null;
+        if (skuDropdown.reposition) {
+            window.removeEventListener('scroll', skuDropdown.reposition, true);
+            window.removeEventListener('resize', skuDropdown.reposition);
+            skuDropdown.reposition = null;
+        }
+    }
+
+    function positionSkuDropdown(combo, host) {
+        const wrap = combo.querySelector('.pi-sku-combo-wrap');
+        if (!wrap || !host) return;
+        const rect = wrap.getBoundingClientRect();
+        const pad = 6;
+        let top = rect.bottom + 4;
+        let maxH = window.innerHeight - top - pad;
+        if (maxH < 100) {
+            maxH = Math.max(120, rect.top - pad * 2);
+            top = Math.max(pad, rect.top - maxH - 4);
+        } else {
+            maxH = Math.min(320, maxH);
+        }
+        host.style.top = top + 'px';
+        host.style.left = Math.max(pad, rect.left) + 'px';
+        host.style.width = Math.max(260, rect.width) + 'px';
+        host.style.maxHeight = maxH + 'px';
+    }
+
+    function renderSkuDropdownContent(combo, query) {
+        const list = filterSkuOptions(query);
+        const host = getSkuDropdownHost();
+        if (list.length === 0) {
+            host.innerHTML = '<div class="pi-sku-dd-empty">Brak wyników — zmień wpis lub utwórz SKU (+ Nowy)</div>';
+            return;
+        }
+        host.innerHTML = list.map(o => `
+            <button type="button" class="pi-sku-dd-item" data-sku="${escapeHtml(o.sku)}">
+                <span class="pi-sku-dd-name">${escapeHtml(o.name)}</span>
+                <span class="pi-sku-dd-meta">[${escapeHtml(o.sku)}] · ${escapeHtml(o.unit || '')}</span>
+            </button>
+        `).join('');
+        host.querySelectorAll('.pi-sku-dd-item').forEach(btn => {
+            btn.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                applySkuToCombo(combo, btn.getAttribute('data-sku') || '');
+                closeSkuDropdown();
+            });
+        });
+    }
+
+    function bindSkuDropdownReposition(combo, host) {
+        const fn = () => {
+            if (skuDropdown.activeCombo !== combo || host.classList.contains('hidden')) return;
+            positionSkuDropdown(combo, host);
+        };
+        skuDropdown.reposition = fn;
+        window.addEventListener('scroll', fn, true);
+        window.addEventListener('resize', fn);
+    }
+
+    function openSkuDropdown(combo, query) {
+        closeSkuDropdown();
+        const host = getSkuDropdownHost();
+        skuDropdown.host = host;
+        skuDropdown.activeCombo = combo;
+        combo.classList.add('pi-sku-combo-open');
+        renderSkuDropdownContent(combo, query);
+        positionSkuDropdown(combo, host);
+        host.classList.remove('hidden');
+        bindSkuDropdownReposition(combo, host);
+    }
+
+    function updateComboPickedDisplay(combo) {
+        const valEl = combo.querySelector('.pi-sku-combo-value');
+        const row = combo.querySelector('.pi-sku-combo-picked');
+        const txt = combo.querySelector('.pi-sku-combo-picked-text');
+        const sku = (valEl && valEl.value ? valEl.value : '').trim();
+        if (!sku) {
+            row.classList.add('hidden');
+            txt.textContent = '';
+            return;
+        }
+        const o = findSkuOption(sku);
+        txt.textContent = o ? skuOptionLabel(o) : sku;
+        row.classList.remove('hidden');
+    }
+
+    function syncComboDirty(combo) {
+        const sku = (combo.querySelector('.pi-sku-combo-value').value || '').trim();
+        const orig = (combo.dataset.originalSku || '').trim();
+        combo.classList.toggle('pi-sku-combo--dirty', sku !== '' && sku !== orig);
+    }
+
+    function applySkuToCombo(combo, sku) {
+        const valEl = combo.querySelector('.pi-sku-combo-value');
+        const search = combo.querySelector('.pi-sku-combo-search');
+        valEl.value = String(sku || '').trim();
+        if (search) search.value = '';
+        updateComboPickedDisplay(combo);
+        syncComboDirty(combo);
+        updateModalSaveButtonState();
+    }
+
+    function attachSkuCombos(root) {
+        root.querySelectorAll('.pi-sku-combo').forEach(combo => {
+            const valEl = combo.querySelector('.pi-sku-combo-value');
+            const search = combo.querySelector('.pi-sku-combo-search');
+            const chev = combo.querySelector('.pi-sku-combo-chev');
+            const clearBtn = combo.querySelector('.pi-sku-combo-clear');
+            updateComboPickedDisplay(combo);
+            syncComboDirty(combo);
+
+            clearBtn.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                valEl.value = '';
+                search.value = '';
+                combo.classList.remove('pi-sku-combo-open');
+                closeSkuDropdown();
+                updateComboPickedDisplay(combo);
+                syncComboDirty(combo);
+                updateModalSaveButtonState();
+            });
+
+            search.addEventListener('focus', () => {
+                openSkuDropdown(combo, search.value.trim());
+            });
+
+            search.addEventListener('input', () => {
+                const q = search.value.trim();
+                if (skuDropdown.activeCombo === combo) {
+                    renderSkuDropdownContent(combo, q);
+                    positionSkuDropdown(combo, getSkuDropdownHost());
+                } else {
+                    openSkuDropdown(combo, q);
+                }
+            });
+
+            chev.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                const host = document.getElementById('pi-sku-global-dropdown');
+                if (skuDropdown.activeCombo === combo && host && !host.classList.contains('hidden')) {
+                    closeSkuDropdown();
+                } else {
+                    search.focus();
+                    openSkuDropdown(combo, search.value.trim());
+                }
+            });
+        });
+    }
+
+    function handleGlobalSkuMouseDown(e) {
+        const host = document.getElementById('pi-sku-global-dropdown');
+        if (!host || host.classList.contains('hidden')) return;
+        if (e.target.closest('#pi-sku-global-dropdown')) return;
+        if (e.target.closest('.pi-sku-combo')) return;
+        closeSkuDropdown();
+    }
+
+    function handleGlobalSkuKeydown(e) {
+        if (e.key === 'Escape') closeSkuDropdown();
     }
 
     function hasPendingLineSkuChanges() {
         let any = false;
-        $$('#pi-modal-body .pi-sku-select').forEach(sel => {
-            const sku = sel.value.trim();
-            const orig = (sel.dataset.originalSku || '').trim();
+        $$('#pi-modal-body .pi-sku-combo').forEach(combo => {
+            const sku = (combo.querySelector('.pi-sku-combo-value').value || '').trim();
+            const orig = (combo.dataset.originalSku || '').trim();
             if (sku !== '' && sku !== orig) any = true;
         });
         return any;
@@ -138,10 +377,10 @@
         const inv = state.currentInvoice;
         if (!inv) return { ok: false, saved: 0, message: 'Brak faktury.' };
         const pending = [];
-        $$('#pi-modal-body .pi-sku-select').forEach(sel => {
-            const lineId = parseInt(sel.dataset.lineId, 10);
-            const sku = sel.value.trim();
-            const orig = (sel.dataset.originalSku || '').trim();
+        $$('#pi-modal-body .pi-sku-combo').forEach(combo => {
+            const lineId = parseInt(combo.dataset.lineId, 10);
+            const sku = (combo.querySelector('.pi-sku-combo-value').value || '').trim();
+            const orig = (combo.dataset.originalSku || '').trim();
             if (sku === '' || sku === orig) return;
             pending.push({ lineId, sku });
         });
@@ -240,6 +479,7 @@
     // Modal — open / render
     // -------------------------------------------------------------------------
     async function openInvoice(invoiceId) {
+        closeSkuDropdown();
         const r = await api('show', { invoice_id: invoiceId });
         if (!r.success) {
             showError(r.message || 'Nie udało się załadować szczegółów.');
@@ -254,6 +494,12 @@
     }
 
     function closeModal() {
+        closeSkuDropdown();
+        const fb = $('#pi-modal-feedback');
+        if (fb) {
+            fb.classList.add('hidden');
+            fb.textContent = '';
+        }
         $('#pi-modal-backdrop').classList.add('hidden');
         state.currentInvoice = null;
         state.currentLines = [];
@@ -262,6 +508,12 @@
     function renderInvoiceDetails() {
         const inv = state.currentInvoice;
         const lines = state.currentLines;
+
+        const fb = $('#pi-modal-feedback');
+        if (fb) {
+            fb.classList.add('hidden');
+            fb.textContent = '';
+        }
 
         $('#pi-modal-title').textContent = inv.invoice_number || 'Faktura';
         $('#pi-modal-sub').textContent =
@@ -276,10 +528,6 @@
         const unresolved = lines.filter(l => !l.resolved_sku).length;
         const isAccepted = inv.status === 'accepted';
         const isRejected = inv.status === 'rejected';
-
-        const skuOptionsHtml = state.skuOptions.map(o =>
-            `<option value="${escapeHtml(o.sku)}">${escapeHtml(o.name)} [${escapeHtml(o.sku)}] · ${escapeHtml(o.unit)}</option>`
-        ).join('');
 
         let html = `
             <div class="pi-detail-grid">
@@ -314,6 +562,19 @@
         lines.forEach(l => {
             const skuValue = l.resolved_sku || '';
             const isAutoAccept = (l.match_confidence || 0) >= state.threshold;
+            const skuCellInner = isAccepted
+                ? `<span class="pi-line-sku">${escapeHtml(skuValue || '?')}</span>`
+                : `<div class="pi-sku-combo" data-line-id="${l.id}" data-original-sku="${escapeHtml(skuValue)}">
+                    <div class="pi-sku-combo-picked hidden">
+                        <span class="pi-sku-combo-picked-text"></span>
+                        <button type="button" class="pi-sku-combo-clear" title="Wyczyść wybór" aria-label="Wyczyść">×</button>
+                    </div>
+                    <div class="pi-sku-combo-wrap">
+                        <input type="text" class="pi-sku-combo-search" placeholder="Szukaj nazwy lub SKU…" autocomplete="off" spellcheck="false" />
+                        <button type="button" class="pi-sku-combo-chev" aria-label="Rozwiń listę"><i class="fa-solid fa-chevron-down"></i></button>
+                    </div>
+                    <input type="hidden" class="pi-sku-combo-value" value="${escapeHtml(skuValue)}" />
+                </div>`;
             html += `
                 <tr data-line-id="${l.id}">
                     <td style="color:#64748b">${l.line_no}</td>
@@ -328,14 +589,7 @@
                         <span class="pi-match-pill pi-match-pill--${l.match_type || 'NONE'}">${l.match_type || 'NONE'} ${l.match_confidence || 0}%</span>
                         ${isAutoAccept && skuValue && l.match_type !== 'MANUAL' ? '<div style="color:#86efac;font-size:0.65rem;margin-top:2px"><i class="fa-solid fa-check"></i> auto</div>' : ''}
                     </td>
-                    <td>
-                        ${isAccepted ? `<span class="pi-line-sku">${escapeHtml(skuValue || '?')}</span>` :
-                            `<select class="pi-sku-select" data-line-id="${l.id}" data-original-sku="${escapeHtml(skuValue)}"
-                                ${isAccepted ? 'disabled' : ''}>
-                                <option value="">— wybierz SKU —</option>
-                                ${skuOptionsHtml.replace(new RegExp('value="' + escapeHtml(skuValue).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '"'), m => m + ' selected')}
-                            </select>`}
-                    </td>
+                    <td class="pi-sku-cell">${skuCellInner}</td>
                 </tr>
             `;
         });
@@ -351,16 +605,7 @@
 
         $('#pi-modal-body').innerHTML = html;
 
-        // Wire SKU select — oznacz niezapisane; zapis dopiero „Zapisz zmiany” / Rescan / Akceptuj
-        $$('#pi-modal-body .pi-sku-select').forEach(sel => {
-            sel.addEventListener('change', () => {
-                const orig = (sel.dataset.originalSku || '').trim();
-                const sku = sel.value.trim();
-                if (sku !== '' && sku !== orig) sel.classList.add('pi-sku-select--dirty');
-                else sel.classList.remove('pi-sku-select--dirty');
-                updateModalSaveButtonState();
-            });
-        });
+        attachSkuCombos($('#pi-modal-body'));
 
         // Lock buttons gdy accepted/rejected
         $('#pi-modal-accept').disabled = isAccepted || isRejected;
@@ -391,7 +636,7 @@
             const line = lines.find(l => l.id === lineId);
             if (!line || isAccepted) return;
             if ((line.match_type === 'NONE' || !line.resolved_sku) && !tr.querySelector('.pi-smart-create-btn')) {
-                const skuCell = tr.querySelector('td:last-child');
+                const skuCell = tr.querySelector('.pi-sku-cell');
                 if (skuCell) {
                     const btn = document.createElement('button');
                     btn.type = 'button';
@@ -478,6 +723,13 @@
     // Boot
     // -------------------------------------------------------------------------
     function bindEvents() {
+        document.addEventListener('mousedown', handleGlobalSkuMouseDown, true);
+        document.addEventListener('keydown', handleGlobalSkuKeydown);
+        const modalBodyEarly = $('#pi-modal-body');
+        if (modalBodyEarly) {
+            modalBodyEarly.addEventListener('scroll', () => closeSkuDropdown(), { passive: true });
+        }
+
         $('#pi-btn-refresh').addEventListener('click', loadList);
 
         // Stats filters

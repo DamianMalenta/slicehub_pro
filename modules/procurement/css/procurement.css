@@ -54,9 +54,9 @@ html, body {
 .pi-btn--danger { background: #dc2626; border-color: #b91c1c; color: white; font-weight: 600; }
 .pi-btn--danger:hover:not(:disabled) { background: #b91c1c; }
 .pi-btn--ghost { background: transparent; }
-.pi-sku-select--dirty {
+.pi-sku-combo--dirty .pi-sku-combo-wrap {
     border-color: rgba(251, 191, 36, 0.55) !important;
-    box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.25);
+    box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.22);
 }
 .pi-link-btn {
     background: none; border: none; color: #60a5fa; cursor: pointer;
@@ -69,6 +69,20 @@ html, body {
 .pi-banner--warn { background: rgba(202, 138, 4, 0.12); border: 1px solid rgba(250, 204, 21, 0.30); color: #fcd34d; }
 .pi-banner--error { background: rgba(220, 38, 38, 0.15); border: 1px solid rgba(248, 113, 113, 0.30); color: #fca5a5; }
 .pi-banner--ok { background: rgba(22, 163, 74, 0.12); border: 1px solid rgba(74, 222, 128, 0.28); color: #86efac; }
+
+/* Toasty nad modalem (KSeF z-index 100) — sukces/błąd zawsze widoczne */
+#pi-success-banner:not(.hidden),
+#pi-error-banner:not(.hidden) {
+    position: fixed;
+    top: 0.75rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20000;
+    margin: 0;
+    width: min(520px, calc(100vw - 1.5rem));
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+    pointer-events: auto;
+}
 
 /* MAIN */
 .pi-main {
@@ -210,6 +224,16 @@ html, body {
     display: flex; align-items: center; gap: 0.55rem;
     background: rgba(0, 0, 0, 0.20);
 }
+.pi-modal-feedback {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.76rem;
+    line-height: 1.35;
+    text-align: center;
+    padding: 0 0.35rem;
+}
+.pi-modal-feedback--ok { color: #86efac; font-weight: 600; }
+.pi-modal-feedback--err { color: #fca5a5; font-weight: 600; }
 
 /* MODAL BODY — invoice details */
 .pi-detail-grid {
@@ -284,4 +308,139 @@ html, body {
     display: inline-flex; align-items: center; gap: 0.3rem;
     padding: 0.18rem 0.55rem; border-radius: 6px;
     font-weight: 600; font-size: 0.72rem;
+}
+
+/* SKU combobox (wyszukiwanie + lista poza overflow modala) */
+.pi-sku-cell {
+    vertical-align: top;
+    min-width: 220px;
+    max-width: 320px;
+}
+.pi-sku-combo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.28rem;
+}
+.pi-sku-combo-picked {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.72rem;
+    color: #86efac;
+    background: rgba(22, 163, 74, 0.10);
+    border: 1px solid rgba(74, 222, 128, 0.22);
+    border-radius: 8px;
+    padding: 0.22rem 0.45rem;
+    min-height: 1.6rem;
+}
+.pi-sku-combo-picked.hidden { display: none; }
+.pi-sku-combo-picked-text {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 500;
+}
+.pi-sku-combo-clear {
+    flex-shrink: 0;
+    width: 1.35rem;
+    height: 1.35rem;
+    border: none;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #fca5a5;
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0;
+}
+.pi-sku-combo-clear:hover { background: rgba(248, 113, 113, 0.22); color: #fecaca; }
+
+.pi-sku-combo-wrap {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+}
+.pi-sku-combo-open .pi-sku-combo-wrap {
+    border-color: rgba(99, 102, 241, 0.45);
+    box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.2);
+}
+.pi-sku-combo-search {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    color: #e2e8f0;
+    font-size: 0.78rem;
+    padding: 0.4rem 0.55rem;
+    font-family: inherit;
+    outline: none;
+}
+.pi-sku-combo-search::placeholder { color: #64748b; }
+.pi-sku-combo-chev {
+    border: none;
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+    color: #94a3b8;
+    width: 2.1rem;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: color 0.15s, background 0.15s;
+}
+.pi-sku-combo-chev:hover { background: rgba(255, 255, 255, 0.10); color: #e2e8f0; }
+.pi-sku-combo-open .pi-sku-combo-chev { color: #a5b4fc; }
+
+/* Pływająca lista — position:fixed, poza .pi-modal-body overflow */
+#pi-sku-global-dropdown {
+    position: fixed;
+    z-index: 25000;
+    max-height: min(320px, 42vh);
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: rgba(15, 23, 42, 0.96);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+    padding: 0.35rem 0;
+    min-width: 200px;
+}
+#pi-sku-global-dropdown.hidden { display: none !important; }
+.pi-sku-dd-empty {
+    padding: 0.65rem 0.85rem;
+    color: #94a3b8;
+    font-size: 0.78rem;
+}
+.pi-sku-dd-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.12rem;
+    width: 100%;
+    text-align: left;
+    border: none;
+    background: transparent;
+    color: #e2e8f0;
+    padding: 0.45rem 0.75rem;
+    cursor: pointer;
+    font-family: inherit;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.pi-sku-dd-item:last-child { border-bottom: none; }
+.pi-sku-dd-item:hover,
+.pi-sku-dd-item:focus {
+    background: rgba(99, 102, 241, 0.18);
+    outline: none;
+}
+.pi-sku-dd-name { font-size: 0.78rem; font-weight: 500; }
+.pi-sku-dd-meta {
+    font-size: 0.68rem;
+    color: #94a3b8;
+    font-family: ui-monospace, monospace;
 }
