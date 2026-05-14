@@ -681,6 +681,232 @@
         });
     }
 
+    function renderBulkLineBarHtml(opex) {
+        const catOpts = (state.expenseCategories || []).map(c =>
+            `<option value="${String(c.id)}">${escapeHtml(c.name)}</option>`).join('');
+        const commonBtns = `
+            <button type="button" class="pi-line-bulk-btn" id="pi-bulk-select-all">Zaznacz wszystkie</button>
+            <button type="button" class="pi-line-bulk-btn" id="pi-bulk-select-none">Odznacz wszystkie</button>`;
+        if (opex) {
+            return `
+            <div id="pi-line-bulk-bar" class="pi-line-bulk-bar">
+                <span class="pi-line-bulk-title"><i class="fa-solid fa-layer-group"></i> Edycja grupowa</span>
+                ${commonBtns}
+                <button type="button" class="pi-line-bulk-btn" id="pi-bulk-select-inv">Tylko towar</button>
+                <button type="button" class="pi-line-bulk-btn" id="pi-bulk-select-exp">Tylko OPEX</button>
+                <span class="pi-line-bulk-sep" aria-hidden="true"></span>
+                <label class="pi-line-bulk-inline"><span>Tag OPEX</span>
+                    <select id="pi-bulk-tag-filter" class="pi-bulk-select">
+                        <option value="">— wybierz tag —</option>${catOpts}
+                    </select>
+                </label>
+                <button type="button" class="pi-line-bulk-btn" id="pi-bulk-select-by-tag">Zaznacz z tagiem</button>
+                <button type="button" class="pi-line-bulk-btn" id="pi-bulk-deselect-by-tag">Odznacz z tagiem</button>
+                <span class="pi-line-bulk-sep" aria-hidden="true"></span>
+                <label class="pi-line-bulk-inline"><span>Ustaw OPEX + tag</span>
+                    <select id="pi-bulk-apply-opex-cat" class="pi-bulk-select">
+                        <option value="">— tag —</option>${catOpts}
+                    </select>
+                </label>
+                <button type="button" class="pi-line-bulk-btn pi-line-bulk-btn--primary" id="pi-bulk-apply-opex">Zapisz na zaznaczone</button>
+                <span class="pi-line-bulk-sep" aria-hidden="true"></span>
+                <label class="pi-line-bulk-inline"><span>Towar + SKU</span>
+                    <input type="text" id="pi-bulk-inv-sku" class="pi-bulk-sku-input" placeholder="np. SKU z magazynu" autocomplete="off" spellcheck="false" />
+                </label>
+                <button type="button" class="pi-line-bulk-btn pi-line-bulk-btn--primary" id="pi-bulk-apply-inv">Zapisz na zaznaczone</button>
+            </div>`;
+        }
+        return `
+            <div id="pi-line-bulk-bar" class="pi-line-bulk-bar">
+                <span class="pi-line-bulk-title"><i class="fa-solid fa-layer-group"></i> Edycja grupowa SKU</span>
+                ${commonBtns}
+                <span class="pi-line-bulk-sep" aria-hidden="true"></span>
+                <input type="text" id="pi-bulk-inv-sku" class="pi-bulk-sku-input" placeholder="SKU magazynowe" autocomplete="off" spellcheck="false" />
+                <button type="button" class="pi-line-bulk-btn pi-line-bulk-btn--primary" id="pi-bulk-apply-inv">Zapisz SKU na zaznaczone</button>
+            </div>`;
+    }
+
+    function getModalLineCheckboxes(root) {
+        return [...root.querySelectorAll('.pi-line-cb')];
+    }
+
+    function syncLineCheckboxMaster(root) {
+        const master = root.querySelector('#pi-line-cb-master');
+        if (!master) return;
+        const cbs = getModalLineCheckboxes(root);
+        const n = cbs.length;
+        const k = cbs.filter(c => c.checked).length;
+        master.checked = n > 0 && k === n;
+        master.indeterminate = k > 0 && k < n;
+    }
+
+    function bindBulkLineControls(root) {
+        const inv = state.currentInvoice;
+        if (!inv || !root.querySelector('#pi-line-bulk-bar')) return;
+
+        const opex = state.lineOpexEnabled;
+        const bar = root.querySelector('#pi-line-bulk-bar');
+
+        const getSelectedIds = () => getModalLineCheckboxes(root)
+            .filter(c => c.checked)
+            .map(c => parseInt(c.dataset.lineId, 10))
+            .filter(id => id > 0);
+
+        const master = root.querySelector('#pi-line-cb-master');
+        if (master) {
+            master.addEventListener('change', () => {
+                const on = master.checked;
+                getModalLineCheckboxes(root).forEach(c => { c.checked = on; });
+                master.indeterminate = false;
+            });
+        }
+
+        root.querySelectorAll('.pi-line-cb').forEach(cb => {
+            cb.addEventListener('change', () => syncLineCheckboxMaster(root));
+        });
+        syncLineCheckboxMaster(root);
+
+        bar.querySelector('#pi-bulk-select-all')?.addEventListener('click', () => {
+            getModalLineCheckboxes(root).forEach(c => { c.checked = true; });
+            syncLineCheckboxMaster(root);
+        });
+        bar.querySelector('#pi-bulk-select-none')?.addEventListener('click', () => {
+            getModalLineCheckboxes(root).forEach(c => { c.checked = false; });
+            syncLineCheckboxMaster(root);
+        });
+
+        if (opex) {
+            bar.querySelector('#pi-bulk-select-inv')?.addEventListener('click', () => {
+                root.querySelectorAll('.pi-line-editor-row').forEach(tr => {
+                    const cb = tr.querySelector('.pi-line-cb');
+                    if (!cb) return;
+                    cb.checked = getActiveLineTypeFromRow(tr) === 'INVENTORY';
+                });
+                syncLineCheckboxMaster(root);
+            });
+            bar.querySelector('#pi-bulk-select-exp')?.addEventListener('click', () => {
+                root.querySelectorAll('.pi-line-editor-row').forEach(tr => {
+                    const cb = tr.querySelector('.pi-line-cb');
+                    if (!cb) return;
+                    cb.checked = getActiveLineTypeFromRow(tr) === 'EXPENSE';
+                });
+                syncLineCheckboxMaster(root);
+            });
+
+            const tagFilter = bar.querySelector('#pi-bulk-tag-filter');
+            bar.querySelector('#pi-bulk-select-by-tag')?.addEventListener('click', () => {
+                const tid = tagFilter && 'value' in tagFilter ? String(tagFilter.value || '') : '';
+                if (!tid) {
+                    flashModalFeedback('Wybierz tag (kategorię OPEX) na liście.', 'err');
+                    return;
+                }
+                root.querySelectorAll('.pi-line-editor-row').forEach(tr => {
+                    const cb = tr.querySelector('.pi-line-cb');
+                    if (!cb) return;
+                    if (getActiveLineTypeFromRow(tr) !== 'EXPENSE') {
+                        cb.checked = false;
+                        return;
+                    }
+                    const sel = tr.querySelector('.pi-exp-cat-select');
+                    cb.checked = !!(sel && String(sel.value) === tid);
+                });
+                syncLineCheckboxMaster(root);
+            });
+            bar.querySelector('#pi-bulk-deselect-by-tag')?.addEventListener('click', () => {
+                const tid = tagFilter && 'value' in tagFilter ? String(tagFilter.value || '') : '';
+                if (!tid) {
+                    flashModalFeedback('Wybierz tag (kategorię OPEX).', 'err');
+                    return;
+                }
+                root.querySelectorAll('.pi-line-editor-row').forEach(tr => {
+                    const cb = tr.querySelector('.pi-line-cb');
+                    if (!cb || !cb.checked) return;
+                    if (getActiveLineTypeFromRow(tr) !== 'EXPENSE') return;
+                    const sel = tr.querySelector('.pi-exp-cat-select');
+                    if (sel && String(sel.value) === tid) cb.checked = false;
+                });
+                syncLineCheckboxMaster(root);
+            });
+
+            bar.querySelector('#pi-bulk-apply-opex')?.addEventListener('click', async () => {
+                const ids = getSelectedIds();
+                if (ids.length === 0) {
+                    flashModalFeedback('Zaznacz co najmniej jedną linię.', 'err');
+                    return;
+                }
+                const sel = bar.querySelector('#pi-bulk-apply-opex-cat');
+                const ecid = sel && 'value' in sel ? parseInt(String(sel.value), 10) : 0;
+                if (!ecid) {
+                    flashModalFeedback('Wybierz kategorię OPEX (tag) do zapisania.', 'err');
+                    return;
+                }
+                const r = await api('bulk_update_lines', {
+                    invoice_id: inv.id,
+                    line_ids: ids,
+                    line_type: 'EXPENSE',
+                    expense_category_id: ecid,
+                });
+                if (!r.success) {
+                    flashModalFeedback(r.message || 'Błąd zapisu.', 'err');
+                    return;
+                }
+                showSuccess(r.message || 'Zapisano.');
+                await openInvoice(inv.id);
+            });
+
+            bar.querySelector('#pi-bulk-apply-inv')?.addEventListener('click', async () => {
+                const ids = getSelectedIds();
+                if (ids.length === 0) {
+                    flashModalFeedback('Zaznacz co najmniej jedną linię.', 'err');
+                    return;
+                }
+                const inp = bar.querySelector('#pi-bulk-inv-sku');
+                const sku = inp && 'value' in inp ? String(inp.value || '').trim() : '';
+                if (!sku) {
+                    flashModalFeedback('Podaj SKU towaru.', 'err');
+                    return;
+                }
+                const r = await api('bulk_update_lines', {
+                    invoice_id: inv.id,
+                    line_ids: ids,
+                    line_type: 'INVENTORY',
+                    sku,
+                });
+                if (!r.success) {
+                    flashModalFeedback(r.message || 'Błąd zapisu.', 'err');
+                    return;
+                }
+                showSuccess(r.message || 'Zapisano.');
+                await openInvoice(inv.id);
+            });
+        } else {
+            bar.querySelector('#pi-bulk-apply-inv')?.addEventListener('click', async () => {
+                const ids = getSelectedIds();
+                if (ids.length === 0) {
+                    flashModalFeedback('Zaznacz co najmniej jedną linię.', 'err');
+                    return;
+                }
+                const inp = bar.querySelector('#pi-bulk-inv-sku');
+                const sku = inp && 'value' in inp ? String(inp.value || '').trim() : '';
+                if (!sku) {
+                    flashModalFeedback('Podaj SKU.', 'err');
+                    return;
+                }
+                const r = await api('bulk_update_lines', {
+                    invoice_id: inv.id,
+                    line_ids: ids,
+                    sku,
+                });
+                if (!r.success) {
+                    flashModalFeedback(r.message || 'Błąd zapisu.', 'err');
+                    return;
+                }
+                showSuccess(r.message || 'Zapisano.');
+                await openInvoice(inv.id);
+            });
+        }
+    }
+
     function renderInvoiceDetails() {
         const inv = state.currentInvoice;
         const lines = state.currentLines;
@@ -704,6 +930,11 @@
         const opex = state.lineOpexEnabled;
         const isAccepted = inv.status === 'accepted';
         const isRejected = inv.status === 'rejected';
+        const showBulk = !isAccepted && !isRejected;
+        const bulkBarHtml = showBulk ? renderBulkLineBarHtml(opex) : '';
+        const cbTh = showBulk
+            ? `<th class="pi-th-cb"><input type="checkbox" id="pi-line-cb-master" title="Zaznacz / odznacz wszystkie linie" aria-label="Zaznacz wszystkie linie" /></th>`
+            : '';
         const costCat = inv.cost_category || 'magazyn';
         const overhead = costCat !== 'magazyn';
         let warnRight = '';
@@ -766,16 +997,21 @@
 
             ${costRowHtml}
 
+            ${bulkBarHtml}
+
             <table class="pi-lines-table">
                 <thead>
                     <tr>
-                        <th>#</th><th>Nazwa z faktury</th><th>Ilość</th><th>Cena netto</th>
+                        ${cbTh}<th>#</th><th>Nazwa z faktury</th><th>Ilość</th><th>Cena netto</th>
                         <th>VAT</th><th>Match</th>${mapHeaders}
                     </tr>
                 </thead>
                 <tbody>
         `;
         lines.forEach(l => {
+            const cbTd = showBulk
+                ? `<td class="pi-td-cb"><input type="checkbox" class="pi-line-cb" data-line-id="${l.id}" aria-label="Zaznacz linię ${l.line_no}" /></td>`
+                : '';
             const skuValue = l.resolved_sku || '';
             const isAutoAccept = (l.match_confidence || 0) >= state.threshold;
             const lt = (String(l.line_type || 'INVENTORY').toUpperCase() === 'EXPENSE') ? 'EXPENSE' : 'INVENTORY';
@@ -823,7 +1059,7 @@
                     : ` data-line-id="${l.id}"`;
                 html += `
                 <tr${dataOrig}${trCls}>
-                    <td style="color:#64748b">${l.line_no}</td>
+                    ${cbTd}<td style="color:#64748b">${l.line_no}</td>
                     <td>
                         <div>${escapeHtml(l.external_name)}</div>
                         ${l.gtu_code ? `<div style="color:#94a3b8;font-size:0.7rem">${escapeHtml(l.gtu_code)}${l.pkwiu ? ' · PKWiU ' + escapeHtml(l.pkwiu) : ''}</div>` : ''}
@@ -856,7 +1092,7 @@
                 </div>`;
             html += `
                 <tr data-line-id="${l.id}">
-                    <td style="color:#64748b">${l.line_no}</td>
+                    ${cbTd}<td style="color:#64748b">${l.line_no}</td>
                     <td>
                         <div>${escapeHtml(l.external_name)}</div>
                         ${l.gtu_code ? `<div style="color:#94a3b8;font-size:0.7rem">${escapeHtml(l.gtu_code)}${l.pkwiu ? ' · PKWiU ' + escapeHtml(l.pkwiu) : ''}</div>` : ''}
@@ -898,6 +1134,9 @@
         attachSkuCombos($('#pi-modal-body'));
         if (opex) {
             bindLineEditorRows($('#pi-modal-body'));
+        }
+        if (showBulk) {
+            bindBulkLineControls($('#pi-modal-body'));
         }
 
         // Lock buttons gdy accepted/rejected
