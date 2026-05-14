@@ -27,9 +27,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
  *                      duplikat (tenant + NIP dostawcy + numer FA): HTTP 409 DUPLICATE_INVOICE
  *                      lub `duplicate_resolution: replace` (nie dla accepted + PZ).
  *   - reparse        — ponowny AutoScan match (po dodaniu nowych aliasów / mappingów)
- *   - update_line    — manual override resolved_sku per linia (przed accept)
- *   - set_cost_category — kategoria kosztu (magazyn/media/uslugi/inne) dla draft/error
- *   - accept         — magazyn: PzEngine + PZ; inne kategorie: akceptacja bez PZ (ewidencja kosztu)
+ *   - update_line    — override linii: legacy tylko `sku`; przy migracji 057: `line_type` INVENTORY|EXPENSE,
+ *                      INVENTORY + `sku`, EXPENSE + `expense_category_id`
+ *   - set_cost_category — nagłówek faktury (magazyn/media/…); zwraca błąd USE_LINE_OPEX gdy aktywny model per-linia (057)
+ *   - accept         — 057: INVENTORY → payload PzEngine; EXPENSE → tylko UPDATE linii; PZ pomijane gdy brak linii magazynowych
  *   - reject         — soft-reject (status=rejected, rejected_reason)
  *
  * AUTH (Konstytucja v5 § Prawo IV):
@@ -96,6 +97,47 @@ function inboxSanitizeCostCategory(mixed $raw): string
 function inboxCostCategoryIsOverhead(string $category): bool
 {
     return $category !== '' && $category !== 'magazyn';
+}
+
+/** Czy migracja 057 (line_type / expense_category_id) jest na bazie. */
+function inboxKsefLineHasOpexColumns(PDO $pdo): bool
+{
+    static $cache = null;
+    if ($cache !== null) {
+        return $cache;
+    }
+    try {
+        $db = (string) ($pdo->query('SELECT DATABASE()')->fetchColumn() ?: '');
+        if ($db === '') {
+            $cache = false;
+
+            return false;
+        }
+        $st = $pdo->prepare(
+            'SELECT COUNT(*) FROM information_schema.COLUMNS
+              WHERE TABLE_SCHEMA = :db AND TABLE_NAME = :tn AND COLUMN_NAME = :cn'
+        );
+        $st->execute([':db' => $db, ':tn' => 'sh_ksef_invoice_lines', ':cn' => 'line_type']);
+        $cache = ((int) $st->fetchColumn()) > 0;
+    } catch (\Throwable $e) {
+        $cache = false;
+    }
+
+    return $cache;
+}
+
+function inboxExpenseCategoryValid(PDO $pdo, int $tenantId, int $categoryId): bool
+{
+    if ($categoryId <= 0) {
+        return false;
+    }
+    $st = $pdo->prepare(
+        "SELECT 1 FROM sh_expense_categories
+          WHERE id = :id AND tenant_id = :tid AND is_deleted = 0 AND is_active = 1 LIMIT 1"
+    );
+    $st->execute([':id' => $categoryId, ':tid' => $tenantId]);
+
+    return (bool) $st->fetchColumn();
 }
 
 /** Znajdź istniejącą fakturę (ten sam tenant + numer FA + NIP dostawcy — cyfry). */
@@ -169,9 +211,12 @@ function inboxAudit(
  */
 function inboxRescanLines(PDO $pdo, int $tenantId, int $invoiceId): array
 {
+    $invOnly = inboxKsefLineHasOpexColumns($pdo)
+        ? " AND line_type = 'INVENTORY' "
+        : '';
     $st = $pdo->prepare(
         "SELECT id, line_no, external_name FROM sh_ksef_invoice_lines
-          WHERE ksef_invoice_id = :iid ORDER BY line_no"
+          WHERE ksef_invoice_id = :iid {$invOnly} ORDER BY line_no"
     );
     $st->execute([':iid' => $invoiceId]);
     $lines = $st->fetchAll(PDO::FETCH_ASSOC);
@@ -284,16 +329,33 @@ try {
             $inv = $st->fetch(PDO::FETCH_ASSOC);
             if (!$inv) inboxFail(404, 'NOT_FOUND', 'Faktura nie istnieje.');
 
-            $stL = $pdo->prepare(
-                "SELECT id, line_no, external_name, external_description, gtu_code, pkwiu,
-                        unit, qty, unit_net, line_net_minor, vat_rate, resolved_sku,
-                        match_type, match_confidence, match_candidates_json,
-                        resolved_at, resolved_by_user_id
-                   FROM sh_ksef_invoice_lines
-                  WHERE ksef_invoice_id = :iid
-                  ORDER BY line_no"
-            );
-            $stL->execute([':iid' => $iid]);
+            $hasOpex = inboxKsefLineHasOpexColumns($pdo);
+            if ($hasOpex) {
+                $stL = $pdo->prepare(
+                    "SELECT l.id, l.line_no, l.external_name, l.external_description, l.gtu_code, l.pkwiu,
+                            l.unit, l.qty, l.unit_net, l.line_net_minor, l.vat_rate, l.resolved_sku,
+                            l.match_type, l.match_confidence, l.match_candidates_json,
+                            l.resolved_at, l.resolved_by_user_id,
+                            l.line_type, l.expense_category_id, ec.name AS expense_category_name
+                       FROM sh_ksef_invoice_lines l
+                  LEFT JOIN sh_expense_categories ec
+                         ON ec.id = l.expense_category_id AND ec.tenant_id = :tid_ec
+                      WHERE l.ksef_invoice_id = :iid
+                   ORDER BY l.line_no"
+                );
+                $stL->execute([':iid' => $iid, ':tid_ec' => $tenant_id]);
+            } else {
+                $stL = $pdo->prepare(
+                    "SELECT id, line_no, external_name, external_description, gtu_code, pkwiu,
+                            unit, qty, unit_net, line_net_minor, vat_rate, resolved_sku,
+                            match_type, match_confidence, match_candidates_json,
+                            resolved_at, resolved_by_user_id
+                       FROM sh_ksef_invoice_lines
+                      WHERE ksef_invoice_id = :iid
+                   ORDER BY line_no"
+                );
+                $stL->execute([':iid' => $iid]);
+            }
             $lines = $stL->fetchAll(PDO::FETCH_ASSOC);
             // Decode candidates JSON dla każdej linii
             foreach ($lines as &$l) {
@@ -322,9 +384,10 @@ try {
                 : null;
 
             inboxResponse(true, [
-                'invoice'   => $inv,
-                'lines'     => $lines,
-                'threshold' => $threshold,
+                'invoice'            => $inv,
+                'lines'              => $lines,
+                'threshold'          => $threshold,
+                'line_opex_enabled'  => $hasOpex,
             ]);
             break;
         }
@@ -458,8 +521,9 @@ try {
             inboxRequireRole($actorRole, ['owner', 'manager']);
             $iid = (int) ($input['invoice_id'] ?? 0);
             $lid = (int) ($input['line_id'] ?? 0);
-            $sku = trim((string) ($input['sku'] ?? ''));
-            if ($iid <= 0 || $lid <= 0 || $sku === '') inboxFail(400, 'INVALID_INPUT');
+            if ($iid <= 0 || $lid <= 0) {
+                inboxFail(400, 'INVALID_INPUT');
+            }
 
             // Tenant scope + status check
             $own = $pdo->prepare(
@@ -469,32 +533,108 @@ try {
             );
             $own->execute([':tid' => $tenant_id, ':iid' => $iid, ':lid' => $lid]);
             $status = $own->fetchColumn();
-            if ($status === false) inboxFail(404, 'NOT_FOUND');
-            if ($status === 'accepted') inboxFail(400, 'ALREADY_ACCEPTED');
-
-            // Walidacja SKU w sys_items
-            $skuCheck = $pdo->prepare(
-                "SELECT 1 FROM sys_items WHERE tenant_id = :tid AND sku = :sku AND is_deleted = 0 AND is_active = 1 LIMIT 1"
-            );
-            $skuCheck->execute([':tid' => $tenant_id, ':sku' => $sku]);
-            if (!$skuCheck->fetchColumn()) {
-                inboxFail(400, 'INVALID_SKU', "SKU '{$sku}' nie istnieje w sys_items.");
+            if ($status === false) {
+                inboxFail(404, 'NOT_FOUND');
+            }
+            if ($status === 'accepted') {
+                inboxFail(400, 'ALREADY_ACCEPTED');
             }
 
+            if (!inboxKsefLineHasOpexColumns($pdo)) {
+                $sku = trim((string) ($input['sku'] ?? ''));
+                if ($sku === '') {
+                    inboxFail(400, 'INVALID_INPUT');
+                }
+                $skuCheck = $pdo->prepare(
+                    "SELECT 1 FROM sys_items WHERE tenant_id = :tid AND sku = :sku AND is_deleted = 0 AND is_active = 1 LIMIT 1"
+                );
+                $skuCheck->execute([':tid' => $tenant_id, ':sku' => $sku]);
+                if (!$skuCheck->fetchColumn()) {
+                    inboxFail(400, 'INVALID_SKU', "SKU '{$sku}' nie istnieje w sys_items.");
+                }
+                $upd = $pdo->prepare(
+                    "UPDATE sh_ksef_invoice_lines
+                        SET resolved_sku = :sku, match_type = 'MANUAL', match_confidence = 100,
+                            resolved_at = NOW(), resolved_by_user_id = :uid
+                      WHERE id = :lid"
+                );
+                $upd->execute([':sku' => $sku, ':uid' => $user_id, ':lid' => $lid]);
+                inboxResponse(true, ['line_id' => $lid, 'sku' => $sku], 'Linia zaktualizowana.');
+                break;
+            }
+
+            $lineTypeInput = strtoupper(trim((string) ($input['line_type'] ?? '')));
+            if ($lineTypeInput === '' && trim((string) ($input['sku'] ?? '')) !== '') {
+                $lineTypeInput = 'INVENTORY';
+            }
+            if ($lineTypeInput === '' && (int) ($input['expense_category_id'] ?? 0) > 0) {
+                $lineTypeInput = 'EXPENSE';
+            }
+            if (!in_array($lineTypeInput, ['INVENTORY', 'EXPENSE'], true)) {
+                inboxFail(400, 'INVALID_LINE_TYPE', 'line_type: INVENTORY lub EXPENSE (albo samo sku / expense_category_id).');
+            }
+            $lineType = $lineTypeInput;
+
+            if ($lineType === 'INVENTORY') {
+                $sku = trim((string) ($input['sku'] ?? ''));
+                if ($sku === '') {
+                    inboxFail(400, 'INVALID_INPUT', 'Dla INVENTORY wymagane jest pole sku.');
+                }
+                $skuCheck = $pdo->prepare(
+                    "SELECT 1 FROM sys_items WHERE tenant_id = :tid AND sku = :sku AND is_deleted = 0 AND is_active = 1 LIMIT 1"
+                );
+                $skuCheck->execute([':tid' => $tenant_id, ':sku' => $sku]);
+                if (!$skuCheck->fetchColumn()) {
+                    inboxFail(400, 'INVALID_SKU', "SKU '{$sku}' nie istnieje w sys_items.");
+                }
+                $upd = $pdo->prepare(
+                    "UPDATE sh_ksef_invoice_lines
+                        SET line_type = 'INVENTORY',
+                            expense_category_id = NULL,
+                            resolved_sku = :sku,
+                            match_type = 'MANUAL',
+                            match_confidence = 100,
+                            resolved_at = NOW(),
+                            resolved_by_user_id = :uid
+                      WHERE id = :lid AND ksef_invoice_id = :iid"
+                );
+                $upd->execute([':sku' => $sku, ':uid' => $user_id, ':lid' => $lid, ':iid' => $iid]);
+                inboxResponse(true, [
+                    'line_id' => $lid, 'line_type' => 'INVENTORY', 'sku' => $sku,
+                ], 'Linia zaktualizowana (magazyn).');
+                break;
+            }
+
+            $ecid = (int) ($input['expense_category_id'] ?? 0);
+            if ($ecid <= 0 || !inboxExpenseCategoryValid($pdo, $tenant_id, $ecid)) {
+                inboxFail(400, 'INVALID_EXPENSE_CATEGORY', 'Wybierz aktywną kategorię kosztu OPEX.');
+            }
             $upd = $pdo->prepare(
                 "UPDATE sh_ksef_invoice_lines
-                    SET resolved_sku = :sku, match_type = 'MANUAL', match_confidence = 100,
-                        resolved_at = NOW(), resolved_by_user_id = :uid
-                  WHERE id = :lid"
+                    SET line_type = 'EXPENSE',
+                        expense_category_id = :ecid,
+                        resolved_sku = NULL,
+                        match_type = NULL,
+                        match_confidence = NULL,
+                        match_candidates_json = NULL,
+                        resolved_at = NOW(),
+                        resolved_by_user_id = :uid
+                  WHERE id = :lid AND ksef_invoice_id = :iid"
             );
-            $upd->execute([':sku' => $sku, ':uid' => $user_id, ':lid' => $lid]);
-            inboxResponse(true, ['line_id' => $lid, 'sku' => $sku], 'Linia zaktualizowana.');
+            $upd->execute([':ecid' => $ecid, ':uid' => $user_id, ':lid' => $lid, ':iid' => $iid]);
+            inboxResponse(true, [
+                'line_id' => $lid, 'line_type' => 'EXPENSE', 'expense_category_id' => $ecid,
+            ], 'Linia zaktualizowana (koszt OPEX).');
             break;
         }
 
         // ---------------------------------------------------------------------
         case 'set_cost_category': {
             inboxRequireRole($actorRole, ['owner', 'manager']);
+            if (inboxKsefLineHasOpexColumns($pdo)) {
+                inboxFail(400, 'USE_LINE_OPEX',
+                    'Ta instancja używa typów linii (INVENTORY / EXPENSE). Ustaw kategorię OPEX per linia zamiast nagłówka.');
+            }
             $iid = (int) ($input['invoice_id'] ?? 0);
             $cat = inboxSanitizeCostCategory($input['cost_category'] ?? 'magazyn');
             if ($iid <= 0) inboxFail(400, 'INVALID_INVOICE_ID');
@@ -520,14 +660,179 @@ try {
             inboxRequireRole($actorRole, ['owner', 'manager']);
             $iid = (int) ($input['invoice_id'] ?? 0);
             $warehouseId = trim((string) ($input['warehouse_id'] ?? 'MAIN'));
-            if ($iid <= 0) inboxFail(400, 'INVALID_INVOICE_ID');
+            if ($iid <= 0) {
+                inboxFail(400, 'INVALID_INVOICE_ID');
+            }
 
             $inv = $pdo->prepare("SELECT * FROM sh_ksef_invoices WHERE id = :id AND tenant_id = :tid LIMIT 1");
             $inv->execute([':id' => $iid, ':tid' => $tenant_id]);
             $invoice = $inv->fetch(PDO::FETCH_ASSOC);
-            if (!$invoice) inboxFail(404, 'NOT_FOUND');
-            if ($invoice['status'] === 'accepted') inboxFail(400, 'ALREADY_ACCEPTED');
+            if (!$invoice) {
+                inboxFail(404, 'NOT_FOUND');
+            }
+            if ($invoice['status'] === 'accepted') {
+                inboxFail(400, 'ALREADY_ACCEPTED');
+            }
 
+            if (inboxKsefLineHasOpexColumns($pdo)) {
+                $linesSt = $pdo->prepare(
+                    "SELECT id, line_no, external_name, qty, unit_net, vat_rate, resolved_sku, match_confidence,
+                            COALESCE(line_type, 'INVENTORY') AS line_type, expense_category_id
+                       FROM sh_ksef_invoice_lines WHERE ksef_invoice_id = :iid ORDER BY line_no"
+                );
+                $linesSt->execute([':iid' => $iid]);
+                $lines = $linesSt->fetchAll(PDO::FETCH_ASSOC);
+
+                foreach ($lines as $l) {
+                    $lt = strtoupper((string) ($l['line_type'] ?? 'INVENTORY'));
+                    if (!in_array($lt, ['INVENTORY', 'EXPENSE'], true)) {
+                        $lt = 'INVENTORY';
+                    }
+                    if ($lt === 'EXPENSE') {
+                        $eid = (int) ($l['expense_category_id'] ?? 0);
+                        if ($eid <= 0 || !inboxExpenseCategoryValid($pdo, $tenant_id, $eid)) {
+                            inboxFail(400, 'EXPENSE_CATEGORY_REQUIRED',
+                                'Linia ' . (int) $l['line_no'] . ' (EXPENSE): wybierz kategorię kosztu OPEX.');
+                        }
+                    } elseif (empty($l['resolved_sku'])) {
+                        inboxFail(400, 'UNRESOLVED_LINES',
+                            'Linia ' . (int) $l['line_no'] . ' (INVENTORY): brak SKU — dopasuj lub zmień typ na EXPENSE.');
+                    }
+                }
+
+                $pzLines = [];
+                foreach ($lines as $l) {
+                    $lt = strtoupper((string) ($l['line_type'] ?? 'INVENTORY'));
+                    if ($lt === 'EXPENSE') {
+                        continue;
+                    }
+                    $pzLines[] = [
+                        'external_name' => $l['external_name'],
+                        'resolved_sku'  => $l['resolved_sku'],
+                        'quantity'      => (float) $l['qty'],
+                        'unit_net_cost' => (float) $l['unit_net'],
+                        'vat_rate'      => (float) $l['vat_rate'],
+                    ];
+                }
+
+                $markExp = $pdo->prepare(
+                    "UPDATE sh_ksef_invoice_lines
+                        SET line_type = 'EXPENSE',
+                            expense_category_id = :ecid,
+                            resolved_sku = NULL,
+                            match_type = NULL,
+                            match_confidence = NULL,
+                            match_candidates_json = NULL,
+                            resolved_at = NOW(),
+                            resolved_by_user_id = :uid
+                      WHERE id = :lid AND ksef_invoice_id = :iid"
+                );
+                $markInv = $pdo->prepare(
+                    "UPDATE sh_ksef_invoice_lines
+                        SET line_type = 'INVENTORY',
+                            expense_category_id = NULL,
+                            resolved_at = COALESCE(resolved_at, NOW()),
+                            resolved_by_user_id = COALESCE(resolved_by_user_id, :uid)
+                      WHERE id = :lid AND ksef_invoice_id = :iid"
+                );
+
+                if ($pzLines === []) {
+                    foreach ($lines as $l) {
+                        $markExp->execute([
+                            ':ecid' => (int) $l['expense_category_id'],
+                            ':uid'  => $user_id,
+                            ':lid'  => (int) $l['id'],
+                            ':iid'  => $iid,
+                        ]);
+                    }
+                    $pdo->prepare(
+                        "UPDATE sh_ksef_invoices
+                            SET status = 'accepted',
+                                cost_category = 'inne',
+                                linked_wh_document_id = NULL,
+                                processed_at = NOW(),
+                                processed_by_user_id = :uid
+                          WHERE id = :id AND tenant_id = :tid"
+                    )->execute([':uid' => $user_id, ':id' => $iid, ':tid' => $tenant_id]);
+
+                    inboxAudit($pdo, $tenant_id, $user_id, 'ksef_accept_opex_only', $iid, [
+                        'lines_count'     => count($lines),
+                        'inventory_lines' => 0,
+                        'expense_lines'   => count($lines),
+                    ]);
+
+                    inboxResponse(true, [
+                        'invoice_id'          => $iid,
+                        'pz_document'         => null,
+                        'expense_only_accept' => true,
+                        'cost_category'       => 'inne',
+                    ], 'Zaakceptowano (100% koszty OPEX — bez PZ).');
+                    break;
+                }
+
+                try {
+                    $pzResult = PzEngine::processReceipt(
+                        $pdo, $tenant_id, $warehouseId,
+                        [
+                            'supplier_name'    => $invoice['supplier_name'],
+                            'supplier_invoice' => $invoice['invoice_number'],
+                            'lines'            => $pzLines,
+                        ],
+                        (string) $user_id
+                    );
+                } catch (\Throwable $e) {
+                    inboxFail(500, 'PZ_FAILED', 'PZ nie został utworzony: ' . $e->getMessage());
+                }
+
+                $pzDocId = (int) ($pzResult['pz_document']['doc_id'] ?? 0);
+
+                foreach ($lines as $l) {
+                    $lt = strtoupper((string) ($l['line_type'] ?? 'INVENTORY'));
+                    if ($lt === 'EXPENSE') {
+                        $markExp->execute([
+                            ':ecid' => (int) $l['expense_category_id'],
+                            ':uid'  => $user_id,
+                            ':lid'  => (int) $l['id'],
+                            ':iid'  => $iid,
+                        ]);
+                    } else {
+                        $markInv->execute([':uid' => $user_id, ':lid' => (int) $l['id'], ':iid' => $iid]);
+                    }
+                }
+
+                $pdo->prepare(
+                    "UPDATE sh_ksef_invoices
+                        SET status = 'accepted',
+                            cost_category = 'magazyn',
+                            linked_wh_document_id = :pzid,
+                            processed_at = NOW(),
+                            processed_by_user_id = :uid
+                      WHERE id = :id AND tenant_id = :tid"
+                )->execute([
+                    ':pzid' => $pzDocId,
+                    ':uid'  => $user_id,
+                    ':id'   => $iid,
+                    ':tid'  => $tenant_id,
+                ]);
+
+                inboxAudit($pdo, $tenant_id, $user_id, 'ksef_accept', $iid, [
+                    'pz_doc_id'       => $pzDocId,
+                    'pz_doc_number'   => $pzResult['pz_document']['doc_number'] ?? '',
+                    'auto_learned'    => $pzResult['pz_document']['auto_learned'] ?? 0,
+                    'pz_lines_count'  => count($pzLines),
+                    'invoice_lines'   => count($lines),
+                    'line_opex_model' => true,
+                ]);
+
+                inboxResponse(true, [
+                    'invoice_id'    => $iid,
+                    'pz_document'   => $pzResult['pz_document'],
+                    'cost_category' => 'magazyn',
+                ], 'Zaakceptowane → PZ ' . ($pzResult['pz_document']['doc_number'] ?? '?'));
+                break;
+            }
+
+            // Legacy: nagłówkowa cost_category (instancje bez kolumn line_type)
             $costCategory = inboxSanitizeCostCategory($input['cost_category'] ?? ($invoice['cost_category'] ?? 'magazyn'));
 
             $linesSt = $pdo->prepare(
@@ -650,15 +955,27 @@ try {
             if (strlen($sku) > 64) inboxFail(400, 'SKU_TOO_LONG', 'SKU max 64 znaki.');
 
             // Tenant scope check (linia musi należeć do tenanta przez sh_ksef_invoices)
-            $own = $pdo->prepare(
-                "SELECT l.external_name, i.status FROM sh_ksef_invoice_lines l
-                   JOIN sh_ksef_invoices i ON i.id = l.ksef_invoice_id
-                  WHERE i.tenant_id = :tid AND i.id = :iid AND l.id = :lid LIMIT 1"
-            );
+            if (inboxKsefLineHasOpexColumns($pdo)) {
+                $own = $pdo->prepare(
+                    "SELECT l.external_name, i.status, COALESCE(l.line_type, 'INVENTORY') AS line_type
+                       FROM sh_ksef_invoice_lines l
+                       JOIN sh_ksef_invoices i ON i.id = l.ksef_invoice_id
+                      WHERE i.tenant_id = :tid AND i.id = :iid AND l.id = :lid LIMIT 1"
+                );
+            } else {
+                $own = $pdo->prepare(
+                    "SELECT l.external_name, i.status FROM sh_ksef_invoice_lines l
+                       JOIN sh_ksef_invoices i ON i.id = l.ksef_invoice_id
+                      WHERE i.tenant_id = :tid AND i.id = :iid AND l.id = :lid LIMIT 1"
+                );
+            }
             $own->execute([':tid' => $tenant_id, ':iid' => $iid, ':lid' => $lid]);
             $row = $own->fetch(PDO::FETCH_ASSOC);
             if (!$row) inboxFail(404, 'NOT_FOUND');
             if ($row['status'] === 'accepted') inboxFail(400, 'ALREADY_ACCEPTED');
+            if (inboxKsefLineHasOpexColumns($pdo) && strtoupper((string) ($row['line_type'] ?? 'INVENTORY')) === 'EXPENSE') {
+                inboxFail(400, 'NOT_INVENTORY_LINE', 'Smart-create dotyczy tylko linii magazynowych (INVENTORY).');
+            }
             $extName = (string) $row['external_name'];
 
             $pdo->beginTransaction();
@@ -676,12 +993,23 @@ try {
                 }
 
                 // 2. Update linię — sku + match_type='MANUAL'
-                $pdo->prepare(
-                    "UPDATE sh_ksef_invoice_lines
-                        SET resolved_sku = :sku, match_type = 'MANUAL', match_confidence = 100,
-                            resolved_at = NOW(), resolved_by_user_id = :uid
-                      WHERE id = :lid"
-                )->execute([':sku' => $sku, ':uid' => $user_id, ':lid' => $lid]);
+                if (inboxKsefLineHasOpexColumns($pdo)) {
+                    $pdo->prepare(
+                        "UPDATE sh_ksef_invoice_lines
+                            SET line_type = 'INVENTORY',
+                                expense_category_id = NULL,
+                                resolved_sku = :sku, match_type = 'MANUAL', match_confidence = 100,
+                                resolved_at = NOW(), resolved_by_user_id = :uid
+                          WHERE id = :lid"
+                    )->execute([':sku' => $sku, ':uid' => $user_id, ':lid' => $lid]);
+                } else {
+                    $pdo->prepare(
+                        "UPDATE sh_ksef_invoice_lines
+                            SET resolved_sku = :sku, match_type = 'MANUAL', match_confidence = 100,
+                                resolved_at = NOW(), resolved_by_user_id = :uid
+                          WHERE id = :lid"
+                    )->execute([':sku' => $sku, ':uid' => $user_id, ':lid' => $lid]);
+                }
 
                 // 3. Auto-learn do sh_product_mapping (network effect — kolejny PZ z tej nazwy = EXACT)
                 $pdo->prepare(

@@ -67,4 +67,5 @@ return [
     '054_order_line_combo_meta.sql',
     '055_recipe_display_order.sql',
     '056_ksef_invoice_cost_category.sql',
+    '057_ksef_line_opex_expense_categories.sql',
 ];

@@ -41,6 +41,8 @@
         currentLines: [],
         threshold: 70,
         skuOptions: [], // dla comboboxów SKU (cache sys_items)
+        lineOpexEnabled: false,
+        expenseCategories: [],
     };
 
     /** Pływająca lista SKU (poza overflow modala) */
@@ -81,6 +83,15 @@
     // -------------------------------------------------------------------------
     // SKU options (z stock_list — fallback, ale jak masz dużo SKU, lepiej zostawić select pusty z search)
     // -------------------------------------------------------------------------
+    async function loadExpenseCategories() {
+        const r = await api('list', {}, '/api/procurement/expense_categories.php');
+        if (r.success && r.data && Array.isArray(r.data.categories)) {
+            state.expenseCategories = r.data.categories;
+        } else {
+            state.expenseCategories = [];
+        }
+    }
+
     async function loadSkuOptions() {
         try {
             const tok = getToken();
@@ -372,6 +383,29 @@
         return any;
     }
 
+    function getActiveLineTypeFromRow(tr) {
+        const a = tr.querySelector('.pi-seg-btn--active');
+        return (a && a.dataset.lt) ? a.dataset.lt : 'INVENTORY';
+    }
+
+    function hasPendingOpexLineChanges() {
+        let any = false;
+        $$('#pi-modal-body .pi-line-editor-row').forEach(tr => {
+            const curLt = getActiveLineTypeFromRow(tr);
+            const origLt = (tr.dataset.origLineType || 'INVENTORY').toUpperCase();
+            const combo = tr.querySelector('.pi-sku-combo');
+            const sku = combo ? (combo.querySelector('.pi-sku-combo-value').value || '').trim() : '';
+            const origSku = (tr.dataset.origSku || '').trim();
+            const sel = tr.querySelector('.pi-exp-cat-select');
+            const ec = sel ? String(sel.value || '') : '';
+            const origEc = String(tr.dataset.origExpenseId || '');
+            if (curLt !== origLt) any = true;
+            if (curLt === 'INVENTORY' && sku !== '' && sku !== origSku) any = true;
+            if (curLt === 'EXPENSE' && ec !== origEc) any = true;
+        });
+        return any;
+    }
+
     function updateModalSaveButtonState() {
         const btn = $('#pi-modal-save');
         if (!btn) return;
@@ -381,32 +415,89 @@
             return;
         }
         const locked = inv.status === 'accepted' || inv.status === 'rejected';
-        btn.disabled = locked || !hasPendingLineSkuChanges();
+        if (state.lineOpexEnabled) {
+            btn.disabled = locked || !hasPendingOpexLineChanges();
+        } else {
+            btn.disabled = locked || !hasPendingLineSkuChanges();
+        }
     }
 
     /**
-     * Zapisuje wszystkie linie, gdzie wybrane SKU różni się od wartości przy otwarciu modala.
+     * Zapisuje zmiany na liniach (SKU albo INVENTORY/EXPENSE + kategoria OPEX).
      * @return {{ok: boolean, saved: number, message?: string}}
      */
     async function savePendingLineSkus() {
         const inv = state.currentInvoice;
         if (!inv) return { ok: false, saved: 0, message: 'Brak faktury.' };
+
+        if (!state.lineOpexEnabled) {
+            const pending = [];
+            $$('#pi-modal-body .pi-sku-combo').forEach(combo => {
+                const lineId = parseInt(combo.dataset.lineId, 10);
+                const sku = (combo.querySelector('.pi-sku-combo-value').value || '').trim();
+                const orig = (combo.dataset.originalSku || '').trim();
+                if (sku === '' || sku === orig) return;
+                pending.push({ lineId, sku });
+            });
+            if (pending.length === 0) return { ok: true, saved: 0 };
+            for (const p of pending) {
+                const r = await api('update_line', { invoice_id: inv.id, line_id: p.lineId, sku: p.sku });
+                if (!r.success) {
+                    return { ok: false, saved: 0, message: r.message || 'Update linii padł.' };
+                }
+            }
+            return { ok: true, saved: pending.length };
+        }
+
         const pending = [];
-        $$('#pi-modal-body .pi-sku-combo').forEach(combo => {
-            const lineId = parseInt(combo.dataset.lineId, 10);
-            const sku = (combo.querySelector('.pi-sku-combo-value').value || '').trim();
-            const orig = (combo.dataset.originalSku || '').trim();
-            if (sku === '' || sku === orig) return;
-            pending.push({ lineId, sku });
+        $$('#pi-modal-body .pi-line-editor-row').forEach(tr => {
+            const lineId = parseInt(tr.dataset.lineId, 10);
+            const curLt = getActiveLineTypeFromRow(tr);
+            const origLt = (tr.dataset.origLineType || 'INVENTORY').toUpperCase();
+            const combo = tr.querySelector('.pi-sku-combo');
+            const sku = combo ? (combo.querySelector('.pi-sku-combo-value').value || '').trim() : '';
+            const origSku = (tr.dataset.origSku || '').trim();
+            const sel = tr.querySelector('.pi-exp-cat-select');
+            const ec = sel ? String(sel.value || '') : '';
+            const origEc = String(tr.dataset.origExpenseId || '');
+            let dirty = curLt !== origLt;
+            if (curLt === 'INVENTORY') dirty = dirty || (sku !== '' && sku !== origSku);
+            if (curLt === 'EXPENSE') dirty = dirty || (ec !== origEc);
+            if (!dirty) return;
+            pending.push({ lineId, curLt, sku, expense_category_id: ec ? parseInt(ec, 10) : 0 });
         });
         if (pending.length === 0) return { ok: true, saved: 0 };
+        let n = 0;
         for (const p of pending) {
-            const r = await api('update_line', { invoice_id: inv.id, line_id: p.lineId, sku: p.sku });
+            let body;
+            if (p.curLt === 'EXPENSE') {
+                if (!p.expense_category_id) {
+                    return { ok: false, saved: 0, message: 'Wybierz kategorię OPEX dla linii kosztowej.' };
+                }
+                body = {
+                    invoice_id: inv.id,
+                    line_id: p.lineId,
+                    line_type: 'EXPENSE',
+                    expense_category_id: p.expense_category_id,
+                };
+            } else {
+                if (!p.sku) {
+                    return { ok: false, saved: 0, message: 'Wybierz SKU dla linii magazynowej.' };
+                }
+                body = {
+                    invoice_id: inv.id,
+                    line_id: p.lineId,
+                    line_type: 'INVENTORY',
+                    sku: p.sku,
+                };
+            }
+            const r = await api('update_line', body);
             if (!r.success) {
                 return { ok: false, saved: 0, message: r.message || 'Update linii padł.' };
             }
+            n++;
         }
-        return { ok: true, saved: pending.length };
+        return { ok: true, saved: n };
     }
 
     function setUploadStatus(level, html) {
@@ -511,6 +602,10 @@
             showError(r.message || 'Nie udało się załadować szczegółów.');
             return;
         }
+        state.lineOpexEnabled = !!r.data.line_opex_enabled;
+        if (state.lineOpexEnabled) {
+            await loadExpenseCategories();
+        }
         state.currentInvoice = r.data.invoice;
         state.currentLines = r.data.lines || [];
         state.threshold = r.data.threshold || 70;
@@ -529,6 +624,7 @@
         $('#pi-modal-backdrop').classList.add('hidden');
         state.currentInvoice = null;
         state.currentLines = [];
+        state.lineOpexEnabled = false;
     }
 
     function updateCostCategoryHint() {
@@ -558,6 +654,33 @@
         await openInvoice(inv.id);
     }
 
+    function bindLineEditorRows(root) {
+        root.querySelectorAll('.pi-line-editor-row').forEach(tr => {
+            tr.querySelectorAll('.pi-seg-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    tr.querySelectorAll('.pi-seg-btn').forEach(b => b.classList.remove('pi-seg-btn--active'));
+                    btn.classList.add('pi-seg-btn--active');
+                    const lt = btn.dataset.lt;
+                    const invW = tr.querySelector('.pi-line-inv-wrap');
+                    const expW = tr.querySelector('.pi-line-exp-wrap');
+                    if (lt === 'INVENTORY') {
+                        if (invW) invW.classList.remove('hidden');
+                        if (expW) expW.classList.add('hidden');
+                    } else {
+                        if (invW) invW.classList.add('hidden');
+                        if (expW) expW.classList.remove('hidden');
+                        closeSkuDropdown();
+                    }
+                    updateModalSaveButtonState();
+                });
+            });
+            const sel = tr.querySelector('.pi-exp-cat-select');
+            if (sel) {
+                sel.addEventListener('change', () => updateModalSaveButtonState());
+            }
+        });
+    }
+
     function renderInvoiceDetails() {
         const inv = state.currentInvoice;
         const lines = state.currentLines;
@@ -578,16 +701,47 @@
             s[mt] = (s[mt] || 0) + 1;
             return s;
         }, {});
-        const unresolved = lines.filter(l => !l.resolved_sku).length;
+        const opex = state.lineOpexEnabled;
         const isAccepted = inv.status === 'accepted';
         const isRejected = inv.status === 'rejected';
         const costCat = inv.cost_category || 'magazyn';
         const overhead = costCat !== 'magazyn';
+        let warnRight = '';
+        if (opex) {
+            const missInv = lines.filter(l => (String(l.line_type || 'INVENTORY').toUpperCase() !== 'EXPENSE') && !l.resolved_sku).length;
+            const missExp = lines.filter(l => String(l.line_type || '').toUpperCase() === 'EXPENSE' && !l.expense_category_id).length;
+            const bits = [];
+            if (missInv) bits.push(`${missInv} towar. bez SKU`);
+            if (missExp) bits.push(`${missExp} OPEX bez kategorii`);
+            if (bits.length) {
+                warnRight = `<span class="pi-warn-inline"><i class="fa-solid fa-triangle-exclamation"></i> ${bits.join(' · ')}</span>`;
+            } else {
+                warnRight = '<span style="color:#94a3b8;margin-left:auto;font-size:0.78rem">Towary → PZ + magazyn · OPEX → ewidencja bez AVCO.</span>';
+            }
+        } else {
+            const unresolved = lines.filter(l => !l.resolved_sku).length;
+            if (!overhead && unresolved > 0) {
+                warnRight = `<span style="color:#f87171;margin-left:auto"><i class="fa-solid fa-triangle-exclamation"></i> ${unresolved} bez SKU — wymagane przed akceptacją (kategoria „Magazyn”)</span>`;
+            } else if (overhead) {
+                warnRight = '<span style="color:#94a3b8;margin-left:auto;font-size:0.78rem"><i class="fa-solid fa-circle-info"></i> Tryb kosztowy — SKU opcjonalne; akceptacja bez PZ.</span>';
+            }
+        }
 
         const costOptionKeys = ['magazyn', 'media', 'uslugi', 'inne'];
         const costOptsHtml = costOptionKeys.map(k =>
             `<option value="${k}">${escapeHtml(COST_CATEGORY_LABELS[k] || k)}</option>`
         ).join('');
+
+        const costRowHtml = opex ? '' : `
+            <div class="pi-cost-cat-row">
+                <label class="pi-cost-cat-label" for="pi-modal-cost-category">Kategoria kosztu (nagłówek)</label>
+                <select id="pi-modal-cost-category" class="pi-cost-cat-select"${isAccepted || isRejected ? ' disabled' : ''}>
+                    ${costOptsHtml}
+                </select>
+                <p id="pi-modal-cost-hint" class="pi-cost-cat-hint"></p>
+            </div>`;
+
+        const mapHeaders = opex ? '<th>Typ</th><th>Mapowanie</th>' : '<th>SKU</th>';
 
         let html = `
             <div class="pi-detail-grid">
@@ -607,23 +761,16 @@
                 ${stats.FUZZY ? `<span class="pi-match-stats-badge pi-match-pill--FUZZY">FUZZY ${stats.FUZZY}</span>` : ''}
                 ${stats.NONE ? `<span class="pi-match-stats-badge pi-match-pill--NONE">NONE ${stats.NONE}</span>` : ''}
                 ${stats.MANUAL ? `<span class="pi-match-stats-badge pi-match-pill--MANUAL">MANUAL ${stats.MANUAL}</span>` : ''}
-                ${!overhead && unresolved > 0 ? `<span style="color:#f87171;margin-left:auto"><i class="fa-solid fa-triangle-exclamation"></i> ${unresolved} bez SKU — wymagane przed akceptacją (kategoria „Magazyn”)</span>` : ''}
-                ${overhead ? `<span style="color:#94a3b8;margin-left:auto;font-size:0.78rem"><i class="fa-solid fa-circle-info"></i> Tryb kosztowy — SKU opcjonalne; akceptacja bez PZ.</span>` : ''}
+                ${warnRight}
             </div>
 
-            <div class="pi-cost-cat-row">
-                <label class="pi-cost-cat-label" for="pi-modal-cost-category">Kategoria kosztu</label>
-                <select id="pi-modal-cost-category" class="pi-cost-cat-select"${isAccepted || isRejected ? ' disabled' : ''}>
-                    ${costOptsHtml}
-                </select>
-                <p id="pi-modal-cost-hint" class="pi-cost-cat-hint"></p>
-            </div>
+            ${costRowHtml}
 
             <table class="pi-lines-table">
                 <thead>
                     <tr>
                         <th>#</th><th>Nazwa z faktury</th><th>Ilość</th><th>Cena netto</th>
-                        <th>VAT</th><th>Match</th><th>SKU</th>
+                        <th>VAT</th><th>Match</th>${mapHeaders}
                     </tr>
                 </thead>
                 <tbody>
@@ -631,6 +778,69 @@
         lines.forEach(l => {
             const skuValue = l.resolved_sku || '';
             const isAutoAccept = (l.match_confidence || 0) >= state.threshold;
+            const lt = (String(l.line_type || 'INVENTORY').toUpperCase() === 'EXPENSE') ? 'EXPENSE' : 'INVENTORY';
+
+            if (opex) {
+                const ecId = l.expense_category_id != null ? String(l.expense_category_id) : '';
+                const typeCell = isAccepted
+                    ? `<span class="pi-type-pill pi-type-pill--${lt}">${lt === 'EXPENSE' ? '💸 OPEX' : '📦 Towar'}</span>`
+                    : `<div class="pi-seg" role="group">
+                        <button type="button" class="pi-seg-btn${lt === 'INVENTORY' ? ' pi-seg-btn--active' : ''}" data-lt="INVENTORY">📦 Towar</button>
+                        <button type="button" class="pi-seg-btn${lt === 'EXPENSE' ? ' pi-seg-btn--active' : ''}" data-lt="EXPENSE">💸 OPEX</button>
+                    </div>`;
+                let mapCell;
+                if (isAccepted) {
+                    mapCell = lt === 'EXPENSE'
+                        ? `<span class="pi-line-sku">${escapeHtml(l.expense_category_name || '—')}</span>`
+                        : `<span class="pi-line-sku">${escapeHtml(skuValue || '?')}</span>`;
+                } else {
+                    const opts = (state.expenseCategories || []).map(c =>
+                        `<option value="${String(c.id)}"${ecId === String(c.id) ? ' selected' : ''}>${escapeHtml(c.name)}</option>`
+                    ).join('');
+                    const skuCombo = `<div class="pi-sku-combo" data-line-id="${l.id}" data-original-sku="${escapeHtml(skuValue)}">
+                    <div class="pi-sku-combo-picked hidden">
+                        <span class="pi-sku-combo-picked-text"></span>
+                        <button type="button" class="pi-sku-combo-clear" title="Wyczyść wybór" aria-label="Wyczyść">×</button>
+                    </div>
+                    <div class="pi-sku-combo-wrap">
+                        <input type="text" class="pi-sku-combo-search" placeholder="Szukaj nazwy lub SKU…" autocomplete="off" spellcheck="false" />
+                        <button type="button" class="pi-sku-combo-chev" aria-label="Rozwiń listę"><i class="fa-solid fa-chevron-down"></i></button>
+                    </div>
+                    <input type="hidden" class="pi-sku-combo-value" value="${escapeHtml(skuValue)}" />
+                </div>`;
+                    mapCell = `
+                        <div class="pi-line-inv-wrap${lt === 'INVENTORY' ? '' : ' hidden'}"><div class="pi-sku-cell">${skuCombo}</div></div>
+                        <div class="pi-line-exp-wrap${lt === 'EXPENSE' ? '' : ' hidden'}">
+                            <select class="pi-exp-cat-select pi-sku-select">
+                                <option value="">— kategoria OPEX —</option>
+                                ${opts}
+                            </select>
+                        </div>`;
+                }
+                const trCls = !isAccepted ? ' class="pi-line-editor-row"' : '';
+                const dataOrig = !isAccepted
+                    ? ` data-line-id="${l.id}" data-orig-line-type="${lt}" data-orig-sku="${escapeHtml(skuValue)}" data-orig-expense-id="${ecId}"`
+                    : ` data-line-id="${l.id}"`;
+                html += `
+                <tr${dataOrig}${trCls}>
+                    <td style="color:#64748b">${l.line_no}</td>
+                    <td>
+                        <div>${escapeHtml(l.external_name)}</div>
+                        ${l.gtu_code ? `<div style="color:#94a3b8;font-size:0.7rem">${escapeHtml(l.gtu_code)}${l.pkwiu ? ' · PKWiU ' + escapeHtml(l.pkwiu) : ''}</div>` : ''}
+                    </td>
+                    <td style="font-family:ui-monospace,monospace">${parseFloat(l.qty).toFixed(3)} ${escapeHtml(l.unit || '')}</td>
+                    <td style="font-family:ui-monospace,monospace;text-align:right">${parseFloat(l.unit_net).toFixed(2)}</td>
+                    <td style="font-family:ui-monospace,monospace">${parseFloat(l.vat_rate).toFixed(0)}%</td>
+                    <td>
+                        <span class="pi-match-pill pi-match-pill--${l.match_type || 'NONE'}">${l.match_type || 'NONE'} ${l.match_confidence || 0}%</span>
+                        ${isAutoAccept && skuValue && l.match_type !== 'MANUAL' ? '<div style="color:#86efac;font-size:0.65rem;margin-top:2px"><i class="fa-solid fa-check"></i> auto</div>' : ''}
+                    </td>
+                    <td>${typeCell}</td>
+                    <td class="pi-map-cell">${mapCell}</td>
+                </tr>`;
+                return;
+            }
+
             const skuCellInner = isAccepted
                 ? `<span class="pi-line-sku">${escapeHtml(skuValue || '?')}</span>`
                 : `<div class="pi-sku-combo" data-line-id="${l.id}" data-original-sku="${escapeHtml(skuValue)}">
@@ -675,15 +885,20 @@
         $('#pi-modal-body').innerHTML = html;
 
         const costSel = $('#pi-modal-cost-category');
-        if (costSel) {
+        if (costSel && !opex) {
             costSel.value = costCat;
             if (!isAccepted && !isRejected) {
                 costSel.addEventListener('change', onModalCostCategoryChange);
             }
         }
-        updateCostCategoryHint();
+        if (!opex) {
+            updateCostCategoryHint();
+        }
 
         attachSkuCombos($('#pi-modal-body'));
+        if (opex) {
+            bindLineEditorRows($('#pi-modal-body'));
+        }
 
         // Lock buttons gdy accepted/rejected
         $('#pi-modal-accept').disabled = isAccepted || isRejected;
@@ -711,13 +926,14 @@
             reverseBtn.style.display = 'none';
         }
 
-        // F4.5: NONE linie — przycisk Smart-create per linia
+        // F4.5: NONE linie — przycisk Smart-create per linia (tylko INVENTORY / magazyn)
         $$('#pi-modal-body tr[data-line-id]').forEach(tr => {
             const lineId = parseInt(tr.dataset.lineId, 10);
             const line = lines.find(l => l.id === lineId);
             if (!line || isAccepted) return;
+            if (opex && String(line.line_type || 'INVENTORY').toUpperCase() === 'EXPENSE') return;
             if ((line.match_type === 'NONE' || !line.resolved_sku) && !tr.querySelector('.pi-smart-create-btn')) {
-                const skuCell = tr.querySelector('.pi-sku-cell');
+                const skuCell = tr.querySelector('.pi-sku-cell') || tr.querySelector('.pi-line-inv-wrap .pi-sku-cell');
                 if (skuCell) {
                     const btn = document.createElement('button');
                     btn.type = 'button';
@@ -891,22 +1107,31 @@
                 showError(flush.message || 'Nie udało się zapisać zmian na liniach.');
                 return;
             }
-            const catSel = $('#pi-modal-cost-category');
-            const costCategory = catSel ? catSel.value : (inv.cost_category || 'magazyn');
-            const overhead = costCategory !== 'magazyn';
-            const msgMag = 'Akceptujesz fakturę w kategorii „Magazyn”? Powstanie PZ i stany magazynowe wzrosną.';
-            const msgOh = 'Akceptujesz fakturę jako koszt operacyjny („' + (COST_CATEGORY_LABELS[costCategory] || costCategory) + '”)? Bez dokumentu PZ — tylko ewidencja na statystyki.';
-            if (!confirm(overhead ? msgOh : msgMag)) return;
-            const r = await api('accept', {
-                invoice_id: inv.id,
-                warehouse_id: 'MAIN',
-                cost_category: costCategory,
-            });
+            let confirmMsg;
+            let costCategory = 'magazyn';
+            if (state.lineOpexEnabled) {
+                confirmMsg = 'Akceptujesz fakturę? Linie „Towar” utworzą PZ (magazyn); linie „OPEX” zapiszą się bez magazynu (bez AVCO).';
+            } else {
+                const catSel = $('#pi-modal-cost-category');
+                costCategory = catSel ? catSel.value : (inv.cost_category || 'magazyn');
+                const overhead = costCategory !== 'magazyn';
+                const msgMag = 'Akceptujesz fakturę w kategorii „Magazyn”? Powstanie PZ i stany magazynowe wzrosną.';
+                const msgOh = 'Akceptujesz fakturę jako koszt operacyjny („' + (COST_CATEGORY_LABELS[costCategory] || costCategory) + '”)? Bez dokumentu PZ — tylko ewidencja na statystyki.';
+                confirmMsg = overhead ? msgOh : msgMag;
+            }
+            if (!confirm(confirmMsg)) return;
+            const body = { invoice_id: inv.id, warehouse_id: 'MAIN' };
+            if (!state.lineOpexEnabled) {
+                body.cost_category = costCategory;
+            }
+            const r = await api('accept', body);
             if (!r.success) {
                 showError(r.message || 'Akceptacja padła.');
                 return;
             }
-            if (r.data.cost_only) {
+            if (r.data.expense_only_accept) {
+                alert('✓ Zaakceptowano fakturę kosztową (100% OPEX, bez PZ).\nLinie zapisane z kategoriami OPEX.');
+            } else if (r.data.cost_only) {
                 const lbl = COST_CATEGORY_LABELS[r.data.cost_category] || r.data.cost_category;
                 alert('✓ Zaakceptowano jako koszt (bez PZ).\nKategoria: ' + lbl + '.\nKwoty w nagłówku zachowane do przyszłego modułu statystyk.');
             } else {
@@ -931,6 +1156,10 @@
 
         // F4: KSeF Config modal
         $('#pi-btn-config').addEventListener('click', openConfigModal);
+        $('#pi-btn-opex-cat').addEventListener('click', openOpexModal);
+        $('#pi-opex-close').addEventListener('click', () => $('#pi-opex-backdrop').classList.add('hidden'));
+        $('#pi-opex-done').addEventListener('click', () => $('#pi-opex-backdrop').classList.add('hidden'));
+        $('#pi-opex-add').addEventListener('click', submitOpexAdd);
         $('#pi-cfg-close').addEventListener('click', () => $('#pi-cfg-backdrop').classList.add('hidden'));
         $('#pi-cfg-save').addEventListener('click', saveConfig);
         $('#pi-cfg-test').addEventListener('click', testConnection);
@@ -941,6 +1170,81 @@
         // F4.5: Smart-create modal
         $('#pi-create-close').addEventListener('click', () => $('#pi-create-backdrop').classList.add('hidden'));
         $('#pi-create-submit').addEventListener('click', submitSmartCreate);
+    }
+
+    // -------------------------------------------------------------------------
+    // Słownik kategorii OPEX
+    // -------------------------------------------------------------------------
+    function opexModalMsg(text, kind) {
+        const el = $('#pi-opex-msg');
+        if (!el) return;
+        el.textContent = text || '';
+        el.classList.remove('hidden', 'ok', 'err');
+        if (text) el.classList.add(kind === 'err' ? 'err' : 'ok');
+        else el.classList.add('hidden');
+    }
+
+    async function openOpexModal() {
+        const r = await api('list', {}, '/api/procurement/expense_categories.php');
+        if (!r.success) {
+            showError(r.message || 'Nie udało się pobrać kategorii.');
+            return;
+        }
+        state.expenseCategories = r.data.categories || [];
+        const rows = state.expenseCategories.map(c => {
+            const isSys = parseInt(String(c.is_system), 10) === 1;
+            const actions = isSys
+                ? '—'
+                : `<input type="text" class="pi-sku-select pi-opex-rename" data-id="${c.id}" value="${escapeHtml(c.name)}" style="max-width:200px" maxlength="128"/>
+                   <button type="button" class="pi-btn pi-opex-save" data-id="${c.id}" title="Zapisz"><i class="fa-solid fa-floppy-disk"></i></button>
+                   <button type="button" class="pi-btn pi-btn--danger pi-opex-del" data-id="${c.id}" title="Usuń"><i class="fa-solid fa-trash"></i></button>`;
+            return `<tr><td>${escapeHtml(c.name)}</td><td>${isSys ? '<span class="pi-type-pill pi-type-pill--INVENTORY">system</span>' : '—'}</td><td style="text-align:right;white-space:nowrap">${actions}</td></tr>`;
+        }).join('');
+        const wrap = $('#pi-opex-list-wrap');
+        if (wrap) {
+            wrap.innerHTML = `
+                <table class="pi-lines-table">
+                    <thead><tr><th>Nazwa</th><th></th><th style="text-align:right">Akcje</th></tr></thead>
+                    <tbody>${rows || '<tr><td colspan="3">Brak kategorii</td></tr>'}</tbody>
+                </table>`;
+        }
+        const nn = $('#pi-opex-new-name');
+        if (nn) nn.value = '';
+        opexModalMsg('', 'ok');
+        $('#pi-opex-backdrop').classList.remove('hidden');
+        $$('.pi-opex-save').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const id = parseInt(btn.getAttribute('data-id') || '0', 10);
+                const inp = document.querySelector(`.pi-opex-rename[data-id="${id}"]`);
+                const name = inp ? String(inp.value || '').trim() : '';
+                if (!name) return;
+                const u = await api('update', { id, name }, '/api/procurement/expense_categories.php');
+                if (!u.success) { opexModalMsg(u.message || 'Błąd zapisu', 'err'); return; }
+                await openOpexModal();
+                opexModalMsg('Zapisano nazwę.', 'ok');
+            });
+        });
+        $$('.pi-opex-del').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                if (!confirm('Usunąć tę kategorię? (soft-delete)')) return;
+                const id = parseInt(btn.getAttribute('data-id') || '0', 10);
+                const d = await api('delete', { id }, '/api/procurement/expense_categories.php');
+                if (!d.success) {
+                    opexModalMsg(d.message || 'Nie można usunąć', 'err');
+                    return;
+                }
+                await openOpexModal();
+            });
+        });
+    }
+
+    async function submitOpexAdd() {
+        const name = ($('#pi-opex-new-name') && $('#pi-opex-new-name').value.trim()) || '';
+        if (!name) return;
+        const r = await api('create', { name }, '/api/procurement/expense_categories.php');
+        if (!r.success) { opexModalMsg(r.message || 'Błąd', 'err'); return; }
+        await openOpexModal();
+        opexModalMsg('Dodano kategorię.', 'ok');
     }
 
     // -------------------------------------------------------------------------

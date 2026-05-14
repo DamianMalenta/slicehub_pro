@@ -27,6 +27,7 @@
         <a href="../warehouse/index.html"><i class="fa-solid fa-boxes-stacked"></i> Magazyn</a>
     </nav>
     <button type="button" class="pi-btn" id="pi-btn-config" title="Konfiguracja KSeF (F4)"><i class="fa-solid fa-gear"></i> KSeF</button>
+    <button type="button" class="pi-btn" id="pi-btn-opex-cat" title="Kategorie kosztów OPEX (linie faktury)"><i class="fa-solid fa-tags"></i> OPEX</button>
     <button type="button" class="pi-btn" id="pi-btn-poll-now" title="Pobierz faktury przychodzące z KSeF (tylko odczyt API — nic nie wysyłamy do MF)"><i class="fa-solid fa-cloud-arrow-down"></i> Pobierz</button>
     <button type="button" class="pi-btn" id="pi-btn-refresh" title="Odśwież"><i class="fa-solid fa-rotate"></i></button>
 </header>
@@ -167,6 +168,34 @@
             <button type="button" class="pi-btn" id="pi-cfg-test"><i class="fa-solid fa-plug"></i> Test connection</button>
             <div class="pi-spacer"></div>
             <button type="button" class="pi-btn pi-btn--primary" id="pi-cfg-save"><i class="fa-solid fa-floppy-disk"></i> Zapisz</button>
+        </footer>
+    </div>
+</div>
+
+<!-- Kategorie OPEX (słownik kosztów operacyjnych) -->
+<div id="pi-opex-backdrop" class="pi-modal-backdrop hidden">
+    <div class="pi-modal" style="max-width:640px">
+        <header class="pi-modal-header">
+            <div>
+                <div class="pi-modal-title"><i class="fa-solid fa-tags"></i> Kategorie OPEX</div>
+                <div class="pi-modal-sub">Koszty na fakturze (linie „OPEX”) — bez magazynu / PZ</div>
+            </div>
+            <button type="button" class="pi-btn pi-btn--ghost" id="pi-opex-close"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="pi-modal-body">
+            <div id="pi-opex-list-wrap"></div>
+            <div class="pi-cfg-field" style="margin-top:1rem">
+                <label>Nowa kategoria</label>
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+                    <input type="text" id="pi-opex-new-name" class="pi-sku-select" style="flex:1;min-width:200px" placeholder="np. Marketing lokalny" maxlength="128">
+                    <button type="button" class="pi-btn pi-btn--primary" id="pi-opex-add"><i class="fa-solid fa-plus"></i> Dodaj</button>
+                </div>
+            </div>
+            <div id="pi-opex-msg" class="pi-cfg-state hidden" style="margin-top:0.75rem"></div>
+        </div>
+        <footer class="pi-modal-footer">
+            <div class="pi-spacer"></div>
+            <button type="button" class="pi-btn pi-btn--primary" id="pi-opex-done">Gotowe</button>
         </footer>
     </div>
 </div>
