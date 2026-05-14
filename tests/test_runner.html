@@ -235,6 +235,7 @@ const CFG = {
     warehouseList      : `${BASE_PATH}/api/warehouse/warehouse_list.php`,
     warehouseApprove   : `${BASE_PATH}/api/warehouse/approve.php`,
     warehouseAddItem   : `${BASE_PATH}/api/warehouse/add_item.php`,
+    biDashboard        : `${BASE_PATH}/api/bi/dashboard_data.php`,
     studio             : `${BASE_PATH}/api/backoffice/api_menu_studio.php`,
     posEngine          : `${BASE_PATH}/api/pos/engine.php`,
     jsClients : {
@@ -508,6 +509,48 @@ const SUITES = [
                         return ['fail', `Odpowiedź zaczyna się od HTML/PHP error:\n${body.substring(0,200)}`];
                     }
                     return ['pass', 'Brak wycieków HTML/PHP przed JSON-em'];
+                }
+            },
+            {
+                id: 'T62', label: 'BI dashboard_data.php — JSON + 200 (owner)',
+                desc: 'GET /api/bi/dashboard_data.php z JWT owner/admin — success, amounts_minor, prime_cost_pct',
+                async run() {
+                    let token = CFG.authToken;
+                    const tryLoginOwner = async () => {
+                        const lr = await fetch(CFG.loginEndpoint, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ mode: 'system', username: 'admin', password: 'password' }),
+                            credentials: 'same-origin',
+                        });
+                        const lj = await lr.json().catch(() => ({}));
+                        if (lj.success && lj.data?.token) return lj.data.token;
+                        return '';
+                    };
+                    const t = await tryLoginOwner();
+                    if (t) token = t;
+                    if (!token) return ['fail', 'Brak tokenu (login system admin nieudany)'];
+                    const today = new Date();
+                    const end = today.toISOString().slice(0, 10);
+                    const start = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+                    const q = new URLSearchParams({ start_date: start, end_date: end });
+                    const r = await warehouseRequest(`${CFG.biDashboard}?${q}`, {});
+                    if (r.error) return ['fail', r.error];
+                    if (r.httpStatus !== 200) return ['fail', `HTTP ${r.httpStatus} — oczekiwano 200`];
+                    const json = tryParse(r.body);
+                    if (!json) return ['fail', `Nieparsowalny JSON:\n${r.body.substring(0, 200)}`];
+                    if (json.success !== true) return ['fail', `success=${json.success} msg: ${json.message}`];
+                    const d = json.data;
+                    if (!d || typeof d !== 'object') return ['fail', 'Brak pola data'];
+                    if (!d.amounts_minor || typeof d.amounts_minor !== 'object') return ['fail', 'Brak data.amounts_minor'];
+                    const am = d.amounts_minor;
+                    const need = ['gross_revenue', 'net_revenue', 'cogs', 'labor_cost', 'opex_cost', 'commissions', 'operating_profit'];
+                    for (const k of need) {
+                        if (typeof am[k] !== 'number') return ['fail', `amounts_minor.${k} powinno być liczbą (INT grosze)`];
+                    }
+                    if (typeof d.prime_cost_pct !== 'number') return ['fail', 'prime_cost_pct powinno być liczbą'];
+                    if (!Array.isArray(d.opex_by_category)) return ['fail', 'opex_by_category musi być tablicą'];
+                    return ['pass', `OK · prime_cost_pct=${d.prime_cost_pct}% · opex_categories=${d.opex_by_category.length}`];
                 }
             },
         ]

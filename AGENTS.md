@@ -37,7 +37,7 @@ All output should say "No syntax errors detected". Any other output is a failure
 
 ### Tests
 
-Open `http://localhost/slicehub/tests/test_runner.html` in a browser and click "Uruchom Wszystkie Testy". All 61 tests should pass. The tests are JavaScript-based and call the REST API endpoints.
+Open `http://localhost/slicehub/tests/test_runner.html` in a browser and click "Uruchom Wszystkie Testy". All 62 tests should pass. The tests are JavaScript-based and call the REST API endpoints.
 
 ### API authentication
 
