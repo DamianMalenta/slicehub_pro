@@ -21,7 +21,7 @@ declare(strict_types=1);
  *   - Drop wszystkich obiektów (tabele + widoki + procedury + funkcje + eventy).
  *   - Wgranie schematu 001 (z automatycznym strip CREATE DATABASE/USE).
  *   - Wykonanie pełnego łańcucha migracji (źródło: _migrations_chain.php).
- *   - Lista migracji + wykonanie wybranych pojedynczo / wielu naraz (kolejność jak w łańcuchu).
+ *   - Lista migracji (`list_migrations`): łańcuch + osierocone pliki SQL na dysku (tagi w UI).
  *   - "Pełny reset" — drop + 001 + chain w jednym kliknięciu (z double-confirm).
  *   - Lista tenantów + lista użytkowników per tenant.
  *   - Utworzenie tenanta.
@@ -153,6 +153,34 @@ function panel_chain_list(): array
     $c = require __DIR__ . '/_migrations_chain.php';
 
     return is_array($c) ? array_values($c) : [];
+}
+
+/**
+ * Wszystkie *.sql w database/migrations poza 001 i archiwum (porównanie z łańcuchem / tag „poza łańcuchem”).
+ *
+ * @return list<string>
+ */
+function panel_migration_sql_basenames_on_disk(): array
+{
+    $dir = panel_migrations_dir();
+    $glob = glob($dir . DIRECTORY_SEPARATOR . '*.sql');
+    if ($glob === false) {
+        return [];
+    }
+    $out = [];
+    foreach ($glob as $full) {
+        $base = basename((string) $full);
+        if ($base === '001_init_slicehub_pro_v2.sql') {
+            continue;
+        }
+        if (str_starts_with($base, '_archive_')) {
+            continue;
+        }
+        $out[] = $base;
+    }
+    sort($out, SORT_STRING);
+
+    return $out;
 }
 
 /**
@@ -396,7 +424,57 @@ function action_list_migrations(): void
     if ($chain === []) {
         panel_json(false, 'Łańcuch migracji jest pusty (_migrations_chain.php).');
     }
-    panel_json(true, 'OK', ['migrations' => $chain, 'count' => count($chain)]);
+    $dir = panel_migrations_dir();
+    $onDisk = panel_migration_sql_basenames_on_disk();
+    $chainSet = array_fill_keys($chain, true);
+
+    $orphans = [];
+    foreach ($onDisk as $f) {
+        if (!isset($chainSet[$f])) {
+            $orphans[] = $f;
+        }
+    }
+
+    $chainRows = [];
+    foreach ($chain as $idx => $f) {
+        $path = $dir . DIRECTORY_SEPARATOR . $f;
+        $chainRows[] = [
+            'file'        => $f,
+            'in_chain'    => true,
+            'chain_index' => $idx,
+            'on_disk'     => is_readable($path),
+        ];
+    }
+
+    $orphanRows = [];
+    foreach ($orphans as $f) {
+        $note = null;
+        if ($f === '015_normalize_three_drivers.sql') {
+            $note = 'Świadomie poza domyślnym łańcuchem — CLI: php scripts/apply_migrations_chain.php --include-015';
+        }
+        $orphanRows[] = [
+            'file'     => $f,
+            'in_chain' => false,
+            'on_disk'  => true,
+            'note'     => $note,
+        ];
+    }
+
+    $missingOnDisk = [];
+    foreach ($chainRows as $row) {
+        if (!$row['on_disk']) {
+            $missingOnDisk[] = $row['file'];
+        }
+    }
+
+    panel_json(true, 'OK', [
+        'chain'           => $chainRows,
+        'orphans'         => $orphanRows,
+        'missing_on_disk' => $missingOnDisk,
+        'migrations'      => $chain,
+        'count'           => count($chain),
+        'orphan_count'    => count($orphans),
+    ]);
 }
 
 function action_run_selected_migrations(array $body): void
@@ -839,6 +917,7 @@ $selfUrl = htmlspecialchars($_SERVER['SCRIPT_NAME'] ?? 'install_panel.php', ENT_
         display: flex;
         align-items: flex-start;
         gap: 0.5rem;
+        flex-wrap: wrap;
         padding: 0.35rem 0.25rem;
         border-radius: 6px;
         cursor: pointer;
@@ -854,6 +933,40 @@ $selfUrl = htmlspecialchars($_SERVER['SCRIPT_NAME'] ?? 'install_panel.php', ENT_
         color: #cbd5e1;
         word-break: normal;
         overflow-wrap: anywhere;
+    }
+    .sh-mig-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        align-items: center;
+        flex-shrink: 0;
+    }
+    .sh-mig-orphan {
+        cursor: default;
+        border-left: 3px solid rgba(245, 158, 11, 0.7);
+        padding-left: 0.45rem;
+        margin-top: 0.15rem;
+    }
+    .sh-mig-orphan:hover { background: rgba(255,255,255,0.04); }
+    .sh-mig-divider {
+        margin: 0.65rem 0 0.35rem;
+        padding-top: 0.55rem;
+        border-top: 1px solid rgba(255,255,255,0.12);
+        font-size: 0.78rem;
+        color: #94a3b8;
+        line-height: 1.4;
+    }
+    .sh-mig-banner {
+        margin-bottom: 0.5rem;
+        padding: 0.45rem 0.6rem;
+        border-radius: 8px;
+        font-size: 12px;
+        line-height: 1.35;
+    }
+    .sh-mig-banner--warn {
+        background: rgba(245, 158, 11, 0.12);
+        border: 1px solid rgba(245, 158, 11, 0.35);
+        color: #fde68a;
     }
     input:not([type="checkbox"]):not([type="radio"]):focus,
     select:focus { outline: none; border-color: #60a5fa; box-shadow: 0 0 0 2px rgba(96,165,250,0.25); }
@@ -971,8 +1084,8 @@ define('SLICEHUB_SCRIPT_KEY', 'losowy_dlugi_string_min_32_znaki');</pre>
     <section class="glass p-5">
         <h2 class="font-semibold text-lg mb-1">2b. Migracje wybrane (pojedynczo lub kilka)</h2>
         <p class="text-sm text-slate-400 mb-3">
-            Lista z <code>_migrations_chain.php</code>. Wykonanie zawsze w <strong>kolejności łańcucha</strong>
-            (np. tylko <code>056_ksef_invoice_cost_category.sql</code> — wcześniejsze pliki same się nie uruchomią).
+            Lista z <code>_migrations_chain.php</code> + pliki na dysku <strong>poza</strong> łańcuchem (tag <span class="pill pill-warn">POZA ŁAŃCUCHEM</span>).
+            Wykonanie zawsze w <strong>kolejności łańcucha</strong> — możesz zaznaczyć tylko wybrane wpisy z tagiem <span class="pill pill-ok">łańcuch</span>.
         </p>
         <div class="flex flex-wrap gap-2 mb-2">
             <button id="btn-mig-refresh" type="button" class="btn btn-soft text-sm">Odśwież listę</button>
@@ -1233,16 +1346,61 @@ define('SLICEHUB_SCRIPT_KEY', 'losowy_dlugi_string_min_32_znaki');</pre>
             box.innerHTML = '<span class="text-red-400">' + escapeHtml(r.message || 'Błąd listy') + '</span>';
             return;
         }
-        migrationFiles = (r.data && r.data.migrations) || [];
-        if (migrationFiles.length === 0) {
-            box.textContent = 'Łańcuch pusty.';
+        const d = r.data || {};
+        const chainRows = Array.isArray(d.chain) ? d.chain : [];
+        const orphans = Array.isArray(d.orphans) ? d.orphans : [];
+
+        if (chainRows.length === 0 && Array.isArray(d.migrations)) {
+            migrationFiles = d.migrations;
+            if (migrationFiles.length === 0) {
+                box.textContent = 'Łańcuch pusty.';
+                return;
+            }
+            box.innerHTML = migrationFiles.map(f =>
+                '<label class="sh-mig-row">' +
+                '<input type="checkbox" class="mig-cb" value="' + escapeHtml(f) + '">' +
+                '<span class="sh-mig-name">' + escapeHtml(f) + '</span>' +
+                '<span class="sh-mig-tags"><span class="pill pill-ok">łańcuch</span></span></label>'
+            ).join('');
             return;
         }
-        box.innerHTML = migrationFiles.map(f =>
-            '<label class="sh-mig-row">' +
-            '<input type="checkbox" class="mig-cb" value="' + escapeHtml(f) + '">' +
-            '<span class="sh-mig-name">' + escapeHtml(f) + '</span></label>'
-        ).join('');
+
+        migrationFiles = chainRows.map(row => row.file);
+
+        let html = '';
+        if (Array.isArray(d.missing_on_disk) && d.missing_on_disk.length > 0) {
+            html += '<div class="sh-mig-banner sh-mig-banner--warn">W łańcuchu, ale <strong>brak pliku</strong> na dysku: ' +
+                d.missing_on_disk.map(escapeHtml).join(', ') + '</div>';
+        }
+
+        chainRows.forEach(row => {
+            const tags = ['<span class="pill pill-ok">łańcuch</span>'];
+            if (!row.on_disk) {
+                tags.push('<span class="pill pill-fail">brak pliku</span>');
+            }
+            const dis = !row.on_disk ? ' disabled' : '';
+            html += '<label class="sh-mig-row">' +
+                '<input type="checkbox" class="mig-cb" value="' + escapeHtml(row.file) + '"' + dis + '>' +
+                '<span class="sh-mig-name">' + escapeHtml(row.file) + '</span>' +
+                '<span class="sh-mig-tags">' + tags.join(' ') + '</span></label>';
+        });
+
+        if (orphans.length > 0) {
+            html += '<div class="sh-mig-divider">Na dysku jest <strong>' + orphans.length + '</strong> plik(ów) SQL ' +
+                '<strong>poza</strong> <code>_migrations_chain.php</code> — nie uruchomisz ich stąd, dopóki nie dopiszesz nazwy do łańcucha ' +
+                '(patrz <code>_docs/MIGRATIONS_AGENT_CHECKLIST.md</code>):</div>';
+            orphans.forEach(row => {
+                const note = row.note
+                    ? '<div class="text-xs text-slate-400 mt-1" style="width:100%">' + escapeHtml(row.note) + '</div>'
+                    : '';
+                html += '<div class="sh-mig-row sh-mig-orphan">' +
+                    '<span class="sh-mig-name">' + escapeHtml(row.file) + '</span>' +
+                    '<span class="sh-mig-tags"><span class="pill pill-warn">POZA ŁAŃCUCHEM</span></span>' +
+                    note + '</div>';
+            });
+        }
+
+        box.innerHTML = html || '<span class="text-slate-400">Brak wpisów.</span>';
     }
     $('#btn-mig-refresh').addEventListener('click', refreshMigrationsPicker);
     $('#btn-mig-all').addEventListener('click', () => {
