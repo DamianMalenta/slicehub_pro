@@ -10,6 +10,9 @@ declare(strict_types=1);
  * Multiple WZ documents per order_id are all included (no MIN(id) / LIMIT 1).
  *
  * Cross-silo joins: wh_documents.order_id → sh_orders.id with tenant_id on both sides.
+ *
+ * **Order date window (P&L):** revenue, VAT, and COGS-from-WZ use `sh_orders.created_at`, not
+ * `updated_at`, so late edits (notes, metadata) do not shift revenue across accounting periods.
  */
 final class BiEngine
 {
@@ -80,8 +83,8 @@ SELECT COALESCE(SUM(o.grand_total), 0) AS v
 FROM sh_orders o
 WHERE o.tenant_id = :tid
   AND o.status = 'completed'
-  AND o.updated_at >= :start_ts
-  AND o.updated_at <= :end_ts
+  AND o.created_at >= :start_ts
+  AND o.created_at <= :end_ts
 SQL;
         $st = $pdo->prepare($sqlGross);
         $st->execute([
@@ -97,8 +100,8 @@ FROM sh_order_lines ol
 INNER JOIN sh_orders o ON o.id = ol.order_id AND o.tenant_id = :tid_join
 WHERE o.tenant_id = :tid
   AND o.status = 'completed'
-  AND o.updated_at >= :start_ts
-  AND o.updated_at <= :end_ts
+  AND o.created_at >= :start_ts
+  AND o.created_at <= :end_ts
 SQL;
         $st2 = $pdo->prepare($sqlVat);
         $st2->execute([
@@ -128,8 +131,8 @@ WHERE wd.tenant_id = :tid_wd2
   AND wd.type = 'WZ'
   AND wd.order_id IS NOT NULL
   AND o.status = 'completed'
-  AND o.updated_at >= :start_ts
-  AND o.updated_at <= :end_ts
+  AND o.created_at >= :start_ts
+  AND o.created_at <= :end_ts
 SQL;
         $st = $pdo->prepare($sql);
         $st->execute([
