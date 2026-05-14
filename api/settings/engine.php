@@ -7,6 +7,8 @@ declare(strict_types=1);
  *
  * Obsługuje zarządzanie:
  *   • Integration adapters (sh_tenant_integrations)     — CRUD + test_ping
+ *     (wpisy `provider=ksef` są wyłączone z tego panelu — zarządza nimi
+ *      `api/procurement/ksef_config.php` / Inbox KSeF)
  *   • Webhook endpoints (sh_webhook_endpoints)          — CRUD + rotate_secret + test_ping
  *   • Gateway API keys (sh_gateway_api_keys)            — list + generate + revoke + scopes catalog
  *   • Webhook delivery inspector (sh_webhook_deliveries) — paginated read-only list
@@ -75,6 +77,27 @@ function settings_requireTableOrFail(PDO $pdo, string $table): void
         $pdo->query("SELECT 1 FROM {$table} LIMIT 0")->closeCursor();
     } catch (PDOException $e) {
         settings_respond(false, null, "Table {$table} missing — run scripts/setup_database.php (migration outstanding)", 503);
+    }
+}
+
+/**
+ * Wpis `sh_tenant_integrations` z provider=ksef jest tworzony i edytowany wyłącznie
+ * przez `api/procurement/ksef_config.php` (Inbox KSeF). Settings nie powinien go
+ * listować ani mutować — inaczej formularz (brak opcji „ksef” w dropdown) nadpisuje
+ * provider np. na pierwszego z AdapterRegistry.
+ */
+function settings_tenantHasKsefIntegration(PDO $pdo, int $tenantId): bool
+{
+    try {
+        $st = $pdo->prepare(
+            "SELECT 1 FROM sh_tenant_integrations
+             WHERE tenant_id = :tid AND provider = 'ksef' LIMIT 1"
+        );
+        $st->execute([':tid' => $tenantId]);
+
+        return (bool) $st->fetchColumn();
+    } catch (PDOException $e) {
+        return false;
     }
 }
 
@@ -228,6 +251,7 @@ try {
                         COALESCE(timeout_seconds, 8)      AS timeout_seconds
                  FROM sh_tenant_integrations
                  WHERE tenant_id = :tid
+                   AND provider <> 'ksef'
                  ORDER BY provider, id"
             );
             $stmt->execute([':tid' => $tenant_id]);
@@ -240,9 +264,10 @@ try {
             }
 
             settings_respond(true, [
-                'integrations'        => $rows,
-                'available_providers' => AdapterRegistry::availableProviders(),
-                'vault_ready'         => CredentialVault::isReady(),
+                'integrations'               => $rows,
+                'available_providers'        => AdapterRegistry::availableProviders(),
+                'vault_ready'                => CredentialVault::isReady(),
+                'ksef_integration_present'   => settings_tenantHasKsefIntegration($pdo, $tenant_id),
             ]);
         }
 
@@ -262,6 +287,13 @@ try {
 
             if ($provider === '' || $displayName === '') {
                 settings_respond(false, null, 'provider and display_name are required', 400);
+            }
+
+            if ($provider === 'ksef') {
+                settings_respond(false, null,
+                    'Integracji KSeF (provider=ksef) nie dodaje się w Settings — użyj Hub → Inbox KSeF (konfiguracja koła zębatego).',
+                    400
+                );
             }
 
             $known = array_keys(AdapterRegistry::availableProviders());
@@ -298,6 +330,13 @@ try {
                 );
                 $beforeStmt->execute([':id' => $id, ':tid' => $tenant_id]);
                 $beforeRow = $beforeStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
+                if ($beforeRow && strtolower((string)($beforeRow['provider'] ?? '')) === 'ksef') {
+                    settings_respond(false, null,
+                        'Rekord KSeF Inbox (provider=ksef) jest zapisem technicznym modułu Inbox KSeF — nie edytuj go w Settings (grozi nadpisaniem providera).',
+                        400
+                    );
+                }
 
                 $fields = [
                     'provider'         => $provider,
@@ -389,6 +428,18 @@ try {
             $active = !empty($input['active']) ? 1 : 0;
             if ($id <= 0) settings_respond(false, null, 'id required', 400);
 
+            $provStmt = $pdo->prepare(
+                "SELECT provider FROM sh_tenant_integrations WHERE id = :id AND tenant_id = :tid LIMIT 1"
+            );
+            $provStmt->execute([':id' => $id, ':tid' => $tenant_id]);
+            $prov = strtolower((string)($provStmt->fetchColumn() ?: ''));
+            if ($prov === 'ksef') {
+                settings_respond(false, null,
+                    'Integracji KSeF nie włączasz ani nie pauzujesz w Settings — użyj modułu Inbox KSeF.',
+                    400
+                );
+            }
+
             $pdo->prepare(
                 "UPDATE sh_tenant_integrations SET is_active = :a, updated_at = NOW()
                  WHERE id = :id AND tenant_id = :tid"
@@ -446,6 +497,13 @@ try {
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$row) settings_respond(false, null, 'Integration not found.', 404);
+
+            if (strtolower((string)($row['provider'] ?? '')) === 'ksef') {
+                settings_respond(false, null,
+                    'Test „Ping” dotyczy adapterów POS (Papu itd.). KSeF weryfikujesz w Inbox KSeF → Test połączenia.',
+                    400
+                );
+            }
 
             $report = settings_testIntegrationPing($row);
             settings_respond(true, $report);

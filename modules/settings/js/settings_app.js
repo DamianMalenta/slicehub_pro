@@ -226,6 +226,23 @@
                     el('i', { class: 'fa-solid fa-plus' }), ' Add Integration')
             ));
 
+            if (data.ksef_integration_present) {
+                pane.appendChild(el('div', { class: 'st-banner', role: 'status', style: 'margin-bottom:16px' },
+                    el('div', { class: 'st-banner__main' },
+                        el('i', { class: 'fa-solid fa-file-invoice', style: 'margin-right:8px' }),
+                        ' Masz ',
+                        el('b', {}, 'Inbox KSeF'),
+                        '. Token i środowisko zmieniasz w ',
+                        el('b', {}, 'Hub → Inbox KSeF'),
+                        ' (ikonka ',
+                        el('i', { class: 'fa-solid fa-gear' }),
+                        '). Rekord ',
+                        el('code', {}, 'provider=ksef'),
+                        ' nie jest tu pokazywany — formularz Edit nie ma tej opcji i mógłby przypadkowo nadpisać integrację (np. na Papu).'
+                    )
+                ));
+            }
+
             if (!data.integrations.length) {
                 pane.appendChild(el('div', { class: 'st-empty' },
                     el('i', { class: 'fa-solid fa-plug' }),
