@@ -56,8 +56,8 @@ class Client
 
     /** MF: maks. okres zapytania metadata ~3 mies.; bezpiecznie 90 dni wstecz od „teraz”. */
     private const METADATA_MAX_RANGE_DAYS = 90;
-    /** Rozmiar strony /invoices/query/metadata (MF: 10–250). */
-    private const METADATA_PAGE_SIZE = 100;
+    /** Rozmiar strony /invoices/query/metadata (OpenAPI MF: min 10, max 250). */
+    private const METADATA_PAGE_SIZE = 250;
     /** Zabezpieczenie przed nieskończoną pętlą (100 × 100 = 10 000 zgodnie z limitem przycinania MF). */
     private const METADATA_MAX_PAGES = 100;
 
@@ -212,6 +212,7 @@ class Client
 
     /**
      * Lista faktur (metadata). ref_id = numer KSeF (ksefNumber) — używany przez worker i deduplikację.
+     * Jedno zapytanie `dateType: Invoicing` + maks. `pageSize` (MF) — mniej POST-ów niż podwójne Issue+Invoicing, żeby nie zużywać limitów API.
      *
      * @param string|null $sinceDate Y-m-d — dolna granica zakresu dat; null = maks. okres wstecz (90 dni, limit MF)
      * @param string|null $lastSeenId zapisany cursor (legacy API 1.0) — ignorowany w v2; deduplikacja po stronie DB
@@ -240,26 +241,14 @@ class Client
         $toIso = gmdate('Y-m-d\TH:i:s\Z');
 
         // Subject2: nabywca z JWT (bez buyerIdentifier w body — 21405).
-        // Dwa zapytania (Issue + Invoicing): portal i API mogą rozjeżdżać się datą wystawienia vs przyjęcia do KSeF.
-        // Suma unikalnych numerów KSeF daje pełniejszy inbox niż pojedynczy dateType.
-        [$err1, $issueRows] = $this->collectMetadataPages('Issue', $fromIso, $toIso);
-        if ($err1 !== null) {
-            return ['success' => false, 'invoices' => [], 'message' => $err1];
-        }
-        [$err2, $invRows] = $this->collectMetadataPages('Invoicing', $fromIso, $toIso);
-        if ($err2 !== null) {
-            return ['success' => false, 'invoices' => [], 'message' => $err2];
+        // Jeden przebieg dateType = Invoicing: data „w KSeF” odpowiada nabywczemu inboxowi; łapie też stare FV z świeżym przyjęciem.
+        // Dwa przebiegi (Issue ∪ Invoicing) podwajały POST-y /invoices/query/metadata i szybko zużywały limity MF (np. osobna grupa limitów).
+        [$err, $rows] = $this->collectMetadataPages('Invoicing', $fromIso, $toIso);
+        if ($err !== null) {
+            return ['success' => false, 'invoices' => [], 'message' => $err];
         }
 
-        $merged = [];
-        foreach (array_merge($issueRows, $invRows) as $row) {
-            $k = $row['ref_id'];
-            if ($k !== '') {
-                $merged[$k] = $row;
-            }
-        }
-
-        return ['success' => true, 'invoices' => array_values($merged)];
+        return ['success' => true, 'invoices' => $rows];
     }
 
     /**

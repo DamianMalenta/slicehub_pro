@@ -25,7 +25,7 @@ Lista inboxu używała `dateRange.dateType = Invoicing` (data przyjęcia do KSeF
 
 - Pierwszy poll używał tylko **14 dni** wstecz i **jednej strony** (50 rekordów) — starsze faktury oraz nadmiar pozycji w oknie nie trafiały do SliceHuba.
 - Domyślnie: **`from` maks. 90 dni wstecz** (bezpiecznie w limicie MF ok. 3 mies.), z **clamp** gdy worker podaje starsze `sinceDate` (szeroki zakres → obcięcie do 90 dni, żeby MF nie zwracał błędu zakresu).
-- **Paginacja** `pageOffset` / `hasMore` (strona po 100, do 100 stron = 10 000 rekordów).
+- **Paginacja** `pageOffset` / `hasMore` (strona po **250** rekordów, do 100 stron).
 - **Timeout cURL** podniesiony do **90 s** (pierwsze pobranie wielu stron + auth).
 
 ## Cel
@@ -66,8 +66,14 @@ Zastąpienie martwego kontraktu API 1.0 (`ksef*.mf.gov.pl/api/online/…`, nagł
 - `find … -name "*.php" … | xargs php -l` — brak błędów składni.
 - Ręcznie: stary prod `/api/online/…` zwraca HTML zamknięcia API 1.0; v2 `POST …/v2/auth/challenge` zwraca 200.
 
+## Optymalizacja 2026-05-14 — mniej POST-ów `/invoices/query/metadata`
+
+- **Problem:** Dwa pełne przebiegi (`Issue` + `Invoicing`) × wiele stron = dużo żądań na jeden poll; łatwo o grupę limitów MF (np. komunikat o przekroczeniu zapytań na godzinę).
+- **Zmiana:** Jeden przebieg z **`dateType: Invoicing`** + **`pageSize` = 250** (maks. wg OpenAPI). Uzasadnienie: dla nabywcy (Subject2) krytyczna jest data przyjęcia do KSeF; worker i tak podaje wąskie `sinceDate` (od `last_polled_at`), więc zwykle wystarczy 1–kilka stron.
+- **Koszt:** Teoretyczny brak pozycji widocznych tylko po filtrowaniu po dacie wystawienia w tym samym oknie — rzadki przypadek wobec inboxu zakupowego.
+
 ## Otwarte pytania
 
-- Paginacja `pageOffset` / `hasMore` w `queryInbox` — obecnie pierwsza strona (50 pozycji); przy bardzo dużym napływie faktur warto dodać cursor w `sh_ksef_inbox_state`.
+- Przy ekstremalnym wolumenie (>25k faktur w 90 dni) nadal można rozważyć dodatkowy stan/cursor w `sh_ksef_inbox_state` lub batch export po stronie MF.
 - Hostingi bez `proc_open` lub bez OpenSSL CLI — wymagałoby innego kanału kryptograficznego (np. zewnętrzny helper); na typowym VPS z OpenSSL 3 ścieżka jest stabilna.
 - Czy `Client` / worker mają respektować `is_active` na wierszu `ksef` (dziś `Client` tego nie czyta) — nadal otwarte (por. sesja Settings).
