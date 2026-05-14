@@ -29,8 +29,7 @@ Zastąpienie martwego kontraktu API 1.0 (`ksef*.mf.gov.pl/api/online/…`, nagł
 - **Race na UNIQUE:** `InboxInvoiceRepository::isMysqlDuplicateKey` — worker i `poll_now` liczą duplikat jako skip.
 - **DRY:** `core/Ksef/InboxInvoiceRepository.php` — wspólny INSERT + `matchInvoiceLines`; upload XML przez repozytorium + `inboxRescanLines` (statystyki).
 - **Docs/UI:** `_docs/02_ARCHITEKTURA.md`, `modules/procurement/index.html` (hosty API v2).
-
-## Skrót zmian (co poszło do `main`)
+- **Później tego samego dnia:** przywrócono **Issue ∪ Invoicing**, **UTC `from`**, margines poll **14 dni** — gdy „w KSeF widać nowe”, a SliceHub tylko deduplikował stare wpisy w wąskim oknie / jednej osi dat.
 
 | Obszar | Zmiana |
 |--------|--------|
@@ -67,11 +66,10 @@ Zastąpienie martwego kontraktu API 1.0 (`ksef*.mf.gov.pl/api/online/…`, nagł
 - `find … -name "*.php" … | xargs php -l` — brak błędów składni.
 - Ręcznie: stary prod `/api/online/…` zwraca HTML zamknięcia API 1.0; v2 `POST …/v2/auth/challenge` zwraca 200.
 
-## Optymalizacja 2026-05-14 — mniej POST-ów `/invoices/query/metadata`
+## Optymalizacja / korekta (metadata)
 
-- **Problem:** Dwa pełne przebiegi (`Issue` + `Invoicing`) × wiele stron = dużo żądań na jeden poll; łatwo o grupę limitów MF (np. komunikat o przekroczeniu zapytań na godzinę).
-- **Zmiana:** Jeden przebieg z **`dateType: Invoicing`** + **`pageSize` = 250** (maks. wg OpenAPI). Uzasadnienie: dla nabywcy (Subject2) krytyczna jest data przyjęcia do KSeF; worker i tak podaje wąskie `sinceDate` (od `last_polled_at`), więc zwykle wystarczy 1–kilka stron.
-- **Koszt:** Teoretyczny brak pozycji widocznych tylko po filtrowaniu po dacie wystawienia w tym samym oknie — rzadki przypadek wobec inboxu zakupowego.
+- **2026-05-14 (rano):** Tylko `Invoicing` + `pageSize` 250 — mniej POST-ów, ale **pomijało** część pozycji widocznych w portalu (oś dat wystawienia vs przyjęcia).
+- **2026-05-14 (poprawka):** Ponownie **`Issue` ∪ `Invoicing`** (merge po `ksefNumber`), **`from` w UTC `Z`** jak `to`, margines workera **14 dni** — priorytet: pełna zgodność z tym, co widać w KSeF, kosztem większej liczby zapytań metadata (uwaga na limity MF).
 
 ## Otwarte pytania
 
