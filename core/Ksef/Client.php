@@ -240,10 +240,13 @@ class Client
         // Subject2 = faktury, gdzie uwierzytelniony podmiot jest Podmiotem 2 (nabywca).
         // MF: przy Subject2 identyfikator nabywcy pochodzi z kontekstu JWT — nie wolno
         // przekazywać buyerIdentifier (21405: buyer musi być null).
+        // dateType Issue = data wystawienia (zwykle zgodna z widokiem w portalu MF).
+        // Invoicing = data przyjęcia do KSeF — często węższa; stąd brak „świeżych” i starszych pozycji z ostatnich dni.
+        // sortOrder Desc = najpierw najnowsze (pierwsza strona obejmuje dzisiejsze przyjęcia z KSeF).
         $body = [
             'subjectType' => 'Subject2',
             'dateRange'   => [
-                'dateType' => 'Invoicing',
+                'dateType' => 'Issue',
                 'from'     => $fromIso,
                 'to'       => null,
             ],
@@ -253,7 +256,7 @@ class Client
         $pageOffset = 0;
         for ($page = 0; $page < self::METADATA_MAX_PAGES; $page++) {
             $query = [
-                'sortOrder'  => 'Asc',
+                'sortOrder'  => 'Desc',
                 'pageOffset' => $pageOffset,
                 'pageSize'   => self::METADATA_PAGE_SIZE,
             ];

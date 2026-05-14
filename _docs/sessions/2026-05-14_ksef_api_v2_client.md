@@ -6,6 +6,10 @@
 
 `POST /invoices/query/metadata` z `subjectType: Subject2`: pole **`buyerIdentifier` nie może być ustawione** — nabywca wynika z kontekstu JWT po uwierzytelnieniu. Wcześniejsze wysłanie NIP w body powodowało HTTP 400 (`buyer` must be null). W `Client::queryInbox` usunięto `buyerIdentifier` z payloadu.
 
+## Poprawka (Issue + sort Desc w metadata)
+
+Lista inboxu używała `dateRange.dateType = Invoicing` (data przyjęcia do KSeF) — portal pokazuje zwykle **datę wystawienia**; część faktur ma wtedy inną oś czasu i **nie wpadała** do zapytania (stąd tylko kilka pozycji, brak „świeżej” z ostatnich minut). Zmiana na **`Issue`** + **`sortOrder: Desc`** (najpierw najnowsze).
+
 ## Poprawka (zakres dat, paginacja, timeout)
 
 - Pierwszy poll używał tylko **14 dni** wstecz i **jednej strony** (50 rekordów) — starsze faktury oraz nadmiar pozycji w oknie nie trafiały do SliceHuba.
