@@ -7,34 +7,26 @@ namespace SliceHub\Ksef;
 require_once __DIR__ . '/../CredentialVault.php';
 
 /**
- * SliceHub — KSeF API Client
+ * SliceHub — KSeF API Client (oficjalne API v2 MF)
  *
- * Klient REST do Krajowego Systemu e-Faktur (KSeF) Ministerstwa Finansów.
+ * Hosty (OpenAPI v2):
+ *   Test: https://api-test.ksef.mf.gov.pl/v2
+ *   Prod: https://api.ksef.mf.gov.pl/v2
  *
- * Sandbox URL: https://ksef-test.mf.gov.pl/api
- * Prod URL:    https://ksef.mf.gov.pl/api
+ * Uwierzytelnianie (KSeF Token z podatki.gov.pl):
+ *   challenge → RSA-OAEP(SHA-256) → /auth/ksef-token (kontekst NIP) → poll
+ *   /auth/{ref} → /auth/token/redeem → JWT access + refresh.
+ *   Kolejne żądania: Authorization: Bearer (access); odświeżanie: /auth/token/refresh.
  *
- * Auth: KSeF Token (najprostsza opcja, generowany w panelu podatnika
- * na podatki.gov.pl). Alternatywa: certyfikat kwalifikowany — nie wspierane
- * w MVP F4.
+ * Szyfrowanie RSA wymaga binarki OpenSSL 3.x (`openssl pkeyutl`, OAEP SHA-256) —
+ * typowy hosting LAMP ma `/usr/bin/openssl`.
  *
- * Mock mode (F4 testing): gdy `environment === 'mock'`, klient zwraca
- * fixtures z `tests/ksef/` zamiast realnych HTTP requestów. Pozwala to
- * przetestować całą maszynerię bez prawdziwego KSeF Tokenu.
+ * Mock mode: `environment === 'mock'` — fixtures jak wcześniej (F4).
  *
- * Konstytucja v5 § Prawo IV (Zero Zaufania):
- *   Token NIGDY nie ląduje w logach. CredentialVault::encrypt zapisuje go
- *   szyfrowane at-rest w sh_tenant_integrations.credentials.
+ * Konstytucja v5: token NIGDY w logach; CredentialVault dla credentials w DB;
+ * każde SQL z barierą tenant_id.
  *
- * Konstytucja v5 § Prawo VI Snajper:
- *   Każde query SQL z tenant_id = :tid. Wszystkie JOIN cross-silo (sh_/wh_)
- *   przez klucze znakowe (SKU, NIP).
- *
- * Wzorzec wykorzystany przez `scripts/worker_ksef_inbox.php` (cron 5-15 min
- * albo HTTP trigger) — fetchuje nowe faktury z KSeF i INSERT-uje do
- * sh_ksef_invoices (m046).
- *
- * Sesja F4 · 2026-05-11.
+ * Sesja F4 · 2026-05-11 · migracja na API v2 · 2026-05-14.
  */
 class Client
 {
@@ -43,17 +35,29 @@ class Client
     public const ENV_MOCK    = 'mock';
 
     private const URLS = [
-        'sandbox' => 'https://ksef-test.mf.gov.pl/api',
-        'prod'    => 'https://ksef.mf.gov.pl/api',
+        'sandbox' => 'https://api-test.ksef.mf.gov.pl/v2',
+        'prod'    => 'https://api.ksef.mf.gov.pl/v2',
         'mock'    => 'mock://internal',
     ];
+
+    /** Klucze JSON w credentials (obok environment, token). */
+    private const CRED_REFRESH = 'ksef_refresh_token';
+    private const CRED_ACCESS  = 'ksef_access_token';
+    private const CRED_ACCESS_UNTIL = 'ksef_access_valid_until';
 
     private \PDO $pdo;
     private int $tenantId;
     private string $environment = self::ENV_MOCK;
+    /** Token KSeF z portalu MF (pole `token` w credentials). */
     private ?string $token = null;
     private string $baseUrl = '';
     private int $timeout = 30;
+
+    private ?string $tenantNip = null;
+
+    private ?string $ksefRefreshToken = null;
+    private ?string $ksefAccessToken = null;
+    private int $ksefAccessValidUntil = 0;
 
     public function __construct(\PDO $pdo, int $tenantId)
     {
@@ -63,11 +67,15 @@ class Client
     }
 
     /**
-     * Wczytaj config z sh_tenant_integrations (provider='ksef').
-     * Token decrypt przez CredentialVault.
+     * Wczytaj config z sh_tenant_integrations (provider='ksef') + NIP tenanta.
      */
     private function loadConfig(): void
     {
+        $stNip = $this->pdo->prepare('SELECT nip FROM sh_tenant WHERE id = :tid LIMIT 1');
+        $stNip->execute([':tid' => $this->tenantId]);
+        $nip = $stNip->fetchColumn();
+        $this->tenantNip = is_string($nip) && $nip !== '' ? self::normalizeNip($nip) : null;
+
         $st = $this->pdo->prepare(
             "SELECT api_base_url, credentials, is_active
                FROM sh_tenant_integrations
@@ -78,7 +86,6 @@ class Client
         $row = $st->fetch(\PDO::FETCH_ASSOC);
 
         if (!$row) {
-            // Brak konfiguracji — defaultowo mock mode (developer-friendly)
             $this->environment = self::ENV_MOCK;
             $this->baseUrl = self::URLS['mock'];
             return;
@@ -88,13 +95,34 @@ class Client
         if ($credsRaw !== '') {
             $plain = \CredentialVault::decrypt($credsRaw);
             if ($plain === null) {
-                $plain = $credsRaw; // fallback: niezaszyfrowany JSON
+                $plain = $credsRaw;
             }
             $creds = json_decode($plain, true);
             if (is_array($creds)) {
                 $this->environment = (string) ($creds['environment'] ?? self::ENV_MOCK);
                 $this->token = (string) ($creds['token'] ?? '');
-                if ($this->token === '') $this->token = null;
+                if ($this->token === '') {
+                    $this->token = null;
+                }
+                $this->ksefRefreshToken = isset($creds[self::CRED_REFRESH]) && is_string($creds[self::CRED_REFRESH])
+                    ? $creds[self::CRED_REFRESH]
+                    : null;
+                if ($this->ksefRefreshToken === '') {
+                    $this->ksefRefreshToken = null;
+                }
+                $this->ksefAccessToken = isset($creds[self::CRED_ACCESS]) && is_string($creds[self::CRED_ACCESS])
+                    ? $creds[self::CRED_ACCESS]
+                    : null;
+                if ($this->ksefAccessToken === '') {
+                    $this->ksefAccessToken = null;
+                }
+                $vu = $creds[self::CRED_ACCESS_UNTIL] ?? null;
+                if (is_string($vu) && $vu !== '') {
+                    $ts = strtotime($vu);
+                    $this->ksefAccessValidUntil = $ts !== false ? $ts : 0;
+                } else {
+                    $this->ksefAccessValidUntil = 0;
+                }
             }
         }
 
@@ -104,13 +132,22 @@ class Client
         }
     }
 
-    public function getEnvironment(): string { return $this->environment; }
-    public function isMockMode(): bool { return $this->environment === self::ENV_MOCK; }
-    public function hasToken(): bool { return $this->token !== null && $this->token !== ''; }
+    public function getEnvironment(): string
+    {
+        return $this->environment;
+    }
+
+    public function isMockMode(): bool
+    {
+        return $this->environment === self::ENV_MOCK;
+    }
+
+    public function hasToken(): bool
+    {
+        return $this->token !== null && $this->token !== '';
+    }
 
     /**
-     * Test connection do KSeF API. Mock: zawsze OK.
-     *
      * @return array{success:bool, environment:string, message:string, http_code?:int}
      */
     public function testConnection(): array
@@ -126,64 +163,114 @@ class Client
             return [
                 'success'     => false,
                 'environment' => $this->environment,
-                'message'     => 'Brak KSeF Token. Skonfiguruj w Settings → KSeF.',
+                'message'     => 'Brak KSeF Token. Skonfiguruj w module Inbox KSeF.',
+            ];
+        }
+        if ($this->tenantNip === null || strlen($this->tenantNip) !== 10) {
+            return [
+                'success'     => false,
+                'environment' => $this->environment,
+                'message'     => 'Brak poprawnego NIP tenanta (10 cyfr) w sh_tenant.nip — wymagany do uwierzytelnienia KSeF API v2.',
             ];
         }
 
-        // /online/Session/Status — endpoint sprawdzający token
-        $res = $this->httpGet('/online/Session/Status');
-        if ($res['code'] >= 200 && $res['code'] < 300) {
+        $err = $this->ensureAccessToken();
+        if ($err !== null) {
+            return [
+                'success'     => false,
+                'environment' => $this->environment,
+                'message'     => $err,
+            ];
+        }
+
+        $probe = $this->requestWithAccessToken('GET', '/sessions', null, []);
+        if ($probe['code'] >= 200 && $probe['code'] < 300) {
             return [
                 'success'     => true,
                 'environment' => $this->environment,
-                'message'     => "Połączenie z {$this->environment} OK.",
-                'http_code'   => $res['code'],
+                'message'     => "Połączenie z KSeF API v2 ({$this->environment}) OK.",
+                'http_code'   => $probe['code'],
             ];
         }
+
         return [
             'success'     => false,
             'environment' => $this->environment,
-            'message'     => "Test connection failed: HTTP {$res['code']} — " . substr($res['body'], 0, 200),
-            'http_code'   => $res['code'],
+            'message'     => $this->formatHttpFailure('GET /sessions', $probe),
+            'http_code'   => $probe['code'],
         ];
     }
 
     /**
-     * Lista referencyjnych ID faktur do pobrania (od ostatniego polla).
+     * Lista faktur (metadata). ref_id = numer KSeF (ksefNumber) — używany przez worker i deduplikację.
      *
-     * @param string|null $sinceDate ISO date — wszystkie od daty
-     * @param string|null $lastSeenId — paginacja
+     * @param string|null $sinceDate Y-m-d — dolna granica zakresu (Invoicing); null = ostatnie 14 dni
+     * @param string|null $lastSeenId zapisany cursor (legacy API 1.0) — ignorowany w v2; deduplikacja po stronie DB
      * @return array{success:bool, invoices: list<array{ref_id:string, supplier_nip:string, invoice_number:string, issue_date:string}>, message?:string}
      */
     public function queryInbox(?string $sinceDate = null, ?string $lastSeenId = null): array
     {
+        unset($lastSeenId);
+
         if ($this->isMockMode()) {
             return $this->mockQueryInbox($sinceDate);
         }
         if (!$this->hasToken()) {
             return ['success' => false, 'invoices' => [], 'message' => 'Brak KSeF Token.'];
         }
+        if ($this->tenantNip === null || strlen($this->tenantNip) !== 10) {
+            return ['success' => false, 'invoices' => [], 'message' => 'Brak NIP tenanta (sh_tenant.nip).'];
+        }
 
-        $params = [];
-        if ($sinceDate !== null) $params['DateFrom'] = $sinceDate;
-        if ($lastSeenId !== null) $params['LastInvoiceRef'] = $lastSeenId;
-        $qs = $params !== [] ? '?' . http_build_query($params) : '';
+        $err = $this->ensureAccessToken();
+        if ($err !== null) {
+            return ['success' => false, 'invoices' => [], 'message' => $err];
+        }
 
-        $res = $this->httpGet('/online/Query/Invoice' . $qs);
+        $fromIso = $this->buildDateFrom($sinceDate);
+        $body = [
+            'subjectType' => 'Subject2',
+            'dateRange'   => [
+                'dateType' => 'Invoicing',
+                'from'     => $fromIso,
+                'to'       => null,
+            ],
+            'buyerIdentifier' => [
+                'type'  => 'Nip',
+                'value' => $this->tenantNip,
+            ],
+        ];
+
+        $query = [
+            'sortOrder'  => 'Asc',
+            'pageOffset' => 0,
+            'pageSize'   => 50,
+        ];
+
+        $res = $this->requestWithAccessToken('POST', '/invoices/query/metadata', $body, $query);
         if ($res['code'] !== 200) {
-            return ['success' => false, 'invoices' => [], 'message' => "HTTP {$res['code']}"];
+            return ['success' => false, 'invoices' => [], 'message' => $this->formatHttpFailure('POST /invoices/query/metadata', $res)];
         }
-        $json = json_decode($res['body'], true);
+        $json = $res['json'];
         if (!is_array($json)) {
-            return ['success' => false, 'invoices' => [], 'message' => 'Invalid JSON response'];
+            return ['success' => false, 'invoices' => [], 'message' => 'Invalid JSON response (metadata)'];
         }
 
-        // KSeF response format: { "invoices": [{"invoiceReferenceNumber":"X", ...}] }
         $invoices = [];
         foreach (($json['invoices'] ?? []) as $inv) {
+            if (!is_array($inv)) {
+                continue;
+            }
+            $ksefNo = (string) ($inv['ksefNumber'] ?? '');
+            if ($ksefNo === '') {
+                continue;
+            }
+            $seller = $inv['seller'] ?? [];
+            $sellerNip = is_array($seller) ? (string) ($seller['nip'] ?? '') : '';
+            $nipNorm = self::normalizeNip($sellerNip);
             $invoices[] = [
-                'ref_id'         => (string) ($inv['invoiceReferenceNumber'] ?? ''),
-                'supplier_nip'   => (string) ($inv['issuedBy']['identifier'] ?? ''),
+                'ref_id'         => $ksefNo,
+                'supplier_nip'   => $nipNorm ?? $sellerNip,
                 'invoice_number' => (string) ($inv['invoiceNumber'] ?? ''),
                 'issue_date'     => (string) ($inv['issueDate'] ?? ''),
             ];
@@ -192,7 +279,7 @@ class Client
     }
 
     /**
-     * Pobierz pełny FA(2) XML jednej faktury.
+     * Pobierz XML faktury po numerze KSeF (dawniej ref. z API 1.0 — teraz wyłącznie ksefNumber).
      *
      * @return array{success:bool, xml?:string, message?:string}
      */
@@ -204,52 +291,438 @@ class Client
         if (!$this->hasToken()) {
             return ['success' => false, 'message' => 'Brak KSeF Token.'];
         }
-
-        $res = $this->httpGet('/online/Invoice/Get/' . rawurlencode($refId));
-        if ($res['code'] !== 200) {
-            return ['success' => false, 'message' => "HTTP {$res['code']}"];
+        if ($this->tenantNip === null || strlen($this->tenantNip) !== 10) {
+            return ['success' => false, 'message' => 'Brak NIP tenanta (sh_tenant.nip).'];
         }
-        // KSeF zwraca XML inline (Content-Type: application/xml)
-        return ['success' => true, 'xml' => $res['body']];
+
+        $err = $this->ensureAccessToken();
+        if ($err !== null) {
+            return ['success' => false, 'message' => $err];
+        }
+
+        $path = '/invoices/ksef/' . rawurlencode($refId);
+        $res = $this->requestWithAccessToken('GET', $path, null, []);
+        if ($res['code'] !== 200) {
+            return ['success' => false, 'message' => $this->formatHttpFailure('GET invoice XML', $res)];
+        }
+        return ['success' => true, 'xml' => (string) $res['body']];
     }
 
-    // =========================================================================
-    // HTTP helpers (cURL)
-    // =========================================================================
+    // -------------------------------------------------------------------------
+    // Uwierzytelnianie API v2
+    // -------------------------------------------------------------------------
 
-    private function httpGet(string $path): array
+    /** @return null|string null = OK, string = komunikat błędu */
+    private function ensureAccessToken(): ?string
+    {
+        if ($this->ksefAccessToken && $this->ksefAccessValidUntil > time() + 30) {
+            return null;
+        }
+        if ($this->ksefRefreshToken) {
+            if ($this->tryRefreshAccessToken()) {
+                return null;
+            }
+            $this->ksefRefreshToken = null;
+            $this->persistCredentialPatch([self::CRED_REFRESH => null]);
+        }
+        return $this->authenticateFullKsefTokenFlow();
+    }
+
+    private function tryRefreshAccessToken(): bool
+    {
+        $res = $this->httpRequest('POST', '/auth/token/refresh', null, [], $this->ksefRefreshToken);
+        if ($res['code'] !== 200 || !is_array($res['json'])) {
+            return false;
+        }
+        $acc = $res['json']['accessToken'] ?? null;
+        if (!is_array($acc)) {
+            return false;
+        }
+        $tok = (string) ($acc['token'] ?? '');
+        $vu = (string) ($acc['validUntil'] ?? '');
+        if ($tok === '' || $vu === '') {
+            return false;
+        }
+        $exp = strtotime($vu);
+        $this->ksefAccessToken = $tok;
+        $this->ksefAccessValidUntil = $exp !== false ? $exp : (time() + 300);
+        $this->persistCredentialPatch([
+            self::CRED_ACCESS        => $this->ksefAccessToken,
+            self::CRED_ACCESS_UNTIL  => $vu,
+        ]);
+        return true;
+    }
+
+    /** @return null|string */
+    private function authenticateFullKsefTokenFlow(): ?string
+    {
+        $portal = $this->token;
+        if ($portal === null || $portal === '') {
+            return 'Brak KSeF Token.';
+        }
+        $nip = $this->tenantNip;
+        if ($nip === null || strlen($nip) !== 10) {
+            return 'Brak poprawnego NIP tenanta (10 cyfr) w sh_tenant.nip.';
+        }
+
+        $certs = $this->httpRequest('GET', '/security/public-key-certificates', null, [], null);
+        if ($certs['code'] !== 200 || !is_array($certs['json'])) {
+            return 'Nie udało się pobrać certyfikatów KSeF (/security/public-key-certificates).';
+        }
+        $selected = $this->selectTokenEncryptionCertificate($certs['json']);
+        if ($selected === null) {
+            return 'Brak certyfikatu KSeF do szyfrowania tokenu (usage=KsefTokenEncryption).';
+        }
+
+        $ch = $this->httpRequest('POST', '/auth/challenge', [], [], null);
+        if ($ch['code'] !== 200 || !is_array($ch['json'])) {
+            return 'Nie udało się uzyskać challenge (/auth/challenge).';
+        }
+        $challenge = (string) ($ch['json']['challenge'] ?? '');
+        $tsMs = $ch['json']['timestampMs'] ?? null;
+        if ($challenge === '' || !is_int($tsMs)) {
+            return 'Niepoprawna odpowiedź /auth/challenge.';
+        }
+
+        try {
+            $cipherB64 = $this->rsaOaepSha256EncryptBase64(
+                (string) $selected['certificate'],
+                $portal . '|' . (string) $tsMs
+            );
+        } catch (\Throwable $e) {
+            return 'Błąd szyfrowania tokenu KSeF: ' . $e->getMessage();
+        }
+
+        $publicKeyId = (string) ($selected['publicKeyId'] ?? '');
+        $body = [
+            'challenge'         => $challenge,
+            'contextIdentifier' => [
+                'type'  => 'Nip',
+                'value' => $nip,
+            ],
+            'encryptedToken' => $cipherB64,
+            'publicKeyId'    => $publicKeyId !== '' ? $publicKeyId : null,
+        ];
+
+        $init = $this->httpRequest('POST', '/auth/ksef-token', $body, [], null);
+        if ($init['code'] !== 202 || !is_array($init['json'])) {
+            return 'Odrzucono /auth/ksef-token: ' . $this->formatHttpFailure('POST /auth/ksef-token', $init);
+        }
+        $ref = (string) ($init['json']['referenceNumber'] ?? '');
+        $authTok = $init['json']['authenticationToken'] ?? null;
+        $bearerInit = is_array($authTok) ? (string) ($authTok['token'] ?? '') : '';
+        if ($ref === '' || $bearerInit === '') {
+            return 'Niepoprawna odpowiedź inicjacji uwierzytelniania.';
+        }
+
+        $deadline = time() + 45;
+        $statusJson = null;
+        while (time() < $deadline) {
+            $st = $this->httpRequest('GET', '/auth/' . rawurlencode($ref), null, [], $bearerInit);
+            $statusJson = is_array($st['json']) ? $st['json'] : null;
+            $code = is_array($statusJson['status'] ?? null)
+                ? (int) ($statusJson['status']['code'] ?? 0)
+                : 0;
+            if ($code === 200) {
+                break;
+            }
+            if ($code >= 400 && $code !== 100) {
+                $desc = is_array($statusJson['status'] ?? null)
+                    ? (string) ($statusJson['status']['description'] ?? 'błąd')
+                    : 'błąd';
+                return "Uwierzytelnianie KSeF nieudane (status {$code}): {$desc}";
+            }
+            usleep(300_000);
+        }
+        if (!is_array($statusJson) || (int) ($statusJson['status']['code'] ?? 0) !== 200) {
+            return 'Timeout oczekiwania na zakończenie uwierzytelniania KSeF.';
+        }
+
+        $redeem = $this->httpRequest('POST', '/auth/token/redeem', [], [], $bearerInit);
+        if ($redeem['code'] !== 200 || !is_array($redeem['json'])) {
+            return 'Wymiana tokenu nieudana (/auth/token/redeem): ' . $this->formatHttpFailure('POST /auth/token/redeem', $redeem);
+        }
+        $access = $redeem['json']['accessToken'] ?? null;
+        $refresh = $redeem['json']['refreshToken'] ?? null;
+        if (!is_array($access) || !is_array($refresh)) {
+            return 'Niepoprawna odpowiedź /auth/token/redeem.';
+        }
+        $at = (string) ($access['token'] ?? '');
+        $atUntil = (string) ($access['validUntil'] ?? '');
+        $rt = (string) ($refresh['token'] ?? '');
+        if ($at === '' || $rt === '' || $atUntil === '') {
+            return 'Niekompletne tokeny po /auth/token/redeem.';
+        }
+        $exp = strtotime($atUntil);
+        $this->ksefAccessToken = $at;
+        $this->ksefAccessValidUntil = $exp !== false ? $exp : (time() + 300);
+        $this->ksefRefreshToken = $rt;
+
+        $this->persistCredentialPatch([
+            self::CRED_REFRESH       => $this->ksefRefreshToken,
+            self::CRED_ACCESS       => $this->ksefAccessToken,
+            self::CRED_ACCESS_UNTIL => $atUntil,
+        ]);
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string,mixed>>|array<string,mixed> $decodedJson
+     * @return array{certificate:string,publicKeyId:string}|null
+     */
+    private function selectTokenEncryptionCertificate($decodedJson): ?array
+    {
+        $list = isset($decodedJson[0]) ? $decodedJson : [];
+        if ($list === [] && isset($decodedJson['certificate'])) {
+            $list = [$decodedJson];
+        }
+        $now = time();
+        foreach ($list as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $usage = $row['usage'] ?? [];
+            if (!is_array($usage) || !in_array('KsefTokenEncryption', $usage, true)) {
+                continue;
+            }
+            $cert = (string) ($row['certificate'] ?? '');
+            if ($cert === '') {
+                continue;
+            }
+            $vf = strtotime((string) ($row['validFrom'] ?? ''));
+            $vt = strtotime((string) ($row['validTo'] ?? ''));
+            if ($vf !== false && $now < $vf) {
+                continue;
+            }
+            if ($vt !== false && $now > $vt) {
+                continue;
+            }
+            return [
+                'certificate' => $cert,
+                'publicKeyId' => (string) ($row['publicKeyId'] ?? ''),
+            ];
+        }
+        return null;
+    }
+
+    private function rsaOaepSha256EncryptBase64(string $certificateDerBase64, string $plaintext): string
+    {
+        $der = base64_decode($certificateDerBase64, true);
+        if ($der === false || $der === '') {
+            throw new \RuntimeException('Niepoprawny certyfikat (Base64).');
+        }
+        $b64 = base64_encode($der);
+        $pem = "-----BEGIN CERTIFICATE-----\n" . chunk_split($b64, 64, "\n") . '-----END CERTIFICATE-----';
+
+        $openssl = self::resolveOpensslBinary();
+        $tmpPem = tempnam(sys_get_temp_dir(), 'ksefpem');
+        $tmpIn = tempnam(sys_get_temp_dir(), 'ksefin');
+        $tmpOut = tempnam(sys_get_temp_dir(), 'ksefout');
+        if ($tmpPem === false || $tmpIn === false || $tmpOut === false) {
+            throw new \RuntimeException('Brak katalogu tymczasowego.');
+        }
+        try {
+            file_put_contents($tmpPem, $pem);
+            file_put_contents($tmpIn, $plaintext);
+            $cmd = [
+                $openssl, 'pkeyutl', '-encrypt',
+                '-inkey', $tmpPem,
+                '-certin',
+                '-in', $tmpIn,
+                '-out', $tmpOut,
+                '-pkeyopt', 'rsa_padding_mode:oaep',
+                '-pkeyopt', 'rsa_oaep_md:sha256',
+                '-pkeyopt', 'rsa_mgf1_md:sha256',
+            ];
+            $descSpec = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+            $proc = proc_open($cmd, $descSpec, $pipes, null, null);
+            if (!is_resource($proc)) {
+                throw new \RuntimeException('proc_open(openssl) niedostępne.');
+            }
+            fclose($pipes[0]);
+            $stderr = stream_get_contents($pipes[2]);
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+            $code = proc_close($proc);
+            if ($code !== 0) {
+                throw new \RuntimeException(trim($stderr ?: 'openssl pkeyutl failed'));
+            }
+            $bin = file_get_contents($tmpOut);
+            if ($bin === false || $bin === '') {
+                throw new \RuntimeException('Pusty wynik szyfrowania RSA.');
+            }
+            return base64_encode($bin);
+        } finally {
+            @unlink($tmpPem);
+            @unlink($tmpIn);
+            @unlink($tmpOut);
+        }
+    }
+
+    private static function resolveOpensslBinary(): string
+    {
+        foreach (['/usr/bin/openssl', '/bin/openssl'] as $p) {
+            if (is_file($p) && is_executable($p)) {
+                return $p;
+            }
+        }
+        return 'openssl';
+    }
+
+    /**
+     * @param array<string,mixed>|null $jsonBody
+     * @param array<string,string|int> $query
+     * @return array{code:int, body:string, json:mixed}
+     */
+    private function requestWithAccessToken(string $method, string $path, ?array $jsonBody, array $query): array
+    {
+        for ($i = 0; $i < 2; $i++) {
+            $err = $this->ensureAccessToken();
+            if ($err !== null) {
+                return ['code' => 0, 'body' => $err, 'json' => null];
+            }
+            $res = $this->httpRequest($method, $path, $jsonBody, $query, $this->ksefAccessToken);
+            if ($res['code'] !== 401) {
+                return $res;
+            }
+            $this->ksefAccessToken = null;
+            $this->ksefAccessValidUntil = 0;
+            $this->persistCredentialPatch([
+                self::CRED_ACCESS       => null,
+                self::CRED_ACCESS_UNTIL => null,
+            ]);
+        }
+        return $res ?? ['code' => 401, 'body' => 'Unauthorized', 'json' => null];
+    }
+
+    /**
+     * @param array<string,mixed>|null $jsonBody
+     * @param array<string,string|int> $query
+     * @return array{code:int, body:string, json:mixed}
+     */
+    private function httpRequest(string $method, string $path, ?array $jsonBody, array $query, ?string $bearer): array
     {
         $url = rtrim($this->baseUrl, '/') . $path;
+        if ($query !== []) {
+            $url .= '?' . http_build_query($query);
+        }
+        $m = strtoupper($method);
+        $headers = [
+            'Accept: application/json, application/problem+json, application/xml',
+            'User-Agent: SliceHub-KSeF-Client/2',
+        ];
+        if ($m === 'POST' || $m === 'PUT' || $m === 'PATCH') {
+            $headers[] = 'Content-Type: application/json; charset=UTF-8';
+        }
+        if ($bearer !== null && $bearer !== '') {
+            $headers[] = 'Authorization: Bearer ' . $bearer;
+        }
+
         $ch = curl_init($url);
-        curl_setopt_array($ch, [
+        $opts = [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => $this->timeout,
-            CURLOPT_HTTPHEADER     => [
-                'Accept: application/xml, application/json',
-                'SessionToken: ' . ($this->token ?? ''),
-            ],
-        ]);
+            CURLOPT_HTTPHEADER     => $headers,
+            CURLOPT_CUSTOMREQUEST  => $m,
+        ];
+        if ($m === 'POST' || $m === 'PUT' || $m === 'PATCH') {
+            $payload = $jsonBody;
+            if ($payload === null || $payload === []) {
+                $payload = new \stdClass();
+            }
+            $opts[CURLOPT_POSTFIELDS] = json_encode($payload, JSON_UNESCAPED_UNICODE);
+        }
+        curl_setopt_array($ch, $opts);
         $body = curl_exec($ch);
         $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-        $err = curl_error($ch);
+        $cerr = curl_error($ch);
         curl_close($ch);
         if ($body === false) {
-            return ['code' => 0, 'body' => 'curl error: ' . $err];
+            return ['code' => 0, 'body' => 'curl: ' . $cerr, 'json' => null];
         }
-        return ['code' => $code, 'body' => (string) $body];
+        $bodyStr = (string) $body;
+        $json = null;
+        if (str_starts_with(ltrim($bodyStr), '{') || str_starts_with(ltrim($bodyStr), '[')) {
+            $json = json_decode($bodyStr, true);
+        }
+        return ['code' => $code, 'body' => $bodyStr, 'json' => $json];
+    }
+
+    /**
+     * @param array<string,mixed|null> $patch null usuwa klucz
+     */
+    private function persistCredentialPatch(array $patch): void
+    {
+        $st = $this->pdo->prepare(
+            "SELECT credentials FROM sh_tenant_integrations
+              WHERE tenant_id = :tid AND provider = 'ksef' LIMIT 1"
+        );
+        $st->execute([':tid' => $this->tenantId]);
+        $raw = $st->fetchColumn();
+        if (!is_string($raw) || $raw === '') {
+            return;
+        }
+        $plain = \CredentialVault::decrypt($raw);
+        if ($plain === null) {
+            $plain = $raw;
+        }
+        $creds = json_decode($plain, true);
+        if (!is_array($creds)) {
+            $creds = [];
+        }
+        foreach ($patch as $k => $v) {
+            if ($v === null) {
+                unset($creds[$k]);
+            } else {
+                $creds[$k] = $v;
+            }
+        }
+        $json = json_encode($creds, JSON_UNESCAPED_UNICODE);
+        if ($json === false) {
+            return;
+        }
+        $enc = \CredentialVault::encrypt($json);
+        $up = $this->pdo->prepare(
+            "UPDATE sh_tenant_integrations SET credentials = :c, updated_at = NOW()
+              WHERE tenant_id = :tid AND provider = 'ksef'"
+        );
+        $up->execute([':c' => $enc, ':tid' => $this->tenantId]);
+    }
+
+    private function formatHttpFailure(string $ctx, array $res): string
+    {
+        $code = (int) $res['code'];
+        $snippet = substr(preg_replace('/\s+/', ' ', strip_tags($res['body'])), 0, 220);
+        return "{$ctx}: HTTP {$code} — {$snippet}";
+    }
+
+    private function buildDateFrom(?string $sinceDate): string
+    {
+        if (is_string($sinceDate) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $sinceDate)) {
+            return $sinceDate . 'T00:00:00';
+        }
+        return date('Y-m-d', strtotime('-14 days')) . 'T00:00:00';
+    }
+
+    private static function normalizeNip(string $nip): ?string
+    {
+        $d = preg_replace('/\D+/', '', $nip);
+        return is_string($d) && strlen($d) === 10 ? $d : null;
     }
 
     // =========================================================================
-    // MOCK MODE — fixtures z deterministyczną listą
+    // MOCK
     // =========================================================================
 
     private function mockQueryInbox(?string $sinceDate): array
     {
-        // Symulujemy 1 nową fakturę dziennie (od dziś -3 dni)
         $invoices = [];
         for ($i = 0; $i < 3; $i++) {
             $date = date('Y-m-d', strtotime("-{$i} days"));
-            if ($sinceDate && $date < $sinceDate) continue;
+            if ($sinceDate && $date < $sinceDate) {
+                continue;
+            }
             $invoices[] = [
                 'ref_id'         => sprintf('MOCK-%s-%03d', date('Ymd', strtotime("-{$i} days")), 1 + $i),
                 'supplier_nip'   => '5251234567',
@@ -262,15 +735,13 @@ class Client
 
     private function mockFetchInvoiceXml(string $refId): array
     {
-        // Stała mockowa faktura. Numer + data wpisana z $refId żeby każdy poll
-        // dawał inny invoice_number — dedup w worker zadziała przez ksef_reference_id.
         $invoiceNo = 'FV/MOCK/' . substr(preg_replace('/\D+/', '', $refId), -6);
         $issueDate = date('Y-m-d');
 
-        // Pobierz NIP nabywcy z sh_tenant — żeby buyer pasował i parser nie rzucił WRONG_BUYER_NIP
-        $st = $this->pdo->prepare("SELECT nip FROM sh_tenant WHERE id = :tid LIMIT 1");
+        $st = $this->pdo->prepare('SELECT nip FROM sh_tenant WHERE id = :tid LIMIT 1');
         $st->execute([':tid' => $this->tenantId]);
-        $buyerNip = (string) ($st->fetchColumn() ?: '0000000000');
+        $buyerNipRaw = (string) ($st->fetchColumn() ?: '0000000000');
+        $buyerNip = self::normalizeNip($buyerNipRaw) ?? '0000000000';
 
         $xml = <<<XML
 <?xml version="1.0" encoding="UTF-8"?>

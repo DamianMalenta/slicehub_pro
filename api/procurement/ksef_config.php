@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
  * Akcje:
  *   - config_get        — odczyt aktualnej konfiguracji KSeF (token redacted)
  *   - config_save       — zapis token + environment (owner only)
- *   - test_connection   — strzał do KSeF API (Session/Status) lub mock
+ *   - test_connection   — strzał do KSeF API v2 (sesja JWT) lub mock
  *   - poll_now          — manualny trigger worker_ksef_inbox dla tenanta
  *   - state             — odczyt sh_ksef_inbox_state (last_polled_at, errors)
  *   - toggle_auto_poll  — włącz/wyłącz auto-poll dla tenanta (cron użyje)
@@ -34,7 +34,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
  *   - test_connection / poll_now: owner / admin (debug)
  *
  * Token KSeF: szyfrowany przez CredentialVault::encrypt przed zapisem do
- * sh_tenant_integrations.credentials (JSON z environment + token).
+ * sh_tenant_integrations.credentials (JSON: environment, token KSeF z portalu MF,
+ * opcjonalnie ksef_refresh_token / ksef_access_token / ksef_access_valid_until — uzupełniane przez Client).
  *
  * Sesja F4 · 2026-05-11.
  */
@@ -154,10 +155,41 @@ try {
                 kfFail(400, 'TOKEN_REQUIRED', 'Token KSeF wymagany dla sandbox/prod.');
             }
 
-            $credsJson = json_encode([
+            $prev = [];
+            $stPrev = $pdo->prepare(
+                "SELECT credentials FROM sh_tenant_integrations
+                  WHERE tenant_id = :tid AND provider = 'ksef' LIMIT 1"
+            );
+            $stPrev->execute([':tid' => $tenant_id]);
+            $prevRaw = $stPrev->fetchColumn();
+            if (is_string($prevRaw) && $prevRaw !== '') {
+                $pplain = \CredentialVault::decrypt($prevRaw);
+                if ($pplain === null) {
+                    $pplain = $prevRaw;
+                }
+                $dec = json_decode((string) $pplain, true);
+                if (is_array($dec)) {
+                    $prev = $dec;
+                }
+            }
+            $oldTok = is_array($prev) ? trim((string) ($prev['token'] ?? '')) : '';
+            $oldEnv = is_array($prev) ? (string) ($prev['environment'] ?? '') : '';
+            $samePortalToken = ($oldTok !== '' && hash_equals($oldTok, $token));
+            $sameEnv = ($oldEnv === $env);
+
+            $merged = [
                 'environment' => $env,
                 'token'       => $token,
-            ], JSON_UNESCAPED_UNICODE);
+            ];
+            if ($samePortalToken && $sameEnv && is_array($prev)) {
+                foreach (['ksef_refresh_token', 'ksef_access_token', 'ksef_access_valid_until'] as $k) {
+                    if (array_key_exists($k, $prev)) {
+                        $merged[$k] = $prev[$k];
+                    }
+                }
+            }
+
+            $credsJson = json_encode($merged, JSON_UNESCAPED_UNICODE);
             $encrypted = \CredentialVault::encrypt($credsJson);
 
             // Upsert sh_tenant_integrations (provider='ksef')
