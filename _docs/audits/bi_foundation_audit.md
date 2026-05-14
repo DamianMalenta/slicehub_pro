@@ -2,7 +2,7 @@
 
 **Typ:** READ-ONLY (analiza kodu i schematu, bez zmian w aplikacji).  
 **Data:** 2026-05-14  
-**Zakres:** `api/pos/engine.php`, silos zamówień (`sh_*`), `core/PzEngine.php`, `core/WzEngine.php`, HR (`HrClockEngine`, `api/backoffice/hr/engine.php`, worker payroll), `api/procurement/inbox.php` (akcja `accept`).
+**Zakres (rozszerzony po drugiej weryfikacji kodu):** `api/pos/engine.php`, `api/orders/checkout.php`, `api/online/engine.php`, `api/tables/engine.php`, `api/orders/accept.php`, `api/gateway/intake.php`, silos zamówień (`sh_*`), `core/PzEngine.php`, `core/WzEngine.php`, HR (`HrClockEngine`, `api/backoffice/hr/engine.php`, worker payroll), `api/procurement/inbox.php` (akcja `accept`).
 
 ---
 
@@ -30,7 +30,7 @@
 | Pole / mechanizm | Opis |
 |------------------|------|
 | `sh_orders.order_type` | Wartości z payloadu: np. `dine_in`, `takeaway`, `delivery` — **model operacyjny** (stolik vs na wynos vs dostawa). |
-| `sh_orders.channel` | Mapowanie 1:1 z `order_type` w POS: `POS` / `Takeaway` / `Delivery` — **kanał cenowy** zgodny z `sh_price_tiers.channel`. |
+| `sh_orders.channel` | W **`process_order`** mapowanie 1:1 z `order_type`: `POS` / `Takeaway` / `Delivery` — **kanał cenowy** zgodny z `sh_price_tiers.channel`. **Wyjątek:** `api/tables/engine.php` akcja `open_table` zapisuje **`channel = 'dine_in'`** (taka sama wartość jak `order_type`), a nie literal `POS` — raporty BI po samym `channel` mogą pominąć te zamówienia do czasu pierwszej edycji przez POS (`process_order` nadpisze `channel` na `POS`). |
 | `sh_orders.source` | String źródła UI / integracji (np. `POS`, `local`, `waiter`). W POS przy tworzeniu zamówienia zapisywany jest payload `source`. |
 | `api/gateway/intake.php` | Zamówienia zewnętrzne: wymaga `channel` ∈ {`POS`,`Takeaway`,`Delivery`} oraz `order_type` ∈ {`dine_in`,`takeaway`,`delivery`}. **`source`** payloadu to whitelist (`web`, `aggregator_uber`, …); do `sh_orders.source` trafia **prefiks numeru** (`WWW`, `UBR`, `PYS`, …), a przy migracji gateway zapisuje też `gateway_source` / `gateway_external_id` dla pełnej identyfikacji agregatora. |
 
@@ -58,6 +58,26 @@ W repozytorium **nie występuje** tabela `sh_payments`. Kanoniczny zapis płatno
 **Tabele:** `sh_orders`, `sh_order_lines`, `sh_order_item_modifiers` (opcjonalnie), `sh_order_payments`, `sh_order_audit`, `sh_order_sequences`, `sh_price_tiers`, `sh_menu_items`, `sh_promotions`, `sh_promo_codes`, `sh_external_order_refs` (idempotencja gateway).
 
 **Funkcje / klasy:** `CartEngine::calculate()`, `OrderStateMachine::transitionOrder()`, `OrderEventPublisher::publishOrderLifecycle()`, `pos/engine.php` → `process_order`, `accept_order`.
+
+### 1.7 Inne miejsca zapisu nagłówka `sh_orders` (nie tylko POS)
+
+Pełna lista **`INSERT INTO sh_orders`** w kodzie aplikacji (poza skryptami seed):
+
+| Plik / akcja | Pola finansowe (`subtotal`, `discount_amount`, `delivery_fee`, `grand_total`) | Uwagi BI |
+|--------------|--------------------------------------------------------------------------------|----------|
+| `api/pos/engine.php` → `process_order` | `subtotal` = `grand_total` = `totalGrosze`; **`discount_amount` / `delivery_fee` nie ustawiane** w tym SQL | Rabat z `CartEngine` jest w cenach linii / sumie, ale **nie denormalizowany** do kolumn nagłówka. |
+| `api/gateway/intake.php` | Wszystkie cztery pola z wyniku `CartEngine::calculate()` | Spójne z modelem `grand_total = subtotal - discount + delivery` (patrz `CartEngine`). |
+| `api/orders/checkout.php` | Jak wyżej — pełny rozkład z `CartEngine` | Ścieżka checkout (np. kiosk / przedpłata). |
+| `api/online/engine.php` (guest checkout) | Jak wyżej — pełny rozkład z `CartEngine` | Dodatkowo m.in. `tracking_token`, `payment_method` przy zapisie. |
+| `api/tables/engine.php` → `open_table` | **Brak** w INSERT — nagłówek to „skorupa” zamówienia (`status`=`pending`, kwoty domyślne 0); pierwszy `process_order` z POS uzupełnia kwoty | Nie traktować jako przychód do momentu zapisu linii. |
+
+**Tożsamość sumy w `CartEngine`:** `grand_total_grosze = subtotal_grosze - totalDiscountGrosze + deliveryFeeGrosze` (w bieżącym kodzie `deliveryFeeGrosze` jest liczone jako `0` w bloku totals — dostawa może być rozszerzana w innych miejscach; **nie wolno** w BI dodać `delivery_fee` do `grand_total`, jeśli `grand_total` już ją zawiera).
+
+**Akceptacja zamówienia i magazyn:** `WarehouseConsumeHook::onOrderAccepted` jest wołany **post-commit** z:
+- `api/pos/engine.php` → `accept_order`
+- `api/orders/accept.php` (alias HTTP dla integracji)
+
+Oba prowadzą do **jednej** funkcji `WzEngine::consumeForOrder` na to samo `order_id` przy jednym skutecznym przejściu `new`→`accepted` (blokada po stronie `OrderStateMachine::canTransition`). **Nie ma** podwójnego wywołania z jednego requestu, ale przy obejściu maszyny stanów lub ręcznych poprawkach w DB istnieje ryzyko wielokrotnego WZ (patrz §7).
 
 ---
 
@@ -93,6 +113,12 @@ W repozytorium **nie występuje** tabela `sh_payments`. Kanoniczny zapis płatno
 ### 2.4 Tabele magazynowe (wh\_)
 
 `wh_documents`, `wh_document_lines`, `wh_stock`, `wh_stock_logs` — oraz most `sh_recipes` / `sh_modifiers` (silos `sh_`) do `wh_stock` wyłącznie przez **`sku`** i **`tenant_id`**.
+
+### 2.5 Inne silniki `wh_documents` (komplet obrazu magazynu — nie COGS sprzedaży)
+
+Oprócz **PZ** (`PzEngine`) i **WZ** (`WzEngine`) w repo występują m.in. **`InwEngine`** (inwentaryzacja), **`MmEngine`** (przesunięcia), **`KorEngine`** / **`WarehouseReverseHook`** (korekty, cofanie zużycia). Dla BI stanów i AVCO zmiany pochodzą z **sumy wpływów wszystkich typów dokumentów**; dla **COGS sprzedaży** sensowne jest węższe filtrowanie: **`type = 'WZ'`** i powiązanie z `wh_documents.order_id` (gdy wypełnione).
+
+**Ryzyko wielokrotnego WZ na jedno zamówienie:** w schemacie `wh_documents` jest **`order_id`** bez unikalnego indeksu `(tenant_id, type, order_id)` — `WzEngine` **nie sprawdza** „czy WZ już istnieje”; idempotencja opiera się na tym, że **drugie** `accept` nie przejdzie stanu w `OrderStateMachine`. Raporty COGS powinny mieć straż: **1 aktywny WZ na `order_id`** lub suma z deduplikacją po `order_id`+`doc_number`.
 
 ---
 
@@ -130,7 +156,9 @@ W repozytorium **nie występuje** tabela `sh_payments`. Kanoniczny zapis płatno
 
 ### 3.4 Inne silniki (kontekst)
 
-`core/PayrollEngine.php`, `core/TeamPayrollEngine.php` — dodatkowe ścieżki raportowe / zespoowe oparte m.in. o `sh_work_sessions` i legacy `hourly_rate`; dla kanonicznego HR **źródłem prawdy po naliczeniu** jest ledger.
+`core/PayrollEngine.php`, `core/TeamPayrollEngine.php` — dodatkowe ścieżki raportowe / zespoowe oparte m.in. o `sh_work_sessions` i legacy `sh_users.hourly_rate`; **nie należy** ich sumować razem z `sh_payroll_ledger` dla tego samego okresu bez jawnej definicji (ryzyko **podwójnego labor cost**).
+
+**Anty-duplikacja:** odpowiedź API `clock_out` zawiera `preview_earnings` — to **tylko podgląd**, nie zapis księgowy. Koszt pracy w P&L z workerów: **`sh_payroll_ledger`** (`entry_type = 'work_earnings'`, idempotencja po `entry_uuid` = `session_uuid`).
 
 ---
 
@@ -170,9 +198,9 @@ Poniżej model **szacunkowy / operacyjny** dla **jednego tenanta** i ustalonego 
 \text{GrossRevenue}(T) = \sum_{\text{orders } o \in T} \text{grand\_total}(o)
 \]
 
-Opcjonalnie rozbicie: \(\sum \text{line\_total}\) z `sh_order_lines` spójne z nagłówkiem po kontroli jakości danych.
+Opcjonalnie rozbicie: \(\sum \text{line\_total}\) z `sh_order_lines` — **uwaga:** dla zamówień z **`delivery_fee`** lub rabatem tylko w nagłówku suma linii **może różnić się** od `grand_total`; wtedy źródłem przychodu brutto pozostaje **`grand_total`**, a linie służą do VAT i miksu.
 
-**Segmentacja:** filtry po `sh_orders.channel`, `order_type`, `gateway_source` / `source` (agregatory vs własny kanał).
+**Segmentacja:** filtry po `sh_orders.channel`, `order_type`, `gateway_source` / `source` (agregatory vs własny kanał) — pamiętać o zamówieniach ze stołów (§1.3 / §1.7).
 
 ### 5.2 VAT należny (uproszczenie z danych POS)
 
@@ -205,6 +233,8 @@ Dla każdego dokumentu **WZ** powiązanego z zamówieniem zrealizowanym w \(T\) 
 \]
 
 ponieważ `WzEngine` ustawia `line_net_value = deductQty * current_avco` oraz `unit_net_cost = current_avco`.
+
+**Bez duplikacji względem `FoodCostEngine`:** ten ostatni zwraca **koszt teoretyczny menu** (receptury × AVCO, read-only); **WZ** to **koszt zrealizowany** przy danej sprzedaży. W jednym wierszu P&L stosuje się **albo** WZ (preferowane przy pełnym łańcuchu magazynowym), **albo** koszt teoretyczny — nie sumować obu do tego samego kosztu sprzedanych towarów.
 
 Alternatywa analityczna (bez pełnej historii WZ): odtworzenie z `wh_stock_logs` z `document_type='WZ'` i znakiem ujemnym `change_qty`, z JOIN do `wh_document_lines` po `document_id`.
 
@@ -240,6 +270,7 @@ gdzie **Commissions** — jeśli brak w DB, import z paneli agregatorów lub sza
 - **Płatności vs przychód:** `sh_order_payments` vs `payment_status` — rozliczenie gotówki u kierowcy może nastąpić po okresie; BI „cash vs accrual” wymaga jawnej definicji.
 - **POS vs gateway:** spójność `discount_amount` / `delivery_fee` między ścieżkami — w raportach należy ujednolicić źródło prawdy (preferencyjnie `CartEngine` + nagłówek zamówienia).
 - **KSeF → tylko PZ:** paliwo/prąd wchodzą jako PZ na SKU; **klasyfikacja kont** musi być warstwą referencyjną BI, nie jest wbudowana w `accept`.
+- **Pipeline zakup → sprzedaż:** PZ (KSeF lub ręczny) **zwiększa stan i przesuwa AVCO**; WZ przy akceptacji zamówienia **pomniejsza stan** i generuje koszt w `wh_document_lines`. **Nie** dodawać do OPEX pełnej wartości faktury zakupowej **i** jednocześnie pełnego COGS z WZ dla tych samych surowców — OPEX z KSeF dotyczy pozycji **nie** przechodzących przez ten łańcuch (np. usługi, paliwo sklasyfikowane jako poza COGS) albo okresów, gdy zużycie nie jest śledzone WZ.
 
 ---
 
@@ -247,11 +278,24 @@ gdzie **Commissions** — jeśli brak w DB, import z paneli agregatorów lub sza
 
 | Obszar | Pliki |
 |--------|--------|
-| POS / zamówienia | `api/pos/engine.php`, `api/cart/CartEngine.php`, `api/gateway/intake.php`, `core/OrderStateMachine.php` |
-| Magazyn / AVCO / zużycie | `core/PzEngine.php`, `core/WzEngine.php`, `core/WarehouseConsumeHook.php`, `core/FoodCostEngine.php` |
-| HR / payroll | `core/HrClockEngine.php`, `api/backoffice/hr/engine.php`, `scripts/worker_payroll_accrual.php`, `core/PayrollLedger.php` |
+| POS / zamówienia | `api/pos/engine.php`, `api/tables/engine.php`, `api/orders/checkout.php`, `api/online/engine.php`, `api/cart/CartEngine.php`, `api/gateway/intake.php`, `api/orders/accept.php`, `core/OrderStateMachine.php` |
+| Magazyn / AVCO / zużycie | `core/PzEngine.php`, `core/WzEngine.php`, `core/WarehouseConsumeHook.php`, `core/WarehouseReverseHook.php`, `core/InwEngine.php`, `core/MmEngine.php`, `core/KorEngine.php`, `core/FoodCostEngine.php` |
+| HR / payroll | `core/HrClockEngine.php`, `api/backoffice/hr/engine.php`, `scripts/worker_payroll_accrual.php`, `core/PayrollLedger.php`, `core/PayrollEngine.php`, `core/TeamPayrollEngine.php` |
 | KSeF / PZ | `api/procurement/inbox.php`, `core/AutoScanEngine.php` |
 
 ---
 
-*Koniec raportu.*
+## 7. Druga weryfikacja — checklist „nic nie pominięte / bez duplikacji”
+
+| Obszar | Czy coś pominięto w v1? | Ryzyko podwójnego liczenia | Mitigacja BI |
+|--------|-------------------------|----------------------------|--------------|
+| Przychód | Uzupełniono: checkout, online, `open_table`. | `grand_total` vs \(\sum line\_total\) + `delivery_fee`. | Przychód: **`grand_total`**; VAT z linii; sprawdzać nagłówek vs linie tam, gdzie gateway/checkout zapisują `delivery_fee` / `discount_amount`. |
+| VAT | — | Sumowanie VAT z linii **i** z zewnętrznej faktury dla tej samej sprzedaży. | Jedno źródło prawdy dla sprzedaży wewnętrznej: **`sh_order_lines.vat_amount`**. |
+| COGS | Uzupełniono: Inw/Mm/Kor, brak UNIQUE WZ/order. | Dwa dokumenty WZ na jedno `order_id`; WZ + `FoodCostEngine` w jednym wierszu P&L. | Dedup po `order_id`; wybrać **albo** WZ **albo** koszt teoretyczny. |
+| Zakup / KSeF | — | Suma faktur KSeF (OPEX) + suma PZ jako „zakup” + COGS z WZ z tych samych SKU w tym samym okresie bez alokacji. | OPEX z faktur tylko dla pozycji **nie** mapowanych na magazyn żywnościowy **albo** wyłącznie różnica / koszt okresu wg polityki (§5.5). |
+| Labor | Uzupełniono: `PayrollEngine` / `TeamPayrollEngine`. | Ledger + raport „na żywo” z `sh_work_sessions` × stawka + `preview_earnings`. | Koszt okresu: **`sh_payroll_ledger`** `work_earnings` (po workerze). |
+| Płatności | — | `SUM(sh_order_payments)` jako przychód. | To **wpływy**, nie przychód księgowy — stosować tylko w raportach cash; przychód z `sh_orders`. |
+
+---
+
+*Koniec raportu (z uzupełnieniem po drugiej weryfikacji kodu).*
