@@ -1,5 +1,7 @@
 # Sesja: Settings — KSeF widoczny + szablon bez Papu
 
+> **Status wdrożenia:** scalone do `main` w ramach merge `projektx/ksef-client-api-v2-3f1a` (2026-05-14), razem z migracją `core/Ksef/Client.php` na API v2 — patrz `_docs/sessions/2026-05-14_ksef_api_v2_client.md`.
+
 ## Cel
 
 - Nie ukrywać rekordu `provider=ksef` w Settings (wspólna tabela pod inbox i **przyszły** wysył faktur).
