@@ -435,6 +435,9 @@ function action_list_migrations(): void
         }
     }
 
+    /** Świadomie poza domyślnym łańcuchem (nie mylić z „zapomnianą” migracją). */
+    $intentionalBasenames = ['015_normalize_three_drivers.sql'];
+
     $chainRows = [];
     foreach ($chain as $idx => $f) {
         $path = $dir . DIRECTORY_SEPARATOR . $f;
@@ -447,16 +450,23 @@ function action_list_migrations(): void
     }
 
     $orphanRows = [];
+    $intentionalRows = [];
     foreach ($orphans as $f) {
-        $note = null;
-        if ($f === '015_normalize_three_drivers.sql') {
-            $note = 'Świadomie poza domyślnym łańcuchem — CLI: php scripts/apply_migrations_chain.php --include-015';
+        if (in_array($f, $intentionalBasenames, true)) {
+            $intentionalRows[] = [
+                'file'     => $f,
+                'in_chain' => false,
+                'on_disk'  => true,
+                'note'     => 'CLI: php scripts/apply_migrations_chain.php --include-015',
+            ];
+
+            continue;
         }
         $orphanRows[] = [
             'file'     => $f,
             'in_chain' => false,
             'on_disk'  => true,
-            'note'     => $note,
+            'note'     => null,
         ];
     }
 
@@ -468,12 +478,14 @@ function action_list_migrations(): void
     }
 
     panel_json(true, 'OK', [
-        'chain'           => $chainRows,
-        'orphans'         => $orphanRows,
-        'missing_on_disk' => $missingOnDisk,
-        'migrations'      => $chain,
-        'count'           => count($chain),
-        'orphan_count'    => count($orphans),
+        'chain'                  => $chainRows,
+        'orphans'                => $orphanRows,
+        'intentional_out_of_chain' => $intentionalRows,
+        'missing_on_disk'        => $missingOnDisk,
+        'migrations'             => $chain,
+        'count'                  => count($chain),
+        'orphan_count'           => count($orphanRows),
+        'intentional_count'      => count($intentionalRows),
     ]);
 }
 
@@ -948,6 +960,13 @@ $selfUrl = htmlspecialchars($_SERVER['SCRIPT_NAME'] ?? 'install_panel.php', ENT_
         margin-top: 0.15rem;
     }
     .sh-mig-orphan:hover { background: rgba(255,255,255,0.04); }
+    .sh-mig-intentional {
+        cursor: default;
+        border-left: 3px solid rgba(59, 130, 246, 0.55);
+        padding-left: 0.45rem;
+        margin-top: 0.15rem;
+    }
+    .sh-mig-intentional:hover { background: rgba(255,255,255,0.04); }
     .sh-mig-divider {
         margin: 0.65rem 0 0.35rem;
         padding-top: 0.55rem;
@@ -1384,6 +1403,20 @@ define('SLICEHUB_SCRIPT_KEY', 'losowy_dlugi_string_min_32_znaki');</pre>
                 '<span class="sh-mig-name">' + escapeHtml(row.file) + '</span>' +
                 '<span class="sh-mig-tags">' + tags.join(' ') + '</span></label>';
         });
+
+        const intentional = Array.isArray(d.intentional_out_of_chain) ? d.intentional_out_of_chain : [];
+        if (intentional.length > 0) {
+            html += '<div class="sh-mig-divider">Świadomie <strong>poza domyślnym</strong> łańcuchem — <strong>nie</strong> dopisujesz tego do <code>_migrations_chain.php</code> (osobna flaga CLI):</div>';
+            intentional.forEach(row => {
+                const note = row.note
+                    ? '<div class="text-xs text-slate-400 mt-1" style="width:100%">' + escapeHtml(row.note) + '</div>'
+                    : '';
+                html += '<div class="sh-mig-row sh-mig-intentional">' +
+                    '<span class="sh-mig-name">' + escapeHtml(row.file) + '</span>' +
+                    '<span class="sh-mig-tags"><span class="pill pill-info">OPCJA CLI</span></span>' +
+                    note + '</div>';
+            });
+        }
 
         if (orphans.length > 0) {
             html += '<div class="sh-mig-divider">Na dysku jest <strong>' + orphans.length + '</strong> plik(ów) SQL ' +

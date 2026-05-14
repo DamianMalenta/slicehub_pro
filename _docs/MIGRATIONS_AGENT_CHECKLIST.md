@@ -19,13 +19,14 @@ Ten plik jest **źródłem procedury**, nie historią sesji. Stosuj go przy **ka
 |-----|-----------|
 | **łańcuch** | Plik jest w `_migrations_chain.php` — można go zaznaczyć i uruchomić („Uruchom zaznaczone”). |
 | **POZA ŁAŃCUCHEM** | Plik leży w `database/migrations/*.sql` (poza `001` i `_archive_*`), ale **nie ma** go w `_migrations_chain.php` — **napraw to** (pkt 1–3). |
+| **OPCJA CLI** | Plik celowo poza domyślnym łańcuchem (obecnie tylko `015_normalize_three_drivers.sql` — uruchomienie: `php scripts/apply_migrations_chain.php --include-015`). |
 | **brak pliku** | Wpis jest w łańcuchu, ale **brak** fizycznego pliku w repo — niespójność do naprawy. |
 
 Wyłączone z porównania „łańcuch vs dysk”: `001_init_slicehub_pro_v2.sql` (osobny krok „A” w panelu), `*_archive_*.sql`.
 
 ## 3. Migracja `015_normalize_three_drivers.sql`
 
-Jest **świadomie** pominięta w domyślnym łańcuchu (destrukcyjne dane demo). Jeśli plik leży na dysku, panel pokaże go jako **POZA ŁAŃCUCHEM** z notatką o uruchomieniu CLI z `--include-015` — to oczekiwane, dopóki nie zdecydujecie inaczej w projekcie.
+Świadomie **nie** jest w domyślnej tablicy `_migrations_chain.php`. W panelu ma tag **OPCJA CLI**, nie „POZA ŁAŃCUCHEM”.
 
 ## 4. Dla agenta AI (skrót)
 
