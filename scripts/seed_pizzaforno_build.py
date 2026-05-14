@@ -1117,7 +1117,7 @@ SET @wh  := {esc(WAREHOUSE_ID)};
         W(f"  vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)")
         W(f"VALUES (@tid, {catvar('PIZZE')}, {esc(base_name)}, {esc(sku)}, 'variant_parent', 1,")
         W(f"  1, @scale_pizza_id, NULL, NULL,")
-        W(f"  {vat_d}, {vat_t}, {esc(desc)}, {pizza_display_order}, 'active');")
+        W(f"  {vat_d}, {vat_t}, {esc(desc)}, {pizza_display_order}, 'Live');")
         W(f"SET @p_{sku} = LAST_INSERT_ID();")
         pizza_display_order += 1
 
@@ -1146,7 +1146,7 @@ SET @wh  := {esc(WAREHOUSE_ID)};
             W(f"  vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)")
             W(f"VALUES (@tid, {catvar('PIZZE')}, {esc(item30['name'])}, {esc(sku30)}, 'variant', 1,")
             W(f"  0, NULL, {parent_var}, @opt_30cm,")
-            W(f"  {vat_d}, {vat_t}, {esc(desc30)}, 0, 'active');")
+            W(f"  {vat_d}, {vat_t}, {esc(desc30)}, 0, 'Live');")
 
         if item37:
             sku37  = make_sku(base_name) + '_37CM'
@@ -1158,7 +1158,7 @@ SET @wh  := {esc(WAREHOUSE_ID)};
             W(f"  vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)")
             W(f"VALUES (@tid, {catvar('PIZZE')}, {esc(item37['name'])}, {esc(sku37)}, 'variant', 1,")
             W(f"  0, NULL, {parent_var}, @opt_37cm,")
-            W(f"  {vat_d}, {vat_t}, {esc(desc37)}, 1, 'active');")
+            W(f"  {vat_d}, {vat_t}, {esc(desc37)}, 1, 'Live');")
 
     W("")
 
@@ -1180,7 +1180,7 @@ SET @wh  := {esc(WAREHOUSE_ID)};
         W(f"  vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)")
         W(f"VALUES (@tid, {catvar('PANINI')}, {esc(base_name)}, {esc(sku)}, 'variant_parent', 1,")
         W(f"  1, @scale_panini_id, NULL, NULL,")
-        W(f"  {vat_d}, {vat_t}, {esc(desc)}, {panini_display_order}, 'active');")
+        W(f"  {vat_d}, {vat_t}, {esc(desc)}, {panini_display_order}, 'Live');")
         W(f"SET @p_{sku} = LAST_INSERT_ID();")
         panini_display_order += 1
 
@@ -1204,7 +1204,7 @@ SET @wh  := {esc(WAREHOUSE_ID)};
             W(f"  vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)")
             W(f"VALUES (@tid, {catvar('PANINI')}, {esc(item_male['name'])}, {esc(sku_male)}, 'variant', 1,")
             W(f"  0, NULL, {parent_var}, @opt_male,")
-            W(f"  {vat_d}, {vat_t}, {esc(item_male.get('desc',''))}, 0, 'active');")
+            W(f"  {vat_d}, {vat_t}, {esc(item_male.get('desc',''))}, 0, 'Live');")
 
         if item_duze:
             sku_duze = make_sku(base_name) + '_DUZE'
@@ -1214,7 +1214,7 @@ SET @wh  := {esc(WAREHOUSE_ID)};
             W(f"  vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)")
             W(f"VALUES (@tid, {catvar('PANINI')}, {esc(item_duze['name'])}, {esc(sku_duze)}, 'variant', 1,")
             W(f"  0, NULL, {parent_var}, @opt_duze,")
-            W(f"  {vat_d}, {vat_t}, {esc(item_duze.get('desc',''))}, 1, 'active');")
+            W(f"  {vat_d}, {vat_t}, {esc(item_duze.get('desc',''))}, 1, 'Live');")
 
     W("")
 
@@ -1252,7 +1252,7 @@ SET @wh  := {esc(WAREHOUSE_ID)};
         single_batches[cat_name].append(
             f"(@tid, {catvar(cat_name)}, {esc(item['name'])}, {esc(sku)}, 'standard', 1,\n"
             f"  0, NULL, NULL, NULL,\n"
-            f"  {vat_d}, {vat_t}, {esc(item['desc'])}, {disp}, 'active',\n"
+            f"  {vat_d}, {vat_t}, {esc(item['desc'])}, {disp}, 'Live',\n"
             f"  {badge_sql}, {valid_from}, {valid_to})"
         )
 

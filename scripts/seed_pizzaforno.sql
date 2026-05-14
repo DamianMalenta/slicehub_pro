@@ -1,6 +1,6 @@
 -- =============================================================================
 -- seed_pizzaforno.sql — SliceHub Pro
--- Wygenerowane: 2026-05-14 01:27:05
+-- Wygenerowane: 2026-05-14 01:54:08
 -- Źródło: _docs/menu_pizzaforno/menu (14).xlsx + additions.xlsx
 -- Rodzin pizzy: 32 | Panini: 11 | Pojedyncze: 101
 -- Składniki sys_items: 67 SKU
@@ -216,224 +216,224 @@ INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_a
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'AL GYROSO', 'AL_GYROSO', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'drobiowy kebab / kapusta / pomidorki / kukurydza / ogórek konserwowy / sos czosnkowy', 0, 'active');
+  8.0, 5.0, 'drobiowy kebab / kapusta / pomidorki / kukurydza / ogórek konserwowy / sos czosnkowy', 0, 'Live');
 SET @p_AL_GYROSO = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'AL.TONNO', 'AL_TONNO', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'tuńczyk / fileciki anchois / czerwona cebula / pomidorki', 1, 'active');
+  8.0, 5.0, 'tuńczyk / fileciki anchois / czerwona cebula / pomidorki', 1, 'Live');
 SET @p_AL_TONNO = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'AMERICANO', 'AMERICANO', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'sos bbq / salami / kukurydza / kurczak / czerwona cebulka', 2, 'active');
+  8.0, 5.0, 'sos bbq / salami / kukurydza / kurczak / czerwona cebulka', 2, 'Live');
 SET @p_AMERICANO = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'AMERICANO PICANTE', 'AMERICANO_PICANTE', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'sos bbq / pieczarki / kurczak / boczek / jalapeno', 3, 'active');
+  8.0, 5.0, 'sos bbq / pieczarki / kurczak / boczek / jalapeno', 3, 'Live');
 SET @p_AMERICANO_PICANTE = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'BOB BUDOWNICZY', 'BOB_BUDOWNICZY', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'ciasto / sos do wyboru / ser', 4, 'active');
+  8.0, 5.0, 'ciasto / sos do wyboru / ser', 4, 'Live');
 SET @p_BOB_BUDOWNICZY = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'CAPRICCIOSA', 'CAPRICCIOSA', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'buffalo mozzarella / pieczarki / jajko / oliwki / szynka / papryka', 5, 'active');
+  8.0, 5.0, 'buffalo mozzarella / pieczarki / jajko / oliwki / szynka / papryka', 5, 'Live');
 SET @p_CAPRICCIOSA = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'CARBONARA', 'CARBONARA', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'sos śmietankowy / boczek / parmezan / pieprz / jajko', 6, 'active');
+  8.0, 5.0, 'sos śmietankowy / boczek / parmezan / pieprz / jajko', 6, 'Live');
 SET @p_CARBONARA = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'CEZAR', 'CEZAR', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'biały sos / kurczak / sałata lodowa / pomidorki / parmezan', 7, 'active');
+  8.0, 5.0, 'biały sos / kurczak / sałata lodowa / pomidorki / parmezan', 7, 'Live');
 SET @p_CEZAR = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'CON BROCCOLI', 'CON_BROCCOLI', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'sos śmietankowy / buffalo mozzarella / kurczak / brokuł / chipsy ziemniaczane / ricotta / suszone pomidorki', 8, 'active');
+  8.0, 5.0, 'sos śmietankowy / buffalo mozzarella / kurczak / brokuł / chipsy ziemniaczane / ricotta / suszone pomidorki', 8, 'Live');
 SET @p_CON_BROCCOLI = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'DI CARNE', 'DI_CARNE', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'drobiowy kebab / salami / szynka / ragu wołowe', 9, 'active');
+  8.0, 5.0, 'drobiowy kebab / salami / szynka / ragu wołowe', 9, 'Live');
 SET @p_DI_CARNE = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'DI PARMA', 'DI_PARMA', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'szynka parmeńska / rukola / pomidorki / parmezan', 10, 'active');
+  8.0, 5.0, 'szynka parmeńska / rukola / pomidorki / parmezan', 10, 'Live');
 SET @p_DI_PARMA = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'DIAVOLA', 'DIAVOLA', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'salami / papryka / pieczarki / chilli', 11, 'active');
+  8.0, 5.0, 'salami / papryka / pieczarki / chilli', 11, 'Live');
 SET @p_DIAVOLA = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'DUE SALAMI', 'DUE_SALAMI', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'salami / chipsy ziemniaczane / salami picante', 12, 'active');
+  8.0, 5.0, 'salami / chipsy ziemniaczane / salami picante', 12, 'Live');
 SET @p_DUE_SALAMI = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'ETNA', 'ETNA', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'salami picante / pieczarki / chlli / Nduja / ricotta / tabasco', 13, 'active');
+  8.0, 5.0, 'salami picante / pieczarki / chlli / Nduja / ricotta / tabasco', 13, 'Live');
 SET @p_ETNA = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'FRITTE FORMAGGIO', 'FRITTE_FORMAGGIO', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'mozzarella / feta / salami / ser edam / frytki', 14, 'active');
+  8.0, 5.0, 'mozzarella / feta / salami / ser edam / frytki', 14, 'Live');
 SET @p_FRITTE_FORMAGGIO = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'FUNGHI CON SZYNKA', 'FUNGHI_CON_SZYNKA', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'szynka / pieczarki / rukola', 15, 'active');
+  8.0, 5.0, 'szynka / pieczarki / rukola', 15, 'Live');
 SET @p_FUNGHI_CON_SZYNKA = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'MAFIA', 'MAFIA', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'sos bbq / salami picante / rwana wieprzowina / kukurydza / czerwona cebula / jalapeno', 16, 'active');
+  8.0, 5.0, 'sos bbq / salami picante / rwana wieprzowina / kukurydza / czerwona cebula / jalapeno', 16, 'Live');
 SET @p_MAFIA = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'MARGHERITA', 'MARGHERITA', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'sos / ser', 17, 'active');
+  8.0, 5.0, 'sos / ser', 17, 'Live');
 SET @p_MARGHERITA = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'MARGHERITA ITALIANO', 'MARGHERITA_ITALIANO', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'buffalo mozzarella / świeża bazylia / oliwa / parmezan / oregano / rozmaryn', 18, 'active');
+  8.0, 5.0, 'buffalo mozzarella / świeża bazylia / oliwa / parmezan / oregano / rozmaryn', 18, 'Live');
 SET @p_MARGHERITA_ITALIANO = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'MARGHERITA ITALIANO BIANCA', 'MARGHERITA_ITALIANO_BIANCA', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'biały sos / buffalo mozzarella / bazylia / oregano / rozmaryn / parmezan', 19, 'active');
+  8.0, 5.0, 'biały sos / buffalo mozzarella / bazylia / oregano / rozmaryn / parmezan', 19, 'Live');
 SET @p_MARGHERITA_ITALIANO_BIANCA = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'MONTANARA', 'MONTANARA', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'buffalo mozzarella / smażone pieczarki / włoska kiełbasa / Nduja / suszone pomidorki / parmezan', 20, 'active');
+  8.0, 5.0, 'buffalo mozzarella / smażone pieczarki / włoska kiełbasa / Nduja / suszone pomidorki / parmezan', 20, 'Live');
 SET @p_MONTANARA = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'NEW YORK', 'NEW_YORK', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'sos bbq / kukurydza / rwana wieprzowina / pieczarki / papryka', 21, 'active');
+  8.0, 5.0, 'sos bbq / kukurydza / rwana wieprzowina / pieczarki / papryka', 21, 'Live');
 SET @p_NEW_YORK = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'POLLO', 'POLLO', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'kurczak / pieczarki / kukurydza / czerwona cebulka', 22, 'active');
+  8.0, 5.0, 'kurczak / pieczarki / kukurydza / czerwona cebulka', 22, 'Live');
 SET @p_POLLO = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'POPEY', 'POPEY', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'kurczak / brokuły / szpinak / suszone pomidorki / feta', 23, 'active');
+  8.0, 5.0, 'kurczak / brokuły / szpinak / suszone pomidorki / feta', 23, 'Live');
 SET @p_POPEY = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'PÓL NA PÓŁ', 'POL_NA_POL', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'Wybierz 2 połówki', 24, 'active');
+  8.0, 5.0, 'Wybierz 2 połówki', 24, 'Live');
 SET @p_POL_NA_POL = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'QUATTRO FORMAGGI', 'QUATTRO_FORMAGGI', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'sos śmietanowy / gorgonzola / feta / edamski / ricotta', 25, 'active');
+  8.0, 5.0, 'sos śmietanowy / gorgonzola / feta / edamski / ricotta', 25, 'Live');
 SET @p_QUATTRO_FORMAGGI = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'RAGU', 'RAGU', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'mięso wołowe / pieczarki / czerwona cebulka / parmezan', 26, 'active');
+  8.0, 5.0, 'mięso wołowe / pieczarki / czerwona cebulka / parmezan', 26, 'Live');
 SET @p_RAGU = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'STEAKY', 'STEAKY', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'chipsy ziemniaczane / pieczarka / stek wołowy / rukola / krem balsamiczny / sezamowe ciasto / parmezan', 27, 'active');
+  8.0, 5.0, 'chipsy ziemniaczane / pieczarka / stek wołowy / rukola / krem balsamiczny / sezamowe ciasto / parmezan', 27, 'Live');
 SET @p_STEAKY = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'VERDURA', 'VERDURA', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'pieczarki / cukinia / pomidorki / papryka / czerwona cebulka', 28, 'active');
+  8.0, 5.0, 'pieczarki / cukinia / pomidorki / papryka / czerwona cebulka', 28, 'Live');
 SET @p_VERDURA = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'VERONA', 'VERONA', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'kurczak / pomidorki / rukola / parmezan', 29, 'active');
+  8.0, 5.0, 'kurczak / pomidorki / rukola / parmezan', 29, 'Live');
 SET @p_VERONA = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'VINCI', 'VINCI', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'sos śmietankowy / buffalo mozzarella / pieczarki / włoska kiełbasa / Nduja / czerwona cebulka', 30, 'active');
+  8.0, 5.0, 'sos śmietankowy / buffalo mozzarella / pieczarki / włoska kiełbasa / Nduja / czerwona cebulka', 30, 'Live');
 SET @p_VINCI = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'VULCANO', 'VULCANO', 'variant_parent', 1,
   1, @scale_pizza_id, NULL, NULL,
-  8.0, 5.0, 'salami picante / kurczak / jalapeno / chilli', 31, 'active');
+  8.0, 5.0, 'salami picante / kurczak / jalapeno / chilli', 31, 'Live');
 SET @p_VULCANO = LAST_INSERT_ID();
 
 -- ── 2.5 sh_menu_items — pizza variant children ─────────────────────────
@@ -442,379 +442,379 @@ INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_a
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'AL GYROSO 30cm', 'AL_GYROSO_30CM', 'variant', 1,
   0, NULL, @p_AL_GYROSO, @opt_30cm,
-  8.0, 5.0, 'drobiowy kebab / kapusta / pomidorki / kukurydza / ogórek konserwowy / sos czosnkowy', 0, 'active');
+  8.0, 5.0, 'drobiowy kebab / kapusta / pomidorki / kukurydza / ogórek konserwowy / sos czosnkowy', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'AL GYROSO 37cm', 'AL_GYROSO_37CM', 'variant', 1,
   0, NULL, @p_AL_GYROSO, @opt_37cm,
-  8.0, 5.0, 'drobiowy kebab / kapusta / pomidorki / kukurydza / ogórek konserwowy / sos czosnkowy', 1, 'active');
+  8.0, 5.0, 'drobiowy kebab / kapusta / pomidorki / kukurydza / ogórek konserwowy / sos czosnkowy', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'AL.TONNO 30cm', 'AL_TONNO_30CM', 'variant', 1,
   0, NULL, @p_AL_TONNO, @opt_30cm,
-  8.0, 5.0, 'tuńczyk / fileciki anchois / czerwona cebula / pomidorki', 0, 'active');
+  8.0, 5.0, 'tuńczyk / fileciki anchois / czerwona cebula / pomidorki', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'AL.TONNO 37cm', 'AL_TONNO_37CM', 'variant', 1,
   0, NULL, @p_AL_TONNO, @opt_37cm,
-  8.0, 5.0, 'tuńczyk / fileciki anchois / czerwona cebula / pomidorki', 1, 'active');
+  8.0, 5.0, 'tuńczyk / fileciki anchois / czerwona cebula / pomidorki', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'AMERICANO 30cm', 'AMERICANO_30CM', 'variant', 1,
   0, NULL, @p_AMERICANO, @opt_30cm,
-  8.0, 5.0, 'sos bbq / salami / kukurydza / kurczak / czerwona cebulka', 0, 'active');
+  8.0, 5.0, 'sos bbq / salami / kukurydza / kurczak / czerwona cebulka', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'AMERICANO 37cm', 'AMERICANO_37CM', 'variant', 1,
   0, NULL, @p_AMERICANO, @opt_37cm,
-  8.0, 5.0, 'sos bbq / salami / kukurydza / kurczak / czerwona cebulka', 1, 'active');
+  8.0, 5.0, 'sos bbq / salami / kukurydza / kurczak / czerwona cebulka', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'AMERICANO PICANTE 30cm', 'AMERICANO_PICANTE_30CM', 'variant', 1,
   0, NULL, @p_AMERICANO_PICANTE, @opt_30cm,
-  8.0, 5.0, 'sos bbq / pieczarki / kurczak / boczek / jalapeno', 0, 'active');
+  8.0, 5.0, 'sos bbq / pieczarki / kurczak / boczek / jalapeno', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'AMERICANO PICANTE 37cm', 'AMERICANO_PICANTE_37CM', 'variant', 1,
   0, NULL, @p_AMERICANO_PICANTE, @opt_37cm,
-  8.0, 5.0, 'sos bbq / pieczarki / kurczak / boczek / jalapeno', 1, 'active');
+  8.0, 5.0, 'sos bbq / pieczarki / kurczak / boczek / jalapeno', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'BOB BUDOWNICZY 30cm', 'BOB_BUDOWNICZY_30CM', 'variant', 1,
   0, NULL, @p_BOB_BUDOWNICZY, @opt_30cm,
-  8.0, 5.0, 'ciasto / sos do wyboru / ser', 0, 'active');
+  8.0, 5.0, 'ciasto / sos do wyboru / ser', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'BOB BUDOWNICZY 37cm', 'BOB_BUDOWNICZY_37CM', 'variant', 1,
   0, NULL, @p_BOB_BUDOWNICZY, @opt_37cm,
-  8.0, 5.0, 'ciasto / sos do wyboru / ser', 1, 'active');
+  8.0, 5.0, 'ciasto / sos do wyboru / ser', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'CAPRICCIOSA 30cm', 'CAPRICCIOSA_30CM', 'variant', 1,
   0, NULL, @p_CAPRICCIOSA, @opt_30cm,
-  8.0, 5.0, 'buffalo mozzarella / pieczarki / jajko / oliwki / szynka / papryka', 0, 'active');
+  8.0, 5.0, 'buffalo mozzarella / pieczarki / jajko / oliwki / szynka / papryka', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'CAPRICCIOSA 37cm', 'CAPRICCIOSA_37CM', 'variant', 1,
   0, NULL, @p_CAPRICCIOSA, @opt_37cm,
-  8.0, 5.0, 'buffalo mozzarella / pieczarki / jajko / oliwki / szynka / papryka', 1, 'active');
+  8.0, 5.0, 'buffalo mozzarella / pieczarki / jajko / oliwki / szynka / papryka', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'CARBONARA 30cm', 'CARBONARA_30CM', 'variant', 1,
   0, NULL, @p_CARBONARA, @opt_30cm,
-  8.0, 5.0, 'sos śmietankowy / boczek / parmezan / pieprz / jajko', 0, 'active');
+  8.0, 5.0, 'sos śmietankowy / boczek / parmezan / pieprz / jajko', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'CARBONARA 37cm', 'CARBONARA_37CM', 'variant', 1,
   0, NULL, @p_CARBONARA, @opt_37cm,
-  8.0, 5.0, 'sos śmietankowy / boczek / parmezan / pieprz / jajko', 1, 'active');
+  8.0, 5.0, 'sos śmietankowy / boczek / parmezan / pieprz / jajko', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'CEZAR 30cm', 'CEZAR_30CM', 'variant', 1,
   0, NULL, @p_CEZAR, @opt_30cm,
-  8.0, 5.0, 'biały sos / kurczak / sałata lodowa / pomidorki / parmezan', 0, 'active');
+  8.0, 5.0, 'biały sos / kurczak / sałata lodowa / pomidorki / parmezan', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'CEZAR 37cm', 'CEZAR_37CM', 'variant', 1,
   0, NULL, @p_CEZAR, @opt_37cm,
-  8.0, 5.0, 'biały sos / kurczak / sałata lodowa / pomidorki / parmezan', 1, 'active');
+  8.0, 5.0, 'biały sos / kurczak / sałata lodowa / pomidorki / parmezan', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'CON BROCCOLI 30cm', 'CON_BROCCOLI_30CM', 'variant', 1,
   0, NULL, @p_CON_BROCCOLI, @opt_30cm,
-  8.0, 5.0, 'sos śmietankowy / buffalo mozzarella / kurczak / brokuł / chipsy ziemniaczane / ricotta / suszone pomidorki', 0, 'active');
+  8.0, 5.0, 'sos śmietankowy / buffalo mozzarella / kurczak / brokuł / chipsy ziemniaczane / ricotta / suszone pomidorki', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'CON BROCCOLI 37cm', 'CON_BROCCOLI_37CM', 'variant', 1,
   0, NULL, @p_CON_BROCCOLI, @opt_37cm,
-  8.0, 5.0, 'sos śmietankowy / buffalo mozzarella / kurczak / brokuł / chipsy ziemniaczane / ricotta / suszone pomidorki', 1, 'active');
+  8.0, 5.0, 'sos śmietankowy / buffalo mozzarella / kurczak / brokuł / chipsy ziemniaczane / ricotta / suszone pomidorki', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'DI CARNE 30cm', 'DI_CARNE_30CM', 'variant', 1,
   0, NULL, @p_DI_CARNE, @opt_30cm,
-  8.0, 5.0, 'drobiowy kebab / salami / szynka / ragu wołowe', 0, 'active');
+  8.0, 5.0, 'drobiowy kebab / salami / szynka / ragu wołowe', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'DI CARNE 37cm', 'DI_CARNE_37CM', 'variant', 1,
   0, NULL, @p_DI_CARNE, @opt_37cm,
-  8.0, 5.0, 'drobiowy kebab / salami / szynka / ragu wołowe', 1, 'active');
+  8.0, 5.0, 'drobiowy kebab / salami / szynka / ragu wołowe', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'DI PARMA 30cm', 'DI_PARMA_30CM', 'variant', 1,
   0, NULL, @p_DI_PARMA, @opt_30cm,
-  8.0, 5.0, 'szynka parmeńska / rukola / pomidorki / parmezan', 0, 'active');
+  8.0, 5.0, 'szynka parmeńska / rukola / pomidorki / parmezan', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'DI PARMA 37cm', 'DI_PARMA_37CM', 'variant', 1,
   0, NULL, @p_DI_PARMA, @opt_37cm,
-  8.0, 5.0, 'szynka parmeńska / rukola / pomidorki / parmezan', 1, 'active');
+  8.0, 5.0, 'szynka parmeńska / rukola / pomidorki / parmezan', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'DIAVOLA 30cm', 'DIAVOLA_30CM', 'variant', 1,
   0, NULL, @p_DIAVOLA, @opt_30cm,
-  8.0, 5.0, 'salami / papryka / pieczarki / chilli', 0, 'active');
+  8.0, 5.0, 'salami / papryka / pieczarki / chilli', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'DIAVOLA 37cm', 'DIAVOLA_37CM', 'variant', 1,
   0, NULL, @p_DIAVOLA, @opt_37cm,
-  8.0, 5.0, 'salami / papryka / pieczarki / chilli', 1, 'active');
+  8.0, 5.0, 'salami / papryka / pieczarki / chilli', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'DUE SALAMI 30cm', 'DUE_SALAMI_30CM', 'variant', 1,
   0, NULL, @p_DUE_SALAMI, @opt_30cm,
-  8.0, 5.0, 'salami / chipsy ziemniaczane / salami picante', 0, 'active');
+  8.0, 5.0, 'salami / chipsy ziemniaczane / salami picante', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'DUE SALAMI 37cm', 'DUE_SALAMI_37CM', 'variant', 1,
   0, NULL, @p_DUE_SALAMI, @opt_37cm,
-  8.0, 5.0, 'salami / chipsy ziemniaczane / salami picante', 1, 'active');
+  8.0, 5.0, 'salami / chipsy ziemniaczane / salami picante', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'ETNA 30cm', 'ETNA_30CM', 'variant', 1,
   0, NULL, @p_ETNA, @opt_30cm,
-  8.0, 5.0, 'salami picante / pieczarki / chlli / Nduja / ricotta / tabasco', 0, 'active');
+  8.0, 5.0, 'salami picante / pieczarki / chlli / Nduja / ricotta / tabasco', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'ETNA 37cm', 'ETNA_37CM', 'variant', 1,
   0, NULL, @p_ETNA, @opt_37cm,
-  8.0, 5.0, 'salami picante / pieczarki / chlli / Nduja / ricotta / tabasco', 1, 'active');
+  8.0, 5.0, 'salami picante / pieczarki / chlli / Nduja / ricotta / tabasco', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'FRITTE FORMAGGIO 30cm', 'FRITTE_FORMAGGIO_30CM', 'variant', 1,
   0, NULL, @p_FRITTE_FORMAGGIO, @opt_30cm,
-  8.0, 5.0, 'mozzarella / feta / salami / ser edam / frytki', 0, 'active');
+  8.0, 5.0, 'mozzarella / feta / salami / ser edam / frytki', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'FRITTE FORMAGGIO 37cm', 'FRITTE_FORMAGGIO_37CM', 'variant', 1,
   0, NULL, @p_FRITTE_FORMAGGIO, @opt_37cm,
-  8.0, 5.0, 'mozzarella / feta / salami / ser edam / frytki', 1, 'active');
+  8.0, 5.0, 'mozzarella / feta / salami / ser edam / frytki', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'FUNGHI CON SZYNKA 30cm', 'FUNGHI_CON_SZYNKA_30CM', 'variant', 1,
   0, NULL, @p_FUNGHI_CON_SZYNKA, @opt_30cm,
-  8.0, 5.0, 'szynka / pieczarki / rukola', 0, 'active');
+  8.0, 5.0, 'szynka / pieczarki / rukola', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'FUNGHI CON SZYNKA 37cm', 'FUNGHI_CON_SZYNKA_37CM', 'variant', 1,
   0, NULL, @p_FUNGHI_CON_SZYNKA, @opt_37cm,
-  8.0, 5.0, 'szynka / pieczarki / rukola', 1, 'active');
+  8.0, 5.0, 'szynka / pieczarki / rukola', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'MAFIA 30cm', 'MAFIA_30CM', 'variant', 1,
   0, NULL, @p_MAFIA, @opt_30cm,
-  8.0, 5.0, 'sos bbq / salami picante / rwana wieprzowina / kukurydza / czerwona cebula / jalapeno', 0, 'active');
+  8.0, 5.0, 'sos bbq / salami picante / rwana wieprzowina / kukurydza / czerwona cebula / jalapeno', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'MAFIA 37cm', 'MAFIA_37CM', 'variant', 1,
   0, NULL, @p_MAFIA, @opt_37cm,
-  8.0, 5.0, 'sos bbq / salami picante / rwana wieprzowina / kukurydza / czerwona cebula / jalapeno', 1, 'active');
+  8.0, 5.0, 'sos bbq / salami picante / rwana wieprzowina / kukurydza / czerwona cebula / jalapeno', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'MARGHERITA 30cm', 'MARGHERITA_30CM', 'variant', 1,
   0, NULL, @p_MARGHERITA, @opt_30cm,
-  8.0, 5.0, 'sos / ser', 0, 'active');
+  8.0, 5.0, 'sos / ser', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'MARGHERITA 37cm', 'MARGHERITA_37CM', 'variant', 1,
   0, NULL, @p_MARGHERITA, @opt_37cm,
-  8.0, 5.0, 'sos / ser', 1, 'active');
+  8.0, 5.0, 'sos / ser', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'MARGHERITA ITALIANO 30cm', 'MARGHERITA_ITALIANO_30CM', 'variant', 1,
   0, NULL, @p_MARGHERITA_ITALIANO, @opt_30cm,
-  8.0, 5.0, 'buffalo mozzarella / świeża bazylia / oliwa / parmezan / oregano / rozmaryn', 0, 'active');
+  8.0, 5.0, 'buffalo mozzarella / świeża bazylia / oliwa / parmezan / oregano / rozmaryn', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'MARGHERITA ITALIANO 37cm', 'MARGHERITA_ITALIANO_37CM', 'variant', 1,
   0, NULL, @p_MARGHERITA_ITALIANO, @opt_37cm,
-  8.0, 5.0, 'buffalo mozzarella / świeża bazylia / oliwa / parmezan / oregano / rozmaryn', 1, 'active');
+  8.0, 5.0, 'buffalo mozzarella / świeża bazylia / oliwa / parmezan / oregano / rozmaryn', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'MARGHERITA ITALIANO BIANCA 30cm', 'MARGHERITA_ITALIANO_BIANCA_30CM', 'variant', 1,
   0, NULL, @p_MARGHERITA_ITALIANO_BIANCA, @opt_30cm,
-  8.0, 5.0, 'biały sos / buffalo mozzarella / bazylia / oregano / rozmaryn / parmezan', 0, 'active');
+  8.0, 5.0, 'biały sos / buffalo mozzarella / bazylia / oregano / rozmaryn / parmezan', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'MARGHERITA ITALIANO BIANCA 37cm', 'MARGHERITA_ITALIANO_BIANCA_37CM', 'variant', 1,
   0, NULL, @p_MARGHERITA_ITALIANO_BIANCA, @opt_37cm,
-  8.0, 5.0, 'biały sos / buffalo mozzarella / bazylia / oregano / rozmaryn / parmezan', 1, 'active');
+  8.0, 5.0, 'biały sos / buffalo mozzarella / bazylia / oregano / rozmaryn / parmezan', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'MONTANARA 30cm', 'MONTANARA_30CM', 'variant', 1,
   0, NULL, @p_MONTANARA, @opt_30cm,
-  8.0, 5.0, 'buffalo mozzarella / smażone pieczarki / włoska kiełbasa / Nduja / suszone pomidorki / parmezan', 0, 'active');
+  8.0, 5.0, 'buffalo mozzarella / smażone pieczarki / włoska kiełbasa / Nduja / suszone pomidorki / parmezan', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'MONTANARA 37cm', 'MONTANARA_37CM', 'variant', 1,
   0, NULL, @p_MONTANARA, @opt_37cm,
-  8.0, 5.0, 'buffalo mozzarella / smażone pieczarki / włoska kiełbasa / Nduja / suszone pomidorki / parmezan', 1, 'active');
+  8.0, 5.0, 'buffalo mozzarella / smażone pieczarki / włoska kiełbasa / Nduja / suszone pomidorki / parmezan', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'NEW YORK 30cm', 'NEW_YORK_30CM', 'variant', 1,
   0, NULL, @p_NEW_YORK, @opt_30cm,
-  8.0, 5.0, 'sos bbq / kukurydza / rwana wieprzowina / pieczarki / papryka', 0, 'active');
+  8.0, 5.0, 'sos bbq / kukurydza / rwana wieprzowina / pieczarki / papryka', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'NEW YORK 37cm', 'NEW_YORK_37CM', 'variant', 1,
   0, NULL, @p_NEW_YORK, @opt_37cm,
-  8.0, 5.0, 'sos bbq / kukurydza / rwana wieprzowina / pieczarki / papryka', 1, 'active');
+  8.0, 5.0, 'sos bbq / kukurydza / rwana wieprzowina / pieczarki / papryka', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'POLLO 30cm', 'POLLO_30CM', 'variant', 1,
   0, NULL, @p_POLLO, @opt_30cm,
-  8.0, 5.0, 'kurczak / pieczarki / kukurydza / czerwona cebulka', 0, 'active');
+  8.0, 5.0, 'kurczak / pieczarki / kukurydza / czerwona cebulka', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'POLLO 37cm', 'POLLO_37CM', 'variant', 1,
   0, NULL, @p_POLLO, @opt_37cm,
-  8.0, 5.0, 'kurczak / pieczarki / kukurydza / czerwona cebulka', 1, 'active');
+  8.0, 5.0, 'kurczak / pieczarki / kukurydza / czerwona cebulka', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'POPEY 30cm', 'POPEY_30CM', 'variant', 1,
   0, NULL, @p_POPEY, @opt_30cm,
-  8.0, 5.0, 'kurczak / brokuły / szpinak / suszone pomidorki / feta', 0, 'active');
+  8.0, 5.0, 'kurczak / brokuły / szpinak / suszone pomidorki / feta', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'POPEY 37cm', 'POPEY_37CM', 'variant', 1,
   0, NULL, @p_POPEY, @opt_37cm,
-  8.0, 5.0, 'kurczak / brokuły / szpinak / suszone pomidorki / feta', 1, 'active');
+  8.0, 5.0, 'kurczak / brokuły / szpinak / suszone pomidorki / feta', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'PÓL NA PÓŁ', 'POL_NA_POL_37CM', 'variant', 1,
   0, NULL, @p_POL_NA_POL, @opt_37cm,
-  8.0, 5.0, 'Wybierz 2 połówki', 1, 'active');
+  8.0, 5.0, 'Wybierz 2 połówki', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'QUATTRO FORMAGGI 30cm', 'QUATTRO_FORMAGGI_30CM', 'variant', 1,
   0, NULL, @p_QUATTRO_FORMAGGI, @opt_30cm,
-  8.0, 5.0, 'sos śmietanowy / gorgonzola / feta / edamski / ricotta', 0, 'active');
+  8.0, 5.0, 'sos śmietanowy / gorgonzola / feta / edamski / ricotta', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'QUATTRO FORMAGGI 37cm', 'QUATTRO_FORMAGGI_37CM', 'variant', 1,
   0, NULL, @p_QUATTRO_FORMAGGI, @opt_37cm,
-  8.0, 5.0, 'sos śmietanowy / gorgonzola / feta / edamski / ricotta', 1, 'active');
+  8.0, 5.0, 'sos śmietanowy / gorgonzola / feta / edamski / ricotta', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'RAGU 30cm', 'RAGU_30CM', 'variant', 1,
   0, NULL, @p_RAGU, @opt_30cm,
-  8.0, 5.0, 'mięso wołowe / pieczarki / czerwona cebulka / parmezan', 0, 'active');
+  8.0, 5.0, 'mięso wołowe / pieczarki / czerwona cebulka / parmezan', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'RAGU 37cm', 'RAGU_37CM', 'variant', 1,
   0, NULL, @p_RAGU, @opt_37cm,
-  8.0, 5.0, 'mięso wołowe / pieczarki / czerwona cebulka / parmezan', 1, 'active');
+  8.0, 5.0, 'mięso wołowe / pieczarki / czerwona cebulka / parmezan', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'STEAKY 30cm', 'STEAKY_30CM', 'variant', 1,
   0, NULL, @p_STEAKY, @opt_30cm,
-  8.0, 5.0, 'chipsy ziemniaczane / pieczarka / stek wołowy / rukola / krem balsamiczny / sezamowe ciasto / parmezan', 0, 'active');
+  8.0, 5.0, 'chipsy ziemniaczane / pieczarka / stek wołowy / rukola / krem balsamiczny / sezamowe ciasto / parmezan', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'STEAKY 37cm', 'STEAKY_37CM', 'variant', 1,
   0, NULL, @p_STEAKY, @opt_37cm,
-  8.0, 5.0, 'chipsy ziemniaczane / pieczarka / stek wołowy / rukola / krem balsamiczny / sezamowe ciasto / parmezan', 1, 'active');
+  8.0, 5.0, 'chipsy ziemniaczane / pieczarka / stek wołowy / rukola / krem balsamiczny / sezamowe ciasto / parmezan', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'VERDURA 30cm', 'VERDURA_30CM', 'variant', 1,
   0, NULL, @p_VERDURA, @opt_30cm,
-  8.0, 5.0, 'pieczarki / cukinia / pomidorki / papryka / czerwona cebulka', 0, 'active');
+  8.0, 5.0, 'pieczarki / cukinia / pomidorki / papryka / czerwona cebulka', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'VERDURA 37cm', 'VERDURA_37CM', 'variant', 1,
   0, NULL, @p_VERDURA, @opt_37cm,
-  8.0, 5.0, 'pieczarki / cukinia / pomidorki / papryka / czerwona cebulka', 1, 'active');
+  8.0, 5.0, 'pieczarki / cukinia / pomidorki / papryka / czerwona cebulka', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'VERONA 30cm', 'VERONA_30CM', 'variant', 1,
   0, NULL, @p_VERONA, @opt_30cm,
-  8.0, 5.0, 'kurczak / pomidorki / rukola / parmezan', 0, 'active');
+  8.0, 5.0, 'kurczak / pomidorki / rukola / parmezan', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'VERONA 37cm', 'VERONA_37CM', 'variant', 1,
   0, NULL, @p_VERONA, @opt_37cm,
-  8.0, 5.0, 'kurczak / pomidorki / rukola / parmezan', 1, 'active');
+  8.0, 5.0, 'kurczak / pomidorki / rukola / parmezan', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'VINCI 30cm', 'VINCI_30CM', 'variant', 1,
   0, NULL, @p_VINCI, @opt_30cm,
-  8.0, 5.0, 'sos śmietankowy / buffalo mozzarella / pieczarki / włoska kiełbasa / Nduja / czerwona cebulka', 0, 'active');
+  8.0, 5.0, 'sos śmietankowy / buffalo mozzarella / pieczarki / włoska kiełbasa / Nduja / czerwona cebulka', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'VINCI 37cm', 'VINCI_37CM', 'variant', 1,
   0, NULL, @p_VINCI, @opt_37cm,
-  8.0, 5.0, 'sos śmietankowy / buffalo mozzarella / pieczarki / włoska kiełbasa / Nduja / czerwona cebulka', 1, 'active');
+  8.0, 5.0, 'sos śmietankowy / buffalo mozzarella / pieczarki / włoska kiełbasa / Nduja / czerwona cebulka', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'VULCANO 30cm', 'VULCANO_30CM', 'variant', 1,
   0, NULL, @p_VULCANO, @opt_30cm,
-  8.0, 5.0, 'salami picante / kurczak / jalapeno / chilli', 0, 'active');
+  8.0, 5.0, 'salami picante / kurczak / jalapeno / chilli', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_pizze, 'VULCANO 37cm', 'VULCANO_37CM', 'variant', 1,
   0, NULL, @p_VULCANO, @opt_37cm,
-  8.0, 5.0, 'salami picante / kurczak / jalapeno / chilli', 1, 'active');
+  8.0, 5.0, 'salami picante / kurczak / jalapeno / chilli', 1, 'Live');
 
 -- ── 2.6 sh_menu_items — panini parent items ───────────────────────────
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
@@ -822,77 +822,77 @@ INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_a
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI AMERICANO', 'PANINI_AMERICANO', 'variant_parent', 1,
   1, @scale_panini_id, NULL, NULL,
-  8.0, 5.0, 'sos / ser / kurczak / salami / czerwona cebulka / kukurydza', 0, 'active');
+  8.0, 5.0, 'sos / ser / kurczak / salami / czerwona cebulka / kukurydza', 0, 'Live');
 SET @p_PANINI_AMERICANO = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI AMERICANO PICANTE', 'PANINI_AMERICANO_PICANTE', 'variant_parent', 1,
   1, @scale_panini_id, NULL, NULL,
-  8.0, 5.0, 'sos / ser / kurczak / boczek / kukurydza / jalapeno', 1, 'active');
+  8.0, 5.0, 'sos / ser / kurczak / boczek / kukurydza / jalapeno', 1, 'Live');
 SET @p_PANINI_AMERICANO_PICANTE = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI Al. GYROSO', 'PANINI_AL_GYROSO', 'variant_parent', 1,
   1, @scale_panini_id, NULL, NULL,
-  8.0, 5.0, 'sos / ser / drobiowy kebab / kapusta pekińska / kukurydza / pomidorki / czerwona cebula / ogórek konserwowy', 2, 'active');
+  8.0, 5.0, 'sos / ser / drobiowy kebab / kapusta pekińska / kukurydza / pomidorki / czerwona cebula / ogórek konserwowy', 2, 'Live');
 SET @p_PANINI_AL_GYROSO = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI CEZAR', 'PANINI_CEZAR', 'variant_parent', 1,
   1, @scale_panini_id, NULL, NULL,
-  8.0, 5.0, 'sos / ser / kurczak / pomidorki / czerwona cebula / sałata lodowa', 3, 'active');
+  8.0, 5.0, 'sos / ser / kurczak / pomidorki / czerwona cebula / sałata lodowa', 3, 'Live');
 SET @p_PANINI_CEZAR = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI DI CARNE', 'PANINI_DI_CARNE', 'variant_parent', 1,
   1, @scale_panini_id, NULL, NULL,
-  8.0, 5.0, 'sos / ser / kurczak / salami / szynka / boczek', 4, 'active');
+  8.0, 5.0, 'sos / ser / kurczak / salami / szynka / boczek', 4, 'Live');
 SET @p_PANINI_DI_CARNE = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI ITALIANO', 'PANINI_ITALIANO', 'variant_parent', 1,
   1, @scale_panini_id, NULL, NULL,
-  8.0, 5.0, 'sos / ser / szynka parmeńska / pomidorki / rukola', 5, 'active');
+  8.0, 5.0, 'sos / ser / szynka parmeńska / pomidorki / rukola', 5, 'Live');
 SET @p_PANINI_ITALIANO = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI MAFIA', 'PANINI_MAFIA', 'variant_parent', 1,
   1, @scale_panini_id, NULL, NULL,
-  8.0, 5.0, 'sos / salami / rwana wieprzowina / kukurydza / czerwona cebula / jalapeno', 6, 'active');
+  8.0, 5.0, 'sos / salami / rwana wieprzowina / kukurydza / czerwona cebula / jalapeno', 6, 'Live');
 SET @p_PANINI_MAFIA = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI POLLO PICANTE', 'PANINI_POLLO_PICANTE', 'variant_parent', 1,
   1, @scale_panini_id, NULL, NULL,
-  8.0, 5.0, 'sos / ser / kurczak / boczek / rukola / chilli', 7, 'active');
+  8.0, 5.0, 'sos / ser / kurczak / boczek / rukola / chilli', 7, 'Live');
 SET @p_PANINI_POLLO_PICANTE = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI STEKY', 'PANINI_STEKY', 'variant_parent', 1,
   1, @scale_panini_id, NULL, NULL,
-  8.0, 5.0, 'sos / ser / stek wołowy / rukola / czerwona cebula / pomidorki', 8, 'active');
+  8.0, 5.0, 'sos / ser / stek wołowy / rukola / czerwona cebula / pomidorki', 8, 'Live');
 SET @p_PANINI_STEKY = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI VERDURA', 'PANINI_VERDURA', 'variant_parent', 1,
   1, @scale_panini_id, NULL, NULL,
-  8.0, 5.0, 'sos / ser / pomidorki / smażone pieczarki / papryka / cukinia', 9, 'active');
+  8.0, 5.0, 'sos / ser / pomidorki / smażone pieczarki / papryka / cukinia', 9, 'Live');
 SET @p_PANINI_VERDURA = LAST_INSERT_ID();
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI VEZUVIO', 'PANINI_VEZUVIO', 'variant_parent', 1,
   1, @scale_panini_id, NULL, NULL,
-  8.0, 5.0, 'sos / ser / salami / szynka / czerwona cebulka / kukurydza', 10, 'active');
+  8.0, 5.0, 'sos / ser / salami / szynka / czerwona cebulka / kukurydza', 10, 'Live');
 SET @p_PANINI_VEZUVIO = LAST_INSERT_ID();
 
 -- ── 2.7 sh_menu_items — panini variant children ───────────────────────
@@ -901,133 +901,133 @@ INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_a
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI AMERICANO - MAŁE', 'PANINI_AMERICANO_MALE', 'variant', 1,
   0, NULL, @p_PANINI_AMERICANO, @opt_male,
-  8.0, 5.0, 'sos / ser / kurczak / salami / czerwona cebulka / kukurydza', 0, 'active');
+  8.0, 5.0, 'sos / ser / kurczak / salami / czerwona cebulka / kukurydza', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI AMERICANO - DUŻE', 'PANINI_AMERICANO_DUZE', 'variant', 1,
   0, NULL, @p_PANINI_AMERICANO, @opt_duze,
-  8.0, 5.0, 'sos / ser / kurczak / salami / czerwona cebulka / kukurydza', 1, 'active');
+  8.0, 5.0, 'sos / ser / kurczak / salami / czerwona cebulka / kukurydza', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI AMERICANO PICANTE - MAŁE', 'PANINI_AMERICANO_PICANTE_MALE', 'variant', 1,
   0, NULL, @p_PANINI_AMERICANO_PICANTE, @opt_male,
-  8.0, 5.0, 'sos / ser / kurczak / boczek / kukurydza / jalapeno', 0, 'active');
+  8.0, 5.0, 'sos / ser / kurczak / boczek / kukurydza / jalapeno', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI AMERICANO PICANTE - DUŻE', 'PANINI_AMERICANO_PICANTE_DUZE', 'variant', 1,
   0, NULL, @p_PANINI_AMERICANO_PICANTE, @opt_duze,
-  8.0, 5.0, 'sos / ser / kurczak / boczek / kukurydza / jalapeno', 1, 'active');
+  8.0, 5.0, 'sos / ser / kurczak / boczek / kukurydza / jalapeno', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI Al. GYROSO - MAŁE', 'PANINI_AL_GYROSO_MALE', 'variant', 1,
   0, NULL, @p_PANINI_AL_GYROSO, @opt_male,
-  8.0, 5.0, 'sos / ser / drobiowy kebab / kapusta pekińska / kukurydza / pomidorki / czerwona cebula / ogórek konserwowy', 0, 'active');
+  8.0, 5.0, 'sos / ser / drobiowy kebab / kapusta pekińska / kukurydza / pomidorki / czerwona cebula / ogórek konserwowy', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI Al. GYROSO - DUŻE', 'PANINI_AL_GYROSO_DUZE', 'variant', 1,
   0, NULL, @p_PANINI_AL_GYROSO, @opt_duze,
-  8.0, 5.0, 'sos / ser / drobiowy kebab / kapusta pekińska / kukurydza / pomidorki / czerwona cebula / ogórek konserwowy', 1, 'active');
+  8.0, 5.0, 'sos / ser / drobiowy kebab / kapusta pekińska / kukurydza / pomidorki / czerwona cebula / ogórek konserwowy', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI CEZAR - MAŁE', 'PANINI_CEZAR_MALE', 'variant', 1,
   0, NULL, @p_PANINI_CEZAR, @opt_male,
-  8.0, 5.0, 'sos / ser / kurczak / pomidorki / czerwona cebula / sałata lodowa', 0, 'active');
+  8.0, 5.0, 'sos / ser / kurczak / pomidorki / czerwona cebula / sałata lodowa', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI CEZAR - DUŻE', 'PANINI_CEZAR_DUZE', 'variant', 1,
   0, NULL, @p_PANINI_CEZAR, @opt_duze,
-  8.0, 5.0, 'sos / ser / kurczak / pomidorki / czerwona cebula / sałata lodowa', 1, 'active');
+  8.0, 5.0, 'sos / ser / kurczak / pomidorki / czerwona cebula / sałata lodowa', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI DI CARNE - MAŁE', 'PANINI_DI_CARNE_MALE', 'variant', 1,
   0, NULL, @p_PANINI_DI_CARNE, @opt_male,
-  8.0, 5.0, 'sos / ser / kurczak / salami / szynka / boczek', 0, 'active');
+  8.0, 5.0, 'sos / ser / kurczak / salami / szynka / boczek', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI DI CARNE - DUŻE', 'PANINI_DI_CARNE_DUZE', 'variant', 1,
   0, NULL, @p_PANINI_DI_CARNE, @opt_duze,
-  8.0, 5.0, 'sos / ser / kurczak / salami / szynka / boczek', 1, 'active');
+  8.0, 5.0, 'sos / ser / kurczak / salami / szynka / boczek', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI ITALIANO - MAŁE', 'PANINI_ITALIANO_MALE', 'variant', 1,
   0, NULL, @p_PANINI_ITALIANO, @opt_male,
-  8.0, 5.0, 'sos / ser / szynka parmeńska / pomidorki / rukola', 0, 'active');
+  8.0, 5.0, 'sos / ser / szynka parmeńska / pomidorki / rukola', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI ITALIANO - DUŻE', 'PANINI_ITALIANO_DUZE', 'variant', 1,
   0, NULL, @p_PANINI_ITALIANO, @opt_duze,
-  8.0, 5.0, 'sos / ser / szynka parmeńska / pomidorki / rukola', 1, 'active');
+  8.0, 5.0, 'sos / ser / szynka parmeńska / pomidorki / rukola', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI MAFIA - MAŁE', 'PANINI_MAFIA_MALE', 'variant', 1,
   0, NULL, @p_PANINI_MAFIA, @opt_male,
-  8.0, 5.0, 'sos / salami / rwana wieprzowina / kukurydza / czerwona cebula / jalapeno', 0, 'active');
+  8.0, 5.0, 'sos / salami / rwana wieprzowina / kukurydza / czerwona cebula / jalapeno', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI MAFIA - DUŻE', 'PANINI_MAFIA_DUZE', 'variant', 1,
   0, NULL, @p_PANINI_MAFIA, @opt_duze,
-  8.0, 5.0, 'sos / salami / rwana wieprzowina / kukurydza / czerwona cebula / jalapeno', 1, 'active');
+  8.0, 5.0, 'sos / salami / rwana wieprzowina / kukurydza / czerwona cebula / jalapeno', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI POLLO PICANTE - MAŁE', 'PANINI_POLLO_PICANTE_MALE', 'variant', 1,
   0, NULL, @p_PANINI_POLLO_PICANTE, @opt_male,
-  8.0, 5.0, 'sos / ser / kurczak / boczek / rukola / chilli', 0, 'active');
+  8.0, 5.0, 'sos / ser / kurczak / boczek / rukola / chilli', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI POLLO PICANTE - DUŻE', 'PANINI_POLLO_PICANTE_DUZE', 'variant', 1,
   0, NULL, @p_PANINI_POLLO_PICANTE, @opt_duze,
-  8.0, 5.0, 'sos / ser / kurczak / boczek / rukola / chilli', 1, 'active');
+  8.0, 5.0, 'sos / ser / kurczak / boczek / rukola / chilli', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI STEKY - MAŁE', 'PANINI_STEKY_MALE', 'variant', 1,
   0, NULL, @p_PANINI_STEKY, @opt_male,
-  8.0, 5.0, 'sos / ser / stek wołowy / rukola / czerwona cebula / pomidorki', 0, 'active');
+  8.0, 5.0, 'sos / ser / stek wołowy / rukola / czerwona cebula / pomidorki', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI STEKY - DUŻE', 'PANINI_STEKY_DUZE', 'variant', 1,
   0, NULL, @p_PANINI_STEKY, @opt_duze,
-  8.0, 5.0, 'sos / ser / stek wołowy / rukola / czerwona cebula / pomidorki', 1, 'active');
+  8.0, 5.0, 'sos / ser / stek wołowy / rukola / czerwona cebula / pomidorki', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI VERDURA - MAŁE', 'PANINI_VERDURA_MALE', 'variant', 1,
   0, NULL, @p_PANINI_VERDURA, @opt_male,
-  8.0, 5.0, 'sos / ser / pomidorki / smażone pieczarki / papryka / cukinia', 0, 'active');
+  8.0, 5.0, 'sos / ser / pomidorki / smażone pieczarki / papryka / cukinia', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI VERDURA - DUŻE', 'PANINI_VERDURA_DUZE', 'variant', 1,
   0, NULL, @p_PANINI_VERDURA, @opt_duze,
-  8.0, 5.0, 'sos / ser / pomidorki / smażone pieczarki / papryka / cukinia', 1, 'active');
+  8.0, 5.0, 'sos / ser / pomidorki / smażone pieczarki / papryka / cukinia', 1, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI VEZUVIO - MAŁE', 'PANINI_VEZUVIO_MALE', 'variant', 1,
   0, NULL, @p_PANINI_VEZUVIO, @opt_male,
-  8.0, 5.0, 'sos / ser / salami / szynka / czerwona cebulka / kukurydza', 0, 'active');
+  8.0, 5.0, 'sos / ser / salami / szynka / czerwona cebulka / kukurydza', 0, 'Live');
 INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_active,
   is_variant_parent, variant_scale_id, parent_item_id, variant_option_id,
   vat_rate_dine_in, vat_rate_takeaway, description, display_order, publication_status)
 VALUES (@tid, @cat_panini, 'PANINI VEZUVIO - DUŻE', 'PANINI_VEZUVIO_DUZE', 'variant', 1,
   0, NULL, @p_PANINI_VEZUVIO, @opt_duze,
-  8.0, 5.0, 'sos / ser / salami / szynka / czerwona cebulka / kukurydza', 1, 'active');
+  8.0, 5.0, 'sos / ser / salami / szynka / czerwona cebulka / kukurydza', 1, 'Live');
 
 -- ── 2.8 sh_menu_items — single items (no variants) ───────────────────
 -- FOCCACIA
@@ -1038,15 +1038,15 @@ INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_a
 VALUES
 (@tid, @cat_foccacia, 'FOCCACIA ROSMARINO', 'FOCCACIA_ROSMARINO', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'oregano / rozmaryn / sól morska / oliwa czosnkowa', 0, 'active',
+  8.0, 5.0, 'oregano / rozmaryn / sól morska / oliwa czosnkowa', 0, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_foccacia, 'FOCCACIA NOCCI', 'FOCCACIA_NOCCI', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'orzechy / słonecznik / czerwona cebulka / ser gorgonzola / rukola / ocet balsamiczny / gruszka', 1, 'active',
+  8.0, 5.0, 'orzechy / słonecznik / czerwona cebulka / ser gorgonzola / rukola / ocet balsamiczny / gruszka', 1, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_foccacia, 'FOCCACIA POMODORO', 'FOCCACIA_POMODORO', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'pomidorki / bazylia / cebulka / oregano / rozmaryn / sól morska / oliwa czosnkowa', 2, 'active',
+  8.0, 5.0, 'pomidorki / bazylia / cebulka / oregano / rozmaryn / sól morska / oliwa czosnkowa', 2, 'Live',
   NULL, NULL, NULL);
 
 -- CALZONE
@@ -1057,39 +1057,39 @@ INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_a
 VALUES
 (@tid, @cat_calzone, 'CALZONE DI CARNE', 'CALZONE_DI_CARNE', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'kurczak / salami / szynka / boczek', 0, 'active',
+  8.0, 5.0, 'kurczak / salami / szynka / boczek', 0, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_calzone, 'CALZONE VEZUVIO', 'CALZONE_VEZUVIO', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'kurczak / salami / szynka / czerwona cebulka / kukurydza', 1, 'active',
+  8.0, 5.0, 'kurczak / salami / szynka / czerwona cebulka / kukurydza', 1, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_calzone, 'CALZONE POPEY', 'CALZONE_POPEY', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'kurczak / boczek / szpinak / ser feta / papryka', 2, 'active',
+  8.0, 5.0, 'kurczak / boczek / szpinak / ser feta / papryka', 2, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_calzone, 'CALZONE VEGETARIANO', 'CALZONE_VEGETARIANO', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'papryka / cukinia / smażone pieczarki / chipsy ziemniaczane / oliwki', 3, 'active',
+  8.0, 5.0, 'papryka / cukinia / smażone pieczarki / chipsy ziemniaczane / oliwki', 3, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_calzone, 'CALZONE CONTADINO', 'CALZONE_CONTADINO', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'salami picante / chipsy ziemniaczane / smażone pieczarki / feta / papryka', 4, 'active',
+  8.0, 5.0, 'salami picante / chipsy ziemniaczane / smażone pieczarki / feta / papryka', 4, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_calzone, 'CALZONE POLLO PICANTE', 'CALZONE_POLLO_PICANTE', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'kurczak / smażone pieczarki / kukurydza / czerwona cebulka / chilli', 5, 'active',
+  8.0, 5.0, 'kurczak / smażone pieczarki / kukurydza / czerwona cebulka / chilli', 5, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_calzone, 'CALZONE ITALIANO', 'CALZONE_ITALIANO', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'włoska kiełbasa / smażone pieczarki / brokuł / czerwona cebulka', 6, 'active',
+  8.0, 5.0, 'włoska kiełbasa / smażone pieczarki / brokuł / czerwona cebulka', 6, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_calzone, 'CALZONE TEXAS', 'CALZONE_TEXAS', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'sos bbq / kurczak / boczek / jalapeno / kukurydza / papryka', 7, 'active',
+  8.0, 5.0, 'sos bbq / kurczak / boczek / jalapeno / kukurydza / papryka', 7, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_calzone, 'CALZONE MAFIA', 'CALZONE_MAFIA', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'sos bbq / salami picante / rwana wieprzowina / jalapeno / kukurydza', 8, 'active',
+  8.0, 5.0, 'sos bbq / salami picante / rwana wieprzowina / jalapeno / kukurydza', 8, 'Live',
   NULL, NULL, NULL);
 
 -- MAKARONY
@@ -1100,63 +1100,63 @@ INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_a
 VALUES
 (@tid, @cat_makarony, 'TAGLIATELLE STEAKY', 'TAGLIATELLE_STEAKY', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'stek wołowy / czerwona cebula / pieczarki / pomidorki / rukola / parmezan / krem balsamiczny', 0, 'active',
+  8.0, 5.0, 'stek wołowy / czerwona cebula / pieczarki / pomidorki / rukola / parmezan / krem balsamiczny', 0, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_makarony, 'SPAGHETTI POMODORO', 'SPAGHETTI_POMODORO', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'sos napoli / pomidorki / świeża bazylia / parmezan', 1, 'active',
+  8.0, 5.0, 'sos napoli / pomidorki / świeża bazylia / parmezan', 1, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_makarony, 'SPAGHETTI BOLOGNESE', 'SPAGHETTI_BOLOGNESE', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'sos napoli / mięso wołowe / parmezan', 2, 'active',
+  8.0, 5.0, 'sos napoli / mięso wołowe / parmezan', 2, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_makarony, 'SPAGHETTI CARBONARA', 'SPAGHETTI_CARBONARA', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'sos śmietankowy / boczek / parmezan', 3, 'active',
+  8.0, 5.0, 'sos śmietankowy / boczek / parmezan', 3, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_makarony, 'PENNE TOSCANA', 'PENNE_TOSCANA', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'sos napoli / włoska kiełbasa / pieczarki / chilli / parmezan', 4, 'active',
+  8.0, 5.0, 'sos napoli / włoska kiełbasa / pieczarki / chilli / parmezan', 4, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_makarony, 'PENNE DI CAPO', 'PENNE_DI_CAPO', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'sos śmietankowy / szynka / pieczarki / rukola / suszone pomidorki / parmezan', 5, 'active',
+  8.0, 5.0, 'sos śmietankowy / szynka / pieczarki / rukola / suszone pomidorki / parmezan', 5, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_makarony, 'PENNE AMATRICIANA', 'PENNE_AMATRICIANA', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'sos śmietankowo-pomidorowy / pieczarki / włoska kiełbasa / jalapeno / boczek / parmezan', 6, 'active',
+  8.0, 5.0, 'sos śmietankowo-pomidorowy / pieczarki / włoska kiełbasa / jalapeno / boczek / parmezan', 6, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_makarony, 'GNOCCHI ALLA SORRENTINA', 'GNOCCHI_ALLA_SORRENTINA', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'sos napoli / kurczak / bazylia / buffalo mozzarella / oregano / czosnek', 7, 'active',
+  8.0, 5.0, 'sos napoli / kurczak / bazylia / buffalo mozzarella / oregano / czosnek', 7, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_makarony, 'ZAPIEKANKA MAKARONOWA', 'ZAPIEKANKA_MAKARONOWA', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'dowolny makaron z menu / zapiekany w cieście z serem', 8, 'active',
+  8.0, 5.0, 'dowolny makaron z menu / zapiekany w cieście z serem', 8, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_makarony, 'PENNE ARABIATA', 'PENNE_ARABIATA', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'sos napoli / chilli / pomidorki / parmezan', 9, 'active',
+  8.0, 5.0, 'sos napoli / chilli / pomidorki / parmezan', 9, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_makarony, 'PENNE SPINACI', 'PENNE_SPINACI', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'sos śmietankowy / kurczak / szpinak / pieczarki / parmezan', 10, 'active',
+  8.0, 5.0, 'sos śmietankowy / kurczak / szpinak / pieczarki / parmezan', 10, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_makarony, 'PENNE POLLO CON BROCCOLI', 'PENNE_POLLO_CON_BROCCOLI', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'sos śmietankowy / kurczak / brokuły / parmezan', 11, 'active',
+  8.0, 5.0, 'sos śmietankowy / kurczak / brokuły / parmezan', 11, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_makarony, 'TAGLIATELLE AL. TONNO', 'TAGLIATELLE_AL_TONNO', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'sos napoli / tuńczyk / fileciki anchois / pietruszka / czerwona cebula / pomidorki / parmezan', 12, 'active',
+  8.0, 5.0, 'sos napoli / tuńczyk / fileciki anchois / pietruszka / czerwona cebula / pomidorki / parmezan', 12, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_makarony, 'TAGLIATELLE VERDE', 'TAGLIATELLE_VERDE', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'sos śmietankowy / pieczarki / cukinia / pomidorki / parmezan / rukola', 13, 'active',
+  8.0, 5.0, 'sos śmietankowy / pieczarki / cukinia / pomidorki / parmezan / rukola', 13, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_makarony, 'GNOCCHI ALLA TOSCANA', 'GNOCCHI_ALLA_TOSCANA', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'sos śmietankowy / kurczak / szpinak / suszone pomidorki / czosnek / parmezan', 14, 'active',
+  8.0, 5.0, 'sos śmietankowy / kurczak / szpinak / suszone pomidorki / czosnek / parmezan', 14, 'Live',
   NULL, NULL, NULL);
 
 -- SAŁATKI
@@ -1167,15 +1167,15 @@ INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_a
 VALUES
 (@tid, @cat_salatki, 'SAŁATKA STEAKY', 'SALATKA_STEAKY', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'Pomidorki / Krem balsamiczny / Rukola / Stek wołowy / Cebula czerwona / Sezam / Parmezan', 0, 'active',
+  8.0, 5.0, 'Pomidorki / Krem balsamiczny / Rukola / Stek wołowy / Cebula czerwona / Sezam / Parmezan', 0, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_salatki, 'SAŁATKA CEZAR', 'SALATKA_CEZAR', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'sałata / kurczak / parmezan / grzanki / sos czosnkowy', 1, 'active',
+  8.0, 5.0, 'sałata / kurczak / parmezan / grzanki / sos czosnkowy', 1, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_salatki, 'SAŁATKA FORNO', 'SALATKA_FORNO', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'rukola / gruszka / orzechy włoskie / nasiona słonecznika / pomidorki / czerwona cebulka / oliwki / oliwa czosnkowa / parmezan / ocet balsamiczny', 2, 'active',
+  8.0, 5.0, 'rukola / gruszka / orzechy włoskie / nasiona słonecznika / pomidorki / czerwona cebulka / oliwki / oliwa czosnkowa / parmezan / ocet balsamiczny', 2, 'Live',
   NULL, NULL, NULL);
 
 -- ZAPIEKANKI
@@ -1186,19 +1186,19 @@ INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_a
 VALUES
 (@tid, @cat_zapiekanki, 'ZAPIEKANKA KLASYCZNA', 'ZAPIEKANKA_KLASYCZNA', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'ser / farsz / cebula prażona / sos', 0, 'active',
+  8.0, 5.0, 'ser / farsz / cebula prażona / sos', 0, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_zapiekanki, 'ZAPIEKANKA AMERICANO', 'ZAPIEKANKA_AMERICANO', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'ser / farsz / rwana wieprzowina / kukurydza / jalapeno / cebula prażona / sos', 1, 'active',
+  8.0, 5.0, 'ser / farsz / rwana wieprzowina / kukurydza / jalapeno / cebula prażona / sos', 1, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_zapiekanki, 'ZAPIEKANKA FORNO', 'ZAPIEKANKA_FORNO', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'ser / farsz / drobiowy kebab / rukola / ogórek / pomidorki / kukurydza / cebula prażona / sos', 2, 'active',
+  8.0, 5.0, 'ser / farsz / drobiowy kebab / rukola / ogórek / pomidorki / kukurydza / cebula prażona / sos', 2, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_zapiekanki, 'ZAPIEKANKA Z SZYNKĄ', 'ZAPIEKANKA_Z_SZYNKA', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'ser / farsz / szynka / cebula prażona / sos', 3, 'active',
+  8.0, 5.0, 'ser / farsz / szynka / cebula prażona / sos', 3, 'Live',
   NULL, NULL, NULL);
 
 -- POZOSTAŁE
@@ -1209,31 +1209,31 @@ INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_a
 VALUES
 (@tid, @cat_pozostale, 'ZUPA KREM', 'ZUPA_KREM', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'krem pomidorowy / grzanki / parmezan / bazylia', 0, 'active',
+  8.0, 5.0, 'krem pomidorowy / grzanki / parmezan / bazylia', 0, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_pozostale, 'PIKANTNE SKRZYDEŁKA 8szt.', 'PIKANTNE_SKRZYDELKA_8SZT', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'skrzydełka', 1, 'active',
+  8.0, 5.0, 'skrzydełka', 1, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_pozostale, 'KREWETKI W TEMPURZE 8szt.', 'KREWETKI_W_TEMPURZE_8SZT', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'z sosem słodkie chilli', 2, 'active',
+  8.0, 5.0, 'z sosem słodkie chilli', 2, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_pozostale, 'KRĄŻKI CEBULOWE 10szt.', 'KRAZKI_CEBULOWE_10SZT', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'krążki cebulowe / sos', 3, 'active',
+  8.0, 5.0, 'krążki cebulowe / sos', 3, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_pozostale, 'ŻEBERKO BBQ', 'ZEBERKO_BBQ', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, '', 4, 'active',
+  8.0, 5.0, '', 4, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_pozostale, 'SURÓWKA', 'SUROWKA', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'kapusta pekińska / pomidor / ogórek konserwowy / czerwona cebula / kukurydza / sos czosnkowy', 5, 'active',
+  8.0, 5.0, 'kapusta pekińska / pomidor / ogórek konserwowy / czerwona cebula / kukurydza / sos czosnkowy', 5, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_pozostale, 'FRYTKI', 'FRYTKI', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, '', 6, 'active',
+  8.0, 5.0, '', 6, 'Live',
   NULL, NULL, NULL);
 
 -- DLA DZIECI
@@ -1244,27 +1244,27 @@ INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_a
 VALUES
 (@tid, @cat_dladzieci, 'MAKARON KIDS POMODORO', 'MAKARON_KIDS_POMODORO', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'sos napoli / pomidorki / świeża bazylia / parmezan', 0, 'active',
+  8.0, 5.0, 'sos napoli / pomidorki / świeża bazylia / parmezan', 0, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_dladzieci, 'POLĘDWICE W TEMPURZE 4szt.', 'POLEDWICE_W_TEMPURZE_4SZT', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'polędwiczki / sos', 1, 'active',
+  8.0, 5.0, 'polędwiczki / sos', 1, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_dladzieci, 'KIDS FRYTKI', 'KIDS_FRYTKI', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, '', 2, 'active',
+  8.0, 5.0, '', 2, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_dladzieci, 'MAKARON KIDS BOLOGNESE', 'MAKARON_KIDS_BOLOGNESE', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'sos napoli / mięso wołowe / parmezan', 3, 'active',
+  8.0, 5.0, 'sos napoli / mięso wołowe / parmezan', 3, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_dladzieci, 'SZYSZKI ZIEMNIACZANE 10szt.', 'SZYSZKI_ZIEMNIACZANE_10SZT', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, '', 4, 'active',
+  8.0, 5.0, '', 4, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_dladzieci, 'NUGGETSY 8szt.', 'NUGGETSY_8SZT', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, '', 5, 'active',
+  8.0, 5.0, '', 5, 'Live',
   NULL, NULL, NULL);
 
 -- NAPOJE
@@ -1275,35 +1275,35 @@ INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_a
 VALUES
 (@tid, @cat_napoje, 'ROCKSTAR', 'ROCKSTAR', 'standard', 1,
   0, NULL, NULL, NULL,
-  23.0, 23.0, '', 0, 'active',
+  23.0, 23.0, '', 0, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_napoje, 'PEPSI', 'PEPSI', 'standard', 1,
   0, NULL, NULL, NULL,
-  23.0, 23.0, '', 1, 'active',
+  23.0, 23.0, '', 1, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_napoje, 'LIPTON', 'LIPTON', 'standard', 1,
   0, NULL, NULL, NULL,
-  23.0, 23.0, '', 2, 'active',
+  23.0, 23.0, '', 2, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_napoje, '7UP', '7UP', 'standard', 1,
   0, NULL, NULL, NULL,
-  23.0, 23.0, '', 3, 'active',
+  23.0, 23.0, '', 3, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_napoje, 'WODA', 'WODA', 'standard', 1,
   0, NULL, NULL, NULL,
-  23.0, 23.0, '', 4, 'active',
+  23.0, 23.0, '', 4, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_napoje, 'MIRINDA', 'MIRINDA', 'standard', 1,
   0, NULL, NULL, NULL,
-  23.0, 23.0, '', 5, 'active',
+  23.0, 23.0, '', 5, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_napoje, 'SOK TOMA', 'SOK_TOMA', 'standard', 1,
   0, NULL, NULL, NULL,
-  23.0, 23.0, '', 6, 'active',
+  23.0, 23.0, '', 6, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_napoje, 'LEMONIADA', 'LEMONIADA', 'standard', 1,
   0, NULL, NULL, NULL,
-  23.0, 23.0, '', 7, 'active',
+  23.0, 23.0, '', 7, 'Live',
   NULL, NULL, NULL);
 
 -- DESERY
@@ -1314,27 +1314,27 @@ INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_a
 VALUES
 (@tid, @cat_desery, 'GAŁKA ŚMIETANKOW-WANILIOWA', 'GALKA_SMIETANKOW_WANILIOWA', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, '', 0, 'active',
+  8.0, 5.0, '', 0, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_desery, 'GAŁKA ŚMIETANKOWO-JAGODOWA', 'GALKA_SMIETANKOWO_JAGODOWA', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, '', 1, 'active',
+  8.0, 5.0, '', 1, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_desery, 'GAŁKA ŚMIETANKOWO-CZEKOLADOWA', 'GALKA_SMIETANKOWO_CZEKOLADOWA', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, '', 2, 'active',
+  8.0, 5.0, '', 2, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_desery, 'MINI CALZONE Z nutellą i mascarpone', 'MINI_CALZONE_Z_NUTELLA_I_MASCARPONE', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, '', 3, 'active',
+  8.0, 5.0, '', 3, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_desery, 'MINI CALZONE z malinami i mascarpone', 'MINI_CALZONE_Z_MALINAMI_I_MASCARPONE', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, '', 4, 'active',
+  8.0, 5.0, '', 4, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_desery, 'MINI CALZONE z jabłkiem i cynamonem', 'MINI_CALZONE_Z_JABLKIEM_I_CYNAMONEM', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, '', 5, 'active',
+  8.0, 5.0, '', 5, 'Live',
   NULL, NULL, NULL);
 
 -- SOSY
@@ -1345,35 +1345,35 @@ INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_a
 VALUES
 (@tid, @cat_sosy, 'SOS CZOSNKOWY', 'SOS_CZOSNKOWY', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, '', 0, 'active',
+  8.0, 5.0, '', 0, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_sosy, 'SOS POMIDOROWY', 'SOS_POMIDOROWY', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, '', 1, 'active',
+  8.0, 5.0, '', 1, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_sosy, 'SOS MEKSYKAŃSKI', 'SOS_MEKSYKANSKI', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, '', 2, 'active',
+  8.0, 5.0, '', 2, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_sosy, 'SOS 1000-WYSP', 'SOS_1000_WYSP', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, '', 3, 'active',
+  8.0, 5.0, '', 3, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_sosy, 'SOS OSTRY', 'SOS_OSTRY', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, '', 4, 'active',
+  8.0, 5.0, '', 4, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_sosy, 'SOS BBQ', 'SOS_BBQ', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, '', 5, 'active',
+  8.0, 5.0, '', 5, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_sosy, 'KETCHUP', 'KETCHUP', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, '', 6, 'active',
+  8.0, 5.0, '', 6, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_sosy, 'MAJONEZ', 'MAJONEZ', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, '', 7, 'active',
+  8.0, 5.0, '', 7, 'Live',
   NULL, NULL, NULL);
 
 -- GYROSY
@@ -1384,19 +1384,19 @@ INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_a
 VALUES
 (@tid, @cat_gyrosy, 'GYROS ROLLO XXL', 'GYROS_ROLLO_XXL', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'sos / drobiowy kebab / kapusta pekińska / kukurydza / pomidor / ogórek konserwowy / czerwona cebula', 0, 'active',
+  8.0, 5.0, 'sos / drobiowy kebab / kapusta pekińska / kukurydza / pomidor / ogórek konserwowy / czerwona cebula', 0, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_gyrosy, 'VEGE ROLLO XXL', 'VEGE_ROLLO_XXL', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'sos / frytki / kapusta pekińska / pomidor / ogórek konserwowy / kukurydza / czerwona cebula', 1, 'active',
+  8.0, 5.0, 'sos / frytki / kapusta pekińska / pomidor / ogórek konserwowy / kukurydza / czerwona cebula', 1, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_gyrosy, 'GYROS NA TALERZU', 'GYROS_NA_TALERZU', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'sos / drobiowy kebab / frytki / kapusta pekińska / pomidor / ogórek konserwowy / kukurydza / czerwona cebula', 2, 'active',
+  8.0, 5.0, 'sos / drobiowy kebab / frytki / kapusta pekińska / pomidor / ogórek konserwowy / kukurydza / czerwona cebula', 2, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_gyrosy, 'GYROS FORNO', 'GYROS_FORNO', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'sos / drobiowy kebab /frytki / kapusta pekińska / kukurydza / pomidor / ogórek konserwowy / czerwona cebula / ZAPIEKANE Z SEREM W PIECU', 3, 'active',
+  8.0, 5.0, 'sos / drobiowy kebab /frytki / kapusta pekińska / kukurydza / pomidor / ogórek konserwowy / czerwona cebula / ZAPIEKANE Z SEREM W PIECU', 3, 'Live',
   NULL, NULL, NULL);
 
 -- PIWA
@@ -1407,43 +1407,43 @@ INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_a
 VALUES
 (@tid, @cat_piwa, 'TYSKIE Z KIJA', 'TYSKIE_Z_KIJA', 'standard', 1,
   0, NULL, NULL, NULL,
-  23.0, 23.0, '', 0, 'active',
+  23.0, 23.0, '', 0, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_piwa, 'HARDMADE  400ml', 'HARDMADE_400ML', 'standard', 1,
   0, NULL, NULL, NULL,
-  23.0, 23.0, 'Rodzaje do wyboru na miejscu', 1, 'active',
+  23.0, 23.0, 'Rodzaje do wyboru na miejscu', 1, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_piwa, 'PERONI 330ml', 'PERONI_330ML', 'standard', 1,
   0, NULL, NULL, NULL,
-  23.0, 23.0, '', 2, 'active',
+  23.0, 23.0, '', 2, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_piwa, 'LECH pils 500ml', 'LECH_PILS_500ML', 'standard', 1,
   0, NULL, NULL, NULL,
-  23.0, 23.0, '', 3, 'active',
+  23.0, 23.0, '', 3, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_piwa, 'LECH premium 500ml', 'LECH_PREMIUM_500ML', 'standard', 1,
   0, NULL, NULL, NULL,
-  23.0, 23.0, '', 4, 'active',
+  23.0, 23.0, '', 4, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_piwa, 'LECH FREE 00%', 'LECH_FREE_00', 'standard', 1,
   0, NULL, NULL, NULL,
-  23.0, 23.0, 'Rodzaje do wyboru na miejscu', 5, 'active',
+  23.0, 23.0, 'Rodzaje do wyboru na miejscu', 5, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_piwa, 'PERONI 00% 330ml', 'PERONI_00_330ML', 'standard', 1,
   0, NULL, NULL, NULL,
-  23.0, 23.0, '', 6, 'active',
+  23.0, 23.0, '', 6, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_piwa, 'KSIĄŻĘCE 500ml', 'KSIAZECE_500ML', 'standard', 1,
   0, NULL, NULL, NULL,
-  23.0, 23.0, 'Rodzaje do wyboru na miejscu', 7, 'active',
+  23.0, 23.0, 'Rodzaje do wyboru na miejscu', 7, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_piwa, 'PILSNER URQUELL 500ml', 'PILSNER_URQUELL_500ML', 'standard', 1,
   0, NULL, NULL, NULL,
-  23.0, 23.0, '', 8, 'active',
+  23.0, 23.0, '', 8, 'Live',
   NULL, NULL, NULL),
 (@tid, @cat_piwa, 'HARDMADE free 400ml', 'HARDMADE_FREE_400ML', 'standard', 1,
   0, NULL, NULL, NULL,
-  23.0, 23.0, 'Rodzaje do wyboru na miejscu', 9, 'active',
+  23.0, 23.0, 'Rodzaje do wyboru na miejscu', 9, 'Live',
   NULL, NULL, NULL);
 
 -- NOWOŚCI
@@ -1454,37 +1454,37 @@ INSERT INTO sh_menu_items (tenant_id, category_id, name, ascii_key, `type`, is_a
 VALUES
 (@tid, @cat_nowosci, 'PIZZERINKA - CEBULARZ', 'PIZZERINKA_CEBULARZ', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'śmietankowy sos / karmelizowana cebula / ser', 0, 'active',
+  8.0, 5.0, 'śmietankowy sos / karmelizowana cebula / ser', 0, 'Live',
   'new', NULL, NULL),
 (@tid, @cat_nowosci, 'PIZZERINKA - PIECZARA', 'PIZZERINKA_PIECZARA', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'sos pomidorowy / farsz pieczarkowy / ser', 1, 'active',
+  8.0, 5.0, 'sos pomidorowy / farsz pieczarkowy / ser', 1, 'Live',
   'new', NULL, NULL),
 (@tid, @cat_nowosci, 'PIZZA EL Polako 30cm', 'PIZZA_EL_POLAKO_30CM', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'sos pomidorowy, ser, farsz pieczarkowy, podsmażana kiełbasa, kukurydza, cebulka prażona', 2, 'active',
+  8.0, 5.0, 'sos pomidorowy, ser, farsz pieczarkowy, podsmażana kiełbasa, kukurydza, cebulka prażona', 2, 'Live',
   'new', NULL, NULL),
 (@tid, @cat_nowosci, 'PIZZA EL Polako 37cm', 'PIZZA_EL_POLAKO_37CM', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'sos pomidorowy, ser, farsz pieczarkowy, podsmażana kiełbasa, kukurydza, cebulka prażona', 3, 'active',
+  8.0, 5.0, 'sos pomidorowy, ser, farsz pieczarkowy, podsmażana kiełbasa, kukurydza, cebulka prażona', 3, 'Live',
   'new', NULL, NULL),
 (@tid, @cat_nowosci, 'Zestaw małego PIZZAIOLO', 'ZESTAW_MALEGO_PIZZAIOLO', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'Zrób własną pizzę w domu! W zestaw wchodzą dwie kulki ciasta, sos i ser', 4, 'active',
+  8.0, 5.0, 'Zrób własną pizzę w domu! W zestaw wchodzą dwie kulki ciasta, sos i ser', 4, 'Live',
   'new', NULL, NULL),
 (@tid, @cat_nowosci, 'HAWAJSKI DIABEŁEK', 'HAWAJSKI_DIABELEK', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'makaron penne z boczkiem, kurczakiem, chilli, ananas, sos pomidorowy, parmezan', 5, 'active',
+  8.0, 5.0, 'makaron penne z boczkiem, kurczakiem, chilli, ananas, sos pomidorowy, parmezan', 5, 'Live',
   'new', NULL, NULL),
 (@tid, @cat_nowosci, 'Herbata - Malinowa rozgrzewka', 'HERBATA_MALINOWA_ROZGRZEWKA', 'standard', 1,
   0, NULL, NULL, NULL,
-  8.0, 5.0, 'Maliny, miód, cytryna i goździki — naturalna bomba ciepła i aromatu, która postawi Cię na nogi nawet w najbardziej mroźny dzień.', 6, 'active',
+  8.0, 5.0, 'Maliny, miód, cytryna i goździki — naturalna bomba ciepła i aromatu, która postawi Cię na nogi nawet w najbardziej mroźny dzień.', 6, 'Live',
   'new', NULL, NULL),
 (@tid, @cat_nowosci, 'DZBANEK TŁOCZONEGO SOKU', 'DZBANEK_TLOCZONEGO_SOKU', 'standard', 1,
   0, NULL, NULL, NULL,
   8.0, 5.0, 'dzbanek naturalnych, tłoczonych soków
 z lokalnych sadów
-bez sztucznych dodatków – tylko czysta natura i pełnia smaku.', 7, 'active',
+bez sztucznych dodatków – tylko czysta natura i pełnia smaku.', 7, 'Live',
   'new', NULL, NULL);
 
 -- ZIMOWE MENU
@@ -1497,20 +1497,20 @@ VALUES
   0, NULL, NULL, NULL,
   8.0, 5.0, 'sos śmietankowy, owoce 
 kaki, krewetki, parmezan 
-i pietruszka', 0, 'active',
+i pietruszka', 0, 'Live',
   NULL, '2025-10-01', '2026-03-31'),
 (@tid, @cat_zimowemenu, 'PIZZA ZIMOWA 37cm', 'PIZZA_ZIMOWA_37CM', 'standard', 1,
   0, NULL, NULL, NULL,
   8.0, 5.0, 'sos śmietankowy, owoce 
 kaki, krewetki, parmezan 
-i pietruszka', 1, 'active',
+i pietruszka', 1, 'Live',
   NULL, '2025-10-01', '2026-03-31'),
 (@tid, @cat_zimowemenu, 'CAMEMBERT W ŚWIEŻO WYPIEKANYM CHLEBIE', 'CAMEMBERT_W_SWIEZO_WYPIEKANYM_CHLEBIE', 'standard', 1,
   0, NULL, NULL, NULL,
   8.0, 5.0, 'z chrupiącymi 
 paluchami
 i sosem
-żurawinowym', 2, 'active',
+żurawinowym', 2, 'Live',
   NULL, '2025-10-01', '2026-03-31'),
 (@tid, @cat_zimowemenu, 'SCHAB ZE ŚLIWKĄ W BOCZKU', 'SCHAB_ZE_SLIWKA_W_BOCZKU', 'standard', 1,
   0, NULL, NULL, NULL,
@@ -1519,19 +1519,19 @@ musztardowym
 podawany z 
 ziemniaczanymi
 szyszkami 
-i zimową sałatą', 3, 'active',
+i zimową sałatą', 3, 'Live',
   NULL, '2025-10-01', '2026-03-31'),
 (@tid, @cat_zimowemenu, 'FOCACCIA Z ŻURAWINĄ I CAMEMBERT', 'FOCACCIA_Z_ZURAWINA_I_CAMEMBERT', 'standard', 1,
   0, NULL, NULL, NULL,
   8.0, 5.0, 'z rukolą, 
-orzechami włoskimi i sosem żurawinowym', 4, 'active',
+orzechami włoskimi i sosem żurawinowym', 4, 'Live',
   NULL, '2025-10-01', '2026-03-31'),
 (@tid, @cat_zimowemenu, 'ZIMOWA SAŁATKA', 'ZIMOWA_SALATKA', 'standard', 1,
   0, NULL, NULL, NULL,
   8.0, 5.0, 'z rukolą, pomidorkami, 
 orzechami włoskimi, 
 żurawiną, camembertem 
-i czerwoną cebulą', 5, 'active',
+i czerwoną cebulą', 5, 'Live',
   NULL, '2025-10-01', '2026-03-31'),
 (@tid, @cat_zimowemenu, 'CALZONE Z BARSZCZEM', 'CALZONE_Z_BARSZCZEM', 'standard', 1,
   0, NULL, NULL, NULL,
@@ -1539,7 +1539,7 @@ i czerwoną cebulą', 5, 'active',
 mini calzone 
 z farszem 
 grzybowym / 
-mięsnym.', 6, 'active',
+mięsnym.', 6, 'Live',
   NULL, '2025-10-01', '2026-03-31'),
 (@tid, @cat_zimowemenu, 'GNOCCHI ZE SCHABEM', 'GNOCCHI_ZE_SCHABEM', 'standard', 1,
   0, NULL, NULL, NULL,
@@ -1548,7 +1548,7 @@ sosie
 kremowo-
 musztardowym 
 z nutą suszonej 
-żurawiny', 7, 'active',
+żurawiny', 7, 'Live',
   NULL, '2025-10-01', '2026-03-31'),
 (@tid, @cat_zimowemenu, 'HERBATA Z POKRZYWY', 'HERBATA_Z_POKRZYWY', 'standard', 1,
   0, NULL, NULL, NULL,
@@ -1557,12 +1557,12 @@ kompozycja
 z dodatkiem miodu 
 i rozmarynu.
 Aromatyczna, 
-słodko-ziołowa', 8, 'active',
+słodko-ziołowa', 8, 'Live',
   NULL, '2025-10-01', '2026-03-31'),
 (@tid, @cat_zimowemenu, 'GRZANIEC Z ZURAWINĄ', 'GRZANIEC_Z_ZURAWINA', 'standard', 1,
   0, NULL, NULL, NULL,
   8.0, 5.0, 'z miodem, cynamonem 
-i wanilią', 9, 'active',
+i wanilią', 9, 'Live',
   NULL, '2025-10-01', '2026-03-31');
 
 -- ── 2.9 sh_price_tiers ─────────────────────────────────────────────────
@@ -5558,7 +5558,7 @@ INSERT INTO wh_documents (tenant_id, doc_number, type, warehouse_id, status,
   supplier_name, supplier_invoice, notes, created_at)
 VALUES (@tid, 'PZ-2026/05/FORNO-001', 'PZ', @wh, 'completed',
   'HURTOWNIA SPOŻYWCZA WARMIA Sp. z o.o.', 'PZ-2026/05/FORNO-001',
-  'NIP: 5252311234', '2026-04-30 01:27:05');
+  'NIP: 5252311234', '2026-04-30 01:54:08');
 SET @pz_id = LAST_INSERT_ID();
 
 INSERT INTO wh_document_lines (document_id, sku, quantity, unit_net_cost, line_net_value, vat_rate, system_qty, counted_qty)
@@ -5617,7 +5617,7 @@ INSERT INTO wh_documents (tenant_id, doc_number, type, warehouse_id, status,
   supplier_name, supplier_invoice, notes, created_at)
 VALUES (@tid, 'PZ-2026/05/FORNO-002', 'PZ', @wh, 'completed',
   'FRUKTUS — Warzywa i Owoce', 'PZ-2026/05/FORNO-002',
-  'NIP: 7780012345', '2026-05-07 01:27:05');
+  'NIP: 7780012345', '2026-05-07 01:54:08');
 SET @pz_id = LAST_INSERT_ID();
 
 INSERT INTO wh_document_lines (document_id, sku, quantity, unit_net_cost, line_net_value, vat_rate, system_qty, counted_qty)
@@ -5682,7 +5682,7 @@ INSERT INTO wh_documents (tenant_id, doc_number, type, warehouse_id, status,
   supplier_name, supplier_invoice, notes, created_at)
 VALUES (@tid, 'PZ-2026/05/FORNO-003', 'PZ', @wh, 'completed',
   'DI MARCO — Włoskie Specjały', 'PZ-2026/05/FORNO-003',
-  'NIP: 1230012345', '2026-05-11 01:27:05');
+  'NIP: 1230012345', '2026-05-11 01:54:08');
 SET @pz_id = LAST_INSERT_ID();
 
 INSERT INTO wh_document_lines (document_id, sku, quantity, unit_net_cost, line_net_value, vat_rate, system_qty, counted_qty)
@@ -5741,7 +5741,7 @@ INSERT INTO wh_documents (tenant_id, doc_number, type, warehouse_id, status,
   supplier_name, supplier_invoice, notes, created_at)
 VALUES (@tid, 'PZ-2026/05/FORNO-004', 'PZ', @wh, 'completed',
   'MŁYNY POLSKIE S.A.', 'PZ-2026/05/FORNO-004',
-  'NIP: 8870012345', '2026-05-04 01:27:05');
+  'NIP: 8870012345', '2026-05-04 01:54:08');
 SET @pz_id = LAST_INSERT_ID();
 
 INSERT INTO wh_document_lines (document_id, sku, quantity, unit_net_cost, line_net_value, vat_rate, system_qty, counted_qty)
@@ -5770,7 +5770,7 @@ INSERT INTO wh_documents (tenant_id, doc_number, type, warehouse_id, status,
   supplier_name, supplier_invoice, notes, created_at)
 VALUES (@tid, 'PZ-2026/05/FORNO-005', 'PZ', @wh, 'completed',
   'BROWAR REGIONALNY TYSKIE', 'PZ-2026/05/FORNO-005',
-  'NIP: 6450012345', '2026-05-13 01:27:05');
+  'NIP: 6450012345', '2026-05-13 01:54:08');
 SET @pz_id = LAST_INSERT_ID();
 
 INSERT INTO wh_document_lines (document_id, sku, quantity, unit_net_cost, line_net_value, vat_rate, system_qty, counted_qty)
@@ -5817,7 +5817,7 @@ VALUES (@tid, '5252311234', 'HURTOWNIA SPOŻYWCZA WARMIA Sp. z o.o.', 'ul. Warmi
   '2026-05-12', '2026-05-11', '2026-06-11',
   91500, 7602, 99102,
   'new', NULL,
-  '2026-04-26 01:27:05', NULL);
+  '2026-04-26 01:54:08', NULL);
 SET @ksef_id = LAST_INSERT_ID();
 
 INSERT INTO sh_ksef_invoice_lines (ksef_invoice_id, line_no, external_name, external_description,
@@ -5841,7 +5841,7 @@ VALUES (@tid, '7780012345', 'FRUKTUS — Warzywa i Owoce', 'ul. Tęczowa 3, 54-1
   '2026-05-06', '2026-05-06', '2026-06-05',
   36800, 1840, 38640,
   'accepted', (SELECT id FROM wh_documents WHERE tenant_id=@tid AND doc_number='PZ-2026/05/FORNO-002'),
-  '2026-04-20 01:27:05', '2026-05-06');
+  '2026-04-20 01:54:08', '2026-05-06');
 SET @ksef_id = LAST_INSERT_ID();
 
 INSERT INTO sh_ksef_invoice_lines (ksef_invoice_id, line_no, external_name, external_description,
@@ -5867,7 +5867,7 @@ VALUES (@tid, '1230012345', 'DI MARCO — Włoskie Specjały', 'ul. Włoska 8, 0
   '2026-05-10', '2026-05-10', '2026-06-09',
   100400, 8032, 108432,
   'processing', NULL,
-  '2026-04-24 01:27:05', NULL);
+  '2026-04-24 01:54:08', NULL);
 SET @ksef_id = LAST_INSERT_ID();
 
 INSERT INTO sh_ksef_invoice_lines (ksef_invoice_id, line_no, external_name, external_description,
@@ -5886,169 +5886,169 @@ VALUES
 INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,
   subtotal, delivery_fee, grand_total, status, payment_status, payment_method,
   customer_name, customer_phone, delivery_address, lat, lng, created_at)
-VALUES ('068737e1-96ca-4ea7-ae59-dca4024e5343', @tid, 'FORNO-001',
+VALUES ('2d6c426c-cb59-4f3e-9c9e-0dbbe61d22ca', @tid, 'FORNO-001',
   'delivery', 'delivery', 'seed',
   9500, 800, 10300,
   'accepted', 'paid', 'card',
-  'Jan Kowalski', '+48 512 345 678', 'ul. Zielona 15, 10-900 Olsztyn', 53.7784, 20.4801, '2026-05-13 23:57:05');
+  'Jan Kowalski', '+48 512 345 678', 'ul. Zielona 15, 10-900 Olsztyn', 53.7784, 20.4801, '2026-05-14 00:24:08');
 
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('d7bf61cf-8330-4944-82a5-715ce13cef9d', '068737e1-96ca-4ea7-ae59-dca4024e5343', 'MARGHERITA_30CM', 'Margherita 30cm',
+VALUES ('9b3d6560-297c-4033-9fd7-b2b29d40e771', '2d6c426c-cb59-4f3e-9c9e-0dbbe61d22ca', 'MARGHERITA_30CM', 'Margherita 30cm',
   2700, 1, 2700, 8.0, 200, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('01590bc5-a57b-4d5f-bf14-1f824ebc1692', '068737e1-96ca-4ea7-ae59-dca4024e5343', 'DI_PARMA_37CM', 'Di Parma 37cm',
+VALUES ('1e80d240-e7c3-486f-856e-bcc700e2cb38', '2d6c426c-cb59-4f3e-9c9e-0dbbe61d22ca', 'DI_PARMA_37CM', 'Di Parma 37cm',
   5400, 1, 5400, 8.0, 400, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('348385e4-5e3e-4661-82d1-121260d0da4e', '068737e1-96ca-4ea7-ae59-dca4024e5343', 'COCA_COLA', 'Coca-Cola 0.33l',
+VALUES ('669113c8-f666-4b4e-9c01-390c1e779a67', '2d6c426c-cb59-4f3e-9c9e-0dbbe61d22ca', 'COCA_COLA', 'Coca-Cola 0.33l',
   700, 2, 1400, 23.0, 262, NULL);
 
 INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,
   subtotal, delivery_fee, grand_total, status, payment_status, payment_method,
   customer_name, customer_phone, delivery_address, lat, lng, created_at)
-VALUES ('fa226c25-5503-4992-b3db-c9db77b0ea79', @tid, 'FORNO-002',
+VALUES ('f40ca6bf-47f1-4826-9c55-5b49061d54da', @tid, 'FORNO-002',
   'delivery', 'delivery', 'seed',
   7500, 800, 8300,
   'preparing', 'paid', 'online',
-  'Anna Nowak', '+48 601 234 567', 'ul. Lipowa 7, 10-500 Olsztyn', 53.772, 20.4925, '2026-05-14 00:42:05');
+  'Anna Nowak', '+48 601 234 567', 'ul. Lipowa 7, 10-500 Olsztyn', 53.772, 20.4925, '2026-05-14 01:09:08');
 
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('a9eee5e3-c2c7-4a3a-86ac-e4b0b42e9b66', 'fa226c25-5503-4992-b3db-c9db77b0ea79', 'ETNA_30CM', 'Etna 30cm',
+VALUES ('8b80ec21-10e7-4ade-b573-4fb205e0d2cf', 'f40ca6bf-47f1-4826-9c55-5b49061d54da', 'ETNA_30CM', 'Etna 30cm',
   3800, 1, 3800, 8.0, 281, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('bb983fa1-4b66-4300-8f16-b8239e66c13e', 'fa226c25-5503-4992-b3db-c9db77b0ea79', 'VINCI_30CM', 'Vinci 30cm',
+VALUES ('a6067ee6-bf62-4c1f-a5ce-422ad7bc5fd8', 'f40ca6bf-47f1-4826-9c55-5b49061d54da', 'VINCI_30CM', 'Vinci 30cm',
   3700, 1, 3700, 8.0, 274, NULL);
 
 INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,
   subtotal, delivery_fee, grand_total, status, payment_status, payment_method,
   customer_name, customer_phone, delivery_address, lat, lng, created_at)
-VALUES ('831e56f1-9eb9-4326-93ff-ab889409af68', @tid, 'FORNO-003',
+VALUES ('56484649-7c27-415b-9bc1-fe993f2aff69', @tid, 'FORNO-003',
   'takeaway', 'collection', 'seed',
   4050, 0, 4050,
   'new', 'unpaid', 'cash',
-  'Marcin Wójcik', '+48 789 123 456', NULL, NULL, NULL, '2026-05-14 01:12:05');
+  'Marcin Wójcik', '+48 789 123 456', NULL, NULL, NULL, '2026-05-14 01:39:08');
 
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('bbf9fbb7-ef35-4f9e-91bf-980f6b6d4385', '831e56f1-9eb9-4326-93ff-ab889409af68', 'MARGHERITA_37CM', 'Margherita 37cm',
+VALUES ('4bd6f9ef-9967-42c0-a52a-2b74691a1c97', '56484649-7c27-415b-9bc1-fe993f2aff69', 'MARGHERITA_37CM', 'Margherita 37cm',
   4050, 1, 4050, 8.0, 300, NULL);
 
 INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,
   subtotal, delivery_fee, grand_total, status, payment_status, payment_method,
   customer_name, customer_phone, delivery_address, lat, lng, created_at)
-VALUES ('b8c81962-7464-4bb2-9ae4-33e558864a13', @tid, 'FORNO-004',
+VALUES ('59927821-12e2-4851-8ea9-5a4b94ef6d19', @tid, 'FORNO-004',
   'pos', 'table', 'seed',
   17750, 0, 17750,
   'preparing', 'unpaid', NULL,
-  'Stolik 4', NULL, NULL, NULL, NULL, '2026-05-14 00:57:05');
+  'Stolik 4', NULL, NULL, NULL, NULL, '2026-05-14 01:24:08');
 
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('23235009-2704-47fd-9f0a-10b1e05d53c3', 'b8c81962-7464-4bb2-9ae4-33e558864a13', 'MONTANARA_37CM', 'Montanara 37cm',
+VALUES ('274d2136-2b98-49ee-9624-1c0a351c7199', '59927821-12e2-4851-8ea9-5a4b94ef6d19', 'MONTANARA_37CM', 'Montanara 37cm',
   5550, 1, 5550, 8.0, 411, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('90535b10-343a-449b-9753-ae2ec359f720', 'b8c81962-7464-4bb2-9ae4-33e558864a13', 'STEAKY_37CM', 'Steaky 37cm',
+VALUES ('0463acf3-3459-45ec-bd2c-957ac37880c1', '59927821-12e2-4851-8ea9-5a4b94ef6d19', 'STEAKY_37CM', 'Steaky 37cm',
   6000, 1, 6000, 8.0, 444, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('7e87db5d-5e92-4564-8da4-5931342353b3', 'b8c81962-7464-4bb2-9ae4-33e558864a13', 'CAPRICCIOSA_30CM', 'Capricciosa 30cm',
+VALUES ('6026feeb-d4e3-4786-a367-963c33bb28fd', '59927821-12e2-4851-8ea9-5a4b94ef6d19', 'CAPRICCIOSA_30CM', 'Capricciosa 30cm',
   3600, 1, 3600, 8.0, 267, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('53a9e988-e809-4ab4-a285-9350f6f4bc59', 'b8c81962-7464-4bb2-9ae4-33e558864a13', 'PIWO_BUTELKA', 'Piwo 0.5l',
+VALUES ('a19e3a37-f892-4817-a5c2-2bfb421fd167', '59927821-12e2-4851-8ea9-5a4b94ef6d19', 'PIWO_BUTELKA', 'Piwo 0.5l',
   1300, 2, 2600, 23.0, 486, NULL);
 
 INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,
   subtotal, delivery_fee, grand_total, status, payment_status, payment_method,
   customer_name, customer_phone, delivery_address, lat, lng, created_at)
-VALUES ('9da71c30-6822-4519-a253-6c5d4da515d1', @tid, 'FORNO-005',
+VALUES ('88f16364-e253-429a-9658-698a5a089e71', @tid, 'FORNO-005',
   'delivery', 'delivery', 'seed',
   10300, 800, 11100,
   'delivered', 'paid', 'card',
-  'Kasia Zalewska', '+48 698 765 432', 'ul. Mickiewicza 33, 10-230 Olsztyn', 53.7801, 20.4756, '2026-05-07 01:27:05');
+  'Kasia Zalewska', '+48 698 765 432', 'ul. Mickiewicza 33, 10-230 Olsztyn', 53.7801, 20.4756, '2026-05-07 01:54:08');
 
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('f1f19ac9-d71c-4c35-a633-9a2a635dbc3b', '9da71c30-6822-4519-a253-6c5d4da515d1', 'QUATTRO_FORMAGGI_37CM', 'Quattro Formaggi 37cm',
+VALUES ('1e119c10-f50b-46b6-ba1e-e7f564839798', '88f16364-e253-429a-9658-698a5a089e71', 'QUATTRO_FORMAGGI_37CM', 'Quattro Formaggi 37cm',
   5700, 1, 5700, 8.0, 422, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('e24756e2-44e7-4600-874b-2b48328047cf', '9da71c30-6822-4519-a253-6c5d4da515d1', 'DI_PARMA_30CM', 'Di Parma 30cm',
+VALUES ('a631853d-f8ce-47fc-8cbc-1a4115658ec5', '88f16364-e253-429a-9658-698a5a089e71', 'DI_PARMA_30CM', 'Di Parma 30cm',
   3600, 1, 3600, 8.0, 267, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('cd7a63b0-703b-4f61-adbc-296773d7a208', '9da71c30-6822-4519-a253-6c5d4da515d1', 'WODA_NIEGAZ', 'Woda niegazowana',
+VALUES ('735a8158-9ab1-4ee3-a736-21dbfd755657', '88f16364-e253-429a-9658-698a5a089e71', 'WODA_NIEGAZ', 'Woda niegazowana',
   500, 2, 1000, 23.0, 187, NULL);
 
 INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,
   subtotal, delivery_fee, grand_total, status, payment_status, payment_method,
   customer_name, customer_phone, delivery_address, lat, lng, created_at)
-VALUES ('cef5cf24-fe67-4005-aca1-dfd380a637d1', @tid, 'FORNO-006',
+VALUES ('c5b96dde-7ce8-4a26-aaff-5dd83f5f3e9b', @tid, 'FORNO-006',
   'delivery', 'delivery', 'seed',
   8600, 800, 9400,
   'in_route', 'paid', 'online',
-  'Piotr Nowicki', '+48 504 321 987', 'ul. Słoneczna 21, 10-710 Olsztyn', 53.765, 20.51, '2026-05-14 00:12:05');
+  'Piotr Nowicki', '+48 504 321 987', 'ul. Słoneczna 21, 10-710 Olsztyn', 53.765, 20.51, '2026-05-14 00:39:08');
 
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('631199b5-7467-47ea-b992-8987361e8091', 'cef5cf24-fe67-4005-aca1-dfd380a637d1', 'DIAVOLA_30CM', 'Diavola 30cm',
+VALUES ('a4848fd9-9d38-48af-b076-5f1bf0ab3bff', 'c5b96dde-7ce8-4a26-aaff-5dd83f5f3e9b', 'DIAVOLA_30CM', 'Diavola 30cm',
   3500, 1, 3500, 8.0, 259, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('4ac6f9a4-0d4a-412d-b4d4-145c2319dce3', 'cef5cf24-fe67-4005-aca1-dfd380a637d1', 'AMERICANA_37CM', 'Americano 37cm',
+VALUES ('201528f0-1735-4b41-86c8-10fe28d71006', 'c5b96dde-7ce8-4a26-aaff-5dd83f5f3e9b', 'AMERICANA_37CM', 'Americano 37cm',
   5100, 1, 5100, 8.0, 378, NULL);
 
 INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,
   subtotal, delivery_fee, grand_total, status, payment_status, payment_method,
   customer_name, customer_phone, delivery_address, lat, lng, created_at)
-VALUES ('440a4daf-84a6-4104-9c1e-c9b69db68539', @tid, 'FORNO-007',
+VALUES ('f001a896-a1e1-4069-9ac4-ea5013179629', @tid, 'FORNO-007',
   'online', 'delivery', 'seed',
   4000, 800, 4800,
   'new', 'paid', 'online',
-  'Tomek Bąk', '+48 666 555 444', 'ul. Kościuszki 5, 10-100 Olsztyn', 53.7754, 20.4818, '2026-05-14 01:21:05');
+  'Tomek Bąk', '+48 666 555 444', 'ul. Kościuszki 5, 10-100 Olsztyn', 53.7754, 20.4818, '2026-05-14 01:48:08');
 
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('206da61b-11d8-4d95-97e9-13e97b9775ac', '440a4daf-84a6-4104-9c1e-c9b69db68539', 'MARGHERITA_ITALIANO_30CM', 'Margherita Italiano 30cm',
+VALUES ('64b21c9a-859c-42a7-9665-18d0f2a83e8d', 'f001a896-a1e1-4069-9ac4-ea5013179629', 'MARGHERITA_ITALIANO_30CM', 'Margherita Italiano 30cm',
   3300, 1, 3300, 8.0, 244, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('04056209-650b-47e5-ae19-f46a58bfca6c', '440a4daf-84a6-4104-9c1e-c9b69db68539', 'SPRITE', 'Sprite 0.33l',
+VALUES ('933c395d-fbd6-4c14-810d-c00794f12dec', 'f001a896-a1e1-4069-9ac4-ea5013179629', 'SPRITE', 'Sprite 0.33l',
   700, 1, 700, 23.0, 131, NULL);
 
 INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,
   subtotal, delivery_fee, grand_total, status, payment_status, payment_method,
   customer_name, customer_phone, delivery_address, lat, lng, created_at)
-VALUES ('b9d7a8b6-fa0c-4186-9c1b-62c757561a22', @tid, 'FORNO-008',
+VALUES ('75d241c3-419c-4339-bdd0-71d1f2a76d0b', @tid, 'FORNO-008',
   'pos', 'table', 'seed',
   24450, 0, 24450,
   'completed', 'paid', 'card',
-  'Stolik 8', NULL, NULL, NULL, NULL, '2026-05-12 01:27:05');
+  'Stolik 8', NULL, NULL, NULL, NULL, '2026-05-12 01:54:08');
 
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('e5639164-3039-48ec-947e-8da2fb363a8b', 'b9d7a8b6-fa0c-4186-9c1b-62c757561a22', 'CARBONARA_30CM', 'Carbonara 30cm',
+VALUES ('832901c3-2a5e-41c0-bf97-98047957eda9', '75d241c3-419c-4339-bdd0-71d1f2a76d0b', 'CARBONARA_30CM', 'Carbonara 30cm',
   3600, 2, 7200, 8.0, 533, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('1810126f-0e2e-4e5e-ab1b-e3aea4f83974', 'b9d7a8b6-fa0c-4186-9c1b-62c757561a22', 'VERDURA_37CM', 'Verdura 37cm',
+VALUES ('aaf6dd61-bc31-4942-978a-b81e806d7665', '75d241c3-419c-4339-bdd0-71d1f2a76d0b', 'VERDURA_37CM', 'Verdura 37cm',
   5250, 1, 5250, 8.0, 389, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('7f553c0d-8ddf-4a7b-bf3c-5b5e1ac74c5e', 'b9d7a8b6-fa0c-4186-9c1b-62c757561a22', 'CAPRICCIOSA_37CM', 'Capricciosa 37cm',
+VALUES ('cc33ad68-a701-46ce-b7c5-bbc8f05b24b1', '75d241c3-419c-4339-bdd0-71d1f2a76d0b', 'CAPRICCIOSA_37CM', 'Capricciosa 37cm',
   5400, 1, 5400, 8.0, 400, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('f3ac2e9d-92b1-46dd-a463-876a98a7c01d', 'b9d7a8b6-fa0c-4186-9c1b-62c757561a22', 'PIWO_BUTELKA', 'Piwo 0.5l',
+VALUES ('3db9eb71-1b80-4d28-b606-b0cd844cdbf5', '75d241c3-419c-4339-bdd0-71d1f2a76d0b', 'PIWO_BUTELKA', 'Piwo 0.5l',
   1300, 4, 5200, 23.0, 972, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('e2ff7206-2a2a-40e4-a4d1-e2db6854aad4', 'b9d7a8b6-fa0c-4186-9c1b-62c757561a22', 'COCA_COLA', 'Coca-Cola 0.33l',
+VALUES ('2a3cf841-71af-43bc-8381-8b3d63e5b0dd', '75d241c3-419c-4339-bdd0-71d1f2a76d0b', 'COCA_COLA', 'Coca-Cola 0.33l',
   700, 2, 1400, 23.0, 262, NULL);
 
 COMMIT;
