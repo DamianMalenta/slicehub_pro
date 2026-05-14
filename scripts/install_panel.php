@@ -822,8 +822,41 @@ $selfUrl = htmlspecialchars($_SERVER['SCRIPT_NAME'] ?? 'install_panel.php', ENT_
     .btn-danger:hover { background: #b91c1c; }
     .btn-ok { background: #16a34a; color: white; }
     .btn-ok:hover { background: #15803d; }
-    input, select { background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.12); color: #e2e8f0; padding: .5rem .7rem; border-radius: 8px; width: 100%; }
-    input:focus, select:focus { outline: none; border-color: #60a5fa; box-shadow: 0 0 0 2px rgba(96,165,250,0.25); }
+    /* Nie obejmuj checkboxów / radio — width:100% psuje listę migracji (ściska <code> do jednej litery na wiersz). */
+    input:not([type="checkbox"]):not([type="radio"]),
+    select { background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.12); color: #e2e8f0; padding: .5rem .7rem; border-radius: 8px; width: 100%; }
+    input[type="checkbox"], input[type="radio"] { width: auto; accent-color: #60a5fa; }
+    .sh-mig-list {
+        max-height: 18rem;
+        overflow-y: auto;
+        overflow-x: hidden;
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 8px;
+        padding: 0.35rem 0.5rem;
+        background: rgba(0,0,0,0.25);
+    }
+    .sh-mig-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.5rem;
+        padding: 0.35rem 0.25rem;
+        border-radius: 6px;
+        cursor: pointer;
+    }
+    .sh-mig-row:hover { background: rgba(255,255,255,0.06); }
+    .sh-mig-row input[type="checkbox"] { flex-shrink: 0; margin-top: 0.2rem; }
+    .sh-mig-name {
+        flex: 1;
+        min-width: 0;
+        font-family: ui-monospace, monospace;
+        font-size: 12px;
+        line-height: 1.35;
+        color: #cbd5e1;
+        word-break: normal;
+        overflow-wrap: anywhere;
+    }
+    input:not([type="checkbox"]):not([type="radio"]):focus,
+    select:focus { outline: none; border-color: #60a5fa; box-shadow: 0 0 0 2px rgba(96,165,250,0.25); }
     .label { font-size: .8rem; color: #94a3b8; margin-bottom: .25rem; display: block; }
     pre.log { background: rgba(0,0,0,0.45); border-radius: 10px; padding: .8rem; max-height: 360px; overflow: auto; font-size: 12px; color: #cbd5e1; }
     .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
@@ -912,26 +945,9 @@ define('SLICEHUB_SCRIPT_KEY', 'losowy_dlugi_string_min_32_znaki');</pre>
                 <button id="btn-chain" class="btn btn-soft text-left">B. Uruchom <strong>pełny</strong> łańcuch migracji (<code>_migrations_chain.php</code>)</button>
                 <a class="btn btn-soft text-left" href="setup_database.php" target="_blank" rel="noopener">C. Otwórz <code>setup_database.php</code> ↗</a>
             </div>
-            <div class="mt-4 pt-4 border-t border-white/10">
-                <h3 class="font-medium text-slate-200 mb-1">D. Migracje wybrane (pojedynczo lub kilka)</h3>
-                <p class="text-xs text-slate-400 mb-2">
-                    Lista pochodzi z <code>_migrations_chain.php</code>. Wykonanie zawsze w <strong>kolejności łańcucha</strong>
-                    (np. samą <code>056_…</code> możesz zaznaczyć i uruchomić — wcześniejsze migracje nie ruszą).
-                </p>
-                <div class="flex flex-wrap gap-2 mb-2">
-                    <button id="btn-mig-refresh" type="button" class="btn btn-soft text-sm">Odśwież listę</button>
-                    <button id="btn-mig-all" type="button" class="btn btn-soft text-sm">Zaznacz wszystkie</button>
-                    <button id="btn-mig-none" type="button" class="btn btn-soft text-sm">Odznacz</button>
-                    <button id="btn-mig-run" type="button" class="btn btn-primary text-sm">Uruchom zaznaczone</button>
-                </div>
-                <div id="migrations-picker" class="text-sm text-slate-400 max-h-52 overflow-y-auto border border-white/10 rounded-lg p-2 bg-black/20">
-                    Kliknij „Odśwież listę” po zalogowaniu.
-                </div>
-                <div id="migrations-out" class="mt-2"></div>
-            </div>
             <p class="text-xs text-amber-300/80 mt-3">
                 Uwaga: <code>001</code> robi <code>DROP TABLE</code> tylko swoich tabel. Jeżeli baza ma już
-                struktury z chain (004–044), samo „A" zostawia mieszany stan. Na czystą instalację
+                struktury z łańcucha migracji, samo „A" zostawia mieszany stan. Na czystą instalację
                 użyj „Pełny reset" obok.
             </p>
             <div id="install-out" class="mt-3"></div>
@@ -949,6 +965,25 @@ define('SLICEHUB_SCRIPT_KEY', 'losowy_dlugi_string_min_32_znaki');</pre>
             </div>
             <div id="reset-out" class="mt-3"></div>
         </div>
+    </section>
+
+    <!-- MIGRACJE POJEDYNCZO — pełna szerokość (unik wąskiej kolumny grid + break-all na nazwach plików) -->
+    <section class="glass p-5">
+        <h2 class="font-semibold text-lg mb-1">2b. Migracje wybrane (pojedynczo lub kilka)</h2>
+        <p class="text-sm text-slate-400 mb-3">
+            Lista z <code>_migrations_chain.php</code>. Wykonanie zawsze w <strong>kolejności łańcucha</strong>
+            (np. tylko <code>056_ksef_invoice_cost_category.sql</code> — wcześniejsze pliki same się nie uruchomią).
+        </p>
+        <div class="flex flex-wrap gap-2 mb-2">
+            <button id="btn-mig-refresh" type="button" class="btn btn-soft text-sm">Odśwież listę</button>
+            <button id="btn-mig-all" type="button" class="btn btn-soft text-sm">Zaznacz wszystkie</button>
+            <button id="btn-mig-none" type="button" class="btn btn-soft text-sm">Odznacz</button>
+            <button id="btn-mig-run" type="button" class="btn btn-primary text-sm">Uruchom zaznaczone</button>
+        </div>
+        <div id="migrations-picker" class="text-sm text-slate-400 sh-mig-list">
+            Kliknij „Odśwież listę” po zalogowaniu (lub odśwież stronę).
+        </div>
+        <div id="migrations-out" class="mt-2"></div>
     </section>
 
     <!-- TENANT + OWNER -->
@@ -1048,13 +1083,13 @@ define('SLICEHUB_SCRIPT_KEY', 'losowy_dlugi_string_min_32_znaki');</pre>
         $('#auth-pill').textContent = 'Nie zalogowano';
         $('#auth-pill').className = 'pill pill-warn';
     }
-    function showPanel() {
+    async function showPanel() {
         $('#auth-card').classList.add('hidden');
         $('#panel').classList.remove('hidden');
         $('#auth-pill').textContent = 'Zalogowany';
         $('#auth-pill').className = 'pill pill-ok';
         refreshTenants();
-        refreshMigrationsPicker();
+        await refreshMigrationsPicker();
     }
 
     async function api(action, body = {}) {
@@ -1117,7 +1152,7 @@ define('SLICEHUB_SCRIPT_KEY', 'losowy_dlugi_string_min_32_znaki');</pre>
             const r = await api('health');
             if (r.success) {
                 $('#auth-msg').classList.add('hidden');
-                showPanel();
+                await showPanel();
                 renderHealth(r);
             } else {
                 clearKey();
@@ -1204,9 +1239,9 @@ define('SLICEHUB_SCRIPT_KEY', 'losowy_dlugi_string_min_32_znaki');</pre>
             return;
         }
         box.innerHTML = migrationFiles.map(f =>
-            '<label class="flex items-center gap-2 py-1 px-1 rounded cursor-pointer hover:bg-white/5">' +
-            '<input type="checkbox" class="mig-cb shrink-0" value="' + escapeHtml(f) + '">' +
-            '<code class="text-[11px] leading-tight break-all">' + escapeHtml(f) + '</code></label>'
+            '<label class="sh-mig-row">' +
+            '<input type="checkbox" class="mig-cb" value="' + escapeHtml(f) + '">' +
+            '<span class="sh-mig-name">' + escapeHtml(f) + '</span></label>'
         ).join('');
     }
     $('#btn-mig-refresh').addEventListener('click', refreshMigrationsPicker);
@@ -1359,9 +1394,13 @@ define('SLICEHUB_SCRIPT_KEY', 'losowy_dlugi_string_min_32_znaki');</pre>
 
     // --- BOOT ---
     if (getKey()) {
-        api('health').then(r => {
-            if (r.success) { showPanel(); renderHealth(r); }
-            else { showAuth(); }
+        api('health').then(async (r) => {
+            if (r.success) {
+                await showPanel();
+                renderHealth(r);
+            } else {
+                showAuth();
+            }
         });
     } else {
         showAuth();
