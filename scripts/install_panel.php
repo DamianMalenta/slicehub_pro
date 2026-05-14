@@ -20,7 +20,8 @@ declare(strict_types=1);
  *   - Health-check połączenia DB (env-y, host/baza/user/pass-mask, MySQL ver, ilość tabel).
  *   - Drop wszystkich obiektów (tabele + widoki + procedury + funkcje + eventy).
  *   - Wgranie schematu 001 (z automatycznym strip CREATE DATABASE/USE).
- *   - Wykonanie pełnego łańcucha migracji 004–044 (źródło: _migrations_chain.php).
+ *   - Wykonanie pełnego łańcucha migracji (źródło: _migrations_chain.php).
+ *   - Lista migracji + wykonanie wybranych pojedynczo / wielu naraz (kolejność jak w łańcuchu).
  *   - "Pełny reset" — drop + 001 + chain w jednym kliknięciu (z double-confirm).
  *   - Lista tenantów + lista użytkowników per tenant.
  *   - Utworzenie tenanta.
@@ -139,6 +140,57 @@ function panel_strip_db_context(string $sql): string
     $sql = preg_replace('/^\s*USE\s+[^;]+;/mi', '', $sql) ?? $sql;
     $sql = preg_replace('/^\s*SET\s+NAMES\s+[^;]+;/mi', '', $sql) ?? $sql;
     return trim($sql);
+}
+
+function panel_migrations_dir(): string
+{
+    return dirname(__DIR__) . '/database/migrations';
+}
+
+/** @return list<string> */
+function panel_chain_list(): array
+{
+    $c = require __DIR__ . '/_migrations_chain.php';
+
+    return is_array($c) ? array_values($c) : [];
+}
+
+/**
+ * Jedna migracja z łańcucha (bez ścieżek poza katalog migrations/).
+ *
+ * @return array{file:string,status:string,msg:string}
+ */
+function panel_exec_one_migration(PDO $pdo, string $rel): array
+{
+    $rel = basename($rel);
+    if ($rel === '' || $rel === '.' || $rel === '..') {
+        return ['file' => $rel, 'status' => 'MISSING', 'msg' => 'Nieprawidłowa nazwa pliku.'];
+    }
+    $path = panel_migrations_dir() . DIRECTORY_SEPARATOR . $rel;
+    if (!is_readable($path)) {
+        return ['file' => $rel, 'status' => 'MISSING', 'msg' => 'Plik nieczytelny lub brak na dysku.'];
+    }
+    $sql = panel_strip_db_context((string) file_get_contents($path));
+    if ($sql === '') {
+        return ['file' => $rel, 'status' => 'SKIP', 'msg' => 'Pusty po strip.'];
+    }
+    try {
+        $pdo->exec($sql);
+
+        return ['file' => $rel, 'status' => 'OK', 'msg' => ''];
+    } catch (Throwable $e) {
+        $msg = $e->getMessage();
+        $isExpected = (
+            ($rel === '010_driver_action_type.sql' && str_contains($msg, 'Duplicate column name')) ||
+            ($rel === '037_pos_foundation.sql'     && str_contains($msg, '1901'))
+        );
+
+        return [
+            'file'   => $rel,
+            'status' => $isExpected ? 'WARN' : 'FAIL',
+            'msg'    => $msg,
+        ];
+    }
 }
 
 function panel_table_exists(PDO $pdo, string $table): bool
@@ -299,9 +351,8 @@ function action_init_schema(): void
 
 function action_run_chain(): void
 {
-    $migrationsDir = dirname(__DIR__) . '/database/migrations';
-    $chain = require __DIR__ . '/_migrations_chain.php';
-    if (!is_array($chain) || $chain === []) {
+    $chain = panel_chain_list();
+    if ($chain === []) {
         panel_json(false, 'Łańcuch migracji jest pusty (_migrations_chain.php).');
     }
 
@@ -310,51 +361,115 @@ function action_run_chain(): void
         $log = [];
         $okCount = 0;
         $failCount = 0;
-        $expectedFails = []; // znane nieszkodliwe FAIL-e
+        $expectedFails = [];
 
         foreach ($chain as $rel) {
-            $path = $migrationsDir . '/' . $rel;
-            if (!is_readable($path)) {
-                $log[] = ['file' => $rel, 'status' => 'MISSING', 'msg' => 'Plik nieczytelny.'];
-                $failCount++;
-                continue;
-            }
-            $sql = panel_strip_db_context((string) file_get_contents($path));
-            if ($sql === '') {
-                $log[] = ['file' => $rel, 'status' => 'SKIP', 'msg' => 'Pusty po strip.'];
-                continue;
-            }
-            try {
-                $pdo->exec($sql);
-                $log[] = ['file' => $rel, 'status' => 'OK', 'msg' => ''];
+            $e = panel_exec_one_migration($pdo, $rel);
+            $log[] = $e;
+            if ($e['status'] === 'OK') {
                 $okCount++;
-            } catch (Throwable $e) {
-                $msg = $e->getMessage();
-                $isExpected = (
-                    ($rel === '010_driver_action_type.sql' && str_contains($msg, 'Duplicate column name')) ||
-                    ($rel === '037_pos_foundation.sql'     && str_contains($msg, '1901'))
-                );
-                $log[] = [
-                    'file'   => $rel,
-                    'status' => $isExpected ? 'WARN' : 'FAIL',
-                    'msg'    => $msg,
-                ];
-                if ($isExpected) {
-                    $expectedFails[] = $rel;
-                } else {
-                    $failCount++;
-                }
+            } elseif ($e['status'] === 'MISSING') {
+                $failCount++;
+            } elseif ($e['status'] === 'SKIP') {
+                // nic
+            } elseif ($e['status'] === 'WARN') {
+                $expectedFails[] = $rel;
+            } else {
+                $failCount++;
             }
         }
 
         panel_json(true, "Łańcuch zakończony. OK: {$okCount}, FAIL: {$failCount}, znane WARN: " . count($expectedFails) . '.', [
-            'log'       => $log,
-            'ok'        => $okCount,
-            'fail'      => $failCount,
-            'expected'  => $expectedFails,
+            'log'      => $log,
+            'ok'       => $okCount,
+            'fail'     => $failCount,
+            'expected' => $expectedFails,
         ]);
     } catch (Throwable $e) {
         panel_json(false, 'Chain nieudane: ' . $e->getMessage());
+    }
+}
+
+function action_list_migrations(): void
+{
+    $chain = panel_chain_list();
+    if ($chain === []) {
+        panel_json(false, 'Łańcuch migracji jest pusty (_migrations_chain.php).');
+    }
+    panel_json(true, 'OK', ['migrations' => $chain, 'count' => count($chain)]);
+}
+
+function action_run_selected_migrations(array $body): void
+{
+    $files = [];
+    if (isset($body['file']) && is_string($body['file']) && trim($body['file']) !== '') {
+        $files[] = basename(trim($body['file']));
+    }
+    $rawList = $body['files'] ?? null;
+    if (is_array($rawList)) {
+        foreach ($rawList as $x) {
+            if (is_string($x) && trim($x) !== '') {
+                $files[] = basename(trim($x));
+            }
+        }
+    }
+    $files = array_values(array_unique($files));
+    if ($files === []) {
+        panel_json(false, 'Wybierz co najmniej jedną migrację (checkboxy lub pole file).');
+    }
+
+    $chain = panel_chain_list();
+    if ($chain === []) {
+        panel_json(false, 'Łańcuch migracji jest pusty (_migrations_chain.php).');
+    }
+
+    foreach ($files as $rel) {
+        if (!in_array($rel, $chain, true)) {
+            panel_json(false, 'Plik spoza dozwolonego łańcucha (odmowa): ' . $rel);
+        }
+    }
+
+    $selected = array_fill_keys($files, true);
+    $sorted = [];
+    foreach ($chain as $rel) {
+        if (isset($selected[$rel])) {
+            $sorted[] = $rel;
+        }
+    }
+
+    try {
+        $pdo = panel_connect();
+        $log = [];
+        $okCount = 0;
+        $failCount = 0;
+        $expectedFails = [];
+
+        foreach ($sorted as $rel) {
+            $e = panel_exec_one_migration($pdo, $rel);
+            $log[] = $e;
+            if ($e['status'] === 'OK') {
+                $okCount++;
+            } elseif ($e['status'] === 'MISSING') {
+                $failCount++;
+            } elseif ($e['status'] === 'SKIP') {
+                // nic
+            } elseif ($e['status'] === 'WARN') {
+                $expectedFails[] = $rel;
+            } else {
+                $failCount++;
+            }
+        }
+
+        $n = count($sorted);
+        panel_json(true, "Wykonano {$n} migracji (w kolejności łańcucha). OK: {$okCount}, FAIL: {$failCount}, WARN: " . count($expectedFails) . '.', [
+            'log'      => $log,
+            'ok'       => $okCount,
+            'fail'     => $failCount,
+            'expected' => $expectedFails,
+            'ran'      => $sorted,
+        ]);
+    } catch (Throwable $e) {
+        panel_json(false, 'Migracje nieudane: ' . $e->getMessage());
     }
 }
 
@@ -397,35 +512,24 @@ function action_full_install(array $body): void
         $steps[] = "INIT 001: {$tables001} tabel po imporcie.";
 
         // 3. chain
-        $migrationsDir = dirname(__DIR__) . '/database/migrations';
-        $chain = require __DIR__ . '/_migrations_chain.php';
+        $chain = panel_chain_list();
         $okCount = 0;
         $failCount = 0;
         $hardFails = [];
         foreach ($chain as $rel) {
-            $path = $migrationsDir . '/' . $rel;
-            if (!is_readable($path)) {
-                $hardFails[] = "{$rel}: brak pliku";
-                $failCount++;
-                continue;
-            }
-            $sql = panel_strip_db_context((string) file_get_contents($path));
-            if ($sql === '') {
-                continue;
-            }
-            try {
-                $pdo->exec($sql);
+            $e = panel_exec_one_migration($pdo, $rel);
+            if ($e['status'] === 'OK') {
                 $okCount++;
-            } catch (Throwable $e) {
-                $msg = $e->getMessage();
-                $expected = (
-                    ($rel === '010_driver_action_type.sql' && str_contains($msg, 'Duplicate column name')) ||
-                    ($rel === '037_pos_foundation.sql'     && str_contains($msg, '1901'))
-                );
-                if (!$expected) {
-                    $hardFails[] = "{$rel}: {$msg}";
-                    $failCount++;
-                }
+            } elseif ($e['status'] === 'MISSING') {
+                $hardFails[] = "{$rel}: brak pliku lub nieczytelny";
+                $failCount++;
+            } elseif ($e['status'] === 'SKIP') {
+                continue;
+            } elseif ($e['status'] === 'WARN') {
+                // znany WARN (010/037) — jak w run_chain
+            } else {
+                $hardFails[] = "{$rel}: {$e['msg']}";
+                $failCount++;
             }
         }
         $steps[] = "CHAIN: {$okCount} OK, {$failCount} hard-fail.";
@@ -670,6 +774,8 @@ if ($action !== '') {
             case 'drop_all':         action_drop_all($body); break;
             case 'init_schema':      action_init_schema(); break;
             case 'run_chain':        action_run_chain(); break;
+            case 'list_migrations':  action_list_migrations(); break;
+            case 'run_selected_migrations': action_run_selected_migrations($body); break;
             case 'full_install':     action_full_install($body); break;
             case 'list_tenants':     action_list_tenants(); break;
             case 'list_users':       action_list_users($body); break;
@@ -803,8 +909,25 @@ define('SLICEHUB_SCRIPT_KEY', 'losowy_dlugi_string_min_32_znaki');</pre>
             <p class="text-sm text-slate-400 mb-3">Każdy krok osobno — w razie błędu zobaczysz dokładne miejsce.</p>
             <div class="flex flex-col gap-2">
                 <button id="btn-init"  class="btn btn-soft text-left">A. Wgraj schemat <code>001</code> (CREATE TABLE)</button>
-                <button id="btn-chain" class="btn btn-soft text-left">B. Uruchom łańcuch migracji <code>004–044</code></button>
+                <button id="btn-chain" class="btn btn-soft text-left">B. Uruchom <strong>pełny</strong> łańcuch migracji (<code>_migrations_chain.php</code>)</button>
                 <a class="btn btn-soft text-left" href="setup_database.php" target="_blank" rel="noopener">C. Otwórz <code>setup_database.php</code> ↗</a>
+            </div>
+            <div class="mt-4 pt-4 border-t border-white/10">
+                <h3 class="font-medium text-slate-200 mb-1">D. Migracje wybrane (pojedynczo lub kilka)</h3>
+                <p class="text-xs text-slate-400 mb-2">
+                    Lista pochodzi z <code>_migrations_chain.php</code>. Wykonanie zawsze w <strong>kolejności łańcucha</strong>
+                    (np. samą <code>056_…</code> możesz zaznaczyć i uruchomić — wcześniejsze migracje nie ruszą).
+                </p>
+                <div class="flex flex-wrap gap-2 mb-2">
+                    <button id="btn-mig-refresh" type="button" class="btn btn-soft text-sm">Odśwież listę</button>
+                    <button id="btn-mig-all" type="button" class="btn btn-soft text-sm">Zaznacz wszystkie</button>
+                    <button id="btn-mig-none" type="button" class="btn btn-soft text-sm">Odznacz</button>
+                    <button id="btn-mig-run" type="button" class="btn btn-primary text-sm">Uruchom zaznaczone</button>
+                </div>
+                <div id="migrations-picker" class="text-sm text-slate-400 max-h-52 overflow-y-auto border border-white/10 rounded-lg p-2 bg-black/20">
+                    Kliknij „Odśwież listę” po zalogowaniu.
+                </div>
+                <div id="migrations-out" class="mt-2"></div>
             </div>
             <p class="text-xs text-amber-300/80 mt-3">
                 Uwaga: <code>001</code> robi <code>DROP TABLE</code> tylko swoich tabel. Jeżeli baza ma już
@@ -931,6 +1054,7 @@ define('SLICEHUB_SCRIPT_KEY', 'losowy_dlugi_string_min_32_znaki');</pre>
         $('#auth-pill').textContent = 'Zalogowany';
         $('#auth-pill').className = 'pill pill-ok';
         refreshTenants();
+        refreshMigrationsPicker();
     }
 
     async function api(action, body = {}) {
@@ -1062,6 +1186,45 @@ define('SLICEHUB_SCRIPT_KEY', 'losowy_dlugi_string_min_32_znaki');</pre>
         $('#install-out').innerHTML = '<span class="pill pill-info">Uruchamiam chain (może potrwać kilkadziesiąt sekund)…</span>';
         const r = await api('run_chain');
         renderResult($('#install-out'), r, renderChainLog(r.data && r.data.log));
+        if (r.success) { refreshTenants(); }
+    });
+
+    let migrationFiles = [];
+    async function refreshMigrationsPicker() {
+        const box = $('#migrations-picker');
+        if (!box) return;
+        const r = await api('list_migrations');
+        if (!r.success) {
+            box.innerHTML = '<span class="text-red-400">' + escapeHtml(r.message || 'Błąd listy') + '</span>';
+            return;
+        }
+        migrationFiles = (r.data && r.data.migrations) || [];
+        if (migrationFiles.length === 0) {
+            box.textContent = 'Łańcuch pusty.';
+            return;
+        }
+        box.innerHTML = migrationFiles.map(f =>
+            '<label class="flex items-center gap-2 py-1 px-1 rounded cursor-pointer hover:bg-white/5">' +
+            '<input type="checkbox" class="mig-cb shrink-0" value="' + escapeHtml(f) + '">' +
+            '<code class="text-[11px] leading-tight break-all">' + escapeHtml(f) + '</code></label>'
+        ).join('');
+    }
+    $('#btn-mig-refresh').addEventListener('click', refreshMigrationsPicker);
+    $('#btn-mig-all').addEventListener('click', () => {
+        $$('.mig-cb').forEach(c => { c.checked = true; });
+    });
+    $('#btn-mig-none').addEventListener('click', () => {
+        $$('.mig-cb').forEach(c => { c.checked = false; });
+    });
+    $('#btn-mig-run').addEventListener('click', async () => {
+        const files = $$('.mig-cb').filter(c => c.checked).map(c => c.value);
+        if (files.length === 0) {
+            alert('Zaznacz co najmniej jedną migrację.');
+            return;
+        }
+        $('#migrations-out').innerHTML = '<span class="pill pill-info">Wykonuję wybrane migracje…</span>';
+        const r = await api('run_selected_migrations', { files });
+        renderResult($('#migrations-out'), r, renderChainLog(r.data && r.data.log));
         if (r.success) { refreshTenants(); }
     });
 
