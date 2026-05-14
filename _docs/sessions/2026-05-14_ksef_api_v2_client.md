@@ -10,6 +10,11 @@
 
 Lista inboxu używała `dateRange.dateType = Invoicing` (data przyjęcia do KSeF) — portal pokazuje zwykle **datę wystawienia**; część faktur ma wtedy inną oś czasu i **nie wpadała** do zapytania (stąd tylko kilka pozycji, brak „świeżej” z ostatnich minut). Zmiana na **`Issue`** + **`sortOrder: Desc`** (najpierw najnowsze).
 
+## Inbox F3 — duplikat przy ręcznym XML (`upload_xml`)
+
+- `api/procurement/inbox.php`: przed `INSERT` wykrywanie istniejącego wiersza po **tenant_id + numer faktury + NIP dostawcy (cyfry)**. Odpowiedź **409** `DUPLICATE_INVOICE` z `data` (m.in. `can_replace`). Drugi request z **`duplicate_resolution: replace`** usuwa stary wiersz (`DELETE` + CASCADE linii) i wstawia nowy — **zablokowane** dla `status=accepted` lub gdy jest `linked_wh_document_id` (PZ).
+- `modules/procurement/js/procurement_app.js`: `confirm` — zastąp vs anuluj, ponowne `upload_xml` z `replace`.
+
 ## Poprawka (pageOffset + Issue ∪ Invoicing)
 
 - W API MF **`pageOffset` to numer strony (0,1,2…), nie przesunięcie wiersza** — wcześniejsze `+= pageSize` psuło kolejne strony.

@@ -23,7 +23,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
  * AKCJE (action-based router, Konstytucja v5 § Prawo V):
  *   - list           — lista faktur w inbox-ie (filtr: status, supplier_nip, paging)
  *   - show           — szczegóły faktury z liniami + AutoScan match per linia
- *   - upload_xml     — manual upload FA(2) XML (drag&drop UI) — parse → save → match
+ *   - upload_xml     — manual upload FA(2) XML (drag&drop UI) — parse → save → match;
+ *                      duplikat (tenant + NIP dostawcy + numer FA): HTTP 409 DUPLICATE_INVOICE
+ *                      lub `duplicate_resolution: replace` (nie dla accepted + PZ).
  *   - reparse        — ponowny AutoScan match (po dodaniu nowych aliasów / mappingów)
  *   - update_line    — manual override resolved_sku per linia (przed accept)
  *   - accept         — utwórz PZ przez PzEngine + auto-learn ALIAS mappings + status=accepted
@@ -74,6 +76,30 @@ function inboxFail(int $httpCode, string $code, ?string $msg = null): void
 {
     http_response_code($httpCode);
     inboxResponse(false, null, $msg ?? $code, $code);
+}
+
+/** Znajdź istniejącą fakturę (ten sam tenant + numer FA + NIP dostawcy — cyfry). */
+function inboxFindDuplicateInvoice(PDO $pdo, int $tenantId, string $invoiceNumber, string $supplierNipDigits): ?array
+{
+    $invoiceNumber = trim($invoiceNumber);
+    if ($invoiceNumber === '') {
+        return null;
+    }
+    $st = $pdo->prepare(
+        "SELECT id, status, supplier_nip, invoice_number, ksef_reference_id, linked_wh_document_id, fetched_at
+           FROM sh_ksef_invoices
+          WHERE tenant_id = :tid AND invoice_number = :inum
+          ORDER BY id DESC"
+    );
+    $st->execute([':tid' => $tenantId, ':inum' => $invoiceNumber]);
+    $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    foreach ($rows as $row) {
+        $rowSn = preg_replace('/\D+/', '', (string) ($row['supplier_nip'] ?? '')) ?? '';
+        if ($rowSn === $supplierNipDigits) {
+            return $row;
+        }
+    }
+    return null;
 }
 
 function inboxLoadActorRole(PDO $pdo, int $tenantId, int $userId): string
@@ -305,6 +331,49 @@ try {
             if ($myNip !== '' && $buyerNip !== '' && $buyerNip !== $myNip) {
                 inboxFail(400, 'WRONG_BUYER_NIP',
                     "Faktura wystawiona na inny NIP nabywcy. Oczekiwano: {$myNip}, w XML: {$buyerNip}. Sprawdź czy faktura jest skierowana do Twojej firmy.");
+            }
+
+            $inum = trim((string) ($parsed['invoice']['number'] ?? ''));
+            $supplierNipDigits = preg_replace('/\D+/', '', (string) ($parsed['supplier']['nip'] ?? '')) ?? '';
+            $dupRes = strtolower(trim((string) ($input['duplicate_resolution'] ?? '')));
+
+            $existing = inboxFindDuplicateInvoice($pdo, $tenant_id, $inum, $supplierNipDigits);
+
+            if ($existing !== null && $dupRes !== 'replace') {
+                $canReplace = ($existing['status'] !== 'accepted')
+                    && (empty($existing['linked_wh_document_id']) || (int) $existing['linked_wh_document_id'] === 0);
+                http_response_code(409);
+                inboxResponse(false, [
+                    'duplicate'             => true,
+                    'existing_invoice_id'   => (int) $existing['id'],
+                    'existing_status'       => (string) ($existing['status'] ?? ''),
+                    'invoice_number'        => (string) ($existing['invoice_number'] ?? $inum),
+                    'supplier_nip'          => (string) ($existing['supplier_nip'] ?? ''),
+                    'ksef_reference_id'     => $existing['ksef_reference_id'],
+                    'fetched_at'            => (string) ($existing['fetched_at'] ?? ''),
+                    'can_replace'           => $canReplace,
+                ],
+                    'Ta sama faktura (numer + NIP dostawcy) jest już w inbox-ie. Możesz zastąpić wpis nowym XML albo anulować import.',
+                    'DUPLICATE_INVOICE'
+                );
+            }
+
+            if ($existing !== null && $dupRes === 'replace') {
+                if (($existing['status'] ?? '') === 'accepted') {
+                    inboxFail(400, 'REPLACE_BLOCKED_ACCEPTED',
+                        'Nie można zastąpić faktury w statusie „zaakceptowana”. Odrzuć lub cofnij PZ w magazynie, jeśli to pomyłka.');
+                }
+                if (!empty($existing['linked_wh_document_id']) && (int) $existing['linked_wh_document_id'] > 0) {
+                    inboxFail(400, 'REPLACE_BLOCKED_PZ',
+                        'Nie można zastąpić — faktura ma powiązany dokument magazynowy (PZ). Usuń powiązanie przed podmianą.');
+                }
+                $del = $pdo->prepare('DELETE FROM sh_ksef_invoices WHERE id = :id AND tenant_id = :tid');
+                $del->execute([':id' => (int) $existing['id'], ':tid' => $tenant_id]);
+                inboxAudit($pdo, $tenant_id, $user_id, 'ksef_upload_replace', (int) $existing['id'], [
+                    'replaced_by'    => 'upload_xml',
+                    'invoice_number' => $inum,
+                    'supplier_nip'   => $parsed['supplier']['nip'] ?? '',
+                ]);
             }
 
             // INSERT do sh_ksef_invoices

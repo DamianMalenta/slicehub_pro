@@ -354,6 +354,14 @@
         });
     }
 
+    async function uploadXmlOnce(xml, duplicate_resolution) {
+        const body = { xml };
+        if (duplicate_resolution) {
+            body.duplicate_resolution = duplicate_resolution;
+        }
+        return api('upload_xml', body);
+    }
+
     // -------------------------------------------------------------------------
     // Upload
     // -------------------------------------------------------------------------
@@ -367,7 +375,25 @@
             }
             const xml = await file.text();
             setUploadStatus('info', `<i class="fa-solid fa-circle-notch fa-spin"></i> Parsuję ${escapeHtml(file.name)}...`);
-            const r = await api('upload_xml', { xml });
+            let r = await uploadXmlOnce(xml, '');
+            if (!r.success && r.code === 'DUPLICATE_INVOICE' && r.data && r.data.duplicate) {
+                const d = r.data;
+                if (!d.can_replace) {
+                    results.push({
+                        name: file.name,
+                        ok: false,
+                        msg: `Duplikat numeru faktury (status: ${escapeHtml(String(d.existing_status || '?'))}) — zastąpienie zablokowane.`,
+                    });
+                    continue;
+                }
+                const q = `W systemie jest już ta faktura (nr ${escapeHtml(String(d.invoice_number || '?'))}, dostawca NIP ${escapeHtml(String(d.supplier_nip || '—'))}, status: ${escapeHtml(String(d.existing_status || '?'))}).\n\nZastąpić istniejący wpis tym plikiem XML?\nOK = zastąp, Anuluj = nie importuj.`;
+                if (!confirm(q)) {
+                    results.push({ name: file.name, ok: false, msg: 'Anulowano — duplikat numeru faktury.' });
+                    continue;
+                }
+                setUploadStatus('info', `<i class="fa-solid fa-circle-notch fa-spin"></i> Zastępuję ${escapeHtml(file.name)}...`);
+                r = await uploadXmlOnce(xml, 'replace');
+            }
             if (r.success) {
                 const d = r.data;
                 results.push({
