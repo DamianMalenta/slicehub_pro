@@ -58,7 +58,7 @@ class Client
     private const METADATA_MAX_RANGE_DAYS = 90;
     /** Rozmiar strony /invoices/query/metadata (OpenAPI MF: min 10, max 250). */
     private const METADATA_PAGE_SIZE = 250;
-    /** Zabezpieczenie przed nieskończoną pętlą (100 × 100 = 10 000 zgodnie z limitem przycinania MF). */
+    /** Zabezpieczenie przed nieskończoną pętlą (np. 100 × 250 wierszy na przebieg metadata). */
     private const METADATA_MAX_PAGES = 100;
 
     private ?string $tenantNip = null;
@@ -66,6 +66,9 @@ class Client
     private ?string $ksefRefreshToken = null;
     private ?string $ksefAccessToken = null;
     private int $ksefAccessValidUntil = 0;
+
+    /** Rekord `sh_tenant_integrations` (provider=ksef): is_active=0 blokuje wywołania API (sandbox/prod). */
+    private bool $ksefIntegrationActive = true;
 
     public function __construct(\PDO $pdo, int $tenantId)
     {
@@ -99,6 +102,8 @@ class Client
             $this->baseUrl = self::URLS['mock'];
             return;
         }
+
+        $this->ksefIntegrationActive = ((int) ($row['is_active'] ?? 1)) === 1;
 
         $credsRaw = (string) ($row['credentials'] ?? '');
         if ($credsRaw !== '') {
@@ -156,6 +161,16 @@ class Client
         return $this->token !== null && $this->token !== '';
     }
 
+    /** @return null|string komunikat gdy integracja wyłączona w DB (nie dotyczy mock). */
+    private function integrationInactiveMessage(): ?string
+    {
+        if ($this->isMockMode() || $this->ksefIntegrationActive) {
+            return null;
+        }
+
+        return 'Integracja KSeF jest wyłączona (is_active=0). Włącz powiązanie w bazie lub ponownie zapisz konfigurację w Inbox KSeF.';
+    }
+
     /**
      * @return array{success:bool, environment:string, message:string, http_code?:int}
      */
@@ -166,6 +181,14 @@ class Client
                 'success'     => true,
                 'environment' => 'mock',
                 'message'     => 'Mock mode — żadne realne wywołanie. Zmień environment na sandbox/prod po dodaniu KSeF Token.',
+            ];
+        }
+        $inactive = $this->integrationInactiveMessage();
+        if ($inactive !== null) {
+            return [
+                'success'     => false,
+                'environment' => $this->environment,
+                'message'     => $inactive,
             ];
         }
         if (!$this->hasToken()) {
@@ -215,7 +238,7 @@ class Client
      * Jedno zapytanie `dateType: Invoicing` + maks. `pageSize` (MF) — mniej POST-ów niż podwójne Issue+Invoicing, żeby nie zużywać limitów API.
      *
      * @param string|null $sinceDate Y-m-d — dolna granica zakresu dat; null = maks. okres wstecz (90 dni, limit MF)
-     * @param string|null $lastSeenId zapisany cursor (legacy API 1.0) — ignorowany w v2; deduplikacja po stronie DB
+     * @param string|null $lastSeenId legacy (API 1.0) — w v2 ignorowany; worker zapisuje go dla audytu, zakres dat z `last_polled_at`
      * @return array{success:bool, invoices: list<array{ref_id:string, supplier_nip:string, invoice_number:string, issue_date:string}>, message?:string}
      */
     public function queryInbox(?string $sinceDate = null, ?string $lastSeenId = null): array
@@ -224,6 +247,10 @@ class Client
 
         if ($this->isMockMode()) {
             return $this->mockQueryInbox($sinceDate);
+        }
+        $inactive = $this->integrationInactiveMessage();
+        if ($inactive !== null) {
+            return ['success' => false, 'invoices' => [], 'message' => $inactive];
         }
         if (!$this->hasToken()) {
             return ['success' => false, 'invoices' => [], 'message' => 'Brak KSeF Token.'];
@@ -327,6 +354,10 @@ class Client
     {
         if ($this->isMockMode()) {
             return $this->mockFetchInvoiceXml($refId);
+        }
+        $inactive = $this->integrationInactiveMessage();
+        if ($inactive !== null) {
+            return ['success' => false, 'message' => $inactive];
         }
         if (!$this->hasToken()) {
             return ['success' => false, 'message' => 'Brak KSeF Token.'];
@@ -659,34 +690,73 @@ class Client
             $headers[] = 'Authorization: Bearer ' . $bearer;
         }
 
-        $ch = curl_init($url);
-        $opts = [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => $this->timeout,
-            CURLOPT_HTTPHEADER     => $headers,
-            CURLOPT_CUSTOMREQUEST  => $m,
-        ];
+        $postFields = null;
         if ($m === 'POST' || $m === 'PUT' || $m === 'PATCH') {
             $payload = $jsonBody;
             if ($payload === null || $payload === []) {
                 $payload = new \stdClass();
             }
-            $opts[CURLOPT_POSTFIELDS] = json_encode($payload, JSON_UNESCAPED_UNICODE);
+            $postFields = json_encode($payload, JSON_UNESCAPED_UNICODE);
         }
-        curl_setopt_array($ch, $opts);
-        $body = curl_exec($ch);
-        $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-        $cerr = curl_error($ch);
-        curl_close($ch);
-        if ($body === false) {
-            return ['code' => 0, 'body' => 'curl: ' . $cerr, 'json' => null];
+
+        $lastResult = ['code' => 0, 'body' => '', 'json' => null];
+        $maxAttempts = 4;
+
+        for ($attempt = 0; $attempt < $maxAttempts; $attempt++) {
+            $retryAfterSec = 0;
+            $headerFn = static function ($ch, string $line) use (&$retryAfterSec): int {
+                $len = strlen($line);
+                if ($len <= 2) {
+                    return $len;
+                }
+                if (stripos($line, 'Retry-After:') === 0) {
+                    $v = trim(substr($line, 12));
+                    if ($v !== '' && ctype_digit($v)) {
+                        $retryAfterSec = min(120, (int) $v);
+                    } elseif ($v !== '' && ($ts = strtotime($v)) !== false) {
+                        $retryAfterSec = min(120, max(0, $ts - time()));
+                    }
+                }
+
+                return $len;
+            };
+
+            $ch = curl_init($url);
+            $opts = [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => $this->timeout,
+                CURLOPT_HTTPHEADER     => $headers,
+                CURLOPT_CUSTOMREQUEST  => $m,
+                CURLOPT_HEADERFUNCTION => $headerFn,
+            ];
+            if ($postFields !== null) {
+                $opts[CURLOPT_POSTFIELDS] = $postFields;
+            }
+            curl_setopt_array($ch, $opts);
+            $body = curl_exec($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+            $cerr = curl_error($ch);
+            curl_close($ch);
+
+            if ($body === false) {
+                return ['code' => 0, 'body' => 'curl: ' . $cerr, 'json' => null];
+            }
+            $bodyStr = (string) $body;
+            $json = null;
+            if (str_starts_with(ltrim($bodyStr), '{') || str_starts_with(ltrim($bodyStr), '[')) {
+                $json = json_decode($bodyStr, true);
+            }
+            $lastResult = ['code' => $code, 'body' => $bodyStr, 'json' => $json];
+
+            if ($code !== 429 || $attempt >= $maxAttempts - 1) {
+                return $lastResult;
+            }
+
+            $sleepSec = $retryAfterSec > 0 ? $retryAfterSec : min(30, 2 * (1 + $attempt));
+            sleep($sleepSec);
         }
-        $bodyStr = (string) $body;
-        $json = null;
-        if (str_starts_with(ltrim($bodyStr), '{') || str_starts_with(ltrim($bodyStr), '[')) {
-            $json = json_decode($bodyStr, true);
-        }
-        return ['code' => $code, 'body' => $bodyStr, 'json' => $json];
+
+        return $lastResult;
     }
 
     /**

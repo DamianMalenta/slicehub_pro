@@ -191,6 +191,7 @@ try {
     require_once __DIR__ . '/../../core/auth_guard.php';
     require_once __DIR__ . '/../../core/AutoScanEngine.php';
     require_once __DIR__ . '/../../core/Ksef/Parser.php';
+    require_once __DIR__ . '/../../core/Ksef/InboxInvoiceRepository.php';
     require_once __DIR__ . '/../../core/PzEngine.php';
 
     /** @var PDO $pdo */
@@ -376,74 +377,20 @@ try {
                 ]);
             }
 
-            // INSERT do sh_ksef_invoices
-            $pdo->beginTransaction();
+            $fallbackNo = 'UPLOAD-' . date('YmdHis');
             try {
-                $stInv = $pdo->prepare(
-                    "INSERT INTO sh_ksef_invoices
-                        (tenant_id, supplier_nip, supplier_name, supplier_address,
-                         buyer_nip, buyer_name, invoice_number,
-                         issue_date, sale_date, payment_due_date, currency,
-                         total_net_minor, total_vat_minor, total_gross_minor,
-                         xml_blob, parsed_json, status)
-                     VALUES
-                        (:tid, :snip, :sname, :saddr,
-                         :bnip, :bname, :inum,
-                         :issd, :sald, :payd, :cur,
-                         :tnet, :tvat, :tgross,
-                         :xml, :pjson, 'draft')"
+                $invoiceId = \SliceHub\Ksef\InboxInvoiceRepository::insertInvoiceWithLines(
+                    $pdo,
+                    $tenant_id,
+                    null,
+                    $xml,
+                    $parsed,
+                    $fallbackNo
                 );
-                $stInv->execute([
-                    ':tid'    => $tenant_id,
-                    ':snip'   => $parsed['supplier']['nip'] ?: null,
-                    ':sname'  => $parsed['supplier']['name'] ?: null,
-                    ':saddr'  => $parsed['supplier']['address'] ?: null,
-                    ':bnip'   => $parsed['buyer']['nip'] ?: null,
-                    ':bname'  => $parsed['buyer']['name'] ?: null,
-                    ':inum'   => $parsed['invoice']['number'] ?: ('UPLOAD-' . date('YmdHis')),
-                    ':issd'   => $parsed['invoice']['issue_date'],
-                    ':sald'   => $parsed['invoice']['sale_date'],
-                    ':payd'   => $parsed['invoice']['payment_due_date'],
-                    ':cur'    => $parsed['invoice']['currency'] ?: 'PLN',
-                    ':tnet'   => $parsed['totals']['total_net_minor'] ?? 0,
-                    ':tvat'   => $parsed['totals']['total_vat_minor'] ?? 0,
-                    ':tgross' => $parsed['totals']['total_gross_minor'] ?? 0,
-                    ':xml'    => $xml,
-                    ':pjson'  => json_encode($parsed, JSON_UNESCAPED_UNICODE),
-                ]);
-                $invoiceId = (int) $pdo->lastInsertId();
-
-                // INSERT lines
-                $stLine = $pdo->prepare(
-                    "INSERT INTO sh_ksef_invoice_lines
-                        (ksef_invoice_id, line_no, external_name, external_description,
-                         gtu_code, pkwiu, unit, qty, unit_net, line_net_minor, vat_rate)
-                     VALUES
-                        (:iid, :lno, :name, :desc, :gtu, :pkwiu, :unit, :qty, :unet, :lnet, :vat)"
-                );
-                foreach ($parsed['lines'] as $line) {
-                    $stLine->execute([
-                        ':iid'   => $invoiceId,
-                        ':lno'   => $line['line_no'],
-                        ':name'  => $line['external_name'],
-                        ':desc'  => $line['description'] ?: null,
-                        ':gtu'   => $line['gtu_code'] ?: null,
-                        ':pkwiu' => $line['pkwiu'] ?: null,
-                        ':unit'  => $line['unit'] ?: null,
-                        ':qty'   => $line['qty'],
-                        ':unet'  => $line['unit_net'],
-                        ':lnet'  => $line['line_net_minor'],
-                        ':vat'   => $line['vat_rate'],
-                    ]);
-                }
-
-                $pdo->commit();
             } catch (\Throwable $e) {
-                if ($pdo->inTransaction()) $pdo->rollBack();
                 inboxFail(500, 'INSERT_FAILED', 'Zapis faktury padł: ' . $e->getMessage());
             }
 
-            // Match per linia przez AutoScan
             $matchStats = inboxRescanLines($pdo, $tenant_id, $invoiceId);
 
             inboxAudit($pdo, $tenant_id, $user_id, 'ksef_upload', $invoiceId, [

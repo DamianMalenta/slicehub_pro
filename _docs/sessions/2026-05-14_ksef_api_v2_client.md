@@ -6,31 +6,29 @@
 
 `POST /invoices/query/metadata` z `subjectType: Subject2`: pole **`buyerIdentifier` nie może być ustawione** — nabywca wynika z kontekstu JWT po uwierzytelnieniu. Wcześniejsze wysłanie NIP w body powodowało HTTP 400 (`buyer` must be null). W `Client::queryInbox` usunięto `buyerIdentifier` z payloadu.
 
-## Poprawka (Issue + sort Desc w metadata)
+## Historia iteracji metadata (skondensowane)
 
-Lista inboxu używała `dateRange.dateType = Invoicing` (data przyjęcia do KSeF) — portal pokazuje zwykle **datę wystawienia**; część faktur ma wtedy inną oś czasu i **nie wpadała** do zapytania (stąd tylko kilka pozycji, brak „świeżej” z ostatnich minut). Zmiana na **`Issue`** + **`sortOrder: Desc`** (najpierw najnowsze).
+- **21405:** przy `Subject2` brak `buyerIdentifier` w body (nabywca z JWT).
+- **`pageOffset`:** w API MF to **indeks strony** (0,1,2…), nie offset wiersza; `to` w UTC.
+- **Zakres / paginacja:** do ~90 dni wstecz, `sortOrder: Desc`, `pageSize` = **250** (max OpenAPI), `hasMore` w pętli.
+- **Rate limits MF:** wcześniej **dwa** pełne przebiegi (`Issue` ∪ `Invoicing`) mnożyły `POST /invoices/query/metadata`; obecnie **jeden** przebieg **`Invoicing`** (mniej żądań; portal HTML 10/50 na stronę to co innego niż `pageSize` REST).
 
 ## Inbox F3 — duplikat przy ręcznym XML (`upload_xml`)
 
 - `api/procurement/inbox.php`: przed `INSERT` wykrywanie istniejącego wiersza po **tenant_id + numer faktury + NIP dostawcy (cyfry)**. Odpowiedź **409** `DUPLICATE_INVOICE` z `data` (m.in. `can_replace`). Drugi request z **`duplicate_resolution: replace`** usuwa stary wiersz (`DELETE` + CASCADE linii) i wstawia nowy — **zablokowane** dla `status=accepted` lub gdy jest `linked_wh_document_id` (PZ).
 - `modules/procurement/js/procurement_app.js`: `confirm` — zastąp vs anuluj, ponowne `upload_xml` z `replace`.
 
-## Poprawka (pageOffset + Issue ∪ Invoicing)
-
-- W API MF **`pageOffset` to numer strony (0,1,2…), nie przesunięcie wiersza** — wcześniejsze `+= pageSize` psuło kolejne strony.
-- **`to` jawne w UTC** zamiast samego `null`.
-- **Dwa przebiegi**: `Issue` oraz `Invoicing`, scalone po **`ksefNumber`** — większa szansa, że widok portalu pokryje się z tym, co zwraca MF.
-
-## Poprawka (zakres dat, paginacja, timeout)
-
-- Pierwszy poll używał tylko **14 dni** wstecz i **jednej strony** (50 rekordów) — starsze faktury oraz nadmiar pozycji w oknie nie trafiały do SliceHuba.
-- Domyślnie: **`from` maks. 90 dni wstecz** (bezpiecznie w limicie MF ok. 3 mies.), z **clamp** gdy worker podaje starsze `sinceDate` (szeroki zakres → obcięcie do 90 dni, żeby MF nie zwracał błędu zakresu).
-- **Paginacja** `pageOffset` / `hasMore` (strona po **250** rekordów, do 100 stron).
-- **Timeout cURL** podniesiony do **90 s** (pierwsze pobranie wielu stron + auth).
-
 ## Cel
 
 Zastąpienie martwego kontraktu API 1.0 (`ksef*.mf.gov.pl/api/online/…`, nagłówek `SessionToken`) oficjalnym **KSeF API v2** (`api*.ksef.mf.gov.pl/v2`), tak aby ten sam `core/Ksef/Client.php` obsługiwał sandbox i produkcję z tokenem z portalu oraz **kontekstem NIP** tenanta, bez osobnego modułu równoległego.
+
+## Remediacja audytu (2026-05-14)
+
+- **`is_active`:** `Client` blokuje sandbox/prod przy `is_active=0`; worker pomija tenantów; `poll_now` zwraca `KSEF_INACTIVE`.
+- **HTTP 429:** `httpRequest` — do 4 prób, oczekiwanie wg `Retry-After` lub backoff.
+- **Race na UNIQUE:** `InboxInvoiceRepository::isMysqlDuplicateKey` — worker i `poll_now` liczą duplikat jako skip.
+- **DRY:** `core/Ksef/InboxInvoiceRepository.php` — wspólny INSERT + `matchInvoiceLines`; upload XML przez repozytorium + `inboxRescanLines` (statystyki).
+- **Docs/UI:** `_docs/02_ARCHITEKTURA.md`, `modules/procurement/index.html` (hosty API v2).
 
 ## Skrót zmian (co poszło do `main`)
 
@@ -51,8 +49,11 @@ Zastąpienie martwego kontraktu API 1.0 (`ksef*.mf.gov.pl/api/online/…`, nagł
 
 ## Pliki dotknięte (szczegółowo)
 
-- `core/Ksef/Client.php` — pełny przepływ uwierzytelniania v2 (challenge, RSA-OAEP SHA-256 przez `openssl pkeyutl`, `/auth/ksef-token`, poll, redeem, refresh), zapytania `POST /invoices/query/metadata`, pobranie XML `GET /invoices/ksef/{ksefNumber}`, zapis tokenów JWT w credentials.
-- `api/procurement/ksef_config.php` — `config_save` scala z istniejącym JSON (nie kasuje `ksef_*` przy ponownym zapisie tego samego tokenu i środowiska).
+- `core/Ksef/Client.php` — pełny przepływ uwierzytelniania v2 (challenge, RSA-OAEP SHA-256 przez `openssl pkeyutl`, `/auth/ksef-token`, poll, redeem, refresh), zapytania `POST /invoices/query/metadata`, pobranie XML `GET /invoices/ksef/{ksefNumber}`, zapis tokenów JWT w credentials, **is_active**, **retry 429**.
+- `core/Ksef/InboxInvoiceRepository.php` — wspólny INSERT faktury KSeF + pierwszy przebieg AutoScan na liniach.
+- `api/procurement/ksef_config.php` — `config_save` scala z istniejącym JSON (nie kasuje `ksef_*` przy ponownym zapisie tego samego tokenu i środowiska); `poll_now` — `KSEF_INACTIVE`, duplikat SQL → skip.
+- `api/procurement/inbox.php` — upload przez repozytorium.
+- `scripts/worker_ksef_inbox.php` — `is_active`, race duplicate, repozytorium.
 
 ## Decyzje architektoniczne
 
@@ -76,4 +77,4 @@ Zastąpienie martwego kontraktu API 1.0 (`ksef*.mf.gov.pl/api/online/…`, nagł
 
 - Przy ekstremalnym wolumenie (>25k faktur w 90 dni) nadal można rozważyć dodatkowy stan/cursor w `sh_ksef_inbox_state` lub batch export po stronie MF.
 - Hostingi bez `proc_open` lub bez OpenSSL CLI — wymagałoby innego kanału kryptograficznego (np. zewnętrzny helper); na typowym VPS z OpenSSL 3 ścieżka jest stabilna.
-- Czy `Client` / worker mają respektować `is_active` na wierszu `ksef` (dziś `Client` tego nie czyta) — nadal otwarte (por. sesja Settings).
+- **Wysyłka faktur (outbound)** — osobny flow OpenAPI (`/sessions/online/...`); nieobjęty tym klientem; plan w osobnej sesji / backlogu.
