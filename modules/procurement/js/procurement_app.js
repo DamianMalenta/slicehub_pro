@@ -559,7 +559,14 @@
         $('#pi-btn-poll-now').innerHTML = orig;
         if (!r.success) { showError(r.message || 'Poll padł.'); return; }
         const s = r.data.stats;
-        alert(`KSeF poll OK (${r.data.environment}):\n• Pobrano: ${s.fetched}\n• Wstawiono: ${s.inserted}\n• Pominięto (dedup): ${s.skipped}\n• Błędy: ${s.errors}`);
+        alert(
+            'KSeF — tylko odczyt (pobranie do SliceHub). Żadna faktura nie jest wysyłana do MF.\n' +
+                `Środowisko: ${r.data.environment}\n` +
+                `• Odczytane z API (pozycje na liście): ${s.fetched}\n` +
+                `• Nowe w bazie (import): ${s.inserted}\n` +
+                `• Pominięte (już były / duplikat): ${s.skipped}\n` +
+                `• Błędy (parsowanie / sieć): ${s.errors}`
+        );
         loadList();
     }
 

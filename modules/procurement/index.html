@@ -27,7 +27,7 @@
         <a href="../warehouse/index.html"><i class="fa-solid fa-boxes-stacked"></i> Magazyn</a>
     </nav>
     <button type="button" class="pi-btn" id="pi-btn-config" title="Konfiguracja KSeF (F4)"><i class="fa-solid fa-gear"></i> KSeF</button>
-    <button type="button" class="pi-btn" id="pi-btn-poll-now" title="Pobierz teraz z KSeF (F4)"><i class="fa-solid fa-cloud-arrow-down"></i> Pobierz</button>
+    <button type="button" class="pi-btn" id="pi-btn-poll-now" title="Pobierz faktury przychodzące z KSeF (tylko odczyt API — nic nie wysyłamy do MF)"><i class="fa-solid fa-cloud-arrow-down"></i> Pobierz</button>
     <button type="button" class="pi-btn" id="pi-btn-refresh" title="Odśwież"><i class="fa-solid fa-rotate"></i></button>
 </header>
 
@@ -49,7 +49,9 @@
                 Parser wyciągnie linie, AutoScan dopasuje surowce (EXACT/ALIAS/NAME/FUZZY) z confidence,
                 manager akceptuje → automatycznie powstaje PZ + stany rosną w magazynie.
                 <br>
-                <strong>F4 (przyszłość):</strong> worker będzie pollował KSeF API, faktury same tu wpadną.
+                <strong>F4 — Pobierz / worker:</strong> wyłącznie <strong>odczyt</strong> faktur z KSeF do inboxu (import do bazy). Wysyłka faktur do MF nie jest w tym module.
+                <br>
+                <strong>F4 (cron):</strong> worker może pollować KSeF API — faktury same tu wpadną, gdy włączysz auto-poll w konfiguracji.
             </div>
         </div>
     </section>

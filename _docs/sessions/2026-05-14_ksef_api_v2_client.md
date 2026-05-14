@@ -76,3 +76,8 @@ Zastąpienie martwego kontraktu API 1.0 (`ksef*.mf.gov.pl/api/online/…`, nagł
 - Przy ekstremalnym wolumenie (>25k faktur w 90 dni) nadal można rozważyć dodatkowy stan/cursor w `sh_ksef_inbox_state` lub batch export po stronie MF.
 - Hostingi bez `proc_open` lub bez OpenSSL CLI — wymagałoby innego kanału kryptograficznego (np. zewnętrzny helper); na typowym VPS z OpenSSL 3 ścieżka jest stabilna.
 - **Wysyłka faktur (outbound)** — osobny flow OpenAPI (`/sessions/online/...`); nieobjęty tym klientem; plan w osobnej sesji / backlogu.
+
+## Parser FA(3) + komunikat poll (2026-05-14)
+
+- **`core/Ksef/Parser.php`:** węzły `Naglowek`, `Podmiot1/2`, `Fa`, `FaWiersz` wyszukiwane po **local-name()** (namespace-agnostic) + walidacja „pustego sukcesu” (brak NIP, numeru i linii → `success: false`). Zmniejsza wpisy z `?` i zerami przy FA(3) / prefiksach XML z KSeF.
+- **UX „wysłano”:** przycisk Pobierz + `alert` + `kfResponse` dla `poll_now` — jednoznacznie **tylko odczyt**, brak wysyłki do MF (`modules/procurement/index.html`, `procurement_app.js`, `ksef_config.php`).

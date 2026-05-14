@@ -306,7 +306,7 @@ try {
             )->execute([':tid' => $tenant_id, ':ref' => $lastSeenRef, ':ref2' => $lastSeenRef]);
 
             kfResponse(true, ['stats' => $stats, 'environment' => $client->getEnvironment()],
-                "Pobrano: {$stats['fetched']}, wstawiono: {$stats['inserted']}, pominięto: {$stats['skipped']}, błędy: {$stats['errors']}.");
+                "KSeF odczyt (bez wysyłki do MF): odczytane z API {$stats['fetched']}, nowe w bazie {$stats['inserted']}, pominięte {$stats['skipped']}, błędy {$stats['errors']}.");
             break;
         }
 

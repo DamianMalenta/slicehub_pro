@@ -6,7 +6,7 @@ declare(strict_types=1);
  * SliceHub — KSeF Inbox Worker
  *
  * Cron-callable script which polls KSeF API for new invoices addressed to
- * our NIP, parses them through FA(2) Parser, runs AutoScan match per line,
+ * our NIP, parses them through FA(2)/FA(3) Parser, runs AutoScan match per line,
  * and INSERTs into sh_ksef_invoices (m046). After this, faktury are
  * automatically visible in Procurement Inbox UI (modules/procurement/).
  *
