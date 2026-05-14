@@ -11,7 +11,7 @@
 - **21405:** przy `Subject2` brak `buyerIdentifier` w body (nabywca z JWT).
 - **`pageOffset`:** w API MF to **indeks strony** (0,1,2…), nie offset wiersza; `to` w UTC.
 - **Zakres / paginacja:** do ~90 dni wstecz, `sortOrder: Desc`, `pageSize` = **250** (max OpenAPI), `hasMore` w pętli.
-- **Rate limits MF:** wcześniej **dwa** pełne przebiegi (`Issue` ∪ `Invoicing`) mnożyły `POST /invoices/query/metadata`; obecnie **jeden** przebieg **`Invoicing`** (mniej żądań; portal HTML 10/50 na stronę to co innego niż `pageSize` REST).
+- **Rate limits MF:** przez jakiś czas był tylko przebieg `Invoicing` (mniej POST-ów); **przywrócono `Issue` ∪ `Invoicing`** — portal i MF bywają niespójne, samo Invoicing pomijało nowe faktury widoczne użytkownikowi. `from`/`to` w metadata w **UTC `…Z`** (wcześniej `from` bez strefy vs `to` w UTC). Worker / poll: margines **14 dni** wstecz od `last_polled_at` (zamiast 1 dnia).
 
 ## Inbox F3 — duplikat przy ręcznym XML (`upload_xml`)
 
