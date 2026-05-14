@@ -213,7 +213,7 @@ class Client
     /**
      * Lista faktur (metadata). ref_id = numer KSeF (ksefNumber) — używany przez worker i deduplikację.
      *
-     * @param string|null $sinceDate Y-m-d — dolna granica zakresu (Invoicing); null = maks. okres wstecz (90 dni, limit MF)
+     * @param string|null $sinceDate Y-m-d — dolna granica zakresu dat; null = maks. okres wstecz (90 dni, limit MF)
      * @param string|null $lastSeenId zapisany cursor (legacy API 1.0) — ignorowany w v2; deduplikacja po stronie DB
      * @return array{success:bool, invoices: list<array{ref_id:string, supplier_nip:string, invoice_number:string, issue_date:string}>, message?:string}
      */
@@ -237,37 +237,67 @@ class Client
         }
 
         $fromIso = $this->buildMetadataDateFrom($sinceDate);
-        // Subject2 = faktury, gdzie uwierzytelniony podmiot jest Podmiotem 2 (nabywca).
-        // MF: przy Subject2 identyfikator nabywcy pochodzi z kontekstu JWT — nie wolno
-        // przekazywać buyerIdentifier (21405: buyer musi być null).
-        // dateType Issue = data wystawienia (zwykle zgodna z widokiem w portalu MF).
-        // Invoicing = data przyjęcia do KSeF — często węższa; stąd brak „świeżych” i starszych pozycji z ostatnich dni.
-        // sortOrder Desc = najpierw najnowsze (pierwsza strona obejmuje dzisiejsze przyjęcia z KSeF).
+        $toIso = gmdate('Y-m-d\TH:i:s\Z');
+
+        // Subject2: nabywca z JWT (bez buyerIdentifier w body — 21405).
+        // Dwa zapytania (Issue + Invoicing): portal i API mogą rozjeżdżać się datą wystawienia vs przyjęcia do KSeF.
+        // Suma unikalnych numerów KSeF daje pełniejszy inbox niż pojedynczy dateType.
+        [$err1, $issueRows] = $this->collectMetadataPages('Issue', $fromIso, $toIso);
+        if ($err1 !== null) {
+            return ['success' => false, 'invoices' => [], 'message' => $err1];
+        }
+        [$err2, $invRows] = $this->collectMetadataPages('Invoicing', $fromIso, $toIso);
+        if ($err2 !== null) {
+            return ['success' => false, 'invoices' => [], 'message' => $err2];
+        }
+
+        $merged = [];
+        foreach (array_merge($issueRows, $invRows) as $row) {
+            $k = $row['ref_id'];
+            if ($k !== '') {
+                $merged[$k] = $row;
+            }
+        }
+
+        return ['success' => true, 'invoices' => array_values($merged)];
+    }
+
+    /**
+     * Pobiera metadane faktur (Subject2) dla jednego dateType, ze stronicowaniem.
+     * UWAGA: pageOffset w API MF to numer strony (0,1,2…), NIE offset wiersza.
+     *
+     * @return array{0: ?string, 1: list<array{ref_id:string, supplier_nip:string, invoice_number:string, issue_date:string}>}
+     */
+    private function collectMetadataPages(string $dateType, string $fromIso, string $toIso): array
+    {
         $body = [
             'subjectType' => 'Subject2',
             'dateRange'   => [
-                'dateType' => 'Issue',
+                'dateType' => $dateType,
                 'from'     => $fromIso,
-                'to'       => null,
+                'to'       => $toIso,
             ],
         ];
 
-        $invoices = [];
-        $pageOffset = 0;
-        for ($page = 0; $page < self::METADATA_MAX_PAGES; $page++) {
+        $rows = [];
+        $pageIndex = 0;
+        for ($p = 0; $p < self::METADATA_MAX_PAGES; $p++) {
             $query = [
                 'sortOrder'  => 'Desc',
-                'pageOffset' => $pageOffset,
+                'pageOffset' => $pageIndex,
                 'pageSize'   => self::METADATA_PAGE_SIZE,
             ];
 
             $res = $this->requestWithAccessToken('POST', '/invoices/query/metadata', $body, $query);
             if ($res['code'] !== 200) {
-                return ['success' => false, 'invoices' => [], 'message' => $this->formatHttpFailure('POST /invoices/query/metadata', $res)];
+                return [
+                    $this->formatHttpFailure('POST /invoices/query/metadata (' . $dateType . ')', $res),
+                    [],
+                ];
             }
             $json = $res['json'];
             if (!is_array($json)) {
-                return ['success' => false, 'invoices' => [], 'message' => 'Invalid JSON response (metadata)'];
+                return ['Invalid JSON response (metadata ' . $dateType . ')', []];
             }
 
             foreach (($json['invoices'] ?? []) as $inv) {
@@ -281,7 +311,7 @@ class Client
                 $seller = $inv['seller'] ?? [];
                 $sellerNip = is_array($seller) ? (string) ($seller['nip'] ?? '') : '';
                 $nipNorm = self::normalizeNip($sellerNip);
-                $invoices[] = [
+                $rows[] = [
                     'ref_id'         => $ksefNo,
                     'supplier_nip'   => $nipNorm ?? $sellerNip,
                     'invoice_number' => (string) ($inv['invoiceNumber'] ?? ''),
@@ -289,14 +319,14 @@ class Client
                 ];
             }
 
-            $hasMore = !empty($json['hasMore']);
+            $hasMore = isset($json['hasMore']) && $json['hasMore'] === true;
             if (!$hasMore) {
                 break;
             }
-            $pageOffset += self::METADATA_PAGE_SIZE;
+            $pageIndex++;
         }
 
-        return ['success' => true, 'invoices' => $invoices];
+        return [null, $rows];
     }
 
     /**

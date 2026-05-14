@@ -10,6 +10,12 @@
 
 Lista inboxu używała `dateRange.dateType = Invoicing` (data przyjęcia do KSeF) — portal pokazuje zwykle **datę wystawienia**; część faktur ma wtedy inną oś czasu i **nie wpadała** do zapytania (stąd tylko kilka pozycji, brak „świeżej” z ostatnich minut). Zmiana na **`Issue`** + **`sortOrder: Desc`** (najpierw najnowsze).
 
+## Poprawka (pageOffset + Issue ∪ Invoicing)
+
+- W API MF **`pageOffset` to numer strony (0,1,2…), nie przesunięcie wiersza** — wcześniejsze `+= pageSize` psuło kolejne strony.
+- **`to` jawne w UTC** zamiast samego `null`.
+- **Dwa przebiegi**: `Issue` oraz `Invoicing`, scalone po **`ksefNumber`** — większa szansa, że widok portalu pokryje się z tym, co zwraca MF.
+
 ## Poprawka (zakres dat, paginacja, timeout)
 
 - Pierwszy poll używał tylko **14 dni** wstecz i **jednej strony** (50 rekordów) — starsze faktury oraz nadmiar pozycji w oknie nie trafiały do SliceHuba.
