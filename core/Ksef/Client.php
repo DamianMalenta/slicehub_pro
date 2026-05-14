@@ -235,9 +235,11 @@ class Client
 
     /**
      * Lista faktur (metadata). ref_id = numer KSeF (ksefNumber) — używany przez worker i deduplikację.
-     * Jedno zapytanie `dateType: Invoicing` + maks. `pageSize` (MF) — mniej POST-ów niż podwójne Issue+Invoicing, żeby nie zużywać limitów API.
      *
-     * @param string|null $sinceDate Y-m-d — dolna granica zakresu dat; null = maks. okres wstecz (90 dni, limit MF)
+     * Dwa przebiegi `Issue` oraz `Invoicing` (scalone po ksefNumber): portal MF i filtry dat bywają niespójne;
+     * samo Invoicing pomijało realnie nowe pozycje widoczne użytkownikowi. Koszt: więcej POST-ów metadata (limity MF).
+     *
+     * @param string|null $sinceDate Y-m-d — dolna granica (UTC północ); null = maks. okres wstecz (90 dni, limit MF)
      * @param string|null $lastSeenId legacy (API 1.0) — w v2 ignorowany; worker zapisuje go dla audytu, zakres dat z `last_polled_at`
      * @return array{success:bool, invoices: list<array{ref_id:string, supplier_nip:string, invoice_number:string, issue_date:string}>, message?:string}
      */
@@ -268,14 +270,24 @@ class Client
         $toIso = gmdate('Y-m-d\TH:i:s\Z');
 
         // Subject2: nabywca z JWT (bez buyerIdentifier w body — 21405).
-        // Jeden przebieg dateType = Invoicing: data „w KSeF” odpowiada nabywczemu inboxowi; łapie też stare FV z świeżym przyjęciem.
-        // Dwa przebiegi (Issue ∪ Invoicing) podwajały POST-y /invoices/query/metadata i szybko zużywały limity MF (np. osobna grupa limitów).
-        [$err, $rows] = $this->collectMetadataPages('Invoicing', $fromIso, $toIso);
-        if ($err !== null) {
-            return ['success' => false, 'invoices' => [], 'message' => $err];
+        [$err1, $issueRows] = $this->collectMetadataPages('Issue', $fromIso, $toIso);
+        if ($err1 !== null) {
+            return ['success' => false, 'invoices' => [], 'message' => $err1];
+        }
+        [$err2, $invRows] = $this->collectMetadataPages('Invoicing', $fromIso, $toIso);
+        if ($err2 !== null) {
+            return ['success' => false, 'invoices' => [], 'message' => $err2];
         }
 
-        return ['success' => true, 'invoices' => $rows];
+        $merged = [];
+        foreach (array_merge($issueRows, $invRows) as $row) {
+            $k = $row['ref_id'];
+            if ($k !== '') {
+                $merged[$k] = $row;
+            }
+        }
+
+        return ['success' => true, 'invoices' => array_values($merged)];
     }
 
     /**
@@ -808,7 +820,8 @@ class Client
     }
 
     /**
-     * Dolna granica `dateRange.from` dla Invoicing — nie szersza niż MF (~3 mies.) i nie w przyszłość.
+     * Dolna granica `dateRange.from` — jak `to`, w pełnym ISO 8601 UTC (`…Z`), żeby MF nie interpretował
+     * niespójnie mixu „data bez strefy” vs `to` w UTC (wtedy okno mogło ucinać świeże faktury).
      */
     private function buildMetadataDateFrom(?string $sinceDate): string
     {
@@ -816,7 +829,7 @@ class Client
         $maxBack = self::METADATA_MAX_RANGE_DAYS * 86400;
 
         if (is_string($sinceDate) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $sinceDate)) {
-            $fromTs = strtotime($sinceDate . 'T00:00:00');
+            $fromTs = strtotime($sinceDate . ' 00:00:00 UTC');
             if ($fromTs === false) {
                 $fromTs = $now - $maxBack;
             }
@@ -831,7 +844,7 @@ class Client
             $fromTs = $now - 86400;
         }
 
-        return date('Y-m-d', $fromTs) . 'T00:00:00';
+        return gmdate('Y-m-d\TH:i:s\Z', $fromTs);
     }
 
     private static function normalizeNip(string $nip): ?string

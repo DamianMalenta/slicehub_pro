@@ -142,9 +142,9 @@ foreach ($tenantIds as $tid) {
         $cur->execute([':tid' => $tid]);
         $cursor = $cur->fetch(PDO::FETCH_ASSOC) ?: ['last_polled_at' => null, 'last_invoice_seen_id' => null];
 
-        // Query inbox (od ostatniego polla -1 dzień margines)
+        // Query inbox: margines 14 dni wstecz od ostatniego polla (1 dzień bywał za krótki + rozjazd dat MF vs portal).
         $sinceDate = $cursor['last_polled_at']
-            ? date('Y-m-d', strtotime((string) $cursor['last_polled_at'] . ' -1 day'))
+            ? date('Y-m-d', strtotime((string) $cursor['last_polled_at'] . ' -14 days'))
             : null;
 
         $qres = $client->queryInbox($sinceDate, $cursor['last_invoice_seen_id'] ?: null);
