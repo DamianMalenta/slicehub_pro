@@ -6,7 +6,7 @@
  *   1. User dragguje FA(2) XML do dropzone → readAsText → POST upload_xml.
  *   2. Lista invoices ładuje się przez `list` action (stats badge).
  *   3. Klik na row → modal z `show` action: invoice + lines + match.
- *   4. Per linia: select SKU (manual override) z `update_line` action.
+ *   4. Per linia: wybór SKU — zapis przez **Zapisz zmiany** (update_line) lub automatycznie przed Rescan / Akceptuj.
  *   5. Klik "Akceptuj" → `accept` action → PzEngine utworzy PZ → stany rosną.
  */
 (function () {
@@ -96,7 +96,63 @@
         const el = $('#pi-error-banner');
         el.textContent = msg;
         el.classList.remove('hidden');
+        $('#pi-success-banner').classList.add('hidden');
         setTimeout(() => el.classList.add('hidden'), 6000);
+    }
+
+    function showSuccess(msg) {
+        const el = $('#pi-success-banner');
+        el.textContent = msg;
+        el.classList.remove('hidden');
+        $('#pi-error-banner').classList.add('hidden');
+        setTimeout(() => el.classList.add('hidden'), 5000);
+    }
+
+    function hasPendingLineSkuChanges() {
+        let any = false;
+        $$('#pi-modal-body .pi-sku-select').forEach(sel => {
+            const sku = sel.value.trim();
+            const orig = (sel.dataset.originalSku || '').trim();
+            if (sku !== '' && sku !== orig) any = true;
+        });
+        return any;
+    }
+
+    function updateModalSaveButtonState() {
+        const btn = $('#pi-modal-save');
+        if (!btn) return;
+        const inv = state.currentInvoice;
+        if (!inv) {
+            btn.disabled = true;
+            return;
+        }
+        const locked = inv.status === 'accepted' || inv.status === 'rejected';
+        btn.disabled = locked || !hasPendingLineSkuChanges();
+    }
+
+    /**
+     * Zapisuje wszystkie linie, gdzie wybrane SKU różni się od wartości przy otwarciu modala.
+     * @return {{ok: boolean, saved: number, message?: string}}
+     */
+    async function savePendingLineSkus() {
+        const inv = state.currentInvoice;
+        if (!inv) return { ok: false, saved: 0, message: 'Brak faktury.' };
+        const pending = [];
+        $$('#pi-modal-body .pi-sku-select').forEach(sel => {
+            const lineId = parseInt(sel.dataset.lineId, 10);
+            const sku = sel.value.trim();
+            const orig = (sel.dataset.originalSku || '').trim();
+            if (sku === '' || sku === orig) return;
+            pending.push({ lineId, sku });
+        });
+        if (pending.length === 0) return { ok: true, saved: 0 };
+        for (const p of pending) {
+            const r = await api('update_line', { invoice_id: inv.id, line_id: p.lineId, sku: p.sku });
+            if (!r.success) {
+                return { ok: false, saved: 0, message: r.message || 'Update linii padł.' };
+            }
+        }
+        return { ok: true, saved: pending.length };
     }
 
     function setUploadStatus(level, html) {
@@ -274,7 +330,8 @@
                     </td>
                     <td>
                         ${isAccepted ? `<span class="pi-line-sku">${escapeHtml(skuValue || '?')}</span>` :
-                            `<select class="pi-sku-select" data-line-id="${l.id}" ${isAccepted ? 'disabled' : ''}>
+                            `<select class="pi-sku-select" data-line-id="${l.id}" data-original-sku="${escapeHtml(skuValue)}"
+                                ${isAccepted ? 'disabled' : ''}>
                                 <option value="">— wybierz SKU —</option>
                                 ${skuOptionsHtml.replace(new RegExp('value="' + escapeHtml(skuValue).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '"'), m => m + ' selected')}
                             </select>`}
@@ -294,19 +351,14 @@
 
         $('#pi-modal-body').innerHTML = html;
 
-        // Wire SKU select change
+        // Wire SKU select — oznacz niezapisane; zapis dopiero „Zapisz zmiany” / Rescan / Akceptuj
         $$('#pi-modal-body .pi-sku-select').forEach(sel => {
-            sel.addEventListener('change', async (e) => {
-                const lineId = parseInt(sel.dataset.lineId, 10);
-                const sku = sel.value;
-                if (!sku) return;
-                const r = await api('update_line', { invoice_id: inv.id, line_id: lineId, sku });
-                if (!r.success) {
-                    showError(r.message || 'Update linii padł.');
-                    return;
-                }
-                // Reload modal to refresh match badge
-                openInvoice(inv.id);
+            sel.addEventListener('change', () => {
+                const orig = (sel.dataset.originalSku || '').trim();
+                const sku = sel.value.trim();
+                if (sku !== '' && sku !== orig) sel.classList.add('pi-sku-select--dirty');
+                else sel.classList.remove('pi-sku-select--dirty');
+                updateModalSaveButtonState();
             });
         });
 
@@ -314,6 +366,7 @@
         $('#pi-modal-accept').disabled = isAccepted || isRejected;
         $('#pi-modal-reject').disabled = isAccepted || isRejected;
         $('#pi-modal-rescan').disabled = isAccepted;
+        updateModalSaveButtonState();
 
         // F4.5: gdy accepted, pokaż przycisk Reverse + zamień Accept/Reject style
         let reverseBtn = $('#pi-modal-reverse');
@@ -463,13 +516,47 @@
         // Modal actions
         $('#pi-modal-rescan').addEventListener('click', async () => {
             if (!state.currentInvoice) return;
+            const flush = await savePendingLineSkus();
+            if (!flush.ok) {
+                showError(flush.message || 'Nie udało się zapisać zmian na liniach.');
+                return;
+            }
+            if (flush.saved > 0) {
+                showSuccess(`Zapisano ${flush.saved} ${flush.saved === 1 ? 'linię' : 'linii'} przed rescanem.`);
+            }
             const r = await api('reparse', { invoice_id: state.currentInvoice.id });
             if (!r.success) { showError(r.message || 'Rescan padł.'); return; }
-            openInvoice(state.currentInvoice.id);
+            await openInvoice(state.currentInvoice.id);
+        });
+
+        $('#pi-modal-save').addEventListener('click', async () => {
+            if (!state.currentInvoice) return;
+            const btn = $('#pi-modal-save');
+            btn.disabled = true;
+            try {
+                const res = await savePendingLineSkus();
+                if (!res.ok) {
+                    showError(res.message || 'Zapis padł.');
+                    return;
+                }
+                if (res.saved === 0) {
+                    showSuccess('Brak zmian do zapisania (SKU takie jak przy otwarciu lub pusty wybór).');
+                } else {
+                    showSuccess(`Zapisano ${res.saved} ${res.saved === 1 ? 'linię' : 'linii'}. Status faktury bez zmian.`);
+                    await openInvoice(state.currentInvoice.id);
+                }
+            } finally {
+                updateModalSaveButtonState();
+            }
         });
 
         $('#pi-modal-accept').addEventListener('click', async () => {
             if (!state.currentInvoice) return;
+            const flush = await savePendingLineSkus();
+            if (!flush.ok) {
+                showError(flush.message || 'Nie udało się zapisać zmian na liniach.');
+                return;
+            }
             if (!confirm('Akceptujesz fakturę? Powstanie PZ + stany magazynowe wzrosną.')) return;
             const r = await api('accept', { invoice_id: state.currentInvoice.id, warehouse_id: 'MAIN' });
             if (!r.success) {
