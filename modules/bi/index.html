@@ -60,6 +60,23 @@
         </p>
     </section>
 
+    <section id="bi-snapshot-wrap" class="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 backdrop-blur-md p-5 shadow-xl shadow-black/20 opacity-50 pointer-events-none transition">
+        <div class="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+            <h2 class="text-sm font-semibold text-cyan-200 tracking-tight">Stan na dzisiaj</h2>
+            <span class="text-[10px] uppercase tracking-wider text-cyan-500/80 font-medium">Poza okresem dat powyżej — zawsze aktualny magazyn</span>
+        </div>
+        <div class="grid sm:grid-cols-1 gap-4 max-w-md">
+            <article class="rounded-xl border border-white/10 bg-black/20 p-4" title="Aktualna wartość surowców na magazynie wg AVCO (suma ilość × AVCO po SKU i magazynach).">
+                <div class="flex items-center gap-2 text-xs uppercase tracking-wider text-gray-500 font-semibold">
+                    Zamrożony kapitał
+                    <span class="inline-flex h-4 w-4 items-center justify-center rounded-full border border-white/20 text-[9px] text-gray-400 cursor-help" title="Aktualna wartość surowców na magazynie wg AVCO.">i</span>
+                </div>
+                <div id="bi-stock" class="mt-2 text-2xl font-bold text-cyan-300 tabular-nums">—</div>
+                <p class="mt-2 text-[11px] text-gray-500 leading-snug">Wartość zapasu z <code class="text-gray-400">wh_stock</code> (ilość &gt; 0); nie zależy od filtrów dat P&amp;L.</p>
+            </article>
+        </div>
+    </section>
+
     <section id="bi-grid" class="grid sm:grid-cols-2 gap-4 opacity-50 pointer-events-none transition">
         <article class="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md p-5">
             <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold">Przychód netto</div>
@@ -127,13 +144,16 @@
         clearErr();
         const warn = document.getElementById('bi-auth-warn');
         const grid = document.getElementById('bi-grid');
+        const snap = document.getElementById('bi-snapshot-wrap');
         if (!token()) {
             warn.classList.remove('hidden');
             grid.classList.add('opacity-50', 'pointer-events-none');
+            if (snap) snap.classList.add('opacity-50', 'pointer-events-none');
             return;
         }
         warn.classList.add('hidden');
         grid.classList.remove('opacity-50', 'pointer-events-none');
+        if (snap) snap.classList.remove('opacity-50', 'pointer-events-none');
 
         const df = document.getElementById('bi-from').value;
         const dt = document.getElementById('bi-to').value;
@@ -157,6 +177,8 @@
         document.getElementById('bi-cogs').textContent = plnFromMinor(d.cogs_minor);
         document.getElementById('bi-labor').textContent = plnFromMinor(d.labor_minor);
         document.getElementById('bi-opex').textContent = plnFromMinor(d.opex_minor);
+        const stEl = document.getElementById('bi-stock');
+        if (stEl) stEl.textContent = plnFromMinor(d.stock_value_minor);
         const gm = document.getElementById('bi-gross');
         const gpv = d.gross_profit_minor || 0;
         gm.textContent = plnFromMinor(gpv);

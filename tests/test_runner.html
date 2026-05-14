@@ -561,7 +561,7 @@ const SUITES = [
                     if (json.success !== true) return ['fail', `success=${json.success} msg: ${json.message}`];
                     const d = json.data;
                     if (!d || typeof d !== 'object') return ['fail', 'Brak obiektu data'];
-                    const keys = ['net_sales_minor', 'cogs_minor', 'labor_minor', 'opex_minor', 'gross_profit_minor', 'operating_profit_minor'];
+                    const keys = ['net_sales_minor', 'cogs_minor', 'labor_minor', 'opex_minor', 'gross_profit_minor', 'operating_profit_minor', 'stock_value_minor'];
                     for (const k of keys) {
                         if (typeof d[k] !== 'number') return ['fail', `Brak lub zły typ: ${k}`];
                     }

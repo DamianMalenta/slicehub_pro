@@ -13,6 +13,8 @@ declare(strict_types=1);
  *
  * **Order date window (P&L):** revenue, VAT, and COGS-from-WZ use `sh_orders.created_at`, not
  * `updated_at`, so late edits (notes, metadata) do not shift revenue across accounting periods.
+ *
+ * **Stock value (snapshot):** `wh_stock` AVCO valuation in grosze — point-in-time, **not** filtered by the P&L date range.
  */
 final class BiEngine
 {
@@ -26,7 +28,8 @@ final class BiEngine
      *   labor_minor: int,
      *   opex_minor: int,
      *   gross_profit_minor: int,
-     *   operating_profit_minor: int
+     *   operating_profit_minor: int,
+     *   stock_value_minor: int
      * }
      */
     public static function generateDashboard(PDO $pdo, int $tenantId, string $dateFromYmd, string $dateToYmd): array
@@ -53,6 +56,7 @@ final class BiEngine
         $cogs = self::aggregateCogsMinor($pdo, $tenantId, $startTs, $endTs);
         $labor = self::aggregateLaborMinor($pdo, $tenantId, $startTs, $endTs);
         $opex = self::aggregateOpexMinor($pdo, $tenantId, $startTs, $endTs);
+        $stockValue = self::aggregateStockValueMinor($pdo, $tenantId);
 
         $grossProfit = $netSales - $cogs;
         $operatingProfit = $grossProfit - $labor - $opex;
@@ -70,7 +74,26 @@ final class BiEngine
             'opex_minor'             => $opex,
             'gross_profit_minor'     => $grossProfit,
             'operating_profit_minor' => $operatingProfit,
+            'stock_value_minor'      => $stockValue,
         ];
+    }
+
+    /**
+     * Wartość magazynu (AVCO × ilość) w groszach — stan bieżący, bez filtra dat.
+     * `current_avco_price` jest DECIMAL (PLN); konwersja jak w COGS: ROUND(...*100).
+     */
+    private static function aggregateStockValueMinor(PDO $pdo, int $tenantId): int
+    {
+        $sql = <<<'SQL'
+SELECT COALESCE(SUM(ROUND(quantity * current_avco_price * 100)), 0) AS v
+FROM wh_stock
+WHERE tenant_id = :tid
+  AND quantity > 0
+SQL;
+        $st = $pdo->prepare($sql);
+        $st->execute([':tid' => $tenantId]);
+
+        return (int) $st->fetchColumn();
     }
 
     /**

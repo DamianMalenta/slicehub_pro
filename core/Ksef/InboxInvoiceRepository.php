@@ -10,6 +10,8 @@ namespace SliceHub\Ksef;
  */
 final class InboxInvoiceRepository
 {
+    private static ?bool $lineTypeColumnExists = null;
+
     /**
      * @param array<string,mixed> $parsed wynik Parser::parse przy success=true
      */
@@ -99,7 +101,8 @@ final class InboxInvoiceRepository
     }
 
     /**
-     * AutoScan dla wszystkich linii faktury (jak worker / poll_now).
+     * AutoScan dla linii faktury — tylko INVENTORY gdy istnieje kolumna line_type (m057),
+     * żeby nie nadpisywać dopasowań SKU na liniach OPEX (EXPENSE).
      */
     public static function matchInvoiceLines(\PDO $pdo, int $tenantId, int $invoiceId): void
     {
@@ -109,9 +112,12 @@ final class InboxInvoiceRepository
                     match_candidates_json = :cand, resolved_at = NOW()
               WHERE id = :id"
         );
-        $linesStmt = $pdo->prepare(
-            "SELECT id, external_name FROM sh_ksef_invoice_lines WHERE ksef_invoice_id = :iid"
-        );
+        $sql = 'SELECT id, external_name FROM sh_ksef_invoice_lines WHERE ksef_invoice_id = :iid';
+        if (self::invoiceLinesHaveLineTypeColumn($pdo)) {
+            $sql .= " AND COALESCE(line_type, 'INVENTORY') = 'INVENTORY'";
+        }
+        $sql .= ' ORDER BY line_no';
+        $linesStmt = $pdo->prepare($sql);
         $linesStmt->execute([':iid' => $invoiceId]);
         foreach ($linesStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
             $r = \AutoScanEngine::match($pdo, $tenantId, (string) $row['external_name']);
@@ -123,6 +129,31 @@ final class InboxInvoiceRepository
                 ':id'   => $row['id'],
             ]);
         }
+    }
+
+    private static function invoiceLinesHaveLineTypeColumn(\PDO $pdo): bool
+    {
+        if (self::$lineTypeColumnExists !== null) {
+            return self::$lineTypeColumnExists;
+        }
+        try {
+            $db = (string) ($pdo->query('SELECT DATABASE()')->fetchColumn() ?: '');
+            if ($db === '') {
+                self::$lineTypeColumnExists = false;
+
+                return false;
+            }
+            $st = $pdo->prepare(
+                'SELECT COUNT(*) FROM information_schema.COLUMNS
+                  WHERE TABLE_SCHEMA = :db AND TABLE_NAME = :tn AND COLUMN_NAME = :cn'
+            );
+            $st->execute([':db' => $db, ':tn' => 'sh_ksef_invoice_lines', ':cn' => 'line_type']);
+            self::$lineTypeColumnExists = ((int) $st->fetchColumn()) > 0;
+        } catch (\Throwable $e) {
+            self::$lineTypeColumnExists = false;
+        }
+
+        return self::$lineTypeColumnExists;
     }
 
     public static function isMysqlDuplicateKey(\Throwable $e): bool

@@ -127,6 +127,24 @@ function inboxKsefLineHasOpexColumns(PDO $pdo): bool
     return $cache;
 }
 
+/**
+ * Parsuje DECIMAL z bazy / FA (przecinek dziesiętny) do float dla PzEngine.
+ */
+function inboxDecimalToFloat(mixed $raw): float
+{
+    if (is_int($raw) || is_float($raw)) {
+        return (float) $raw;
+    }
+    $s = trim((string) $raw);
+    if ($s === '') {
+        return 0.0;
+    }
+    $s = str_replace(["\xC2\xA0", ' '], '', $s);
+    $s = str_replace(',', '.', $s);
+
+    return (float) $s;
+}
+
 function inboxExpenseCategoryValid(PDO $pdo, int $tenantId, int $categoryId): bool
 {
     if ($categoryId <= 0) {
@@ -213,7 +231,7 @@ function inboxAudit(
 function inboxRescanLines(PDO $pdo, int $tenantId, int $invoiceId): array
 {
     $invOnly = inboxKsefLineHasOpexColumns($pdo)
-        ? " AND line_type = 'INVENTORY' "
+        ? " AND COALESCE(line_type, 'INVENTORY') = 'INVENTORY' "
         : '';
     $st = $pdo->prepare(
         "SELECT id, line_no, external_name FROM sh_ksef_invoice_lines
@@ -838,7 +856,7 @@ try {
                             inboxFail(400, 'EXPENSE_CATEGORY_REQUIRED',
                                 'Linia ' . (int) $l['line_no'] . ' (EXPENSE): wybierz kategorię kosztu OPEX.');
                         }
-                    } elseif (empty($l['resolved_sku'])) {
+                    } elseif (trim((string) ($l['resolved_sku'] ?? '')) === '') {
                         inboxFail(400, 'UNRESOLVED_LINES',
                             'Linia ' . (int) $l['line_no'] . ' (INVENTORY): brak SKU — dopasuj lub zmień typ na EXPENSE.');
                     }
@@ -847,15 +865,28 @@ try {
                 $pzLines = [];
                 foreach ($lines as $l) {
                     $lt = strtoupper((string) ($l['line_type'] ?? 'INVENTORY'));
+                    if (!in_array($lt, ['INVENTORY', 'EXPENSE'], true)) {
+                        $lt = 'INVENTORY';
+                    }
                     if ($lt === 'EXPENSE') {
                         continue;
                     }
+                    $sku = trim((string) ($l['resolved_sku'] ?? ''));
+                    if ($sku === '') {
+                        inboxFail(500, 'PZ_LINE_INTERNAL', 'Linia ' . (int) $l['line_no'] . ': brak SKU po walidacji — zgłoś do admina.');
+                    }
+                    $qty = inboxDecimalToFloat($l['qty'] ?? 0);
+                    $unc = inboxDecimalToFloat($l['unit_net'] ?? 0);
+                    if ($qty <= 0) {
+                        inboxFail(400, 'INVALID_LINE_QTY',
+                            'Linia ' . (int) $l['line_no'] . ' (INVENTORY): ilość musi być > 0 (obecnie: ' . (string) ($l['qty'] ?? '') . ').');
+                    }
                     $pzLines[] = [
-                        'external_name' => $l['external_name'],
-                        'resolved_sku'  => $l['resolved_sku'],
-                        'quantity'      => (float) $l['qty'],
-                        'unit_net_cost' => (float) $l['unit_net'],
-                        'vat_rate'      => (float) $l['vat_rate'],
+                        'external_name' => (string) ($l['external_name'] ?? ''),
+                        'resolved_sku'  => $sku,
+                        'quantity'      => $qty,
+                        'unit_net_cost' => $unc,
+                        'vat_rate'      => inboxDecimalToFloat($l['vat_rate'] ?? 0),
                     ];
                 }
 
@@ -989,7 +1020,7 @@ try {
             if (!inboxCostCategoryIsOverhead($costCategory)) {
                 $unresolved = [];
                 foreach ($lines as $l) {
-                    if (empty($l['resolved_sku'])) {
+                    if (trim((string) ($l['resolved_sku'] ?? '')) === '') {
                         $unresolved[] = ['line_no' => $l['line_no'], 'external_name' => $l['external_name']];
                     }
                 }
@@ -1002,12 +1033,22 @@ try {
 
                 $pzLines = [];
                 foreach ($lines as $l) {
+                    $sku = trim((string) ($l['resolved_sku'] ?? ''));
+                    if ($sku === '') {
+                        continue;
+                    }
+                    $qty = inboxDecimalToFloat($l['qty'] ?? 0);
+                    $unc = inboxDecimalToFloat($l['unit_net'] ?? 0);
+                    if ($qty <= 0) {
+                        inboxFail(400, 'INVALID_LINE_QTY',
+                            'Linia ' . (int) $l['line_no'] . ': ilość musi być > 0 (obecnie: ' . (string) ($l['qty'] ?? '') . ').');
+                    }
                     $pzLines[] = [
-                        'external_name' => $l['external_name'],
-                        'resolved_sku'  => $l['resolved_sku'],
-                        'quantity'      => (float) $l['qty'],
-                        'unit_net_cost' => (float) $l['unit_net'],
-                        'vat_rate'      => (float) $l['vat_rate'],
+                        'external_name' => (string) ($l['external_name'] ?? ''),
+                        'resolved_sku'  => $sku,
+                        'quantity'      => $qty,
+                        'unit_net_cost' => $unc,
+                        'vat_rate'      => inboxDecimalToFloat($l['vat_rate'] ?? 0),
                     ];
                 }
 
