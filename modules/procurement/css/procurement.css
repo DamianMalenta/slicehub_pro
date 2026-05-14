@@ -444,3 +444,52 @@ html, body {
     color: #94a3b8;
     font-family: ui-monospace, monospace;
 }
+
+/* Kategoria kosztu (KSeF inbox) */
+.pi-cost-cat-row {
+    margin: 0.75rem 0 1rem;
+    padding: 0.65rem 0.85rem;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.pi-cost-cat-label {
+    display: block;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #94a3b8;
+    margin-bottom: 0.35rem;
+}
+.pi-cost-cat-select {
+    width: 100%;
+    max-width: 22rem;
+    padding: 0.45rem 0.55rem;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(15, 23, 42, 0.85);
+    color: #e2e8f0;
+    font-size: 0.85rem;
+}
+.pi-cost-cat-select:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+.pi-cost-cat-hint {
+    margin: 0.45rem 0 0;
+    font-size: 0.78rem;
+    color: #94a3b8;
+    line-height: 1.35;
+}
+.pi-inline-cost-cat {
+    margin-top: 0.25rem;
+    font-size: 0.68rem;
+    color: #a5b4fc;
+    font-weight: 500;
+}
+.pi-inline-cost-only {
+    display: inline-block;
+    font-size: 0.72rem;
+    color: #c4b5fd;
+}
+.pi-inline-cost-only i { margin-right: 0.2rem; }

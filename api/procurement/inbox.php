@@ -28,7 +28,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
  *                      lub `duplicate_resolution: replace` (nie dla accepted + PZ).
  *   - reparse        — ponowny AutoScan match (po dodaniu nowych aliasów / mappingów)
  *   - update_line    — manual override resolved_sku per linia (przed accept)
- *   - accept         — utwórz PZ przez PzEngine + auto-learn ALIAS mappings + status=accepted
+ *   - set_cost_category — kategoria kosztu (magazyn/media/uslugi/inne) dla draft/error
+ *   - accept         — magazyn: PzEngine + PZ; inne kategorie: akceptacja bez PZ (ewidencja kosztu)
  *   - reject         — soft-reject (status=rejected, rejected_reason)
  *
  * AUTH (Konstytucja v5 § Prawo IV):
@@ -76,6 +77,25 @@ function inboxFail(int $httpCode, string $code, ?string $msg = null): void
 {
     http_response_code($httpCode);
     inboxResponse(false, null, $msg ?? $code, $code);
+}
+
+/** @return list<string> */
+function inboxCostCategoryKeys(): array
+{
+    return ['magazyn', 'media', 'uslugi', 'inne'];
+}
+
+function inboxSanitizeCostCategory(mixed $raw): string
+{
+    $c = strtolower(trim((string) $raw));
+
+    return in_array($c, inboxCostCategoryKeys(), true) ? $c : 'magazyn';
+}
+
+/** Koszt poza magazynem — akceptacja bez PZ. */
+function inboxCostCategoryIsOverhead(string $category): bool
+{
+    return $category !== '' && $category !== 'magazyn';
 }
 
 /** Znajdź istniejącą fakturę (ten sam tenant + numer FA + NIP dostawcy — cyfry). */
@@ -221,7 +241,7 @@ try {
             $limit = max(1, min((int) ($input['limit'] ?? 50), 200));
 
             $sql = "SELECT id, supplier_nip, supplier_name, invoice_number, issue_date,
-                           sale_date, total_gross_minor, status, status_message,
+                           sale_date, total_gross_minor, status, cost_category, status_message,
                            linked_wh_document_id, fetched_at, processed_at
                       FROM sh_ksef_invoices
                      WHERE tenant_id = :tid";
@@ -230,7 +250,9 @@ try {
                 $sql .= " AND status = :st";
                 $params[':st'] = $status;
             }
-            $sql .= " ORDER BY fetched_at DESC LIMIT {$limit}";
+            $sql .= " ORDER BY CASE status WHEN 'draft' THEN 1 WHEN 'accepted' THEN 2 WHEN 'rejected' THEN 3 ELSE 4 END,
+                      COALESCE(issue_date, DATE(fetched_at)) DESC, id DESC
+                      LIMIT {$limit}";
             $st = $pdo->prepare($sql);
             $st->execute($params);
             $rows = $st->fetchAll(PDO::FETCH_ASSOC);
@@ -471,18 +493,42 @@ try {
         }
 
         // ---------------------------------------------------------------------
+        case 'set_cost_category': {
+            inboxRequireRole($actorRole, ['owner', 'manager']);
+            $iid = (int) ($input['invoice_id'] ?? 0);
+            $cat = inboxSanitizeCostCategory($input['cost_category'] ?? 'magazyn');
+            if ($iid <= 0) inboxFail(400, 'INVALID_INVOICE_ID');
+
+            $st = $pdo->prepare("SELECT status FROM sh_ksef_invoices WHERE id = :id AND tenant_id = :tid LIMIT 1");
+            $st->execute([':id' => $iid, ':tid' => $tenant_id]);
+            $status = $st->fetchColumn();
+            if ($status === false) inboxFail(404, 'NOT_FOUND');
+            if (!in_array((string) $status, ['draft', 'error'], true)) {
+                inboxFail(400, 'BAD_STATUS', 'Kategorię można zmienić tylko dla faktur w statusie „Nowe” lub „Błąd”.');
+            }
+
+            $pdo->prepare(
+                "UPDATE sh_ksef_invoices SET cost_category = :cc WHERE id = :id AND tenant_id = :tid"
+            )->execute([':cc' => $cat, ':id' => $iid, ':tid' => $tenant_id]);
+
+            inboxResponse(true, ['invoice_id' => $iid, 'cost_category' => $cat], 'Kategoria kosztu zapisana.');
+            break;
+        }
+
+        // ---------------------------------------------------------------------
         case 'accept': {
             inboxRequireRole($actorRole, ['owner', 'manager']);
             $iid = (int) ($input['invoice_id'] ?? 0);
             $warehouseId = trim((string) ($input['warehouse_id'] ?? 'MAIN'));
             if ($iid <= 0) inboxFail(400, 'INVALID_INVOICE_ID');
 
-            // Załaduj fakturę + linie
             $inv = $pdo->prepare("SELECT * FROM sh_ksef_invoices WHERE id = :id AND tenant_id = :tid LIMIT 1");
             $inv->execute([':id' => $iid, ':tid' => $tenant_id]);
             $invoice = $inv->fetch(PDO::FETCH_ASSOC);
             if (!$invoice) inboxFail(404, 'NOT_FOUND');
             if ($invoice['status'] === 'accepted') inboxFail(400, 'ALREADY_ACCEPTED');
+
+            $costCategory = inboxSanitizeCostCategory($input['cost_category'] ?? ($invoice['cost_category'] ?? 'magazyn'));
 
             $linesSt = $pdo->prepare(
                 "SELECT id, line_no, external_name, qty, unit_net, vat_rate, resolved_sku, match_confidence
@@ -491,68 +537,101 @@ try {
             $linesSt->execute([':iid' => $iid]);
             $lines = $linesSt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Walidacja: wszystkie linie muszą mieć resolved_sku
-            $unresolved = [];
-            foreach ($lines as $l) {
-                if (empty($l['resolved_sku'])) {
-                    $unresolved[] = ['line_no' => $l['line_no'], 'external_name' => $l['external_name']];
+            if (!inboxCostCategoryIsOverhead($costCategory)) {
+                $unresolved = [];
+                foreach ($lines as $l) {
+                    if (empty($l['resolved_sku'])) {
+                        $unresolved[] = ['line_no' => $l['line_no'], 'external_name' => $l['external_name']];
+                    }
                 }
-            }
-            if ($unresolved !== []) {
-                inboxFail(400, 'UNRESOLVED_LINES',
-                    'Nie wszystkie linie mają zmapowany SKU. Użyj update_line lub reparse najpierw. Niedopasowane: '
-                    . count($unresolved));
+                if ($unresolved !== []) {
+                    inboxFail(400, 'UNRESOLVED_LINES',
+                        'Nie wszystkie linie mają zmapowany SKU (wymagane dla kategorii „Magazyn”). '
+                        . 'Zmień „Kategorię kosztu” na np. „Media / energia”, aby zaakceptować bez magazynu, albo dopasuj SKU. '
+                        . 'Niedopasowanych linii: ' . count($unresolved));
+                }
+
+                $pzLines = [];
+                foreach ($lines as $l) {
+                    $pzLines[] = [
+                        'external_name' => $l['external_name'],
+                        'resolved_sku'  => $l['resolved_sku'],
+                        'quantity'      => (float) $l['qty'],
+                        'unit_net_cost' => (float) $l['unit_net'],
+                        'vat_rate'      => (float) $l['vat_rate'],
+                    ];
+                }
+
+                try {
+                    $pzResult = PzEngine::processReceipt(
+                        $pdo, $tenant_id, $warehouseId,
+                        [
+                            'supplier_name'    => $invoice['supplier_name'],
+                            'supplier_invoice' => $invoice['invoice_number'],
+                            'lines'            => $pzLines,
+                        ],
+                        (string) $user_id
+                    );
+                } catch (\Throwable $e) {
+                    inboxFail(500, 'PZ_FAILED', 'PZ nie został utworzony: ' . $e->getMessage());
+                }
+
+                $pzDocId = (int) ($pzResult['pz_document']['doc_id'] ?? 0);
+
+                $pdo->prepare(
+                    "UPDATE sh_ksef_invoices
+                        SET status = 'accepted',
+                            cost_category = :cc,
+                            linked_wh_document_id = :pzid,
+                            processed_at = NOW(),
+                            processed_by_user_id = :uid
+                      WHERE id = :id AND tenant_id = :tid"
+                )->execute([
+                    ':cc' => $costCategory, ':pzid' => $pzDocId,
+                    ':uid' => $user_id, ':id' => $iid, ':tid' => $tenant_id,
+                ]);
+
+                inboxAudit($pdo, $tenant_id, $user_id, 'ksef_accept', $iid, [
+                    'pz_doc_id'     => $pzDocId,
+                    'pz_doc_number' => $pzResult['pz_document']['doc_number'] ?? '',
+                    'auto_learned'  => $pzResult['pz_document']['auto_learned'] ?? 0,
+                    'lines_count'   => count($pzLines),
+                    'cost_category' => $costCategory,
+                ]);
+
+                inboxResponse(true, [
+                    'invoice_id'    => $iid,
+                    'pz_document'   => $pzResult['pz_document'],
+                    'cost_category' => $costCategory,
+                ], 'Zaakceptowane → PZ ' . ($pzResult['pz_document']['doc_number'] ?? '?'));
+                break;
             }
 
-            // Konstruuj payload dla PzEngine
-            $pzLines = [];
-            foreach ($lines as $l) {
-                $pzLines[] = [
-                    'external_name' => $l['external_name'],
-                    'resolved_sku'  => $l['resolved_sku'],
-                    'quantity'      => (float) $l['qty'],
-                    'unit_net_cost' => (float) $l['unit_net'],
-                    'vat_rate'      => (float) $l['vat_rate'],
-                ];
-            }
-
-            try {
-                $pzResult = PzEngine::processReceipt(
-                    $pdo, $tenant_id, $warehouseId,
-                    [
-                        'supplier_name'    => $invoice['supplier_name'],
-                        'supplier_invoice' => $invoice['invoice_number'],
-                        'lines'            => $pzLines,
-                    ],
-                    (string) $user_id
-                );
-            } catch (\Throwable $e) {
-                inboxFail(500, 'PZ_FAILED', 'PZ nie został utworzony: ' . $e->getMessage());
-            }
-
-            $pzDocId = (int) ($pzResult['pz_document']['doc_id'] ?? 0);
-
-            // Update faktury: status=accepted, link do PZ
+            // Koszt operacyjny (media / usługi / inne) — bez PZ, na potrzeby ewidencji i statystyk
             $pdo->prepare(
                 "UPDATE sh_ksef_invoices
                     SET status = 'accepted',
-                        linked_wh_document_id = :pzid,
+                        cost_category = :cc,
+                        linked_wh_document_id = NULL,
                         processed_at = NOW(),
                         processed_by_user_id = :uid
                   WHERE id = :id AND tenant_id = :tid"
-            )->execute([':pzid' => $pzDocId, ':uid' => $user_id, ':id' => $iid, ':tid' => $tenant_id]);
+            )->execute([
+                ':cc' => $costCategory, ':uid' => $user_id,
+                ':id' => $iid, ':tid' => $tenant_id,
+            ]);
 
-            inboxAudit($pdo, $tenant_id, $user_id, 'ksef_accept', $iid, [
-                'pz_doc_id'     => $pzDocId,
-                'pz_doc_number' => $pzResult['pz_document']['doc_number'] ?? '',
-                'auto_learned'  => $pzResult['pz_document']['auto_learned'] ?? 0,
-                'lines_count'   => count($pzLines),
+            inboxAudit($pdo, $tenant_id, $user_id, 'ksef_accept_cost', $iid, [
+                'cost_category' => $costCategory,
+                'lines_count'   => count($lines),
             ]);
 
             inboxResponse(true, [
-                'invoice_id'   => $iid,
-                'pz_document'  => $pzResult['pz_document'],
-            ], 'Zaakceptowane → PZ ' . ($pzResult['pz_document']['doc_number'] ?? '?'));
+                'invoice_id'    => $iid,
+                'pz_document'   => null,
+                'cost_only'     => true,
+                'cost_category' => $costCategory,
+            ], 'Zaakceptowano jako koszt operacyjny (bez PZ).');
             break;
         }
 
@@ -636,7 +715,7 @@ try {
             if ($iid <= 0) inboxFail(400, 'INVALID_INVOICE_ID');
 
             $invSt = $pdo->prepare(
-                "SELECT id, status, linked_wh_document_id FROM sh_ksef_invoices WHERE id = :id AND tenant_id = :tid LIMIT 1"
+                "SELECT id, status, linked_wh_document_id, cost_category FROM sh_ksef_invoices WHERE id = :id AND tenant_id = :tid LIMIT 1"
             );
             $invSt->execute([':id' => $iid, ':tid' => $tenant_id]);
             $inv = $invSt->fetch(PDO::FETCH_ASSOC);
@@ -644,8 +723,33 @@ try {
             if ($inv['status'] !== 'accepted') {
                 inboxFail(400, 'NOT_ACCEPTED', 'Można wycofać tylko zaakceptowane faktury (obecnie: ' . $inv['status'] . ').');
             }
+
+            // Faktura kosztowa bez PZ — cofamy tylko status (brak KOR / magazynu)
             if (empty($inv['linked_wh_document_id'])) {
-                inboxFail(400, 'NO_PZ', 'Faktura nie ma powiązanego PZ — nie można wycofać.');
+                $msg = 'Wycofanie akceptacji (koszt bez PZ)' . ($reason ? ': ' . $reason : '');
+                $stRev = $pdo->prepare(
+                    "UPDATE sh_ksef_invoices
+                        SET status = 'draft',
+                            linked_wh_document_id = NULL,
+                            processed_at = NULL,
+                            processed_by_user_id = NULL,
+                            status_message = :msg
+                      WHERE id = :id AND tenant_id = :tid AND status = 'accepted'"
+                );
+                $stRev->execute([':msg' => $msg, ':id' => $iid, ':tid' => $tenant_id]);
+                if ($stRev->rowCount() === 0) {
+                    inboxFail(400, 'REVERSE_FAILED', 'Nie udało się cofnąć akceptacji.');
+                }
+                inboxAudit($pdo, $tenant_id, $user_id, 'ksef_reverse_cost', $iid, [
+                    'reason'         => $reason,
+                    'cost_category'  => $inv['cost_category'] ?? 'magazyn',
+                ]);
+                inboxResponse(true, [
+                    'invoice_id' => $iid,
+                    'status'     => 'draft',
+                    'cost_only'  => true,
+                ], 'Faktura wróciła do statusu „Nowe” (bez zmian w magazynie — brak PZ).');
+                break;
             }
 
             $pzDocId = (int) $inv['linked_wh_document_id'];

@@ -66,4 +66,5 @@ return [
     '053_subrecipes.sql',
     '054_order_line_combo_meta.sql',
     '055_recipe_display_order.sql',
+    '056_ksef_invoice_cost_category.sql',
 ];

@@ -7,7 +7,7 @@
  *   2. Lista invoices ładuje się przez `list` action (stats badge).
  *   3. Klik na row → modal z `show` action: invoice + lines + match.
  *   4. Per linia: combobox SKU (wyszukiwarka + lista) — zapis przez **Zapisz zmiany** lub przed Rescan / Akceptuj.
- *   5. Klik "Akceptuj" → `accept` action → PzEngine utworzy PZ → stany rosną.
+ *   5. Klik "Akceptuj" → `accept` (magazyn: PZ; inne kategorie: koszt bez PZ).
  */
 (function () {
     'use strict';
@@ -16,6 +16,21 @@
     const SUGGEST_ENDPOINT = '/api/procurement/suggest.php';
     const $ = (s) => document.querySelector(s);
     const $$ = (s) => Array.from(document.querySelectorAll(s));
+
+    const STATUS_LABELS = {
+        draft: 'Nowe',
+        accepted: 'Zaakceptowane',
+        rejected: 'Odrzucone',
+        error: 'Błąd',
+        new: 'Nowe',
+        parsing: 'Parsowanie',
+    };
+    const COST_CATEGORY_LABELS = {
+        magazyn: 'Magazyn (PZ)',
+        media: 'Media / energia',
+        uslugi: 'Usługi',
+        inne: 'Inne koszty',
+    };
 
     let state = {
         loaded: false,
@@ -441,7 +456,7 @@
             el.innerHTML = `
                 <div class="pi-empty">
                     <i class="fa-solid fa-inbox"></i>
-                    <div>Brak faktur w inbox-ie${state.filterStatus ? ' (filtr: ' + state.filterStatus + ')' : ''}.</div>
+                    <div>Brak faktur w inbox-ie${state.filterStatus ? ' (filtr: ' + escapeHtml(STATUS_LABELS[state.filterStatus] || state.filterStatus) + ')' : ''}.</div>
                     <div class="pi-empty-hint">Wgraj FA(2) XML przez drop-zone powyżej.</div>
                 </div>`;
             return;
@@ -459,8 +474,17 @@
                 <div class="pi-invoice-amount${(parseInt(inv.total_gross_minor, 10) || 0) === 0 ? ' pi-invoice-amount--zero' : ''}">
                     ${formatPLN(inv.total_gross_minor)}
                 </div>
-                <div>${renderStatusPill(inv.status)}</div>
-                <div>${inv.linked_wh_document_id ? '<span style="color:#86efac;font-size:0.75rem"><i class="fa-solid fa-link"></i> PZ #' + inv.linked_wh_document_id + '</span>' : ''}</div>
+                <div>
+                    ${renderStatusPill(inv.status)}
+                    ${inv.cost_category && inv.cost_category !== 'magazyn' ? `<div class="pi-inline-cost-cat">${escapeHtml(COST_CATEGORY_LABELS[inv.cost_category] || inv.cost_category)}</div>` : ''}
+                </div>
+                <div>${
+                    inv.status === 'accepted'
+                        ? (inv.linked_wh_document_id
+                            ? '<span style="color:#86efac;font-size:0.75rem"><i class="fa-solid fa-link"></i> PZ #' + escapeHtml(String(inv.linked_wh_document_id)) + '</span>'
+                            : '<span class="pi-inline-cost-only"><i class="fa-solid fa-chart-pie"></i> Koszt (bez PZ)</span>')
+                        : ''
+                }</div>
                 <div><i class="fa-solid fa-chevron-right" style="color:#64748b"></i></div>
             </div>
         `).join('');
@@ -471,8 +495,10 @@
     }
 
     function renderStatusPill(status) {
-        const cls = 'pi-status-pill--' + (status || 'draft');
-        return `<span class="pi-status-pill ${cls}">${escapeHtml(status || 'draft')}</span>`;
+        const raw = status || 'draft';
+        const cls = 'pi-status-pill--' + raw;
+        const label = STATUS_LABELS[raw] || raw;
+        return `<span class="pi-status-pill ${cls}">${escapeHtml(label)}</span>`;
     }
 
     // -------------------------------------------------------------------------
@@ -505,6 +531,33 @@
         state.currentLines = [];
     }
 
+    function updateCostCategoryHint() {
+        const hint = $('#pi-modal-cost-hint');
+        const inv = state.currentInvoice;
+        if (!hint || !inv) return;
+        const c = inv.cost_category || 'magazyn';
+        if (c === 'magazyn') {
+            hint.textContent = 'Akceptacja w tej kategorii utworzy PZ — wymagane SKU na wszystkich liniach.';
+        } else {
+            hint.textContent = 'Koszt operacyjny: możesz zaakceptować bez PZ; SKU na liniach jest opcjonalne. Kwoty z nagłówka posłużą do podziału kosztów w statystykach.';
+        }
+    }
+
+    async function onModalCostCategoryChange() {
+        const inv = state.currentInvoice;
+        const sel = $('#pi-modal-cost-category');
+        if (!inv || !sel) return;
+        const r = await api('set_cost_category', { invoice_id: inv.id, cost_category: sel.value });
+        if (!r.success) {
+            showError(r.message || 'Nie zapisano kategorii.');
+            sel.value = inv.cost_category || 'magazyn';
+            return;
+        }
+        inv.cost_category = sel.value;
+        showSuccess('Kategoria kosztu zapisana.');
+        await openInvoice(inv.id);
+    }
+
     function renderInvoiceDetails() {
         const inv = state.currentInvoice;
         const lines = state.currentLines;
@@ -518,7 +571,7 @@
         $('#pi-modal-title').textContent = inv.invoice_number || 'Faktura';
         $('#pi-modal-sub').textContent =
             (inv.supplier_name || '— bez nazwy —') + ' · NIP ' + (inv.supplier_nip || '?') +
-            (inv.status ? ' · ' + inv.status : '');
+            (inv.status ? ' · ' + (STATUS_LABELS[inv.status] || inv.status) : '');
 
         const stats = lines.reduce((s, l) => {
             const mt = l.match_type || 'NONE';
@@ -528,6 +581,13 @@
         const unresolved = lines.filter(l => !l.resolved_sku).length;
         const isAccepted = inv.status === 'accepted';
         const isRejected = inv.status === 'rejected';
+        const costCat = inv.cost_category || 'magazyn';
+        const overhead = costCat !== 'magazyn';
+
+        const costOptionKeys = ['magazyn', 'media', 'uslugi', 'inne'];
+        const costOptsHtml = costOptionKeys.map(k =>
+            `<option value="${k}">${escapeHtml(COST_CATEGORY_LABELS[k] || k)}</option>`
+        ).join('');
 
         let html = `
             <div class="pi-detail-grid">
@@ -547,7 +607,16 @@
                 ${stats.FUZZY ? `<span class="pi-match-stats-badge pi-match-pill--FUZZY">FUZZY ${stats.FUZZY}</span>` : ''}
                 ${stats.NONE ? `<span class="pi-match-stats-badge pi-match-pill--NONE">NONE ${stats.NONE}</span>` : ''}
                 ${stats.MANUAL ? `<span class="pi-match-stats-badge pi-match-pill--MANUAL">MANUAL ${stats.MANUAL}</span>` : ''}
-                ${unresolved > 0 ? `<span style="color:#f87171;margin-left:auto"><i class="fa-solid fa-triangle-exclamation"></i> ${unresolved} bez SKU — musisz wybrać przed akceptacją</span>` : ''}
+                ${!overhead && unresolved > 0 ? `<span style="color:#f87171;margin-left:auto"><i class="fa-solid fa-triangle-exclamation"></i> ${unresolved} bez SKU — wymagane przed akceptacją (kategoria „Magazyn”)</span>` : ''}
+                ${overhead ? `<span style="color:#94a3b8;margin-left:auto;font-size:0.78rem"><i class="fa-solid fa-circle-info"></i> Tryb kosztowy — SKU opcjonalne; akceptacja bez PZ.</span>` : ''}
+            </div>
+
+            <div class="pi-cost-cat-row">
+                <label class="pi-cost-cat-label" for="pi-modal-cost-category">Kategoria kosztu</label>
+                <select id="pi-modal-cost-category" class="pi-cost-cat-select"${isAccepted || isRejected ? ' disabled' : ''}>
+                    ${costOptsHtml}
+                </select>
+                <p id="pi-modal-cost-hint" class="pi-cost-cat-hint"></p>
             </div>
 
             <table class="pi-lines-table">
@@ -605,6 +674,15 @@
 
         $('#pi-modal-body').innerHTML = html;
 
+        const costSel = $('#pi-modal-cost-category');
+        if (costSel) {
+            costSel.value = costCat;
+            if (!isAccepted && !isRejected) {
+                costSel.addEventListener('change', onModalCostCategoryChange);
+            }
+        }
+        updateCostCategoryHint();
+
         attachSkuCombos($('#pi-modal-body'));
 
         // Lock buttons gdy accepted/rejected
@@ -625,6 +703,9 @@
                 $('#pi-modal-accept').parentElement.insertBefore(reverseBtn, $('#pi-modal-accept'));
                 reverseBtn.addEventListener('click', handleReverse);
             }
+            reverseBtn.innerHTML = inv.linked_wh_document_id
+                ? '<i class="fa-solid fa-rotate-left"></i> Wycofaj PZ (KOR)'
+                : '<i class="fa-solid fa-rotate-left"></i> Cofnij akceptację';
             reverseBtn.style.display = '';
         } else if (reverseBtn) {
             reverseBtn.style.display = 'none';
@@ -804,19 +885,36 @@
 
         $('#pi-modal-accept').addEventListener('click', async () => {
             if (!state.currentInvoice) return;
+            const inv = state.currentInvoice;
             const flush = await savePendingLineSkus();
             if (!flush.ok) {
                 showError(flush.message || 'Nie udało się zapisać zmian na liniach.');
                 return;
             }
-            if (!confirm('Akceptujesz fakturę? Powstanie PZ + stany magazynowe wzrosną.')) return;
-            const r = await api('accept', { invoice_id: state.currentInvoice.id, warehouse_id: 'MAIN' });
+            const catSel = $('#pi-modal-cost-category');
+            const costCategory = catSel ? catSel.value : (inv.cost_category || 'magazyn');
+            const overhead = costCategory !== 'magazyn';
+            const msgMag = 'Akceptujesz fakturę w kategorii „Magazyn”? Powstanie PZ i stany magazynowe wzrosną.';
+            const msgOh = 'Akceptujesz fakturę jako koszt operacyjny („' + (COST_CATEGORY_LABELS[costCategory] || costCategory) + '”)? Bez dokumentu PZ — tylko ewidencja na statystyki.';
+            if (!confirm(overhead ? msgOh : msgMag)) return;
+            const r = await api('accept', {
+                invoice_id: inv.id,
+                warehouse_id: 'MAIN',
+                cost_category: costCategory,
+            });
             if (!r.success) {
                 showError(r.message || 'Akceptacja padła.');
                 return;
             }
-            const pz = r.data.pz_document;
-            alert(`✓ PZ utworzony: ${pz.doc_number}\n${pz.auto_learned > 0 ? '🧠 AutoScan zapamiętał ' + pz.auto_learned + ' nowych mapowań.' : ''}`);
+            if (r.data.cost_only) {
+                const lbl = COST_CATEGORY_LABELS[r.data.cost_category] || r.data.cost_category;
+                alert('✓ Zaakceptowano jako koszt (bez PZ).\nKategoria: ' + lbl + '.\nKwoty w nagłówku zachowane do przyszłego modułu statystyk.');
+            } else {
+                const pz = r.data.pz_document;
+                const pzNum = pz && pz.doc_number ? pz.doc_number : '?';
+                const learned = pz && pz.auto_learned > 0 ? '\n\n🧠 AutoScan zapamiętał ' + pz.auto_learned + ' nowych mapowań.' : '';
+                alert('✓ PZ utworzony: ' + pzNum + learned);
+            }
             closeModal();
             loadList();
         });
@@ -953,12 +1051,23 @@
     // -------------------------------------------------------------------------
     async function handleReverse() {
         if (!state.currentInvoice) return;
-        const reason = prompt('Powód wycofania (KOR + reverse magazynu):');
+        const inv = state.currentInvoice;
+        const costOnly = inv.status === 'accepted' && !inv.linked_wh_document_id;
+        const reason = costOnly
+            ? prompt('Powód cofnięcia akceptacji (bez PZ, bez magazynu):')
+            : prompt('Powód wycofania (KOR + reverse magazynu):');
         if (reason === null) return;
-        if (!confirm('Wycofać zaakceptowaną fakturę? Magazyn zostanie pomniejszony przez KOR, faktura wróci do statusu "draft".')) return;
-        const r = await api('reverse', { invoice_id: state.currentInvoice.id, reason });
+        const confirmMsg = costOnly
+            ? 'Cofnąć akceptację? Faktura wróci do „Nowe” — magazyn bez zmian (brak PZ).'
+            : 'Wycofać zaakceptowaną fakturę? Magazyn zostanie pomniejszony przez KOR, faktura wróci do statusu „Nowe”.';
+        if (!confirm(confirmMsg)) return;
+        const r = await api('reverse', { invoice_id: inv.id, reason });
         if (!r.success) { showError(r.message || 'Reverse padł.'); return; }
-        alert(`✓ Wycofano. KOR ${r.data.kor_doc_number} utworzony.`);
+        if (costOnly || r.data.cost_only) {
+            alert('✓ Cofnięto akceptację. Faktura wróciła do „Nowe”.');
+        } else {
+            alert(`✓ Wycofano. KOR ${r.data.kor_doc_number} utworzony.`);
+        }
         closeModal();
         loadList();
     }
