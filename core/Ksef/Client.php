@@ -183,12 +183,12 @@ class Client
             ];
         }
 
-        $probe = $this->requestWithAccessToken('GET', '/sessions', null, []);
+        $probe = $this->requestWithAccessToken('GET', '/rate-limits', null, []);
         if ($probe['code'] >= 200 && $probe['code'] < 300) {
             return [
                 'success'     => true,
                 'environment' => $this->environment,
-                'message'     => "Połączenie z KSeF API v2 ({$this->environment}) OK.",
+                'message'     => "Połączenie z KSeF API v2 ({$this->environment}) OK — uwierzytelnianie i limiter odpowiedziały poprawnie.",
                 'http_code'   => $probe['code'],
             ];
         }
@@ -196,7 +196,7 @@ class Client
         return [
             'success'     => false,
             'environment' => $this->environment,
-            'message'     => $this->formatHttpFailure('GET /sessions', $probe),
+            'message'     => $this->formatHttpFailure('GET /rate-limits', $probe),
             'http_code'   => $probe['code'],
         ];
     }
