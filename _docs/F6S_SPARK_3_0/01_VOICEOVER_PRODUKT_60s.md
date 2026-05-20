@@ -1,53 +1,37 @@
-# Product Video — teleprompter PL (≤ 60 s)
+# Product Video — teleprompter PL (≤ 60 s) · wersja 2026-05-20
 
-**Format:** głos lektora (Ty) + nagranie ekranu. Tempo: **~2,6 sylaby na sekundę** (spokojny lektor PL).  
-**Baza URL:** zamień `https://[TWOJA-DOMENA]/` na realny host z seedem (`seed_demo_all.php` — `_docs/DEPLOYMENT_HOSTING.md`).
+> **Ważne:** pierwsze nagranie nie pokazywało kasy z koszykiem — poniższy storyboard wymusza **ujęcie POS z pozycjami** (min. 8 sekund).
 
----
-
-## 0:00–0:60 — jeden ciągły blok (do czytania na jednym wdechu w częściach)
-
-> SliceHub Enterprise to system operacyjny gastronomii: jedna platforma na sklep klienta, kasę, kuchnię, magazyn i dostawy.  
-> Klient widzi storefront — wejście do marki i menu — zamiast płaskiego katalogu.  
-> W kasie koszyk liczy serwer: Ty wybierasz dania, system przelicza cenę zgodnie z kanałem.  
-> Ceny są omnichannel: sala, wynos i dostawa mogą się różnić — to jest w DNA produktu.  
-> Logistyka łączy dyspozytora z aplikacją kierowcy: status zamówienia, płatność i dostawa są ze sobą zgodne.  
-> Integracje idą przez jeden bus zdarzeń do webhooków i gotowych adapterów dla popularnych POS.  
-> SliceHub: mniej chaosu narzędzi, więcej kontroli marży. Zobacz slicehub.pro.
-
-**Długość odczytu:** ~52–58 s przy normalnym tempie. Jeśli masz zapas czasu, po „marży” dodaj półsekundy pauzy przed ostatnim zdaniem.
+**Host:** https://slicehub.net · Login: Damian / Dammalq123123 · POS PIN: 1111
 
 ---
 
-## Sekunda po sekundzie — co pokazywać na ekranie
+## Tekst lektora (PL)
 
-| Czas | Ekran (sugerowany URL / moduł) | Uwaga operatorska |
-|------|----------------------------------|-------------------|
-| 0:00–0:06 | Hub `modules/hub/index.html` po zalogowaniu — kafelki modułów | Scroll lekki po kafelkach |
-| 0:06–0:16 | Online `modules/online/index.html?tenant=1` — wejście, kanały, lista/menu | Klik „Wejdź” / scroll po daniach |
-| 0:16–0:26 | POS — login `waiter1`, PIN z seeda (`1111`) — dodaj 1 pozycję, pokaż koszyk | **Zbliżenie na PIN max 1 s** lub zasłoń w postprodukcji |
-| 0:26–0:36 | Studio `modules/studio/index.html` — drzewo menu **albo** pozycja z podglądem miniatury / receptury | Jeśli brak czasu: 3 s POS + 7 s Studio |
-| 0:36–0:46 | Courses `modules/courses/index.html` — mapa lub lista kursów / kierowcy | Jeśli brak danych dostaw: pokaż UI + jedno zamówienie „ready” z listy |
-| 0:46–0:54 | Settings `modules/settings/` — zakładka integracje / webhooks (bez ujawniania kluczy API) | Scroll po nazwach providerów |
-| 0:54–0:60 | Slajd końcowy (Canva / Figma): logo + **slicehub.pro** + „SliceHub Enterprise” | Czytaj ostatnie zdanie bloku głosowego |
+> Nazywam się Damian Malenta. Zbudowałem SliceHub — jeden system dla restauracji.  
+> Klient zamawia online albo w kasie — widać cały koszyk, nie pusty ekran.  
+> Kuchnia dostaje zamówienia na tablicy. Faktura z KSeF trafia do magazynu w minutach — bez przepisywania.  
+> Dyspozytor widzi kierowców na mapie; kierowca rozlicza dostawę uczciwie.  
+> Na koniec właściciel widzi, czy tydzień się opłaca.  
+> SliceHub działa na slicehub.net. To system operacyjny gastronomii — nie kolejna kasa.
 
 ---
 
-## Wersja angielska (opcjonalnie — międzynarodowi partnerzy)
+## Storyboard — co MUSI być w kadrze
 
-> SliceHub Enterprise is a restaurant operating system: one platform for your storefront, POS, kitchen, warehouse, and delivery.  
-> The customer sees a branded entry and menu—not a flat catalog.  
-> The cart is always calculated on the server; you pick items, the system applies the right channel price.  
-> Omnichannel pricing is built in: dine-in, takeaway, and delivery can differ by design.  
-> Logistics connects dispatch with the driver app: order, payment, and delivery state stay consistent.  
-> Integrations use one event bus to webhooks and adapters for common POS providers.  
-> Less tool chaos, more margin control. slicehub.pro
+| Czas | Ekran | Uwaga |
+|------|-------|-------|
+| 0:00–0:05 | Hub po zalogowaniu | „Jeden ekran startowy” |
+| 0:05–0:12 | Online — menu, badge rozmiaru pizzy | Sklep klienta |
+| **0:12–0:22** | **POS — koszyk z 2–3 pozycjami, sidebar** | **OBOWIĄZKOWE — min. 10 s** |
+| 0:22–0:28 | KDS — tickety | Kuchnia |
+| 0:28–0:35 | Courses — mapa + kierowcy | Dostawy |
+| 0:35–0:42 | KSeF — lista + otwarta faktura (surowiec/OPEX) | KSeF |
+| 0:42–0:48 | BI — liczby P&L | Raport właściciela |
+| 0:48–0:60 | Slajd: slicehub.net + Damian Malenta | Zamknięcie |
 
 ---
 
-## Check audio (przed ostatecznym REC)
+## Konto kierowcy (ujęcie opcjonalne +3 s)
 
-- [ ] Poziom -12 … -6 dBFS szczytowo, brak przesteru.  
-- [ ] Wyłączone powiadomienia, tryb „Nie przeszkadzać”.  
-- [ ] Jedna sesja nagrania ekranu + osobny mikrofon (nie wbudowany z lapka na kolanach — szum).  
-- [ ] Eksport **1080p**, **H.264**, dźwięk 48 kHz.
+Login: `kasia@slicehub.net` / `asdasd` → `/modules/driver_app/` — trasa lub portfel (nie login screen).
