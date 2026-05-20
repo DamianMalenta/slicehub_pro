@@ -26,7 +26,7 @@
 
 ## Wideo (pełna ścieżka procesów)
 
-**Użyj V2** (żywe nagranie, nie sklejka screenshotów): [`../PROMPT_SPARK_NAGRANIE_PROCESY_FORNO_V2.md`](../PROMPT_SPARK_NAGRANIE_PROCESY_FORNO_V2.md)  
+**Użyj V2** (7 procesów + przeklikiwanie, nie losowe zrzuty): [`../PROMPT_SPARK_NAGRANIE_PROCESY_FORNO_V2.md`](../PROMPT_SPARK_NAGRANIE_PROCESY_FORNO_V2.md)  
 Merytoryka + seed: [`../PROMPT_SPARK_NAGRANIE_PROCESY_FORNO.md`](../PROMPT_SPARK_NAGRANIE_PROCESY_FORNO.md) · prep: `scripts/prep_spark_demo_orders.py`
 
 ## Regeneracja

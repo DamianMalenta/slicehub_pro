@@ -1,252 +1,262 @@
-# PROMPT V2 — Nagranie SPARK · Pizza Forno · PRAWDZIWE WIDEO (nie sklejka screenshotów)
+# PROMPT V2 — Nagranie SPARK · Pizza Forno · PROCESY + PRZEKLIKANIE (nie zrzuty)
 
 > **Skopiuj cały blok od linii `---` do NOWEGO okna Cloud Agent.**  
-> **Model:** Sonnet (lub równoważny z dostępem do `computerUse` + `RecordScreen` + `videoReview`).  
-> **Ten prompt zastępuje podejście z `scripts/record_spark_forno_demo.py` — tamte nagranie było ZŁE.**
+> **Model:** Sonnet + **`computerUse`** + **`RecordScreen`** + **`videoReview`**.  
+> **Zakaz:** Playwright headless, `record_spark_forno_demo.py`, concat screenshotów, skok URL bez kliknięcia w Hub.
 
 ---
 
-# Zadanie: nagraj płynne demo produktu (ruch, klikanie, scroll) i dostarcz wideo MP4
+# Zadanie: nagraj prezentację **procesów biznesowych** — ciągłe przeklikiwanie, zero „slideshow”
 
-## 0. Co poszło źle w poprzedniej próbie (NIE POWTARZAJ)
+## 0. Dlaczego poprzednie nagrania są ZŁE (nie powtarzaj)
 
-Poprzedni agent użył **Playwright headless** → osobne pliki `.webm` per strona → **concat ffmpeg** → efekt: **ekran stoi jak sklejone screenshoty**, brak ruchu myszy, brak animacji UI, „slideshow” zamiast nagrania.
+| Problem użytkownika | Przyczyna | Twoja reguła |
+|---------------------|-----------|--------------|
+| „Każdy zrzut stoi kilka sekund” | Agent: otwórz URL → `sleep(6)` → następny moduł | **Max 2 s** bez ruchu myszy/scrollu |
+| „Zrzuty losowe” | Nagrywanie **per moduł** zamiast **per proces** | Nagrywaj **7 procesów** w logicznej kolejności |
+| „Mało przeklikań” | Brak sekwencji klików, tylko wejście na stronę | **Min. 8–12 klików** na proces |
+| „Jak sklejone screenshoty” | Playwright + ffmpeg `setpts=0.12` | Tylko **RecordScreen** + montaż między procesami |
 
-| ❌ ZAKAZ | ✅ WYMAGANE |
-|---------|-------------|
-| `record_spark_forno_demo.py` jako główne wideo | `RecordScreen` + `computerUse` |
-| Playwright `record_video_dir` + concat | **Jedno ciągłe nagranie** lub osobne nagrania **z żywymi akcjami** między nimi |
-| `page.wait_for_timeout(6000)` bez ruchu | Scroll, hover, klik, przejścia — **min. 3 akcje na scenę** |
-| `setpts=0.12` na statycznych klatkach | Montaż max **2× przyspieszenie** na materiale z ruchem |
-| Screenshoty PNG jako „wideo” | Tylko **prawdziwy** strumień ekranu |
-
-**Kryterium odrzucenia (videoReview):** jeśli przez 5+ sekund nic się nie zmienia na ekranie (poza loaderem) → **DISCARD** i nagraj scenę od nowa.
+**Odrzuć nagranie (videoReview), jeśli:** między dwoma akcjami użytkownika mija **>3 s** bez zmiany UI (wyjątek: ładowanie API max 5 s z animacją/spinnerem).
 
 ---
 
-## 1. Cel i produkcja
+## 1. Architektura materiału — 7 PROCESÓW (nie 10 modułów)
 
-- **URL:** https://slicehub.net · tenant **Pizza Forno** (`tenant_id=2`)
-- **Menu:** `scripts/seed_pizzaforno.sql` (~190 pozycji, warianty **30/37 cm**, panini **MAŁE/DUŻE**)
-- **Odbiorca:** komisja SPARK — **jeden łańcuch procesów**, język po ludzku w głowie (voiceover opcjonalny)
-- **Bez** wymyślonego MRR / liczby klientów
+Nagrywaj **7 osobnych klipów** (7× START/SAVE RecordScreen) **LUB** jeden długi klip z **tytułami procesów** w głowie — ale **wewnątrz procesu ZERO cięć i ZERO zamrożeń**.
+
+| # | Proces (tytuł slajdu / rozdział) | Moduły w łańcuchu | Surowy czas | Min. kliknięć |
+|---|-----------------------------------|-------------------|-------------|---------------|
+| **P1** | Klient wybiera pizzę (wariant 30/37) | Online | 90–120 s | 10 |
+| **P2** | Kuchnia widzi zamówienie i robi „gotowe” | KDS | 60–90 s | 8 |
+| **P3** | Klient śledzi status (bez dzwonienia) | Track WWW | 45–60 s | 5 |
+| **P4** | Dyspozytor składa kurs i wysyła Kasię | Courses → Hub → POS (flota) | 90–120 s | 12 |
+| **P5** | Kierowca jedzie i rozlicza dostawę | Driver PWA | 60–90 s | 8 |
+| **P6** | Faktura KSeF → magazyn + koszt lokalu | Procurement (KSeF) | 90 s | 10 |
+| **P7** | Właściciel widzi marżę + edycja menu | BI → Studio Menu | 90 s | 10 |
+
+**Kolejność obowiązkowa:** P1 → P2 → P3 → P4 → P5 → P6 → P7 (historia jednego dnia).
+
+**Między procesami (P1→P2):** możesz zatrzymać nagranie, ale w montażu tylko **przeniesienie 0.4 s** — **nie** 5 s czarnego ekranu.
 
 ---
 
-## 2. Przygotowanie danych (API — możesz z terminala, NIE nagrywaj tego)
+## 2. Przygotowanie (terminal — NIE nagrywaj)
 
 ```bash
-# Weryfikacja seeda (jeśli jeszcze nie wgrany):
-bash scripts/seed_pizzaforno_verify.sh slicehub_pro_v2 2
-
-# KDS + kierowca NIE mogą być puste:
-python3 scripts/prep_spark_demo_orders.py
+bash scripts/seed_pizzaforno_verify.sh slicehub_pro_v2 2   # opcjonalnie
+python3 scripts/prep_spark_demo_orders.py                 # OBOWIĄZKOWE — KDS + kierowca
 ```
 
-**Po prep sprawdź API (musi PASS przed nagraniem):**
+Sprawdź przed kamerą:
+- KDS `get_board` ≥ 1 bilet (FORNO-004 / ORD-…)
+- Kasia `get_driver_runs` ≥ 1 zamówienie po dispatchu w P4
 
-```bash
-# KDS ≥ 1 bilet
-# Driver Kasia ≥ 1 zamówienie w get_driver_runs
-```
-
-Jeśli `prep` failuje — napraw dane, **nie** nagrywaj pustych modułów.
-
-**Tracking (opcjonalnie):** SQL z v1 promptu — `tracking_token` dla FORNO-006.
+**Tracking P3:** ustaw `tracking_token` na FORNO-006 (SQL w `PROMPT_SPARK_NAGRANIE_PROCESY_FORNO.md` §1.4).
 
 ---
 
-## 3. Logowanie (JWT inject — OK, ale potem MUSISZ klikać)
+## 3. Zasady PRZEKLIKANIA (najważniejsze)
 
-Formularz WWW na slicehub **nie działa** z xdotool. Do **pierwszego** wejścia w moduł chroniony:
+### 3.1 Ruch ciągły
 
-1. `POST /api/auth/login.php` → `sh_token` + `sh_user`
-2. W Chrome (computerUse): DevTools Console **lub** bookmarklet:
+- Kursor **zawsze widoczny**, poruszaj się **płynnie** między przyciskami (nie teleportuj).
+- Po każdym kliku: **natychmiast** następna akcja (scroll, hover, drugi klik) — **nie** celebruj statycznego ekranu.
+- **Zakaz:** „pokażę hub 10 sekund” — hub max **3 s** scroll + klik w kafelek.
+
+### 3.2 Nawigacja tylko przez UI (prezentacja)
+
+| ❌ | ✅ |
+|----|-----|
+| Wklejasz URL `/modules/kds/` w pasku | Hub → **klik kafelka KDS** |
+| Nowa karta na każdy moduł | Ta sama karta, **wstecz/Hub** lub kafelek |
+| JWT inject i koniec | Inject **raz** na start, potem **tylko kliki** |
+
+JWT (formularz WWW nie działa):
 
 ```javascript
-localStorage.setItem('sh_token', 'TOKEN');
-localStorage.setItem('sh_user', JSON.stringify(USER_OBJECT));
+localStorage.setItem('sh_token','TOKEN');
+localStorage.setItem('sh_user', JSON.stringify(USER));
 location.reload();
 ```
-
-3. **Hub musi pokazać kafelki** — dopiero wtedy nagrywaj.
 
 | Rola | Login | Hasło |
 |------|-------|-------|
 | Owner | `Damian` | `Dammalq123123` |
 | Kierowca | `kasia@slicehub.net` | `asdasd` |
-| POS PIN | — | `1111` |
+| POS PIN | `1111` | |
 
-**Online / track** — bez JWT (publiczne).
+### 3.3 Jedno nagranie = jeden proces
+
+Dla każdego P1…P7:
+
+```
+RecordScreen START_RECORDING
+→ wykonaj WSZYSTKIE kroki z tabeli §4 (bez przerwy >2s)
+→ RecordScreen SAVE save_as_filename=spark_P1_online
+```
+
+Nazwy plików: `spark_P1_online`, `spark_P2_kds`, … `spark_P7_bi_studio`.
 
 ---
 
-## 4. Ustawienia nagrania (OBOWIĄZKOWE)
+## 4. Scenariusze klik-po-kliku (wykonaj DOKŁADNIE w tej kolejności)
+
+### P1 — Klient: menu i rozmiar (Online)
+
+1. Wejdź Online (link z Huba lub `index.html` tylko na start P1).
+2. **Scroll w dół** kategoriami — widać PIZZE, PANINI (2 s scroll, nie stop).
+3. **Klik** kategoria PIZZE.
+4. **Klik** pizza (np. MARGHERITA) — panel produktu się otwiera.
+5. **Klik** przełącznik **30 cm** — czytaj cenę.
+6. **Klik** przełącznik **37 cm** — **cena musi się zmienić** (to innowacja SPARK).
+7. **Klik** Dodaj do koszyka.
+8. **Klik** ikona koszyka — drawer się wysuwa.
+9. **Scroll** w koszyku — widać linię z rozmiarem.
+10. Opcjonalnie: **klik** + na napój, znowu koszyk.
+
+**Nie kończ checkoutu** jeśli brakuje czasu — koszyk wystarczy.
+
+---
+
+### P2 — Kuchnia: KDS (bilet żyje)
+
+1. **Hub → klik KDS** (nie URL).
+2. Poczekaj listę — **hover** na bilecie FORNO-004 lub ORD/…
+3. **Klik** przycisk **ROZPOCZNIJ** (accepted→preparing) — UI się odświeża.
+4. **Klik** **GOTOWE** na tym samym lub drugim bilecie — status zmienia się na ready.
+5. **Klik** drugi bilet — pokaż listę pozycji (scroll w karcie).
+6. **Hub** (klik logo/wstecz) — przygotowanie do P3.
+
+---
+
+### P3 — Klient: tracking
+
+1. **Nowa karta** tylko dla track (klient nie ma Hub) — `track.html?tenant=2&token=TOKEN&phone=…`
+2. Formularz: wpisz token/telefon jeśli trzeba → **klik** Znajdź.
+3. **Scroll** timeline — widać etapy (przyjęte / przygotowanie / …).
+4. Jeśli mapa: **klik +** zoom, **przeciągnij** mapę.
+5. Zostaw **2 s** na mapie z ruchem — nie 8 s freeze.
+
+---
+
+### P4 — Logistyka: od mapy do kursu K/L
+
+1. Hub → **klik Courses**.
+2. **Klik** zakładka **Mapa** → **przeciągnij** mapę (Leaflet drag).
+3. **Klik** zakładka **Zamówienia** / lista.
+4. **Klik** wiersz zamówienia **ready** (po prep: nowe ORD lub FORNO gotowe).
+5. **Klik** przycisk dispatch / przypisz → wybierz **Kasię**.
+6. **Klik** Potwierdź — widać **K{n}** i **L1**.
+7. Hub → **klik POS** → PIN `1111` (szybko, bez zbliżenia).
+8. Jeśli jest widok floty: **klik** zakładka kierowcy — Kasia **busy/zielona**.
+
+---
+
+### P5 — Kierowca: trasa (osobna sesja Kasia)
+
+1. Wyloguj / inject JWT **Kasia** → Hub → **klik Driver App** (lub bezpośrednio po inject).
+2. Widać **≥1 stop** — **klik** w kartę zamówienia.
+3. **Scroll** szczegóły — adres, pozycje (Diavola…).
+4. **Klik** przycisk dostarcz / zapłać — jeśli Payment Lock: **pokaż komunikat**, **klik Anuluj** (nie psuj danych).
+5. **Klik** portfel / zakładka jeśli jest — szybki peek.
+
+---
+
+### P6 — KSeF: faktura → magazyn vs OPEX
+
+1. Hub → **klik** moduł faktur / Procurement.
+2. **Klik** wiersz **FA/FORNO/2026/001** (status new).
+3. **Scroll** linie faktury w dół.
+4. **Klik** pierwsza linia → wybierz mapowanie SKU (dropdown).
+5. **Klik** tag **INVENTORY** na jednej linii, **EXPENSE/OPEX** na innej (jeśli UI ma).
+6. **Scroll** do podsumowania.
+7. **Klik** Akceptuj / Zapisz **tylko** jeśli bezpieczne na demo — inaczej cofnij i zostaw podgląd.
+
+---
+
+### P7 — Właściciel: P&L + menu wariantów
+
+1. Hub → **klik BI**.
+2. **Klik** Załaduj → poczekaj spinner → **scroll** karty P&L.
+3. Hub → **klik Studio Menu**.
+4. **Klik** drzewo PIZZE → **klik** MARGHERITA parent.
+5. **Klik** wariant **30CM** → **klik** **37CM** — widać dzieci i ceny/recepturę.
+6. **Scroll** receptura — składniki.
+7. Hub — **powolny scroll** kafelków (zakończenie).
+
+---
+
+## 5. Montaż — 7 procesów, nie 7 screenshotów
+
+```bash
+# Po nagraniu 7 klipów — sklej Z CROSSFADE, bez przyspieszania do slideshow
+ls -1 /opt/cursor/artifacts/spark_P*.webm
+
+ffmpeg -y \
+  -i spark_P1_online.webm -i spark_P2_kds.webm -i spark_P3_track.webm \
+  -i spark_P4_courses.webm -i spark_P5_driver.webm \
+  -i spark_P6_ksef.webm -i spark_P7_bi_studio.webm \
+  -filter_complex "
+    [0:v]setpts=0.85*PTS,fade=t=out:st=80:d=0.4[v0];
+    [1:v]setpts=0.85*PTS,fade=t=in:st=0:d=0.4,fade=t=out:st=50:d=0.4[v1];
+    ... concat or xfade=transition=fade:duration=0.4
+  " \
+  -an /opt/cursor/artifacts/spark_forno_procesy_final.mp4
+```
+
+**Uproszczenie:** jeśli xfade trudne — concat z **0.4 s fade** między klipami; **bez** `setpts=0.12`.
 
 | Parametr | Wartość |
 |----------|---------|
-| Rozdzielczość | **1920×1080** pełny ekran Chrome |
-| Kursor | **Widoczny** — użytkownik ma widzieć gdzie klikasz |
-| Zoom przeglądarki | **100%** |
-| DevTools | **Zamknięte** w trakcie nagrywania |
-| Powiadomienia OS | Wyłączone / poza kadr |
-| Czas na scenę (surowy) | **45–90 s** aktywności, nie 6 s freeze |
-
-### Procedura RecordScreen
-
-```
-1. computerUse → otwórz Chrome → slicehub.net
-2. RecordScreen mode=START_RECORDING
-3. Wykonaj sceny 1–10 (PONIŻEJ) — żywe ruchy
-4. RecordScreen mode=SAVE_RECORDING save_as_filename=spark_forno_live_raw
-5. videoReview — odrzuć jeśli slideshow / brak ruchu
-6. ffmpeg — tylko lekki trim + max 2× speed (patrz §8)
-```
-
-**Możesz nagrać 2–3 osobne klipy** (np. backoffice / kierowca / online), ale **każdy klip** musi mieć ciągły ruch — potem montaż **crossfade 0.3s** między klipami, nie twarde cięcie co 6 s.
+| Przyspieszenie wewnątrz procesu | **1.0–1.25×** (realne tempo klików) |
+| Przyspieszenie między procesami | tylko crossfade |
+| Długość finału | **3–5 min** (widać procesy), skrót **90 s** tylko jeśli user prosi |
 
 ---
 
-## 5. Storyboard — akcje DO WYKONANIA (nie „otwórz URL i czekaj”)
+## 6. Kontrola jakości (videoReview — PASS/FAIL)
 
-Każda scena: minimum **3 interakcje** (scroll, klik, wpisanie, przełączenie zakładki).
+Oceń każdy proces P1–P7 osobno:
 
-### Scena 1 — Online menu + warianty (60–90 s)
+| Pytanie | PASS jeśli |
+|---------|------------|
+| Czy widać **ciąg kliknięć**, nie jeden ekran? | ≥8 klików / proces |
+| Czy **30↔37 cm** zmienia cenę? | P1 |
+| Czy KDS **zmienia status** po kliku? | P2 |
+| Czy dispatch pokazuje **K/L**? | P4 |
+| Czy kierowca ma **listę**, nie pustkę? | P5 |
+| Czy żaden segment **>3 s freeze**? | wszystkie |
 
-1. Wejdź: `https://slicehub.net/modules/online/index.html` (tenant 2 z config).
-2. **Powoli scroll** od góry — widać kategorie (PIZZE, PANINI…).
-3. Klik **PIZZE** → klik **MARGHERITA** (lub inna pizza).
-4. **Kliknij przełącznik 30 cm → 37 cm** — pokaż że **cena się zmienia** (to innowacja!).
-5. Klik **Dodaj do koszyka** → otwórz **koszyk** (drawer) — widać pozycję.
-6. Opcjonalnie: dodaj napój, scroll w koszyku.
-7. **NIE musisz** kończyć checkoutu — wystarczy koszyk z pozycjami.
-
-### Scena 2 — KDS żywa kuchnia (45–60 s)
-
-1. JWT Damian → `/modules/kds/`.
-2. Poczekaj aż **widać bilety** (FORNO-004, ORD/… — po `prep_spark_demo_orders.py`).
-3. **Najedź** na bilet → przeczytaj pozycje (scroll w karcie jeśli jest).
-4. Klik **ROZPOCZNIJ** lub **GOTOWE** na jednym bilecie — status się **zmienia na ekranie**.
-5. Zostaw 3 s na animację / odświeżenie listy.
-
-### Scena 3 — Track klienta (30–45 s)
-
-1. Otwórz `track.html?tenant=2&token=…&phone=…` (token z SQL lub z checkoutu).
-2. Widać **timeline statusu** — scroll w dół jeśli jest mapa.
-3. Jeśli mapa: **delikatny zoom** mapy Leaflet (+) — widać punkt dostawy.
-
-### Scena 4 — Courses dispatch (60–90 s)
-
-1. JWT Damian → `/modules/courses/`.
-2. Zakładka **mapa** — przesuń mapę (drag), widać pin kierowcy.
-3. Zakładka **zamówienia** — klik zamówienie **gotowe do wysyłki**.
-4. **Przypisz do Kasi** (dispatch) — dialog / potwierdzenie — widać **K1 / L1**.
-5. Krótko: lista kursów z numerem **K{n}**.
-
-### Scena 5 — Driver PWA (45–60 s)
-
-1. **Wyloguj** / nowa karta → JWT **Kasia** → `/modules/driver_app/`.
-2. Widać **listę stopów** (nie „Brak kursów”).
-3. Klik w zamówienie → szczegóły adresu / pozycje.
-4. **NIE** zamykaj dostawy bez płatności — możesz pokazać komunikat Payment Lock i **anuluj**.
-
-### Scena 6 — POS flota (20–30 s)
-
-1. `/modules/pos/` → PIN **1111** szybko (nie zbliżaj się na klawiaturę długo).
-2. Jeśli jest widok **floty / kierowców** — pokaż Kasię zieloną/zajętą po dispatchu.
-
-### Scena 7 — KSeF (60 s)
-
-1. `/modules/procurement/` → lista faktur.
-2. Klik **FA/FORNO/2026/001** (status new).
-3. Scroll po liniach → pokaż **mapowanie SKU** / tag **magazyn vs OPEX**.
-4. Klik akceptuj / zapisz (jeśli UI pozwala bez psucia danych — inaczej tylko podgląd).
-
-### Scena 8 — BI P&L (30 s)
-
-1. `/modules/bi/` → klik **Załaduj**.
-2. Poczekaj na wykres/liczby → **scroll** po kartach COGS / OPEX.
-
-### Scena 9 — Studio Menu warianty (45 s)
-
-1. `/modules/studio/` → drzewo **PIZZE** → **MARGHERITA**.
-2. Pokaż **parent + dzieci 30CM / 37CM** — przełącz między wariantami.
-3. Scroll do **receptury** (składniki).
-
-### Scena 10 — Zamknięcie (15 s)
-
-1. Hub — powolny scroll po kafelkach → najedź na Online / Courses.
+**FAIL całości** → przerób tylko procesy, które nie przeszły.
 
 ---
 
-## 6. Czego NIE pokazywać / uczciwie
-
-- **Online Studio** — jeśli WIP: 5 s + napis w głowie „w rozwoju”, nie udawaj gotowca.
-- Puste KDS / pusty kierowca — **STOP**, odpal `prep_spark_demo_orders.py`, nagrywaj od nowa.
-- PIN na cały ekran przez 10 s.
-
----
-
-## 7. Kontrola jakości (videoReview — obowiązkowa)
-
-Przed oddaniem użytkownikowi odpal `videoReview` z pytaniami:
-
-1. Czy widać **ruch myszy** lub scroll w ≥80% scen?
-2. Czy **KDS** ma bilety z nazwami pizz?
-3. Czy **Driver** ma co najmniej 1 stop?
-4. Czy **30/37 cm** widać na Online?
-5. Czy długość surowa **≥ 4 min** (przed przyspieszeniem)?
-
-Jeśli NIE → `DISCARD_RECORDING` i powtórz **tylko** słabe sceny.
-
----
-
-## 8. Montaż (delikatny — nie zamieniaj w slideshow)
-
-```bash
-IN="/opt/cursor/artifacts/spark_forno_live_raw.webm"
-OUT="/opt/cursor/artifacts/spark_forno_live_final.mp4"
-
-# Tylko lekkie przyspieszenie (2× max), zachowaj płynność
-ffmpeg -y -i "$IN" -filter:v "setpts=0.5*PTS,minterpolate=fps=30:mi_mode=mci" \
-  -an -c:v libx264 -preset medium -crf 20 -movflags +faststart \
-  -t 120 "$OUT"
-```
-
-**Docelowa długość finału:** 90–120 s (nie 14 s ze statycznych klatek).
-
-Opcjonalnie: ciepły voiceover PL (napisy w F6S) — osobna ścieżka audio.
-
----
-
-## 9. Deliverables (checklist dla użytkownika)
-
-W odpowiedzi **MUSI** być:
+## 7. Deliverables
 
 ```html
-<video src="/opt/cursor/artifacts/spark_forno_live_final.mp4" controls></video>
+<video src="/opt/cursor/artifacts/spark_forno_procesy_final.mp4" controls></video>
 ```
 
-oraz krótki raport:
+Raport (tabela):
 
-- Co kliknięto w każdej scenie (1 zdanie)
-- Czy `prep_spark_demo_orders.py` był uruchomiony
-- Długość surowa vs finał
-- Co odrzuciłeś i dlaczego (jeśli były ponowne próby)
+| Proces | Plik | Liczba klików (szac.) | Uwagi |
+|--------|------|----------------------|-------|
+| P1 | spark_P1_… | | |
+| … | | | |
 
-**NIE** wysyłaj samych PNG jako „wideo”.
-
----
-
-## 10. Pliki pomocnicze w repo
-
-| Plik | Użycie |
-|------|--------|
-| `scripts/prep_spark_demo_orders.py` | Tylko przygotowanie API — **tak** |
-| `scripts/record_spark_forno_demo.py` | **NIE** używać do wideo v2 |
-| `scripts/seed_pizzaforno.sql` | Menu Forno |
-| `_docs/PROMPT_SPARK_NAGRANIE_PROCESY_FORNO.md` | v1 — referencja merytoryczna |
+**NIE** wysyłaj: PNG, jeden plik ze stojącymi modułami, wideo <60 s z 7 zamrożeniami.
 
 ---
 
-*Rewizja: 2026-05-21 · V2 — anty-slideshow, RecordScreen + computerUse obowiązkowe*
+## 8. Pliki repo
+
+| Plik | Rola |
+|------|------|
+| `scripts/prep_spark_demo_orders.py` | Dane pod KDS + kierowcę |
+| `scripts/record_spark_forno_demo.py` | **NIE** do wideo |
+| `_docs/PROMPT_SPARK_NAGRANIE_PROCESY_FORNO.md` | Seed, SQL track |
+
+---
+
+*Rewizja: 2026-05-21 · V2.1 — 7 procesów, klik-po-kliku, anty-zamrożenie 3s+*
