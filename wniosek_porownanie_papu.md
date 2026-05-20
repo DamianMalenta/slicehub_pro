@@ -1,7 +1,7 @@
 # ANALIZA PORÓWNAWCZA: SliceHub Enterprise OS vs Papu.io
 
 > Porównanie technologiczne i biznesowe pod wniosek o dofinansowanie.  
-> Źródła: audyt kodu SliceHub (maj 2026), publiczna dokumentacja papu.io (papu.io/funkcjonalnosci).
+> Źródła: audyt kodu SliceHub (**rewizja 2026-05-20**), publiczna dokumentacja papu.io (papu.io/funkcjonalnosci).
 
 ---
 
@@ -45,6 +45,8 @@
 | **Alerty cenowe dostawców** | ✅ Automatyczne alerty po zmianach cen | ❌ Brak automatycznych alertów cenowych | ❌ Papu ma tę funkcję |
 | **Auto-generowanie list zakupowych** | ✅ Na żądanie przy stanach krytycznych | ❌ Brak automatycznych list zakupowych | ❌ Papu ma tę funkcję |
 | **Podmagazyny** | ✅ Bar, Kuchnia, produkcja własna | ✅ `warehouse_id` w `wh_stock` — multi-warehouse per tenant | Porównywalny |
+| **KSeF / e-faktury (PL)** | Integracje zależne od dostawcy | ✅ Natywny moduł Procurement — API v2 MF, AutoScan, accept→PZ, OPEX→P&L | **✅ Compliance 2026 + szybkość** |
+| **Dashboard P&L** | Raporty w module | ✅ `BiEngine` — COGS z WZ, OPEX z KSeF, payroll, zamrożony kapitał AVCO | **✅ Właściciel bez Excela** |
 
 ---
 
@@ -79,7 +81,9 @@
 |--------|---------|---------------------|
 | **Model** | SaaS (abonament miesięczny) | Self-hosted / własna IP |
 | **Koszt** | 258–763 zł/mies. + 599 zł wdrożenie | Zero opłat licencyjnych (koszt: hosting + utrzymanie) |
-| **Kod źródłowy** | Zamknięty, brak dostępu | Pełna kontrola — 121 plików PHP, 14 modułów JS |
+| **Kod źródłowy** | Zamknięty, brak dostępu | Pełna kontrola — 130+ plików PHP, **17 modułów operacyjnych** JS, 55 migracji SQL |
+| **KSeF (e-faktury PL)** | Ograniczone / zależne od integratora | Natywny inbox + **API v2 MF**, AutoScan, accept→PZ, OPEX→BI P&L |
+| **BI / P&L w produkcie** | Raporty u dostawcy | `BiEngine` — COGS z WZ, OPEX z KSeF, payroll ledger, zamrożony kapitał AVCO |
 | **Zależności** | Nieznane (SaaS) | **Zero** — brak npm, Composer, framework. Czysty PHP 8.3 + Vanilla JS |
 | **Konteneryzacja** | N/A (SaaS) | Docker-ready: ~10 linii Dockerfile, ~120 MB obraz |
 | **Offline** | Brak informacji | Pełna architektura offline-first (4 warstwy) |

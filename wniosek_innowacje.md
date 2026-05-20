@@ -1,7 +1,7 @@
 # RAPORT INNOWACJI TECHNOLOGICZNYCH — SliceHub Enterprise OS
 
 > Identyfikacja autorskich algorytmów, unikalnych mechanizmów i przewag konkurencyjnych.  
-> Audyt przeprowadzony na żywym kodzie repozytorium (maj 2026).
+> Audyt przeprowadzony na żywym kodzie repozytorium (**rewizja 2026-05-20**).
 
 ---
 
@@ -508,6 +508,33 @@ header('Content-Type: text/event-stream');
 
 ---
 
+## 14. BI P&L ENGINE — Rentowność z Jednego Źródła Prawdy
+
+**Lokalizacja w kodzie:**  
+`core/BiEngine.php` · `api/bi/dashboard_data.php` · `modules/bi/index.html`
+
+### Co to jest
+
+Silnik agregujący w **groszach (INT)** przychód netto, koszt wydanych surowców (COGS z dokumentów WZ), koszty pracy i OPEX z e-faktur KSeF — bez eksportu do Excela i bez osobnego BI SaaS.
+
+### Jak działa technicznie
+
+| Składnik | Źródło | Reguła |
+|----------|--------|--------|
+| **Net sales** | `sh_orders` + `sh_order_lines` | `status=completed`, okno po **`created_at`** (nie `updated_at`) |
+| **COGS** | `wh_documents.type=WZ` | Suma wszystkich linii WZ powiązanych z zamówieniami w oknie (wiele WZ na jedno zamówienie — poprawnie) |
+| **Payroll** | `sh_payroll_ledger` | Append-only ledger w groszach |
+| **OPEX** | `sh_ksef_invoice_lines` | Tylko `line_type=EXPENSE` + faktura `accepted` — **bez podwójnego liczenia** z PZ (INVENTORY) |
+| **Zamrożony kapitał** | `wh_stock` | `SUM(quantity × AVCO)` — snapshot bieżący, poza oknem P&L |
+
+### Wpływ biznesowy
+
+- **Jeden dashboard** dla właściciela sieci — widoczna marża operacyjna bez integracji z zewnętrznym ERP
+- **Spójność z magazynem** — COGS z tych samych WZ co `WzEngine`, OPEX z tego samego KSeF co procurement
+- **Due diligence** — audytowalne zapytania SQL z barierą `tenant_id`
+
+---
+
 ## PODSUMOWANIE — Matryca Innowacji vs Koszty
 
 | # | Innowacja | Redukcja kosztów | Automatyzacja |
@@ -525,7 +552,8 @@ header('Content-Type: text/event-stream');
 | 11 | Reorder Nudge | Automatyczny remarketing bez AI | Behawioralna segmentacja po dniach tygodnia |
 | 12 | Atomic Sequences | Zero konfliktów numeracji | MySQL LAST_INSERT_ID trick |
 | 13 | SSE Tracking | Zero kosztów WebSocket infra | Natywne PHP + EventSource |
+| 14 | BI P&L Engine | Eliminacja ręcznych zestawień Excel / zewnętrznego BI | COGS+OPEX+payroll z jednego modelu danych |
 
 ---
 
-*Raport wygenerowany na podstawie audytu żywego kodu repozytorium SliceHub Enterprise OS. Wszystkie opisane mechanizmy fizycznie istnieją w kodzie i zostały zweryfikowane.*
+*Raport wygenerowany na podstawie audytu żywego kodu repozytorium SliceHub Enterprise OS (rewizja 2026-05-20). Wszystkie opisane mechanizmy fizycznie istnieją w kodzie i zostały zweryfikowane (w tym KSeF v2 i BiEngine po scaleniu na `main`).*

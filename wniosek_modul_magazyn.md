@@ -1,6 +1,6 @@
 # MODUŁ MAGAZYNOWY — Audyt Stanu i Wizja Docelowa
 
-> Analiza techniczna pod wniosek o dofinansowanie. Audyt kodu: maj 2026.
+> Analiza techniczna pod wniosek o dofinansowanie. Audyt kodu: **rewizja 2026-05-20** (KSeF API v2 + inbox produkcyjny + OPEX per linia + BI P&L).
 
 ---
 
@@ -78,16 +78,21 @@ Transfer między magazynami z blendowaniem AVCO na target. Źródło: hard fail 
 
 ## 4. GAP ANALYSIS — Czego Brakuje
 
-### 4.1 KSeF / e-Faktura ❌
+### 4.1 KSeF / e-Faktura ✅ (wdrożone 2026-05-11 — 2026-05-14)
+
+Moduł **`/modules/procurement/`** + `api/procurement/` + `core/Ksef/` — produkcyjna ścieżka od faktury do magazynu.
 
 | Element | Stan |
 |---------|------|
-| Integracja z API KSeF (Ministerstwo Finansów) | ❌ UI ma etykiety "KSeF Ready", brak klienta API |
-| Pole `ksef_code` w `sys_items` | ❌ UI zbiera, ale `add_item.php` nie zapisuje |
-| Auto-pobieranie e-faktur z KSeF | ❌ |
-| Parsowanie XML FA(2) → linie PZ | ❌ |
-| Auto-tworzenie draft PZ z e-faktury | ❌ |
-| JPK_MAG / JPK_V7M | ❌ |
+| Integracja z **KSeF API v2** MF (`api*.ksef.mf.gov.pl/v2`, JWT + kontekst NIP tenanta) | ✅ `core/Ksef/Client.php` — challenge, token, refresh, `POST /invoices/query/metadata`, `GET /invoices/ksef/{ksefNumber}` |
+| Worker poll inbox | ✅ `scripts/worker_ksef_inbox.php` — margines 14 dni, Issue ∪ Invoicing, retry HTTP 429 |
+| Upload ręczny FA(2)/FA(3) XML | ✅ `upload_xml` — wykrywanie duplikatu (409), opcjonalne `replace` |
+| AutoScan mapowania linii → SKU | ✅ `InboxInvoiceRepository::matchInvoiceLines` — poziomy EXACT / ALIAS / NAME / FUZZY |
+| Akceptacja → dokument PZ | ✅ `accept` → `PzEngine::processReceipt` (tylko linie `INVENTORY`) |
+| Rozdział kosztów: magazyn vs OPEX | ✅ `sh_ksef_invoice_lines.line_type`: `INVENTORY` \| `EXPENSE` — OPEX trafia do **BI** (`BiEngine`), nie do PZ |
+| Kategorie kosztów / bulk edit linii | ✅ UI + API (m057) — masowa edycja SKU i tagów OPEX |
+| Ustawienia KSeF w Settings | ✅ dedykowana karta integracji (NIP z Profilu firmy, test `GET /rate-limits`) |
+| JPK_MAG / JPK_V7M | ❌ (roadmapa raportowa) |
 
 ### 4.2 Alerty i Automatyzacja ❌
 
@@ -109,25 +114,23 @@ Transfer między magazynami z blendowaniem AVCO na target. Źródło: hard fail 
 | `checkAvailability` nie rozwiązuje `half_half` przez DB — fałszywy "available" | Średni |
 | FoodCostEngine vs WzEngine: drobna rozbieżność formuły waste | Niski |
 | Niespójna numeracja dokumentów (insert_id vs SequenceEngine) | Niski |
-| KSeF pole w UI Control Tower nie trafia do API | Niski |
+| ~~KSeF pole w UI Control Tower nie trafia do API~~ | Zamknięte — inbox w module Procurement |
 
 ---
 
 ## 5. WIZJA DOCELOWA — 5 Faz Automatyzacji
 
-### Faza 1: KSeF Integration
+### Faza 1: KSeF Integration — **✅ ZREALIZOWANA (rdzeń)**
 
 ```
-KSeF API MF → KSeFClient.php → KSeFParser.php → Auto-PZ Pipeline
-  1. Pobierz e-faktury
-  2. Parsuj XML → linie
-  3. Mapuj pozycje → SKU (sh_product_mapping + auto-learn)
-  4. Utwórz draft PZ → manager zatwierdza → PzEngine.processReceipt
+KSeF API v2 MF → Client.php → InboxInvoiceRepository → AutoScan → accept → PzEngine
+  1. Poll metadata / upload XML
+  2. Parsuj FA(2)/FA(3) → sh_ksef_invoice_lines
+  3. Mapuj pozycje → SKU (AutoScan + sh_product_mapping)
+  4. Manager akceptuje INVENTORY → PZ; EXPENSE → OPEX w BiEngine (bez podwójnego liczenia magazynu)
 ```
 
-**Nowe tabele:**
-- `wh_ksef_imports` — status pipeline: `fetched → parsed → mapped → draft_pz → completed`
-- `sys_items` + kolumny `ksef_code`, `gtin` (EAN)
+**Tabele (migracje m056–m057):** `sh_ksef_invoices`, `sh_ksef_invoice_lines` (`line_type`, `cost_category_id`, …).
 
 ### Faza 2: Inteligentne Alerty
 
@@ -191,7 +194,8 @@ Per SKU:
 | Alert 86 | ✅ UI (zero/ujemne) | + SMS/push + blokada sprzedaży | Wysoki |
 | Stany minimalne | ❌ | Thresholds per SKU z alertami | Wysoki |
 | Listy zakupowe | ❌ | Auto-gen per dostawca | Wysoki |
-| KSeF | ❌ (tylko etykiety UI) | Pełna integracja | Wysoki |
+| KSeF | ✅ API v2 + inbox + AutoScan + accept→PZ + OPEX/BI | JPK eksport, OCR papier | Średni |
+| BI P&L (COGS/OPEX/kapitał) | ✅ `BiEngine` + moduł `/modules/bi/` | Więcej wymiarów (lokal, kategoria menu) | Średni |
 | JPK | ❌ | Eksport JPK_MAG, JPK_V7M | Średni |
 | Predykcja | ❌ | Heurystyka 90-dniowa | Niski |
 | OCR faktur | ❌ | AI rozpoznawanie skanów | Niski |

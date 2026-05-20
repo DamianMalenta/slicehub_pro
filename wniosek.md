@@ -1,20 +1,21 @@
 # RAPORT ARCHITEKTURY TECHNICZNEJ — SliceHub Enterprise OS
 
 > Dokument techniczny pod wniosek o dofinansowanie.  
-> Stan kodu: audyt przeprowadzony na żywym repozytorium (maj 2026).
+> Stan kodu: audyt przeprowadzony na żywym repozytorium (**rewizja 2026-05-20**, baza: `main` po scaleniu BI + KSeF v2 + procurement OPEX).
 
 ---
 
 ## 1. WYIZOLOWANE SILOSY (Moduły DDD) — Fizyczna Mapa Kodu
 
-System SliceHub Enterprise składa się z **14 wyizolowanych modułów frontendowych**, **16 domen backendowych API**, **3 silosów bazodanowych** oraz **warstwy silników domenowych** (`core/`). Każdy moduł jest samodzielną jednostką z własnym interfejsem HTML, logiką JS i dedykowanym API — zgodnie z wzorcem Domain-Driven Design opartym na fizycznej separacji katalogów.
+System SliceHub Enterprise składa się z **17 modułów operacyjnych frontendowych** (+ `ui_shell`, `backoffice`), **20+ domen backendowych API**, **55 migracji SQL** w łańcuchu (`scripts/_migrations_chain.php`), **3 silosów bazodanowych** oraz **warstwy silników domenowych** (`core/`). Każdy moduł jest samodzielną jednostką z własnym interfejsem HTML, logiką JS i dedykowanym API — zgodnie z wzorcem Domain-Driven Design opartym na fizycznej separacji katalogów.
 
 ### 1.1 Moduły Frontendowe (`/modules/`)
 
 | # | Moduł | Ścieżka | Przeznaczenie biznesowe |
 |---|-------|---------|------------------------|
-| 1 | **POS** (Point of Sale) | `/modules/pos/` | Terminal sprzedażowy — kafelki menu, koszyk, checkout, rozliczenia. PWA z trybem offline (`sw.js`, `PosLocalStore`, `PosApiOutbox`, `PosSyncEngine`). |
-| 2 | **Menu Studio** | `/modules/studio/` | Backoffice zarządzania menu — CRUD kategorii, dań, receptur, modyfikatorów, macierzy cenowej omnichannel, kalkulacji marży, edycji masowej. |
+| 0 | **Hub** | `/modules/hub/` | Panel startowy — kafelki modułów, nawigacja RBAC, link do BI P&L. |
+| 1 | **POS** (Point of Sale) | `/modules/pos/` | Terminal sprzedażowy — kafelki menu, koszyk, checkout, rozliczenia, modal wariantów rozmiaru. PWA z trybem offline (`sw.js`, `PosLocalStore`, `PosApiOutbox`, `PosSyncEngine`). |
+| 2 | **Menu Studio** | `/modules/studio/` | Backoffice zarządzania menu — CRUD kategorii, dań, receptur, modyfikatorów, macierzy cenowej omnichannel, variant scales (F-S1), kalkulacji marży, edycji masowej. |
 | 3 | **Online Studio (Director)** | `/modules/online_studio/` | Wizualny kompozytor scen dla witryny publicznej — reżyser scen (`DirectorApp.js`), panele warstw, Harmony Score, system presetów stylowych. |
 | 4 | **Online Storefront** | `/modules/online/` | Publiczna karta menu klienta — checkout gościnny, śledzenie zamówień (SSE real-time), QR otwieranie stolika, PWA offline shell. |
 | 5 | **Warehouse** | `/modules/warehouse/` | Moduł magazynowy V2 — stany, dokumenty PZ/RW/INW/KOR/MM, wieża kontrolna (`warehouse_control_tower.html`), workflow zatwierdzania, mapowanie surowców, katalog AVCO. |
@@ -26,7 +27,11 @@ System SliceHub Enterprise składa się z **14 wyizolowanych modułów frontendo
 | 11 | **Settings** | `/modules/settings/` | Panel konfiguracyjny tenanta — integracje, webhooki, klucze API, DLQ, health ping, stawki VAT, payroll. |
 | 12 | **Inbox** | `/modules/inbox/` | Skrzynka SMS — wiadomości przychodzące od klientów, odpowiedzi, statystyki. |
 | 13 | **Marketing** | `/modules/marketing/` | Kreator kampanii SMS — segmentacja audytorium, wysyłka przez outbox events. |
-| 14 | **Shared** | `/modules/shared/` | Współdzielone style mobilne (`sh_mobile_shell.css`). |
+| 14 | **Procurement (KSeF Inbox)** | `/modules/procurement/` | Skrzynka e-faktur KSeF API v2 — poll metadata, upload FA(2)/FA(3) XML, AutoScan (EXACT/ALIAS/NAME/FUZZY), akceptacja → `PzEngine`, linie INVENTORY vs EXPENSE (OPEX), kategorie kosztów. |
+| 15 | **BI (P&L)** | `/modules/bi/` | Dashboard rentowności — przychód netto, COGS z WZ, koszty pracy (`sh_payroll_ledger`), OPEX z faktur KSeF, karta „zamrożony kapitał” (AVCO×stan). |
+| 16 | **Kiosk** | `/modules/kiosk/` | Kiosk obecności HR — clock-in/out PIN, integracja z `HrClockEngine`. |
+| 17 | **Backoffice HR** | `/modules/backoffice/` | Kadry — pracownicy, stawki, zaliczki (`AdvanceEngine`), payroll. |
+| — | **Shared** | `/modules/ui_shell/` | Współdzielone style mobilne (`sh_mobile_shell.css`). |
 
 ### 1.2 Domeny Backendowe (`/api/`)
 
@@ -48,6 +53,8 @@ System SliceHub Enterprise składa się z **14 wyizolowanych modułów frontendo
 | 14 | **Gateway** | `api/gateway/` | `intake.php` | Unified external intake — multi-key auth (`GatewayAuth`), rate limit, idempotency, `CartEngine`. |
 | 15 | **Settings** | `api/settings/` | `engine.php` | Konfiguracja tenanta — integracje, webhooki, klucze, DLQ, vault, CSRF. |
 | 16 | **Assets** | `api/assets/` | `engine.php` | SSOT (Single Source of Truth) biblioteki assetów — `sh_assets` + `sh_asset_links`. |
+| 17 | **BI** | `api/bi/` | `dashboard_data.php` | Agregacja P&L w groszach (`BiEngine::generateDashboard`), RBAC owner/admin/manager. |
+| 18 | **Procurement** | `api/procurement/` | `inbox.php`, `ksef_config.php` | KSeF inbox (upload, accept, rescan, bulk edit linii), konfiguracja JWT v2, `poll_now`. |
 
 ### 1.3 Silniki Domenowe (`/core/`)
 
@@ -60,12 +67,14 @@ System SliceHub Enterprise składa się z **14 wyizolowanych modułów frontendo
 | **Integrations** | `AdapterRegistry`, `BaseAdapter`, `IntegrationDispatcher`, `PapuAdapter`, `DotykackaAdapter`, `GastroSoftAdapter` | Wzorzec Strategy — registry + adaptery 3rd-party |
 | **Notifications** | `NotificationDispatcher`, `ChannelRegistry`, `TemplateRenderer`, wielokanałowe `Channels/` | Multi-channel (SMS, Email, In-App) z fallback chain |
 | **Visual** | `AssetResolver`, `SceneResolver`, `FoodCostEngine` | Resolving URL assetów, kontrakty scen wizualnych, kalkulacja food cost |
+| **BI** | `BiEngine` | P&L: net sales (`created_at`), COGS z wielu WZ per zamówienie, payroll ledger, OPEX (`line_type=EXPENSE`), snapshot `wh_stock` |
+| **KSeF** | `core/Ksef/Client.php`, `InboxInvoiceRepository`, `KsefXmlParser` | Oficjalne API MF v2 (JWT + kontekst NIP), metadata poll, pobranie XML, AutoScan → draft PZ |
 
 ### 1.4 Silosy Bazodanowe (Prefix-Based DDD)
 
 | Prefiks | Domena | Przykładowe tabele | Liczba tabel (w 001) |
 |---------|--------|---------------------|----------------------|
-| **`sh_`** | Biznes SliceHub | `sh_tenant`, `sh_users`, `sh_menu_items`, `sh_orders`, `sh_order_lines`, `sh_categories`, `sh_modifiers`, `sh_modifier_groups`, `sh_recipes`, `sh_price_tiers`, `sh_drivers`, `sh_kds_tickets`, `sh_promo_codes`, `sh_delivery_zones`, `sh_work_sessions`, `sh_order_payments`, `sh_dispatch_log` | ~30+ (rozszerzane w migracjach 004–044) |
+| **`sh_`** | Biznes SliceHub | `sh_tenant`, `sh_users`, `sh_menu_items`, `sh_orders`, `sh_order_lines`, `sh_ksef_invoices`, `sh_ksef_invoice_lines`, `sh_payroll_ledger`, `sh_variant_scales`, … | ~40+ (łańcuch migracji **004–057**, 55 plików SQL) |
 | **`sys_`** | Słownik surowców (Master Data) | `sys_items` (SKU, nazwa, jednostka, kategoria, aliasy wyszukiwania) | 1 |
 | **`wh_`** | Magazyn fizyczny | `wh_stock`, `wh_documents`, `wh_document_lines`, `wh_stock_logs` | 4 |
 
@@ -92,6 +101,7 @@ LEFT JOIN wh_stock ws ON ws.sku = m.linked_warehouse_sku AND ws.tenant_id = :tid
 | `worker_payroll_accrual.php` | Akumulacja payroll |
 | `worker_integration_health_ping.php` | Health check integracji |
 | `cron_reorder_nudge.php` | Cron — nudge do reorder |
+| `worker_ksef_inbox.php` | Poll KSeF metadata → inbox, deduplikacja, `matchInvoiceLines` |
 
 Wszystkie workery wspierają PID-lock i flagi `--loop` / `--dry-run`.
 
@@ -338,4 +348,4 @@ System używa **SSE (Server-Sent Events)** zamiast WebSocket — lekka implement
 
 ---
 
-*Raport wygenerowany na podstawie audytu żywego kodu repozytorium SliceHub Enterprise OS. Wszystkie ścieżki, nazwy tabel i fragmenty kodu odnoszą się do fizycznie istniejących plików w repozytorium.*
+*Raport wygenerowany na podstawie audytu żywego kodu repozytorium SliceHub Enterprise OS (rewizja 2026-05-20). Wszystkie ścieżki, nazwy tabel i fragmenty kodu odnoszą się do fizycznie istniejących plików w repozytorium. Testy regresji API: 62 scenariusze w `tests/test_runner.html` (w tym T62 — BI dashboard).*
