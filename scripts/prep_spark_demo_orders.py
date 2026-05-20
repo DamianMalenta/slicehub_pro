@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Prepare slicehub.net tenant 2 for SPARK recording: KDS tickets + driver route."""
+"""Prepare tenant for SPARK recording: KDS tickets + driver route (localhost or production)."""
 from __future__ import annotations
 
 import json
+import os
 import urllib.request
 
-BASE = "https://slicehub.net"
+BASE = os.environ.get("SLICEHUB_BASE", "http://localhost/slicehub").rstrip("/")
+OWNER_USER = os.environ.get("SLICEHUB_OWNER_USER", "spark_owner")
+OWNER_PASS = os.environ.get("SLICEHUB_OWNER_PASS", "password")
+DRIVER_USER = os.environ.get("SLICEHUB_DRIVER_USER", "spark_driver")
+DRIVER_PASS = os.environ.get("SLICEHUB_DRIVER_PASS", "password")
 
 
 def post(path: str, token: str, body: dict) -> dict:
@@ -20,7 +25,7 @@ def post(path: str, token: str, body: dict) -> dict:
         return json.loads(r.read().decode())
 
 
-def login(user: str, password: str) -> str:
+def login(user: str, password: str) -> tuple[str, dict]:
     body = json.dumps({"mode": "system", "username": user, "password": password}).encode()
     req = urllib.request.Request(
         f"{BASE}/api/auth/login.php",
@@ -30,27 +35,44 @@ def login(user: str, password: str) -> str:
     )
     with urllib.request.urlopen(req, timeout=30) as r:
         d = json.loads(r.read().decode())
-    return d["data"]["token"]
+    if not d.get("success"):
+        raise RuntimeError(f"Login failed for {user}: {d}")
+    return d["data"]["token"], d["data"]["user"]
+
+
+def find_order_id(token: str, order_number: str) -> str | None:
+    r = post("/api/pos/engine.php", token, {"action": "get_orders"})
+    orders = (r.get("data") or {}).get("orders") or r.get("data") or []
+    if not isinstance(orders, list):
+        return None
+    for o in orders:
+        if o.get("order_number") == order_number:
+            return o.get("id")
+    return None
 
 
 def main() -> None:
-    owner = login("Damian", "Dammalq123123")
+    print(f"Base: {BASE}")
+    owner_token, owner_user = login(OWNER_USER, OWNER_PASS)
+    driver_id = str(owner_user.get("id", ""))  # fallback
 
-    # KDS: FORNO-004 ready → preparing
-    r = post("/api/kds/engine.php", owner, {
-        "action": "recall_order",
-        "order_id": "59927821-12e2-4851-8ea9-5a4b94ef6d19",
-    })
-    print("recall FORNO-004:", r.get("success"), r.get("data"))
+    forno4 = find_order_id(owner_token, "FORNO-004")
+    if forno4:
+        r = post("/api/kds/engine.php", owner_token, {
+            "action": "recall_order",
+            "order_id": forno4,
+        })
+        print("recall FORNO-004:", r.get("success"), r.get("data"))
+    else:
+        print("WARN: FORNO-004 not found — run seed_pizzaforno first")
 
-    board = post("/api/kds/engine.php", owner, {"action": "get_board"})
+    board = post("/api/kds/engine.php", owner_token, {"action": "get_board"})
     orders = board.get("data", {}).get("orders", [])
     print(f"KDS board: {len(orders)} orders")
     for o in orders:
         print(f"  - {o.get('order_number')} {o.get('status')}")
 
-    # New delivery → dispatch Kasia (user_id=2)
-    po = post("/api/pos/engine.php", owner, {
+    po = post("/api/pos/engine.php", owner_token, {
         "action": "process_order",
         "order_type": "delivery",
         "source": "POS",
@@ -66,23 +88,36 @@ def main() -> None:
     oid = po.get("data", {}).get("order_id")
     print("new order:", oid)
 
-    post("/api/pos/engine.php", owner, {"action": "accept_order", "order_id": oid})
+    post("/api/pos/engine.php", owner_token, {"action": "accept_order", "order_id": oid})
     for st in ("preparing", "ready"):
-        post("/api/kds/engine.php", owner, {"action": "bump_order", "order_id": oid, "new_status": st})
+        post("/api/kds/engine.php", owner_token, {
+            "action": "bump_order",
+            "order_id": oid,
+            "new_status": st,
+        })
 
-    disp = post("/api/courses/engine.php", owner, {
+    _, driver_user = login(DRIVER_USER, DRIVER_PASS)
+    driver_uid = str(driver_user.get("id", driver_id))
+
+    disp = post("/api/courses/engine.php", owner_token, {
         "action": "dispatch",
-        "driver_id": "2",
+        "driver_id": driver_uid,
         "order_ids": [oid],
     })
     print("dispatch:", disp.get("success"), disp.get("data"))
 
-    kasia = login("kasia@slicehub.net", "asdasd")
-    runs = post("/api/courses/engine.php", kasia, {"action": "get_driver_runs"})
+    driver_token, _ = login(DRIVER_USER, DRIVER_PASS)
+    runs = post("/api/courses/engine.php", driver_token, {"action": "get_driver_runs"})
     dr_orders = runs.get("data", {}).get("orders", [])
     print(f"Driver runs: {len(dr_orders)}")
     for o in dr_orders:
         print(f"  - {o.get('order_number')} {o.get('status')} {o.get('course_id')}")
+
+    if len(orders) < 1:
+        raise SystemExit("FAIL: KDS empty after prep")
+    if len(dr_orders) < 1:
+        raise SystemExit("FAIL: Driver empty after prep")
+    print("OK prep complete")
 
 
 if __name__ == "__main__":
