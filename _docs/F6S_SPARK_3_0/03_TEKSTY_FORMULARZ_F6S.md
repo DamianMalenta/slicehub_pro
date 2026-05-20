@@ -8,7 +8,7 @@
 ## 1. Krótki opis firmy / „Elevator pitch” (~350 znaków)
 
 ```
-SliceHub Enterprise to multi-tenantowy system operacyjny gastronomii: POS, sklep klienta, KDS, magazyn, dostawy i integracje w jednym modelu danych. Koszyk i ceny liczy wyłącznie serwer; omnichannel bez „płaskiej ceny”; magazyn spięty z menu przez SKU. Stack: Vanilla JS + PHP 8 + MariaDB — bez Node w runtime na hostingu. Logistyka z jednym silnikiem API i mechanizmami operacyjnymi. Szukamy partnerów Spark 3.0 pod domknięcie storefrontu i pilotaże sieciowe.
+SliceHub Enterprise to multi-tenantowy OS gastronomii: POS, storefront, KDS, magazyn AVCO, natywny KSeF (API v2 MF), dashboard P&L (COGS+OPEX), dostawy i integracje w jednym modelie. Koszyk liczy serwer; omnichannel bez „płaskiej ceny”; magazyn↔menu przez SKU. Stack: Vanilla JS + PHP 8 + MariaDB — bez Node w runtime. Produkcja: slicehub.net. Spark 3.0: pilotaże sieciowe i domknięcie warstwy klienta (Counter + Living Table).
 ```
 
 ---
@@ -16,17 +16,15 @@ SliceHub Enterprise to multi-tenantowy system operacyjny gastronomii: POS, sklep
 ## 2. Średni opis (~1100 znaków) — typowe pole „Company / Product”
 
 ```
-SliceHub Enterprise to gastronomiczny system operacyjny, nie kolejna kasa. Jedna platforma dla wielu lokali (multi-tenant): sklep online, POS, kelner, stoliki, wyświetlacz kuchenny, magazyn z dokumentami i kosztem surowca, dyspozytornia i PWA kierowcy.
+SliceHub Enterprise to gastronomiczny system operacyjny, nie kolejna kasa. Jedna platforma multi-tenant: sklep online (sceny wizualne + warianty), POS offline-first, kelner, stoliki, KDS, magazyn AVCO, skrzynka KSeF (e-faktury → PZ + OPEX), dashboard P&L, dyspozytornia i PWA kierowcy — 17 modułów na slicehub.net.
 
-Architektura biznesowa: macierz cen per kanał (sala, wynos, dostawa), temporalna publikacja menu, serwerowa kalkulacja koszyka (klient nigdy nie wysyła totala — tylko SKU i ilości). Magazyn łączy się z menu przez SKU: receptury, modyfikatory, odpady, half-and-half.
+Architektura: macierz cen per kanał, variant scales (jedna receptura, mnożniki rozmiaru), serwerowy CartEngine, magazyn↔menu przez SKU. KSeF API v2: poll faktur, AutoScan linii, akceptacja magazynowa bez ręcznego przepisywania; koszty EXPENSE trafiają do P&L bez podwójnego liczenia PZ.
 
-Logistyka opiera się na jednym silniku API: spójny model statusu zamówienia, płatności i dostawy; mechanizmy operacyjne jak blokada dostawy bez rozliczenia płatności czy awaryjne wezwanie kierowcy.
+Logistyka: jeden silnik API kursów; payment lock u kierowcy; emergency recall. BI: COGS z WZ, payroll ledger, zamrożony kapitał ze stanów AVCO.
 
-Integracje: kanoniczny event bus (outbox) do webhooków oraz adapterów pod popularne POS (np. Papu, Dotykačka, GastroSoft) z retry i historią dostaw.
+Integracje: outbox + adaptery (Papu, Dotykačka, GastroSoft). Stack: PHP 8, MariaDB, Vanilla JS — zero Node w runtime, 55 migracji SQL, 62 testy API.
 
-Stack produkcyjny: PHP 8, MariaDB, Vanilla JS — bez Node w runtime na hostingu, co obniża koszt utrzymania i upraszcza wdrożenia na shared hostingu.
-
-Roadmapa produktowa jest jawna w dokumentacji wewnętrznej (m.in. scenariusz Counter + Drzwi dla storefrontu). Fundusze z akceleratora planujemy przeznaczyć na domknięcie warstwy klienta końcowego i pilotaże u operatorów sieciowych.
+Fundusze Spark 3.0: domknięcie storefrontu (Counter + Living Table) i pilotaże u operatorów sieciowych w CEE.
 ```
 
 ---
@@ -40,8 +38,8 @@ Sieci gastronomiczne i silne single-locale utknęły między „katalogiem onlin
 ROZWIĄZANIE
 SliceHub Enterprise to zintegrowany OS restauracji: od pierwszego kontaktu klienta ze sklepem, przez przyjęcie i realizację zamówienia w lokalu lub kuchni, po magazyn i flotę dostaw — w jednym modelu danych i z twardą izolacją tenantów.
 
-PRODUKT (MODUŁY)
-Front klienta (online), Studio menu i warstw wizualnych, POS, Tables/Waiter, KDS, Warehouse (PZ/RW/MM/Inwentaryzacja itd.), Dispatcher + Driver PWA, Settings (integracje, webhooks), Hub startowy, kadry/kiosk wg wdrożenia.
+PRODUKT (MODUŁY — stan 2026-05-20)
+Hub, Online storefront + Online Studio (Director), POS (PWA offline), Menu Studio (variant scales, subreceptury), Tables/Waiter, KDS, Warehouse V2, Procurement/KSeF Inbox, BI P&L, Courses + Driver PWA, Settings, Marketing, Inbox SMS, Kiosk HR, Backoffice kadry.
 
 TECHNOLOGIA I BEZPIECZEŃSTWO BIZNESOWEGO
 • Omnichannel: relacyjna macierz cen (osobno dla kanałów), brak pojęcia jednej „płaskiej ceny” w modelu.

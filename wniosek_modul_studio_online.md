@@ -1,7 +1,7 @@
 # MODUŁ ONLINE STUDIO — Analiza Techniczna i Plan Działania
 
 > Szczegółowa dokumentacja modułu Online Studio / Director dla wniosku o dofinansowanie.  
-> Audyt przeprowadzony na żywym kodzie repozytorium (maj 2026).
+> Audyt przeprowadzony na żywym kodzie repozytorium (**rewizja 2026-05-20**).
 
 ---
 
@@ -23,7 +23,9 @@ MANAGER (Online Studio)                    KLIENT (Storefront)
 
 ---
 
-## 2. CO JEST ZROBIONE (status maj 2026)
+## 2. CO JEST ZROBIONE (status 2026-05-20)
+
+**Uzupełnienie od rewizji wniosku:** storefront (`/modules/online/`) obsługuje **warianty rozmiaru** (badge „Rozmiary →”, modal wyboru) — spójne z POS i `sh_variant_scales` w Studio Menu. Demo produkcyjne: pełne menu Pizza Forno (229 pozycji, seed 2026-05).
 
 | Milestone | Zakres | Status |
 |-----------|--------|--------|
