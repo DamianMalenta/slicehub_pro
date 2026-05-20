@@ -41,7 +41,19 @@ bash scripts/seed_pizzaforno_verify.sh slicehub_pro_v2 2
 # Oczekiwane: FAIL=0, ≥190 menu items, 8× FORNO-001..008, 3× FA/FORNO/*
 ```
 
-### 1.3 Przygotowanie pod tracking WWW (seed nie ustawia `tracking_token`)
+### 1.3 Przygotowanie KDS + kierowca (żeby NIE było pustki)
+
+Seed sam z siebie często daje **pusty KDS** (statusy `delivered` / `in_route` bez `driver_id`) i **pustą Driver App**. Przed nagraniem uruchom skrypt (lub ręcznie te same kroki API):
+
+```bash
+python3 scripts/prep_spark_demo_orders.py
+# → recall FORNO-004 na KDS (preparing)
+# → nowe zamówienie delivery → accepted → preparing → ready → dispatch na Kasię
+```
+
+Alternatywa: `_docs/PROMPT_SPARK_NAGRANIE_PROCESY_FORNO.md` + agent wykonuje `scripts/record_spark_forno_demo.py` po prep.
+
+### 1.4 Przygotowanie pod tracking WWW (seed nie ustawia `tracking_token`)
 
 Wykonaj **raz** na produkcji (dla sceny mapy klienta):
 
@@ -60,7 +72,7 @@ URL trackera (podstaw `TOKEN` z SELECT):
 
 `https://slicehub.net/modules/online/track.html?tenant=2&token=TOKEN&phone=%2B48504321987`
 
-### 1.4 Co masz w seedzie — ściąga dla operatora
+### 1.5 Co masz w seedzie — ściąga dla operatora
 
 | Zasób | Wartość |
 |-------|---------|
