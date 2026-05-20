@@ -26,7 +26,8 @@
 
 ## Wideo (pełna ścieżka procesów)
 
-Prompt do nowego okna agenta: [`../PROMPT_SPARK_NAGRANIE_PROCESY_FORNO.md`](../PROMPT_SPARK_NAGRANIE_PROCESY_FORNO.md) — wymaga wgrania `scripts/seed_pizzaforno.sql` (menu 30/37 cm, FORNO-001…008).
+**Użyj V2** (żywe nagranie, nie sklejka screenshotów): [`../PROMPT_SPARK_NAGRANIE_PROCESY_FORNO_V2.md`](../PROMPT_SPARK_NAGRANIE_PROCESY_FORNO_V2.md)  
+Merytoryka + seed: [`../PROMPT_SPARK_NAGRANIE_PROCESY_FORNO.md`](../PROMPT_SPARK_NAGRANIE_PROCESY_FORNO.md) · prep: `scripts/prep_spark_demo_orders.py`
 
 ## Regeneracja
 

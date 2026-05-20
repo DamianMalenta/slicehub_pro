@@ -2,6 +2,7 @@
 
 > **Skopiuj cały blok od linii `---` do nowego okna Cloud Agent** (model: Sonnet lub równoważny; subagent `computerUse` + `RecordScreen` + opcjonalnie `videoReview`).  
 > Ten dokument jest **kanonicznym briefem na jedno długie nagranie** (surowe sceny) + **montaż przyspieszonego wideo** (60–90 s finał).  
+> **⚠️ Nagranie wideo:** użyj **[`PROMPT_SPARK_NAGRANIE_PROCESY_FORNO_V2.md`](PROMPT_SPARK_NAGRANIE_PROCESY_FORNO_V2.md)** — v1 + `record_spark_forno_demo.py` daje statyczną „sklejkę” screenshotów; V2 wymusza żywe RecordScreen.  
 > Uzupełnia `PROMPT_SPARK_PREZENTACJA_IDEALNA.md` (screeny/PDF — bez wideo) i `PROMPT_SPARK_VIDEO_SCREENS.md` (stary 60s tour bez łańcucha procesów).
 
 ---

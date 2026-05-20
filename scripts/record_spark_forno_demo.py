@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Record SPARK demo walkthrough on slicehub.net (Playwright video + key frames)."""
+"""DEPRECATED for SPARK video — produces static slideshow-like clips.
+
+Use RecordScreen + computerUse per _docs/PROMPT_SPARK_NAGRANIE_PROCESY_FORNO_V2.md instead.
+This script remains only for quick PNG screenshots / API smoke checks.
+"""
 from __future__ import annotations
 
 import json
