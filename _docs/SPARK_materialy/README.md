@@ -24,6 +24,10 @@
 - `/opt/cursor/artifacts/spark_onepager_v2.pdf`
 - `/opt/cursor/artifacts/spark_pitchdeck_v2.pdf`
 
+## Wideo (pełna ścieżka procesów)
+
+Prompt do nowego okna agenta: [`../PROMPT_SPARK_NAGRANIE_PROCESY_FORNO.md`](../PROMPT_SPARK_NAGRANIE_PROCESY_FORNO.md) — wymaga wgrania `scripts/seed_pizzaforno.sql` (menu 30/37 cm, FORNO-001…008).
+
 ## Regeneracja
 
 ```bash

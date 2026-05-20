@@ -1,7 +1,8 @@
 # PROMPT — Idealna prezentacja SliceHub Pro (slicehub.net) · SPARK 3.0
 
 > **Skopiuj cały blok od linii `---` do nowego okna Cloud Agent (model: Sonnet lub równoważny do UI/HTML).**  
-> Ten dokument zastępuje stare prompty (`PROMPT_SPARK_REWORK_BEZ_VIDEO`, `PROMPT_SPARK_PELEN_PAKIET`) jako **jeden kanoniczny brief** na materiały wizualne + narrację wniosku (2026-05-20).
+> Ten dokument zastępuje stare prompty (`PROMPT_SPARK_REWORK_BEZ_VIDEO`, `PROMPT_SPARK_PELEN_PAKIET`) jako **jeden kanoniczny brief** na materiały wizualne + narrację wniosku (2026-05-20).  
+> **Nagranie pełnej ścieżki procesów + timelapse (Pizza Forno seed):** [`PROMPT_SPARK_NAGRANIE_PROCESY_FORNO.md`](PROMPT_SPARK_NAGRANIE_PROCESY_FORNO.md).
 
 ---
 
