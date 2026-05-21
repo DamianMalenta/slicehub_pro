@@ -27,8 +27,16 @@ final class BiEngine
      *   cogs_minor: int,
      *   labor_minor: int,
      *   opex_minor: int,
+     *   gross_revenue_minor: int,
+     *   output_vat_minor: int,
      *   gross_profit_minor: int,
      *   operating_profit_minor: int,
+     *   prime_cost_minor: int,
+     *   prime_cost_pct_bp: int|null,
+     *   opex_pct_net_sales_bp: int|null,
+     *   operating_margin_bp: int|null,
+     *   opex_by_category: list<array{expense_category_id: int|null, category_name: string, total_net_minor: int}>,
+     *   capital_flow: list<array{label: string, delta_minor: int, balance_minor: int}>,
      *   stock_value_minor: int
      * }
      */
@@ -52,14 +60,21 @@ final class BiEngine
         $startTs = $from . ' 00:00:00';
         $endTs = $to . ' 23:59:59';
 
-        $netSales = self::aggregateNetSalesMinor($pdo, $tenantId, $startTs, $endTs);
+        $grossRevenue = self::aggregateGrossRevenueMinor($pdo, $tenantId, $startTs, $endTs);
+        $outputVat = self::aggregateOutputVatMinor($pdo, $tenantId, $startTs, $endTs);
+        $netSales = $grossRevenue - $outputVat;
         $cogs = self::aggregateCogsMinor($pdo, $tenantId, $startTs, $endTs);
         $labor = self::aggregateLaborMinor($pdo, $tenantId, $startTs, $endTs);
-        $opex = self::aggregateOpexMinor($pdo, $tenantId, $startTs, $endTs);
+        $opexRows = self::aggregateOpexByCategory($pdo, $tenantId, $startTs, $endTs);
+        $opex = 0;
+        foreach ($opexRows as $row) {
+            $opex += (int) $row['total_net_minor'];
+        }
         $stockValue = self::aggregateStockValueMinor($pdo, $tenantId);
 
         $grossProfit = $netSales - $cogs;
         $operatingProfit = $grossProfit - $labor - $opex;
+        $primeCost = $cogs + $labor;
 
         return [
             'period' => [
@@ -68,12 +83,20 @@ final class BiEngine
                 'start_ts'  => $startTs,
                 'end_ts'    => $endTs,
             ],
+            'gross_revenue_minor'    => $grossRevenue,
+            'output_vat_minor'       => $outputVat,
             'net_sales_minor'        => $netSales,
             'cogs_minor'             => $cogs,
             'labor_minor'            => $labor,
             'opex_minor'             => $opex,
             'gross_profit_minor'     => $grossProfit,
             'operating_profit_minor' => $operatingProfit,
+            'prime_cost_minor'       => $primeCost,
+            'prime_cost_pct_bp'      => self::ratioToBasisPoints($netSales, $primeCost),
+            'opex_pct_net_sales_bp'  => self::ratioToBasisPoints($netSales, $opex),
+            'operating_margin_bp'    => self::ratioToBasisPoints($netSales, $operatingProfit),
+            'opex_by_category'       => $opexRows,
+            'capital_flow'           => self::buildCapitalFlow($netSales, $cogs, $labor, $opex, $operatingProfit),
             'stock_value_minor'      => $stockValue,
         ];
     }
@@ -96,10 +119,7 @@ SQL;
         return (int) $st->fetchColumn();
     }
 
-    /**
-     * Net sales = SUM(grand_total) − SUM(line VAT) for completed orders in the window (sh_orders / sh_order_lines in grosze).
-     */
-    private static function aggregateNetSalesMinor(PDO $pdo, int $tenantId, string $startTs, string $endTs): int
+    private static function aggregateGrossRevenueMinor(PDO $pdo, int $tenantId, string $startTs, string $endTs): int
     {
         $sqlGross = <<<'SQL'
 SELECT COALESCE(SUM(o.grand_total), 0) AS v
@@ -115,8 +135,12 @@ SQL;
             ':start_ts' => $startTs,
             ':end_ts'   => $endTs,
         ]);
-        $gross = (int) $st->fetchColumn();
 
+        return (int) $st->fetchColumn();
+    }
+
+    private static function aggregateOutputVatMinor(PDO $pdo, int $tenantId, string $startTs, string $endTs): int
+    {
         $sqlVat = <<<'SQL'
 SELECT COALESCE(SUM(ol.vat_amount), 0) AS v
 FROM sh_order_lines ol
@@ -126,16 +150,15 @@ WHERE o.tenant_id = :tid
   AND o.created_at >= :start_ts
   AND o.created_at <= :end_ts
 SQL;
-        $st2 = $pdo->prepare($sqlVat);
-        $st2->execute([
+        $st = $pdo->prepare($sqlVat);
+        $st->execute([
             ':tid_join' => $tenantId,
             ':tid'      => $tenantId,
             ':start_ts' => $startTs,
             ':end_ts'   => $endTs,
         ]);
-        $vat = (int) $st2->fetchColumn();
 
-        return $gross - $vat;
+        return (int) $st->fetchColumn();
     }
 
     /**
@@ -190,28 +213,94 @@ SQL;
     }
 
     /**
-     * OPEX: accepted KSeF invoice lines classified as EXPENSE (grosze in line_net_minor).
+     * OPEX po kategoriach — ten sam filtr dat co suma OPEX (processed_at / updated_at faktury).
+     *
+     * @return list<array{expense_category_id: int|null, category_name: string, total_net_minor: int}>
      */
-    private static function aggregateOpexMinor(PDO $pdo, int $tenantId, string $startTs, string $endTs): int
+    private static function aggregateOpexByCategory(PDO $pdo, int $tenantId, string $startTs, string $endTs): array
     {
         $sql = <<<'SQL'
-SELECT COALESCE(SUM(l.line_net_minor), 0) AS v
-FROM sh_ksef_invoice_lines l
-INNER JOIN sh_ksef_invoices i ON i.id = l.ksef_invoice_id AND i.tenant_id = :tid_join
-WHERE i.tenant_id = :tid
-  AND i.status = 'accepted'
-  AND l.line_type = 'EXPENSE'
-  AND COALESCE(i.processed_at, i.updated_at) >= :start_ts
-  AND COALESCE(i.processed_at, i.updated_at) <= :end_ts
+SELECT l.expense_category_id AS cid,
+       MAX(COALESCE(ec.name, :uncat)) AS category_name,
+       CAST(COALESCE(SUM(l.line_net_minor), 0) AS SIGNED) AS total_net_minor
+  FROM sh_ksef_invoice_lines l
+ INNER JOIN sh_ksef_invoices i ON i.id = l.ksef_invoice_id AND i.tenant_id = :tid_join
+  LEFT JOIN sh_expense_categories ec
+         ON ec.id = l.expense_category_id AND ec.tenant_id = :tid_ec
+ WHERE i.tenant_id = :tid
+   AND i.status = 'accepted'
+   AND l.line_type = 'EXPENSE'
+   AND COALESCE(i.processed_at, i.updated_at) >= :start_ts
+   AND COALESCE(i.processed_at, i.updated_at) <= :end_ts
+ GROUP BY l.expense_category_id
+ ORDER BY total_net_minor DESC, category_name ASC
 SQL;
         $st = $pdo->prepare($sql);
         $st->execute([
+            ':uncat'    => 'Niesklasyfikowane',
             ':tid_join' => $tenantId,
+            ':tid_ec'   => $tenantId,
             ':tid'      => $tenantId,
             ':start_ts' => $startTs,
             ':end_ts'   => $endTs,
         ]);
 
-        return (int) $st->fetchColumn();
+        $out = [];
+        while ($row = $st->fetch(PDO::FETCH_ASSOC)) {
+            $cid = $row['cid'];
+            $out[] = [
+                'expense_category_id' => $cid !== null ? (int) $cid : null,
+                'category_name'       => (string) $row['category_name'],
+                'total_net_minor'     => (int) $row['total_net_minor'],
+            ];
+        }
+
+        return $out;
+    }
+
+    private static function ratioToBasisPoints(int $denominatorMinor, int $numeratorMinor): ?int
+    {
+        if ($denominatorMinor <= 0) {
+            return null;
+        }
+
+        return (int) round($numeratorMinor * 10000 / $denominatorMinor);
+    }
+
+    /**
+     * @return list<array{label: string, delta_minor: int, balance_minor: int}>
+     */
+    private static function buildCapitalFlow(
+        int $netSales,
+        int $cogs,
+        int $labor,
+        int $opex,
+        int $operatingProfit
+    ): array {
+        $grossMargin = $netSales - $cogs;
+        $afterLabor = $grossMargin - $labor;
+
+        return [
+            [
+                'label'         => 'Przychód netto (po VAT)',
+                'delta_minor'   => $netSales,
+                'balance_minor' => $netSales,
+            ],
+            [
+                'label'         => '− COGS (WZ, koszt historyczny)',
+                'delta_minor'   => -$cogs,
+                'balance_minor' => $grossMargin,
+            ],
+            [
+                'label'         => '− Koszty pracy (payroll ledger)',
+                'delta_minor'   => -$labor,
+                'balance_minor' => $afterLabor,
+            ],
+            [
+                'label'         => '− OPEX (KSeF, linie EXPENSE)',
+                'delta_minor'   => -$opex,
+                'balance_minor' => $operatingProfit,
+            ],
+        ];
     }
 }
