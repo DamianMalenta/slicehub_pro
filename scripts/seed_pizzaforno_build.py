@@ -93,6 +93,47 @@ def hours_ago(h: float) -> str:
     return dt.strftime('%Y-%m-%d %H:%M:%S')
 
 
+def sql_hours_ago(h: float) -> str:
+    """SQL expression — relative timestamp (re-seed stays fresh)."""
+    total_minutes = max(1, int(round(h * 60)))
+    if total_minutes % 60 == 0 and total_minutes >= 60:
+        return f"DATE_SUB(NOW(), INTERVAL {total_minutes // 60} HOUR)"
+    return f"DATE_SUB(NOW(), INTERVAL {total_minutes} MINUTE)"
+
+
+def canonical_order_type(raw: str) -> str:
+    return {'collection': 'takeaway', 'table': 'dine_in'}.get(raw, raw)
+
+
+def canonical_payment_status(payment_status: str, payment_method: str | None) -> str:
+    if payment_status in ('to_pay', 'online_unpaid', 'cash', 'card', 'online_paid'):
+        return payment_status
+    if payment_status == 'unpaid':
+        return 'online_unpaid' if payment_method == 'online' else 'to_pay'
+    if payment_status == 'paid':
+        mapping = {'cash': 'cash', 'card': 'card', 'online': 'online_paid'}
+        return mapping.get(payment_method or '', 'cash')
+    return payment_status
+
+
+def canonical_status_pair(status: str, order_type: str, delivery_status: str | None = None) -> tuple[str, str | None]:
+    """Map legacy seed statuses to 3-pillar model (status + delivery_status)."""
+    if delivery_status is not None:
+        return status, delivery_status
+    ot = canonical_order_type(order_type)
+    if status == 'delivered':
+        return 'completed', 'delivered'
+    if status in ('in_route', 'in_delivery'):
+        return 'ready', 'in_delivery'
+    if ot != 'delivery':
+        return status, None
+    if status == 'completed':
+        return status, 'delivered'
+    if status == 'cancelled':
+        return status, None
+    return status, 'unassigned'
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # XLSX PARSERS
 # ──────────────────────────────────────────────────────────────────────────────
@@ -750,7 +791,7 @@ ORDERS_DATA = [
         'channel':      'delivery',
         'order_type':   'delivery',
         'status':       'accepted',
-        'payment_status': 'paid',
+        'payment_status': 'card',
         'payment_method': 'card',
         'customer_name':  'Jan Kowalski',
         'customer_phone': '+48 512 345 678',
@@ -770,7 +811,7 @@ ORDERS_DATA = [
         'channel':      'delivery',
         'order_type':   'delivery',
         'status':       'preparing',
-        'payment_status': 'paid',
+        'payment_status': 'online_paid',
         'payment_method': 'online',
         'customer_name':  'Anna Nowak',
         'customer_phone': '+48 601 234 567',
@@ -787,9 +828,9 @@ ORDERS_DATA = [
     {
         'order_number': 'FORNO-003',
         'channel':      'takeaway',
-        'order_type':   'collection',
+        'order_type':   'takeaway',
         'status':       'new',
-        'payment_status': 'unpaid',
+        'payment_status': 'to_pay',
         'payment_method': 'cash',
         'customer_name':  'Marcin Wójcik',
         'customer_phone': '+48 789 123 456',
@@ -805,9 +846,9 @@ ORDERS_DATA = [
     {
         'order_number': 'FORNO-004',
         'channel':      'pos',
-        'order_type':   'table',
+        'order_type':   'dine_in',
         'status':       'preparing',
-        'payment_status': 'unpaid',
+        'payment_status': 'to_pay',
         'payment_method': None,
         'customer_name':  'Stolik 4',
         'customer_phone': None,
@@ -827,8 +868,9 @@ ORDERS_DATA = [
         'order_number': 'FORNO-005',
         'channel':      'delivery',
         'order_type':   'delivery',
-        'status':       'delivered',
-        'payment_status': 'paid',
+        'status':       'completed',
+        'delivery_status': 'delivered',
+        'payment_status': 'card',
         'payment_method': 'card',
         'customer_name':  'Kasia Zalewska',
         'customer_phone': '+48 698 765 432',
@@ -847,9 +889,11 @@ ORDERS_DATA = [
         'order_number': 'FORNO-006',
         'channel':      'delivery',
         'order_type':   'delivery',
-        'status':       'in_route',
-        'payment_status': 'paid',
+        'status':       'ready',
+        'delivery_status': 'in_delivery',
+        'payment_status': 'online_paid',
         'payment_method': 'online',
+        'tracking_token': True,
         'customer_name':  'Piotr Nowicki',
         'customer_phone': '+48 504 321 987',
         'delivery_address': 'ul. Słoneczna 21, 10-710 Olsztyn',
@@ -867,7 +911,7 @@ ORDERS_DATA = [
         'channel':      'online',
         'order_type':   'delivery',
         'status':       'new',
-        'payment_status': 'paid',
+        'payment_status': 'online_paid',
         'payment_method': 'online',
         'customer_name':  'Tomek Bąk',
         'customer_phone': '+48 666 555 444',
@@ -884,9 +928,9 @@ ORDERS_DATA = [
     {
         'order_number': 'FORNO-008',
         'channel':      'pos',
-        'order_type':   'table',
+        'order_type':   'dine_in',
         'status':       'completed',
-        'payment_status': 'paid',
+        'payment_status': 'card',
         'payment_method': 'card',
         'customer_name':  'Stolik 8',
         'customer_phone': None,
@@ -953,6 +997,10 @@ SET @wh  := {esc(WAREHOUSE_ID)};
     W("")
 
     # Orders
+    W("DELETE FROM sh_order_payments WHERE order_id IN")
+    W("  (SELECT id FROM sh_orders WHERE tenant_id=@tid AND order_number LIKE 'FORNO-%');")
+    W("DELETE FROM sh_order_audit WHERE order_id IN")
+    W("  (SELECT id FROM sh_orders WHERE tenant_id=@tid AND order_number LIKE 'FORNO-%');")
     W("DELETE FROM sh_order_lines WHERE order_id IN")
     W("  (SELECT id FROM sh_orders WHERE tenant_id=@tid AND order_number LIKE 'FORNO-%');")
     W("DELETE FROM sh_orders WHERE tenant_id=@tid AND order_number LIKE 'FORNO-%';")
@@ -1640,23 +1688,36 @@ SET @wh  := {esc(WAREHOUSE_ID)};
 
     for order in ORDERS_DATA:
         order_id  = gen_uuid()
-        created   = hours_ago(order['hours_ago'])
+        created_sql = sql_hours_ago(order['hours_ago'])
         subtotal  = sum(l[2] * l[3] for l in order['lines'])
         grand_tot = subtotal + order.get('delivery_fee', 0)
-        pm        = esc(order['payment_method']) if order['payment_method'] else 'NULL'
-        lat       = str(order['lat']) if order['lat'] else 'NULL'
-        lng       = str(order['lng']) if order['lng'] else 'NULL'
-        addr      = esc(order['delivery_address']) if order['delivery_address'] else 'NULL'
-        phone     = esc(order['customer_phone']) if order['customer_phone'] else 'NULL'
+        order_type = canonical_order_type(order['order_type'])
+        pay_status = canonical_payment_status(order['payment_status'], order.get('payment_method'))
+        status, delivery_status = canonical_status_pair(
+            order['status'], order['order_type'], order.get('delivery_status')
+        )
+        pm        = esc(order['payment_method']) if order.get('payment_method') else 'NULL'
+        lat       = str(order['lat']) if order.get('lat') else 'NULL'
+        lng       = str(order['lng']) if order.get('lng') else 'NULL'
+        addr      = esc(order['delivery_address']) if order.get('delivery_address') else 'NULL'
+        phone     = esc(order['customer_phone']) if order.get('customer_phone') else 'NULL'
+        ds        = esc(delivery_status) if delivery_status else 'NULL'
+        promised  = f"DATE_ADD({created_sql}, INTERVAL 35 MINUTE)" if order_type == 'delivery' else 'NULL'
+        track_tok = (
+            f"LOWER(SUBSTRING(REPLACE({esc(order_id)},'-',''), 1, 16))"
+            if order.get('tracking_token') else 'NULL'
+        )
 
         W(f"INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,")
         W(f"  subtotal, delivery_fee, grand_total, status, payment_status, payment_method,")
-        W(f"  customer_name, customer_phone, delivery_address, lat, lng, created_at)")
+        W(f"  delivery_status, customer_name, customer_phone, delivery_address, lat, lng,")
+        W(f"  promised_time, tracking_token, created_at)")
         W(f"VALUES ({esc(order_id)}, @tid, {esc(order['order_number'])},")
-        W(f"  {esc(order['channel'])}, {esc(order['order_type'])}, {esc('seed')},")
+        W(f"  {esc(order['channel'])}, {esc(order_type)}, {esc('seed')},")
         W(f"  {subtotal}, {order.get('delivery_fee',0)}, {grand_tot},")
-        W(f"  {esc(order['status'])}, {esc(order['payment_status'])}, {pm},")
-        W(f"  {esc(order['customer_name'])}, {phone}, {addr}, {lat}, {lng}, {esc(created)});")
+        W(f"  {esc(status)}, {esc(pay_status)}, {pm},")
+        W(f"  {ds}, {esc(order['customer_name'])}, {phone}, {addr}, {lat}, {lng},")
+        W(f"  {promised}, {track_tok}, {created_sql});")
         W("")
 
         for item_sku, snap_name, unit_price, qty, vat_rate, mods in order['lines']:

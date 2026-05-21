@@ -20,6 +20,10 @@ SET @wh  := 'MAIN';
 -- ═══════════════════════════════════════════════════════════════════════
 SET FOREIGN_KEY_CHECKS = 0;
 
+DELETE FROM sh_order_payments WHERE order_id IN
+  (SELECT id FROM sh_orders WHERE tenant_id=@tid AND order_number LIKE 'FORNO-%');
+DELETE FROM sh_order_audit WHERE order_id IN
+  (SELECT id FROM sh_orders WHERE tenant_id=@tid AND order_number LIKE 'FORNO-%');
 DELETE FROM sh_order_lines WHERE order_id IN
   (SELECT id FROM sh_orders WHERE tenant_id=@tid AND order_number LIKE 'FORNO-%');
 DELETE FROM sh_orders WHERE tenant_id=@tid AND order_number LIKE 'FORNO-%';
@@ -5882,15 +5886,17 @@ VALUES
 (@ksef_id, 4, 'Prosciutto di Parma 1 kg', NULL, 'kg', 3.0, 89.0, 26700, 8.0,
    NULL, NULL, NULL);
 
--- ── 2.18 sh_orders + sh_order_lines ───────────────────────────────────
+-- ── 2.18 sh_orders + sh_order_lines (3-pillar status model, relative timestamps) ──
 INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,
   subtotal, delivery_fee, grand_total, status, payment_status, payment_method,
-  customer_name, customer_phone, delivery_address, lat, lng, created_at)
+  delivery_status, customer_name, customer_phone, delivery_address, lat, lng,
+  promised_time, tracking_token, created_at)
 VALUES ('2d6c426c-cb59-4f3e-9c9e-0dbbe61d22ca', @tid, 'FORNO-001',
   'delivery', 'delivery', 'seed',
   9500, 800, 10300,
-  'accepted', 'paid', 'card',
-  'Jan Kowalski', '+48 512 345 678', 'ul. Zielona 15, 10-900 Olsztyn', 53.7784, 20.4801, '2026-05-14 00:24:08');
+  'accepted', 'card', 'card',
+  'unassigned', 'Jan Kowalski', '+48 512 345 678', 'ul. Zielona 15, 10-900 Olsztyn', 53.7784, 20.4801,
+  DATE_ADD(DATE_SUB(NOW(), INTERVAL 90 MINUTE), INTERVAL 35 MINUTE), NULL, DATE_SUB(NOW(), INTERVAL 90 MINUTE));
 
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
@@ -5907,12 +5913,14 @@ VALUES ('669113c8-f666-4b4e-9c01-390c1e779a67', '2d6c426c-cb59-4f3e-9c9e-0dbbe61
 
 INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,
   subtotal, delivery_fee, grand_total, status, payment_status, payment_method,
-  customer_name, customer_phone, delivery_address, lat, lng, created_at)
+  delivery_status, customer_name, customer_phone, delivery_address, lat, lng,
+  promised_time, tracking_token, created_at)
 VALUES ('f40ca6bf-47f1-4826-9c55-5b49061d54da', @tid, 'FORNO-002',
   'delivery', 'delivery', 'seed',
   7500, 800, 8300,
-  'preparing', 'paid', 'online',
-  'Anna Nowak', '+48 601 234 567', 'ul. Lipowa 7, 10-500 Olsztyn', 53.772, 20.4925, '2026-05-14 01:09:08');
+  'preparing', 'online_paid', 'online',
+  'unassigned', 'Anna Nowak', '+48 601 234 567', 'ul. Lipowa 7, 10-500 Olsztyn', 53.772, 20.4925,
+  DATE_ADD(DATE_SUB(NOW(), INTERVAL 45 MINUTE), INTERVAL 35 MINUTE), NULL, DATE_SUB(NOW(), INTERVAL 45 MINUTE));
 
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
@@ -5925,12 +5933,14 @@ VALUES ('a6067ee6-bf62-4c1f-a5ce-422ad7bc5fd8', 'f40ca6bf-47f1-4826-9c55-5b49061
 
 INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,
   subtotal, delivery_fee, grand_total, status, payment_status, payment_method,
-  customer_name, customer_phone, delivery_address, lat, lng, created_at)
+  delivery_status, customer_name, customer_phone, delivery_address, lat, lng,
+  promised_time, tracking_token, created_at)
 VALUES ('56484649-7c27-415b-9bc1-fe993f2aff69', @tid, 'FORNO-003',
-  'takeaway', 'collection', 'seed',
+  'takeaway', 'takeaway', 'seed',
   4050, 0, 4050,
-  'new', 'unpaid', 'cash',
-  'Marcin Wójcik', '+48 789 123 456', NULL, NULL, NULL, '2026-05-14 01:39:08');
+  'new', 'to_pay', 'cash',
+  NULL, 'Marcin Wójcik', '+48 789 123 456', NULL, NULL, NULL,
+  NULL, NULL, DATE_SUB(NOW(), INTERVAL 15 MINUTE));
 
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
@@ -5939,12 +5949,14 @@ VALUES ('4bd6f9ef-9967-42c0-a52a-2b74691a1c97', '56484649-7c27-415b-9bc1-fe993f2
 
 INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,
   subtotal, delivery_fee, grand_total, status, payment_status, payment_method,
-  customer_name, customer_phone, delivery_address, lat, lng, created_at)
+  delivery_status, customer_name, customer_phone, delivery_address, lat, lng,
+  promised_time, tracking_token, created_at)
 VALUES ('59927821-12e2-4851-8ea9-5a4b94ef6d19', @tid, 'FORNO-004',
-  'pos', 'table', 'seed',
+  'pos', 'dine_in', 'seed',
   17750, 0, 17750,
-  'preparing', 'unpaid', NULL,
-  'Stolik 4', NULL, NULL, NULL, NULL, '2026-05-14 01:24:08');
+  'preparing', 'to_pay', NULL,
+  NULL, 'Stolik 4', NULL, NULL, NULL, NULL,
+  NULL, NULL, DATE_SUB(NOW(), INTERVAL 30 MINUTE));
 
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
@@ -5965,12 +5977,14 @@ VALUES ('a19e3a37-f892-4817-a5c2-2bfb421fd167', '59927821-12e2-4851-8ea9-5a4b94e
 
 INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,
   subtotal, delivery_fee, grand_total, status, payment_status, payment_method,
-  customer_name, customer_phone, delivery_address, lat, lng, created_at)
+  delivery_status, customer_name, customer_phone, delivery_address, lat, lng,
+  promised_time, tracking_token, created_at)
 VALUES ('88f16364-e253-429a-9658-698a5a089e71', @tid, 'FORNO-005',
   'delivery', 'delivery', 'seed',
   10300, 800, 11100,
-  'delivered', 'paid', 'card',
-  'Kasia Zalewska', '+48 698 765 432', 'ul. Mickiewicza 33, 10-230 Olsztyn', 53.7801, 20.4756, '2026-05-07 01:54:08');
+  'completed', 'card', 'card',
+  'delivered', 'Kasia Zalewska', '+48 698 765 432', 'ul. Mickiewicza 33, 10-230 Olsztyn', 53.7801, 20.4756,
+  DATE_ADD(DATE_SUB(NOW(), INTERVAL 168 HOUR), INTERVAL 35 MINUTE), NULL, DATE_SUB(NOW(), INTERVAL 168 HOUR));
 
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
@@ -5987,12 +6001,16 @@ VALUES ('735a8158-9ab1-4ee3-a736-21dbfd755657', '88f16364-e253-429a-9658-698a5a0
 
 INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,
   subtotal, delivery_fee, grand_total, status, payment_status, payment_method,
-  customer_name, customer_phone, delivery_address, lat, lng, created_at)
+  delivery_status, customer_name, customer_phone, delivery_address, lat, lng,
+  promised_time, tracking_token, created_at)
 VALUES ('c5b96dde-7ce8-4a26-aaff-5dd83f5f3e9b', @tid, 'FORNO-006',
   'delivery', 'delivery', 'seed',
   8600, 800, 9400,
-  'in_route', 'paid', 'online',
-  'Piotr Nowicki', '+48 504 321 987', 'ul. Słoneczna 21, 10-710 Olsztyn', 53.765, 20.51, '2026-05-14 00:39:08');
+  'ready', 'online_paid', 'online',
+  'in_delivery', 'Piotr Nowicki', '+48 504 321 987', 'ul. Słoneczna 21, 10-710 Olsztyn', 53.765, 20.51,
+  DATE_ADD(DATE_SUB(NOW(), INTERVAL 75 MINUTE), INTERVAL 35 MINUTE),
+  LOWER(SUBSTRING(REPLACE('c5b96dde-7ce8-4a26-aaff-5dd83f5f3e9b','-',''), 1, 16)),
+  DATE_SUB(NOW(), INTERVAL 75 MINUTE));
 
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
@@ -6005,12 +6023,14 @@ VALUES ('201528f0-1735-4b41-86c8-10fe28d71006', 'c5b96dde-7ce8-4a26-aaff-5dd83f5
 
 INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,
   subtotal, delivery_fee, grand_total, status, payment_status, payment_method,
-  customer_name, customer_phone, delivery_address, lat, lng, created_at)
+  delivery_status, customer_name, customer_phone, delivery_address, lat, lng,
+  promised_time, tracking_token, created_at)
 VALUES ('f001a896-a1e1-4069-9ac4-ea5013179629', @tid, 'FORNO-007',
   'online', 'delivery', 'seed',
   4000, 800, 4800,
-  'new', 'paid', 'online',
-  'Tomek Bąk', '+48 666 555 444', 'ul. Kościuszki 5, 10-100 Olsztyn', 53.7754, 20.4818, '2026-05-14 01:48:08');
+  'new', 'online_paid', 'online',
+  'unassigned', 'Tomek Bąk', '+48 666 555 444', 'ul. Kościuszki 5, 10-100 Olsztyn', 53.7754, 20.4818,
+  DATE_ADD(DATE_SUB(NOW(), INTERVAL 6 MINUTE), INTERVAL 35 MINUTE), NULL, DATE_SUB(NOW(), INTERVAL 6 MINUTE));
 
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
@@ -6023,12 +6043,14 @@ VALUES ('933c395d-fbd6-4c14-810d-c00794f12dec', 'f001a896-a1e1-4069-9ac4-ea50131
 
 INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,
   subtotal, delivery_fee, grand_total, status, payment_status, payment_method,
-  customer_name, customer_phone, delivery_address, lat, lng, created_at)
+  delivery_status, customer_name, customer_phone, delivery_address, lat, lng,
+  promised_time, tracking_token, created_at)
 VALUES ('75d241c3-419c-4339-bdd0-71d1f2a76d0b', @tid, 'FORNO-008',
-  'pos', 'table', 'seed',
+  'pos', 'dine_in', 'seed',
   24450, 0, 24450,
-  'completed', 'paid', 'card',
-  'Stolik 8', NULL, NULL, NULL, NULL, '2026-05-12 01:54:08');
+  'completed', 'card', 'card',
+  NULL, 'Stolik 8', NULL, NULL, NULL, NULL,
+  NULL, NULL, DATE_SUB(NOW(), INTERVAL 48 HOUR));
 
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)

@@ -265,6 +265,20 @@ ok "Order lines: $n_order_lines"
 statuses=$(Q "SELECT GROUP_CONCAT(DISTINCT status ORDER BY status SEPARATOR ',') FROM sh_orders WHERE tenant_id=$TID AND order_number LIKE 'FORNO-%'")
 ok "Statusy zamówień: $statuses"
 
+legacy=$(Q "SELECT COUNT(*) FROM sh_orders WHERE tenant_id=$TID AND order_number LIKE 'FORNO-%' AND status IN ('delivered','in_route','in_delivery')")
+if [ "$legacy" -eq 0 ]; then
+    ok "Brak legacy statusów (delivered/in_route)"
+else
+    fail "Legacy statusy w zamówieniach: $legacy (uruchom fix_pizzaforno_orders_legacy.sql)"
+fi
+
+bad_types=$(Q "SELECT COUNT(*) FROM sh_orders WHERE tenant_id=$TID AND order_number LIKE 'FORNO-%' AND order_type IN ('collection','table')")
+if [ "$bad_types" -eq 0 ]; then
+    ok "order_type kanoniczne (delivery/takeaway/dine_in)"
+else
+    fail "Legacy order_type: $bad_types"
+fi
+
 # Sprawdź czy totale się zgadzają
 bad_totals=$(Q "SELECT COUNT(*) FROM sh_orders o WHERE o.tenant_id=$TID AND o.order_number LIKE 'FORNO-%' AND o.grand_total != o.subtotal + o.delivery_fee")
 if [ "$bad_totals" -eq 0 ]; then
