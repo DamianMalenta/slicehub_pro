@@ -93,6 +93,12 @@
         <article class="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md p-5">
             <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold">OPEX (KSeF EXPENSE)</div>
             <div id="bi-opex" class="mt-2 text-2xl font-bold text-amber-400 tabular-nums">—</div>
+            <p id="bi-opex-pct" class="mt-1 text-[11px] text-gray-500"></p>
+        </article>
+        <article class="rounded-2xl border border-orange-500/20 bg-orange-500/5 backdrop-blur-md p-5 sm:col-span-2">
+            <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold">Prime cost (COGS + praca)</div>
+            <div id="bi-prime" class="mt-2 text-2xl font-bold text-orange-200 tabular-nums">—</div>
+            <p id="bi-prime-pct" class="mt-1 text-[11px] text-gray-500"></p>
         </article>
         <article class="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 backdrop-blur-md p-5 sm:col-span-2">
             <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold">Zysk brutto (netto − COGS)</div>
@@ -101,7 +107,27 @@
         <article class="rounded-2xl border border-violet-500/25 bg-violet-500/10 backdrop-blur-md p-5 sm:col-span-2">
             <div class="text-xs uppercase tracking-wider text-gray-500 font-semibold">Zysk operacyjny (przybliżony)</div>
             <div id="bi-op" class="mt-2 text-3xl font-extrabold text-violet-300 tabular-nums">—</div>
+            <p id="bi-op-pct" class="mt-1 text-[11px] text-gray-500"></p>
         </article>
+    </section>
+
+    <section id="bi-detail-wrap" class="hidden space-y-6 opacity-50 pointer-events-none transition">
+        <div class="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md p-5 shadow-xl shadow-black/20">
+            <h2 class="text-sm font-semibold text-white mb-3"><i class="fa-solid fa-water mr-2 text-violet-400"></i>Przepływ kapitału operacyjnego</h2>
+            <ul id="bi-flow" class="text-sm divide-y divide-white/5"></ul>
+        </div>
+        <div class="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md p-5 shadow-xl shadow-black/20 overflow-x-auto">
+            <h2 class="text-sm font-semibold text-white mb-3"><i class="fa-solid fa-tags mr-2 text-amber-400"></i>OPEX wg kategorii (KSeF EXPENSE)</h2>
+            <table class="w-full text-sm text-left">
+                <thead>
+                    <tr class="text-xs uppercase tracking-wider text-gray-500 border-b border-white/10">
+                        <th class="py-2 pr-4 font-semibold">Kategoria</th>
+                        <th class="py-2 text-right font-semibold">Netto</th>
+                    </tr>
+                </thead>
+                <tbody id="bi-opex-body"></tbody>
+            </table>
+        </div>
     </section>
 </main>
 
@@ -117,6 +143,48 @@
     function plnFromMinor(n) {
         const v = Number(n) || 0;
         return (v / 100).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' PLN';
+    }
+
+    function pctFromBp(bp) {
+        if (bp === null || bp === undefined) return '—';
+        return (Number(bp) / 100).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '% przych. netto';
+    }
+
+    function escapeHtml(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+        }[c]));
+    }
+
+    function renderCapitalFlow(steps) {
+        const ul = document.getElementById('bi-flow');
+        if (!ul) return;
+        const list = Array.isArray(steps) ? steps : [];
+        ul.innerHTML = list.map((s) => {
+            const bal = Number(s.balance_minor) || 0;
+            const balClass = bal < 0 ? 'text-red-500 font-bold' : 'text-emerald-200 font-medium';
+            return `<li class="flex justify-between gap-4 py-2.5">
+                <span class="text-gray-300">${escapeHtml(s.label)}</span>
+                <span class="text-right tabular-nums shrink-0">
+                    <span class="text-gray-500 mr-2">${plnFromMinor(s.delta_minor)}</span>
+                    <span class="${balClass}">${plnFromMinor(s.balance_minor)}</span>
+                </span>
+            </li>`;
+        }).join('');
+    }
+
+    function renderOpexByCategory(rows) {
+        const tb = document.getElementById('bi-opex-body');
+        if (!tb) return;
+        const list = Array.isArray(rows) ? rows : [];
+        if (list.length === 0) {
+            tb.innerHTML = '<tr><td colspan="2" class="py-3 text-gray-500">Brak linii EXPENSE w zaakceptowanych fakturach w tym okresie.</td></tr>';
+            return;
+        }
+        tb.innerHTML = list.map((r) => `<tr class="border-b border-white/5">
+            <td class="py-2 pr-4 text-gray-200">${escapeHtml(r.category_name)}</td>
+            <td class="py-2 text-right tabular-nums text-gray-100">${plnFromMinor(r.total_net_minor)}</td>
+        </tr>`).join('');
     }
 
     function defaultRange() {
@@ -145,15 +213,22 @@
         const warn = document.getElementById('bi-auth-warn');
         const grid = document.getElementById('bi-grid');
         const snap = document.getElementById('bi-snapshot-wrap');
+        const detail = document.getElementById('bi-detail-wrap');
         if (!token()) {
             warn.classList.remove('hidden');
             grid.classList.add('opacity-50', 'pointer-events-none');
             if (snap) snap.classList.add('opacity-50', 'pointer-events-none');
+            if (detail) {
+                detail.classList.add('hidden', 'opacity-50', 'pointer-events-none');
+            }
             return;
         }
         warn.classList.add('hidden');
         grid.classList.remove('opacity-50', 'pointer-events-none');
         if (snap) snap.classList.remove('opacity-50', 'pointer-events-none');
+        if (detail) {
+            detail.classList.remove('hidden', 'opacity-50', 'pointer-events-none');
+        }
 
         const df = document.getElementById('bi-from').value;
         const dt = document.getElementById('bi-to').value;
@@ -177,6 +252,12 @@
         document.getElementById('bi-cogs').textContent = plnFromMinor(d.cogs_minor);
         document.getElementById('bi-labor').textContent = plnFromMinor(d.labor_minor);
         document.getElementById('bi-opex').textContent = plnFromMinor(d.opex_minor);
+        const primeEl = document.getElementById('bi-prime');
+        if (primeEl) primeEl.textContent = plnFromMinor(d.prime_cost_minor);
+        const opexPct = document.getElementById('bi-opex-pct');
+        if (opexPct) opexPct.textContent = pctFromBp(d.opex_pct_net_sales_bp);
+        const primePct = document.getElementById('bi-prime-pct');
+        if (primePct) primePct.textContent = pctFromBp(d.prime_cost_pct_bp);
         const stEl = document.getElementById('bi-stock');
         if (stEl) stEl.textContent = plnFromMinor(d.stock_value_minor);
         const gm = document.getElementById('bi-gross');
@@ -189,6 +270,10 @@
         op.textContent = plnFromMinor(opv);
         op.classList.remove('text-violet-300', 'text-red-500', 'font-bold');
         if (opv <= 0) { op.classList.add('text-red-500', 'font-bold'); } else { op.classList.add('text-violet-300'); }
+        const opPct = document.getElementById('bi-op-pct');
+        if (opPct) opPct.textContent = 'Marża operacyjna: ' + pctFromBp(d.operating_margin_bp);
+        renderCapitalFlow(d.capital_flow);
+        renderOpexByCategory(d.opex_by_category);
     }
 
     const r = defaultRange();
