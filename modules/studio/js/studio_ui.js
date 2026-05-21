@@ -20,6 +20,12 @@ window.Core = {
             window.ModifierInspector.renderInit();
             window.ModifierInspector.renderGroupList();
         }
+        if (viewId === 'meals' && window.MealEditor) {
+            window.MealEditor.init();
+            if (!document.getElementById('meal-id')?.value || document.getElementById('meal-id').value === '0') {
+                window.MealEditor.newMeal();
+            }
+        }
     },
     renderTree: function() {
         const container = document.getElementById('dynamic-tree-container');

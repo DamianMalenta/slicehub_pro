@@ -12,7 +12,7 @@
 
 ## ✅ KROK 1 — `.htaccess` w `public_html/` (root domeny)
 
-> **Po co:** kod używa absolutnych ścieżek `/slicehub/api/...`, `/slicehub/modules/...`. Lokalnie XAMPP fizycznie ma katalog `htdocs/slicehub/`. Na hostingu pliki idą do `public_html/` (bez podkatalogu) — bez aliasu wszystkie URL-e zwracają 404.
+> **Po co:** historycznie kod używał absolutnych ścieżek `/slicehub/api/...`. Od migracji Tier 3 (2026-05-21) frontend używa **SSOT** `core/js/sh_api_base.js` — `SliceHub.getApiBase()` zwraca `/api` na hostingu root bez dodatkowej konfiguracji. Reguła aliasu `/slicehub/` poniżej nadal pomaga dla starych zakładek, manifestów PWA i uploadów zwracanych z API z prefiksem `/slicehub/`.
 
 **Co zrobić:**
 
@@ -38,6 +38,21 @@ RewriteRule ^slicehub/(.*)$ /$1 [L]
 **Test:** wejdź na `https://<TWOJA_DOMENA>/index.html` — powinno przekierować na `https://<TWOJA_DOMENA>/modules/hub/index.html`. Jeśli jeszcze nie ma styli/skryptów — to OK, idziemy dalej. Jeśli 404 na samej stronie głównej — sprawdź czy plik nazywa się dokładnie `.htaccess` (kropka), czy jest w `public_html/` (nie w podkatalogu), czy hosting ma włączony `mod_rewrite`.
 
 **Pełna instrukcja referencyjna:** `_docs/hostingowy_htaccess_root.txt`.
+
+### Prefiks API (SSOT)
+
+| Środowisko | URL modułu | `SliceHub.getApiBase()` | `SliceHub.getAppBase()` |
+|---|---|---|---|
+| XAMPP lokalnie | `/slicehub/modules/hub/...` | `/slicehub/api` | `/slicehub` |
+| Hosting root (uti.pl) | `/modules/hub/...` | `/api` | `` (pusty) |
+
+Manifesty PWA (`online/manifest.webmanifest`, `waiter/manifest.json`, `pos/manifest.webmanifest`) używają **ścieżek relatywnych** (`./index.html`) — działają na obu mountach bez zmian.
+
+Moduły `.htaccess` (POS, Online) ustawiają `Service-Worker-Allowed` dynamicznie wg `Request_URI` (XAMPP vs root).
+
+Opcjonalnie w panelu hostingu (Plesk / env): `SLICEHUB_API_BASE=/api` — ustawia `window.__SH_API_BASE__` przez `tenant_config.php`.
+
+Moduły ładują `tenant_config.php` jako `<script src="../../tenant_config.php">` (relatywnie od `modules/*/`).
 
 ---
 
@@ -72,6 +87,7 @@ Panel uti.pl → ustawienia hostingu → zmienne środowiskowe (PHP environment 
 | `SLICEHUB_DB_USER` | login DB (z Kroku 2) |
 | `SLICEHUB_DB_PASS` | hasło DB (z Kroku 2) |
 | `JWT_SECRET` | losowy 64-znakowy ciąg, **inny niż lokalny** |
+| `SLICEHUB_API_BASE` | opcjonalnie `/api` — wymusza prefiks API (domyślnie heurystyka pathname) |
 
 **Wygenerowanie `JWT_SECRET`** — w PowerShell na lokalu:
 

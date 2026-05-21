@@ -4,7 +4,15 @@
  * Uses JWT from localStorage. No jQuery.
  */
 const DriverAPI = (() => {
-    const ENDPOINT = '/slicehub/api/courses/engine.php';
+    function apiFallback() {
+        if (window.SliceHub && window.SliceHub.getApiFallback) return window.SliceHub.getApiFallback();
+        return '/api';
+    }
+    function engineUrl() {
+        return (window.SliceHub && window.SliceHub.apiUrl)
+            ? window.SliceHub.apiUrl('courses/engine.php')
+            : apiFallback() + '/courses/engine.php';
+    }
     let _token = localStorage.getItem('sh_token') || '';
 
     function setToken(t) { _token = t; localStorage.setItem('sh_token', t); }
@@ -14,7 +22,7 @@ const DriverAPI = (() => {
         const headers = { 'Content-Type': 'application/json' };
         if (_token) headers['Authorization'] = `Bearer ${_token}`;
         try {
-            const res = await fetch(ENDPOINT, {
+            const res = await fetch(engineUrl(), {
                 method: 'POST', headers,
                 body: JSON.stringify({ action, ...data }),
             });
@@ -35,7 +43,9 @@ const DriverAPI = (() => {
         /** Login + hasło (aplikacja mobilna kierowcy). */
         loginSystem: (username, password) => {
             const headers = { 'Content-Type': 'application/json' };
-            return fetch('/slicehub/api/auth/login.php', {
+            return fetch((window.SliceHub && window.SliceHub.apiUrl)
+                ? window.SliceHub.apiUrl('auth/login.php')
+                : apiFallback() + '/auth/login.php', {
                 method: 'POST', headers,
                 body: JSON.stringify({
                     mode: 'system',

@@ -7,7 +7,9 @@
  * Polling co 30s dla nowych wiadomości.
  */
 
-const API_BASE = '/slicehub/api/inbox/engine.php';
+const API_BASE = (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.apiUrl)
+    ? window.SliceHub.apiUrl('/inbox/engine.php')
+    : '/api/inbox/engine.php';
 const TENANT_ID = parseInt(
     document.querySelector('meta[name="sh-tenant-id"]')?.content ?? '1', 10
 );

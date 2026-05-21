@@ -12,27 +12,27 @@
 (function () {
     'use strict';
 
-    /** Ten sam kontrakt co Hub/POS (meta sh-api-base lub prefix przed /modules/). */
-    function getApiBase() {
-        if (typeof document !== 'undefined') {
-            const meta = document.querySelector('meta[name="sh-api-base"]');
-            if (meta && meta.content) {
-                const b = String(meta.content).trim().replace(/\/+$/, '');
-                if (b) return b;
-            }
+    /** Prefiks API: core/js/sh_api_base.js (SliceHub.getApiBase). */
+    function apiBase() {
+        if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.getApiBase) {
+            return window.SliceHub.getApiBase();
         }
-        if (typeof window === 'undefined') return '/slicehub/api';
-        const path = window.location.pathname || '';
-        const marker = '/modules/';
-        const idx = path.indexOf(marker);
-        if (idx > 0) return path.slice(0, idx) + '/api';
-        if (idx === 0) return '/api';
-        const m = path.match(/^\/([^/]+)(?:\/|$)/);
-        if (m && m[1] && m[1] !== 'api') return '/' + m[1] + '/api';
-        return '/slicehub/api';
+        if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.getApiFallback) {
+            return window.SliceHub.getApiFallback();
+        }
+        return '/api';
     }
-    const ENDPOINT = getApiBase() + '/procurement/inbox.php';
-    const SUGGEST_ENDPOINT = getApiBase() + '/procurement/suggest.php';
+    function apiUrl(path) {
+        if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.apiUrl) {
+            return window.SliceHub.apiUrl(path);
+        }
+        const base = apiBase();
+        const p = String(path || '').trim();
+        if (!p) return base;
+        return base + (p.startsWith('/') ? p : '/' + p);
+    }
+    const ENDPOINT = apiUrl('/procurement/inbox.php');
+    const SUGGEST_ENDPOINT = apiUrl('/procurement/suggest.php');
     const $ = (s) => document.querySelector(s);
     const $$ = (s) => Array.from(document.querySelectorAll(s));
 
@@ -103,7 +103,7 @@
     // SKU options (z stock_list — fallback, ale jak masz dużo SKU, lepiej zostawić select pusty z search)
     // -------------------------------------------------------------------------
     async function loadExpenseCategories() {
-        const r = await api('list', {}, getApiBase() + '/procurement/expense_categories.php');
+        const r = await api('list', {}, apiUrl('/procurement/expense_categories.php'));
         if (r.success && r.data && Array.isArray(r.data.categories)) {
             state.expenseCategories = r.data.categories;
         } else {
@@ -114,7 +114,7 @@
     async function loadSkuOptions() {
         try {
             const tok = getToken();
-            const res = await fetch(getApiBase() + '/warehouse/stock_list.php?warehouse_id=MAIN', {
+            const res = await fetch(apiUrl('/warehouse/stock_list.php?warehouse_id=MAIN'), {
                 headers: { 'Authorization': 'Bearer ' + tok },
             });
             const json = await res.json();
@@ -1443,7 +1443,7 @@
     }
 
     async function openOpexModal() {
-        const r = await api('list', {}, getApiBase() + '/procurement/expense_categories.php');
+        const r = await api('list', {}, apiUrl('/procurement/expense_categories.php'));
         if (!r.success) {
             showError(r.message || 'Nie udało się pobrać kategorii.');
             return;
@@ -1476,7 +1476,7 @@
                 const inp = document.querySelector(`.pi-opex-rename[data-id="${id}"]`);
                 const name = inp ? String(inp.value || '').trim() : '';
                 if (!name) return;
-                const u = await api('update', { id, name }, getApiBase() + '/procurement/expense_categories.php');
+                const u = await api('update', { id, name }, apiUrl('/procurement/expense_categories.php'));
                 if (!u.success) { opexModalMsg(u.message || 'Błąd zapisu', 'err'); return; }
                 await openOpexModal();
                 opexModalMsg('Zapisano nazwę.', 'ok');
@@ -1486,7 +1486,7 @@
             btn.addEventListener('click', async () => {
                 if (!confirm('Usunąć tę kategorię? (soft-delete)')) return;
                 const id = parseInt(btn.getAttribute('data-id') || '0', 10);
-                const d = await api('delete', { id }, getApiBase() + '/procurement/expense_categories.php');
+                const d = await api('delete', { id }, apiUrl('/procurement/expense_categories.php'));
                 if (!d.success) {
                     opexModalMsg(d.message || 'Nie można usunąć', 'err');
                     return;
@@ -1499,7 +1499,7 @@
     async function submitOpexAdd() {
         const name = ($('#pi-opex-new-name') && $('#pi-opex-new-name').value.trim()) || '';
         if (!name) return;
-        const r = await api('create', { name }, getApiBase() + '/procurement/expense_categories.php');
+        const r = await api('create', { name }, apiUrl('/procurement/expense_categories.php'));
         if (!r.success) { opexModalMsg(r.message || 'Błąd', 'err'); return; }
         await openOpexModal();
         opexModalMsg('Dodano kategorię.', 'ok');
@@ -1509,7 +1509,7 @@
     // F4: KSeF Config
     // -------------------------------------------------------------------------
     async function openConfigModal() {
-        const r = await api('config_get', {}, getApiBase() + '/procurement/ksef_config.php');
+        const r = await api('config_get', {}, apiUrl('/procurement/ksef_config.php'));
         if (!r.success) { showError(r.message || 'Nie udało się załadować konfiguracji.'); return; }
         const d = r.data;
         $('#pi-cfg-env').value = d.environment || 'mock';
@@ -1525,11 +1525,11 @@
         const token = $('#pi-cfg-token').value.trim();
         const autoPoll = $('#pi-cfg-auto-poll').checked;
 
-        const r = await api('config_save', { environment: env, token }, getApiBase() + '/procurement/ksef_config.php');
+        const r = await api('config_save', { environment: env, token }, apiUrl('/procurement/ksef_config.php'));
         if (!r.success) { showError(r.message || 'Save padł.'); return; }
 
         // Auto-poll osobno (osobna akcja)
-        const rA = await api('toggle_auto_poll', { enabled: autoPoll }, getApiBase() + '/procurement/ksef_config.php');
+        const rA = await api('toggle_auto_poll', { enabled: autoPoll }, apiUrl('/procurement/ksef_config.php'));
         if (!rA.success) showError(rA.message || 'Toggle auto-poll padł.');
 
         const stateEl = $('#pi-cfg-state');
@@ -1544,7 +1544,7 @@
         stateEl.className = 'pi-cfg-state';
         stateEl.textContent = '⏳ Testuję połączenie...';
         stateEl.classList.remove('hidden');
-        const r = await api('test_connection', {}, getApiBase() + '/procurement/ksef_config.php');
+        const r = await api('test_connection', {}, apiUrl('/procurement/ksef_config.php'));
         stateEl.className = 'pi-cfg-state ' + (r.success ? 'ok' : 'err');
         stateEl.textContent = (r.success ? '✓ ' : '✗ ') + (r.message || (r.data && r.data.message) || '');
     }
@@ -1553,7 +1553,7 @@
         const orig = $('#pi-btn-poll-now').innerHTML;
         $('#pi-btn-poll-now').disabled = true;
         $('#pi-btn-poll-now').innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Pobieram…';
-        const r = await api('poll_now', {}, getApiBase() + '/procurement/ksef_config.php');
+        const r = await api('poll_now', {}, apiUrl('/procurement/ksef_config.php'));
         $('#pi-btn-poll-now').disabled = false;
         $('#pi-btn-poll-now').innerHTML = orig;
         if (!r.success) { showError(r.message || 'Poll padł.'); return; }

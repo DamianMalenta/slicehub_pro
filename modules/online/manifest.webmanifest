@@ -1,8 +1,8 @@
 {
   "name": "SliceHub Online",
   "short_name": "SliceHub",
-  "start_url": "/slicehub/modules/online/index.html",
-  "scope": "/slicehub/modules/online/",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait",
@@ -12,29 +12,29 @@
   "lang": "pl-PL",
   "dir": "ltr",
   "categories": ["food", "lifestyle", "shopping"],
-  "id": "/slicehub/modules/online/",
+  "id": "./",
   "prefer_related_applications": false,
   "icons": [
     {
-      "src": "/slicehub/modules/online/icon.svg",
+      "src": "./icon.svg",
       "sizes": "192x192 256x256 384x384 512x512",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "/slicehub/modules/online/icon.svg",
+      "src": "./icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "/slicehub/modules/online/icon-maskable.svg",
+      "src": "./icon-maskable.svg",
       "sizes": "192x192 512x512",
       "type": "image/svg+xml",
       "purpose": "maskable"
     },
     {
-      "src": "/slicehub/modules/online/icon-maskable.svg",
+      "src": "./icon-maskable.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "maskable"
@@ -45,25 +45,25 @@
       "name": "Nowe zamówienie",
       "short_name": "Zamów",
       "description": "Przejdź od razu do menu i zamów pizzę",
-      "url": "/slicehub/modules/online/index.html?intent=order"
+      "url": "./index.html?intent=order"
     },
     {
       "name": "Śledź zamówienie",
       "short_name": "Śledź",
       "description": "Pokaż status i kuriera na mapie",
-      "url": "/slicehub/modules/online/track.html"
+      "url": "./track.html"
     }
   ],
   "screenshots": [
     {
-      "src": "/slicehub/modules/online/screenshots/wide.svg",
+      "src": "./screenshots/wide.svg",
       "sizes": "1280x720",
       "type": "image/svg+xml",
       "form_factor": "wide",
       "label": "SliceHub Online — ekran powitalny z CTA do zamówienia i śledzenia kuriera."
     },
     {
-      "src": "/slicehub/modules/online/screenshots/narrow.svg",
+      "src": "./screenshots/narrow.svg",
       "sizes": "390x844",
       "type": "image/svg+xml",
       "form_factor": "narrow",

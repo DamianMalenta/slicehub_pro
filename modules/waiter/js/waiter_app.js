@@ -5,7 +5,11 @@
  */
 
 const WaiterApp = (() => {
-    const API_BASE = '/slicehub/api';
+    function apiBase() {
+        if (window.SliceHub && window.SliceHub.getApiBase) return window.SliceHub.getApiBase();
+        if (window.SliceHub && window.SliceHub.getApiFallback) return window.SliceHub.getApiFallback();
+        return '/api';
+    }
     const TOKEN_KEY = 'sh_token';
     const USER_KEY = 'sh_user';
     const POLL_MS = 5000;
@@ -30,7 +34,7 @@ const WaiterApp = (() => {
         const headers = { 'Content-Type': 'application/json' };
         if (_token) headers['Authorization'] = `Bearer ${_token}`;
         try {
-            const res = await fetch(`${API_BASE}${endpoint}`, {
+            const res = await fetch(`${apiBase()}${endpoint}`, {
                 method: 'POST', headers, body: JSON.stringify(payload),
             });
             if (res.status === 401) { _forceLogout(); return { success: false, message: 'Session expired' }; }
@@ -46,7 +50,7 @@ const WaiterApp = (() => {
         if (bearerToken) {
             headers['Authorization'] = 'Bearer ' + bearerToken;
         }
-        fetch(`${API_BASE}/auth/logout.php`, {
+        fetch(`${apiBase()}/auth/logout.php`, {
             method: 'POST',
             headers,
             credentials: 'same-origin',
@@ -130,7 +134,7 @@ const WaiterApp = (() => {
         /** Sam endpoint logowania — bez Bearer (unikamy konfliktu ze starym tokenem). */
         let json;
         try {
-            const res = await fetch(`${API_BASE}/auth/login.php`, {
+            const res = await fetch(`${apiBase()}/auth/login.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

@@ -3,7 +3,18 @@
  * Polls active orders, renders tickets with driver action warnings.
  */
 const KdsApp = (() => {
-    const ENDPOINT = '/slicehub/api/kds/engine.php';
+    function apiUrl(path) {
+        if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.apiUrl) {
+            return window.SliceHub.apiUrl(path);
+        }
+        const base = (window.SliceHub && window.SliceHub.getApiBase)
+            ? window.SliceHub.getApiBase()
+            : ((window.SliceHub && window.SliceHub.getApiFallback) ? window.SliceHub.getApiFallback() : '/api');
+        const p = String(path || '').trim();
+        if (!p) return base;
+        return base + (p.startsWith('/') ? p : '/' + p);
+    }
+    const ENDPOINT = apiUrl('/kds/engine.php');
     const POLL_INTERVAL = 6000;
     const LS_STATION = 'slicehub_kds_station';
     let _timer = null;

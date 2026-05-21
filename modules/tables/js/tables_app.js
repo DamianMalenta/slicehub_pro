@@ -501,7 +501,9 @@
         });
 
         $('btn-logout').addEventListener('click', () => {
-            fetch('/slicehub/api/auth/logout.php', {
+            fetch((window.SliceHub && window.SliceHub.apiUrl)
+                ? window.SliceHub.apiUrl('auth/logout.php')
+                : ((window.SliceHub && window.SliceHub.getApiFallback) ? window.SliceHub.getApiFallback() : '/api') + '/auth/logout.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'same-origin',

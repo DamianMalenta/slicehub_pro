@@ -394,8 +394,11 @@ function renderSuccessScreen(overlay, orderData, values, { close, tenantId }) {
     const panel = overlay.querySelector('.checkout-panel');
     if (!panel) return;
 
+    const trackBase = (window.SliceHub && window.SliceHub.appUrl)
+        ? window.SliceHub.appUrl('/modules/online/track.html')
+        : '/slicehub/modules/online/track.html';
     const trackingUrl = orderData.trackingUrl
-        || `/slicehub/modules/online/track.html?tenant=${tenantId}&token=${encodeURIComponent(orderData.trackingToken)}&phone=${encodeURIComponent(values.customerPhone)}`;
+        || `${trackBase}?tenant=${tenantId}&token=${encodeURIComponent(orderData.trackingToken)}&phone=${encodeURIComponent(values.customerPhone)}`;
 
     panel.innerHTML = `
         <div class="checkout-success">

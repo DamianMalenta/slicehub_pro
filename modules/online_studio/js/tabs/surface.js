@@ -75,8 +75,11 @@ export function mountSurface(root, Studio, Api) {
             return;
         }
         $current.innerHTML = `<code>${fn}</code>`;
+        const bgUrl = (window.SliceHub && window.SliceHub.appUrl)
+            ? window.SliceHub.appUrl('/uploads/global_assets/' + fn)
+            : '/slicehub/uploads/global_assets/' + fn;
         $preview.innerHTML = `
-            <div style="position:relative;width:100%;aspect-ratio:16/7;background-image:url('/slicehub/uploads/global_assets/${fn}');background-size:cover;background-position:center;border-radius:10px;overflow:hidden;display:grid;place-items:center">
+            <div style="position:relative;width:100%;aspect-ratio:16/7;background-image:url('${bgUrl}');background-size:cover;background-position:center;border-radius:10px;overflow:hidden;display:grid;place-items:center">
                 <div style="color:rgba(255,255,255,0.6);font-weight:700;font-size:13px;letter-spacing:0.12em;text-transform:uppercase;background:rgba(0,0,0,0.4);padding:6px 14px;border-radius:999px;backdrop-filter:blur(4px)">
                     <i class="fa-solid fa-check-circle" style="color:var(--green)"></i> Aktywna
                 </div>
@@ -182,7 +185,9 @@ export function mountSurface(root, Studio, Api) {
                 fd.append('asset_type', 'surface');
                 fd.append('category', 'misc');
                 fd.append('sub_type', body.querySelector('#su-sub').value || 'surface');
-                const res = await fetch('/slicehub/api/visual_composer/asset_upload.php', {
+                const res = await fetch((window.SliceHub && window.SliceHub.apiUrl
+                    ? window.SliceHub.apiUrl('/visual_composer/asset_upload.php')
+                    : '/api/visual_composer/asset_upload.php'), {
                     method: 'POST',
                     credentials: 'include',
                     body: fd,

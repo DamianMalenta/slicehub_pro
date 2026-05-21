@@ -418,7 +418,7 @@ try {
                 $mealIds = array_column($mealPackages, 'id');
                 $phM = implode(',', array_fill(0, count($mealIds), '?'));
                 $stmtComps = $pdo->prepare(
-                    "SELECT meal_id, component_type, item_sku, category_id, qty,
+                    "SELECT id, meal_id, component_type, item_sku, category_id, qty,
                             allow_upgrade, surcharge_grosze, display_order
                        FROM sh_meal_components
                       WHERE meal_id IN ({$phM}) AND tenant_id = ?

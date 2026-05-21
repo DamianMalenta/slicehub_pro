@@ -5,8 +5,20 @@
 const TablesAPI = (function () {
     'use strict';
 
-    const AUTH_URL   = '/slicehub/api/auth/login.php';
-    const ENGINE_URL = '/slicehub/api/tables/engine.php';
+    function apiFallback() {
+        if (window.SliceHub && window.SliceHub.getApiFallback) return window.SliceHub.getApiFallback();
+        return '/api';
+    }
+    function authUrl() {
+        return (window.SliceHub && window.SliceHub.apiUrl)
+            ? window.SliceHub.apiUrl('auth/login.php')
+            : apiFallback() + '/auth/login.php';
+    }
+    function engineUrl() {
+        return (window.SliceHub && window.SliceHub.apiUrl)
+            ? window.SliceHub.apiUrl('tables/engine.php')
+            : apiFallback() + '/tables/engine.php';
+    }
 
     function _token() { return localStorage.getItem('sh_token'); }
 
@@ -27,7 +39,7 @@ const TablesAPI = (function () {
 
     async function _post(url, payload) {
         const token = _token();
-        if (!token && url !== AUTH_URL) {
+        if (!token && url !== authUrl()) {
             _forceLogin();
             return { success: false, message: 'Brak tokenu — zaloguj się ponownie.', data: null };
         }
@@ -62,11 +74,11 @@ const TablesAPI = (function () {
     }
 
     function _engine(action, data = {}) {
-        return _post(ENGINE_URL, { action, ...data });
+        return _post(engineUrl(), { action, ...data });
     }
 
     return Object.freeze({
-        login(pin) { return _post(AUTH_URL, { pin_code: pin }); },
+        login(pin) { return _post(authUrl(), { pin_code: pin }); },
 
         getFloorStatus(zoneId) {
             const p = {};

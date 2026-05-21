@@ -1,30 +1,19 @@
 /**
  * SLICEHUB POS V2 — API Wrapper Layer
  * Wszystkie wywołania to HTTP POST do `api/...` (kontrakt serwera bez zmian).
- * Prefiks katalogu API: opcjonalnie <meta name="sh-api-base" content="/slicehub/api">,
- * inaczej z `location.pathname` (np. …/slicehub/modules/pos/ → …/slicehub/api), na końcu /slicehub/api.
+ * Prefiks API: core/js/sh_api_base.js (SliceHub.getApiBase).
  */
-function getApiBase() {
-    if (typeof document !== 'undefined') {
-        const meta = document.querySelector('meta[name="sh-api-base"]');
-        if (meta && meta.content) {
-            const b = String(meta.content).trim().replace(/\/+$/, '');
-            if (b) return b;
-        }
+function posApiBase() {
+    if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.getApiBase) {
+        return window.SliceHub.getApiBase();
     }
-    if (typeof window === 'undefined') return '/slicehub/api';
-    const path = window.location.pathname || '';
-    const marker = '/modules/';
-    const idx = path.indexOf(marker);
-    if (idx > 0) return path.slice(0, idx) + '/api';
-    if (idx === 0) return '/api';
-    const m = path.match(/^\/([^/]+)(?:\/|$)/);
-    if (m && m[1] && m[1] !== 'api') return '/' + m[1] + '/api';
-    return '/slicehub/api';
+    if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.getApiFallback) {
+        return window.SliceHub.getApiFallback();
+    }
+    return '/api';
 }
 
 const PosAPI = (() => {
-    const BASE = getApiBase();
     let _token = localStorage.getItem('sh_token') || '';
 
     function setToken(t) { _token = t; localStorage.setItem('sh_token', t); }
@@ -33,7 +22,7 @@ const PosAPI = (() => {
         _token = '';
         localStorage.removeItem('sh_token');
         localStorage.removeItem('sh_user');
-        fetch(`${BASE}/auth/logout.php`, {
+        fetch(`${posApiBase()}/auth/logout.php`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'same-origin',
@@ -45,7 +34,7 @@ const PosAPI = (() => {
         const headers = { 'Content-Type': 'application/json' };
         if (_token) headers['Authorization'] = `Bearer ${_token}`;
         try {
-            const res = await fetch(`${BASE}${endpoint}`, {
+            const res = await fetch(`${posApiBase()}${endpoint}`, {
                 method: 'POST', headers, body: JSON.stringify(payload),
             });
             const json = await res.json();

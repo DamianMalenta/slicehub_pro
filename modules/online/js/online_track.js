@@ -210,7 +210,9 @@ function startSse() {
 
     const tid = OnlineAPI.getTenantId();
     // Względna ścieżka — działa niezależnie od domeny/subdomeny
-    const sseUrl = `/slicehub/api/online/sse.php?tenant=${encodeURIComponent(tid)}&token=${encodeURIComponent(state.token)}&phone=${encodeURIComponent(state.phone)}`;
+    const sseUrl = `${(window.SliceHub && window.SliceHub.apiUrl)
+        ? window.SliceHub.apiUrl('/online/sse.php')
+        : '/api/online/sse.php'}?tenant=${encodeURIComponent(tid)}&token=${encodeURIComponent(state.token)}&phone=${encodeURIComponent(state.phone)}`;
 
     try {
         const es = new EventSource(sseUrl);

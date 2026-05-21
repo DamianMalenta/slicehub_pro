@@ -2,7 +2,10 @@ window.StudioState = { items: [], categories: [], bulkSelectedItems: [], sceneTe
 
 window.apiStudio = async function(action, payload = {}) {
     payload.action = action;
-    return await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', payload);
+    const ep = (window.SliceHub && window.SliceHub.apiUrl)
+        ? window.SliceHub.apiUrl('/backoffice/api_menu_studio.php')
+        : '../../api/backoffice/api_menu_studio.php';
+    return await window.ApiClient.post(ep, payload);
 };
 
 window.loadMenuTree = async function() {

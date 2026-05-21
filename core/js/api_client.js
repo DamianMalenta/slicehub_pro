@@ -2,6 +2,14 @@
  * SLICEHUB ENTERPRISE — Global API Client v1.0
  * Cel: Jedno źródło prawdy dla całej komunikacji HTTP w systemie.
  *
+ * Endpointy względne (../../api/...) i absolutne (/api/...) są automatycznie
+ * rozwiązywane przez SliceHub.apiUrl gdy załadowany jest core/js/sh_api_base.js.
+ *
+ * Callery (2026-05-21):
+ *   modules/studio/**          — api_menu_studio.php (via apiStudio + bezpośrednie ApiClient.post)
+ *   modules/warehouse/**       — warehouse_api.js → api/warehouse/*.php
+ *   modules/tables/index.html  — api_client (sh_api_base załadowany)
+ *
  * Użycie:
  *   const res = await window.ApiClient.post('/api/endpoint.php', { action: 'DO_THING', id: 5 });
  *   const res = await window.ApiClient.get('/api/endpoint.php', { action: 'GET_LIST' });
@@ -9,6 +17,28 @@
  * Gwarantowany format odpowiedzi: { success: bool, message: string, data: any }
  */
 (function () {
+
+    /**
+     * Rozwiązuje endpoint względem SSOT (SliceHub.apiUrl) gdy sh_api_base.js jest załadowany.
+     * Obsługuje: /api/..., ../../api/..., ../api/...
+     */
+    function resolveEndpoint(endpoint) {
+        const ep = String(endpoint || '').trim();
+        if (!ep) return ep;
+        if (/^(https?:|data:|blob:)/i.test(ep)) return ep;
+
+        const sh = typeof window !== 'undefined' && window.SliceHub;
+        if (!sh || typeof sh.apiUrl !== 'function') return ep;
+
+        if (ep.startsWith('/api/')) {
+            return sh.apiUrl(ep.slice(4));
+        }
+        const rel = ep.match(/^(?:\.\.\/)+api\/(.+)$/);
+        if (rel) {
+            return sh.apiUrl('/' + rel[1]);
+        }
+        return ep;
+    }
 
     /**
      * Wewnętrzny silnik HTTP.
@@ -36,7 +66,7 @@
                 fetchOptions.body = options.body;
             }
 
-            const response = await fetch(endpoint, fetchOptions);
+            const response = await fetch(resolveEndpoint(endpoint), fetchOptions);
 
             if (response.status === 401) {
                 console.warn('[ApiClient] 401 — token expired or invalid. Redirecting to login.');

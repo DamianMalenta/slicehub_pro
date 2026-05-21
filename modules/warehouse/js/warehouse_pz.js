@@ -159,7 +159,13 @@
 
         try {
             const token = localStorage.getItem('sh_token') || '';
-            const res = await fetch('/api/procurement/suggest.php', {
+            const fb = (window.SliceHub && window.SliceHub.getApiFallback)
+                ? window.SliceHub.getApiFallback()
+                : '/api';
+            const suggestUrl = (window.SliceHub && window.SliceHub.apiUrl)
+                ? window.SliceHub.apiUrl('procurement/suggest.php')
+                : fb + '/procurement/suggest.php';
+            const res = await fetch(suggestUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

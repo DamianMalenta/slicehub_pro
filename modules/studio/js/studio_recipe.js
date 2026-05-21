@@ -9,7 +9,10 @@ window.RecipeMapper = {
 
     async fetchApi(action, payload = {}) {
         payload.action = action;
-        return await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', payload);
+        const ep = (window.SliceHub && window.SliceHub.apiUrl)
+            ? window.SliceHub.apiUrl('/backoffice/api_menu_studio.php')
+            : '../../api/backoffice/api_menu_studio.php';
+        return await window.ApiClient.post(ep, payload);
     },
 
     async init() {

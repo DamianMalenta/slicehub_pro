@@ -1,6 +1,7 @@
 /**
  * SliceHub — warstwa klienta magazynu V2 (jedna ścieżka do api/warehouse/*.php).
- * Wymaga wcześniejszego załadowania ../../core/js/api_client.js
+ * Wymaga: ../../core/js/sh_api_base.js + ../../core/js/api_client.js
+ * (ApiClient rozwiązuje ../../api/... przez SliceHub.apiUrl)
  */
 (function () {
     'use strict';

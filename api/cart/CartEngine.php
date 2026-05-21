@@ -417,6 +417,29 @@ class CartEngine
                 LIMIT 1"
         );
 
+        // F-S3 (2026-05-11): meal packages — combo SKU nie istnieje w sh_menu_items.
+        $stmtMeal = null;
+        $stmtMealComps = null;
+        try {
+            $pdo->query('SELECT id FROM sh_meal_packages LIMIT 0');
+            $stmtMeal = $pdo->prepare(
+                "SELECT id, ascii_key, name, final_price_grosze, discount_percent
+                   FROM sh_meal_packages
+                  WHERE ascii_key = :sku AND tenant_id = :tid
+                    AND is_deleted = 0 AND is_active = 1
+                    AND (publication_status IS NULL OR publication_status IN ('Live','published'))
+                  LIMIT 1"
+            );
+            $stmtMealComps = $pdo->prepare(
+                "SELECT component_type, item_sku, qty
+                   FROM sh_meal_components
+                  WHERE meal_id = :mid AND tenant_id = :tid
+                  ORDER BY display_order ASC"
+            );
+        } catch (\PDOException $e) {
+            // migracja 050 niezaaplikowana
+        }
+
         // F-S2: prepared statement do pricing per (modifier, variant_option).
         $stmtModSizePricing = $hasVariantColsCE
             ? $pdo->prepare(
@@ -618,31 +641,57 @@ class CartEngine
                     throw new CartEngineException("Line #{$idx}: item_sku is required.");
                 }
 
-                $stmtItem->execute([':sku' => $effectiveSku, ':tid' => $tenantId]);
-                $item = $stmtItem->fetch(PDO::FETCH_ASSOC);
-                if (!$item) {
-                    throw new CartEngineException("Line #{$idx}: SKU '{$effectiveSku}' not found for this tenant.");
+                $mealResolved = false;
+                if ($stmtMeal) {
+                    $stmtMeal->execute([':sku' => $effectiveSku, ':tid' => $tenantId]);
+                    $meal = $stmtMeal->fetch(PDO::FETCH_ASSOC);
+                    if ($meal) {
+                        $mealResolved = true;
+                        $basePriceGrosze = self::resolveMealPackagePriceGrosze(
+                            $pdo,
+                            $tenantId,
+                            $channel,
+                            $meal,
+                            $stmtMealComps,
+                            $stmtItemPrice
+                        );
+                        $snapshotName = (string)$meal['name'];
+                        $vatRate = ($orderType === 'dine_in') ? 8.0 : 5.0;
+                        $lineOutput['item_sku']       = $itemSku;
+                        $lineOutput['is_meal_package'] = true;
+                        $lineOutput['meal_id']        = (int)$meal['id'];
+                        $lineOutput['snapshot_name']  = $snapshotName;
+                        $lineOutput['base_price']     = $fmtMoney($basePriceGrosze);
+                    }
                 }
 
-                $stmtItemPrice->execute([':sku' => $effectiveSku, ':channel' => $channel, ':tid' => $tenantId]);
-                $priceRow = $stmtItemPrice->fetch(PDO::FETCH_ASSOC);
-                if (!$priceRow) {
-                    throw new CartEngineException("Line #{$idx}: no '{$channel}' price tier for SKU '{$effectiveSku}'.");
+                if (!$mealResolved) {
+                    $stmtItem->execute([':sku' => $effectiveSku, ':tid' => $tenantId]);
+                    $item = $stmtItem->fetch(PDO::FETCH_ASSOC);
+                    if (!$item) {
+                        throw new CartEngineException("Line #{$idx}: SKU '{$effectiveSku}' not found for this tenant.");
+                    }
+
+                    $stmtItemPrice->execute([':sku' => $effectiveSku, ':channel' => $channel, ':tid' => $tenantId]);
+                    $priceRow = $stmtItemPrice->fetch(PDO::FETCH_ASSOC);
+                    if (!$priceRow) {
+                        throw new CartEngineException("Line #{$idx}: no '{$channel}' price tier for SKU '{$effectiveSku}'.");
+                    }
+
+                    $basePriceGrosze = (int)round((float)$priceRow['price'] * 100);
+                    $snapshotName    = $item['name'];
+
+                    $vatRate = ($orderType === 'dine_in')
+                        ? (float)$item['vat_rate_dine_in']
+                        : (float)$item['vat_rate_takeaway'];
+
+                    $lineOutput['item_sku'] = $itemSku;
+                    if ($variantSku !== '') {
+                        $lineOutput['variant_sku'] = $variantSku;
+                    }
+                    $lineOutput['snapshot_name'] = $snapshotName;
+                    $lineOutput['base_price']    = $fmtMoney($basePriceGrosze);
                 }
-
-                $basePriceGrosze = (int)round((float)$priceRow['price'] * 100);
-                $snapshotName    = $item['name'];
-
-                $vatRate = ($orderType === 'dine_in')
-                    ? (float)$item['vat_rate_dine_in']
-                    : (float)$item['vat_rate_takeaway'];
-
-                $lineOutput['item_sku'] = $itemSku;
-                if ($variantSku !== '') {
-                    $lineOutput['variant_sku'] = $variantSku;
-                }
-                $lineOutput['snapshot_name'] = $snapshotName;
-                $lineOutput['base_price']    = $fmtMoney($basePriceGrosze);
             }
 
             // -----------------------------------------------------------------
@@ -931,5 +980,47 @@ class CartEngine
             'lines_raw'                => $linesRaw,
             'response'                 => $responseData,
         ];
+    }
+
+    /**
+     * F-S3: Cena combo — final_price_grosze albo suma składników fixed_item × qty z rabatem %.
+     */
+    private static function resolveMealPackagePriceGrosze(
+        PDO $pdo,
+        int $tenantId,
+        string $channel,
+        array $meal,
+        ?\PDOStatement $stmtMealComps,
+        \PDOStatement $stmtItemPrice
+    ): int {
+        if ($meal['final_price_grosze'] !== null && (int)$meal['final_price_grosze'] > 0) {
+            return (int)$meal['final_price_grosze'];
+        }
+
+        $sum = 0;
+        if ($stmtMealComps) {
+            $stmtMealComps->execute([':mid' => (int)$meal['id'], ':tid' => $tenantId]);
+            foreach ($stmtMealComps->fetchAll(PDO::FETCH_ASSOC) as $comp) {
+                if (($comp['component_type'] ?? '') !== 'fixed_item') {
+                    continue;
+                }
+                $sku = trim((string)($comp['item_sku'] ?? ''));
+                if ($sku === '') {
+                    continue;
+                }
+                $stmtItemPrice->execute([':sku' => $sku, ':channel' => $channel, ':tid' => $tenantId]);
+                $priceRow = $stmtItemPrice->fetch(PDO::FETCH_ASSOC);
+                if ($priceRow) {
+                    $sum += (int)round((float)$priceRow['price'] * 100) * max(1, (int)$comp['qty']);
+                }
+            }
+        }
+
+        $discount = (float)($meal['discount_percent'] ?? 0);
+        if ($discount > 0 && $discount <= 100) {
+            $sum = (int)round($sum * (1 - $discount / 100));
+        }
+
+        return max(0, $sum);
     }
 }

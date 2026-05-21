@@ -179,8 +179,16 @@ export class TimelinePanel {
         if (!u) return '';
         const s = String(u).trim();
         if (/^(https?:|data:|blob:)/i.test(s)) return s;
-        if (s.startsWith('/slicehub/')) return s;
-        if (s.startsWith('/')) return '/slicehub' + s;
-        return '/slicehub/' + s;
+        const appBase = (window.SliceHub && window.SliceHub.getAppBase)
+            ? window.SliceHub.getAppBase()
+            : (function () {
+                const p = window.location.pathname || '';
+                const i = p.indexOf('/modules/');
+                if (i > 0) return p.slice(0, i);
+                return p.indexOf('/slicehub') !== -1 ? '/slicehub' : '';
+            })();
+        if (appBase && (s.startsWith(appBase + '/') || s === appBase)) return s;
+        if (s.startsWith('/')) return appBase + s;
+        return appBase + '/' + s;
     }
 }

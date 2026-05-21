@@ -9,23 +9,10 @@
     const USER_KEY = 'sh_user';
     const ALLOWED_ROLES = ['owner', 'manager', 'admin'];
 
-    function getApiBase() {
-        if (typeof document !== 'undefined') {
-            const meta = document.querySelector('meta[name="sh-api-base"]');
-            if (meta && meta.content) {
-                const b = String(meta.content).trim().replace(/\/+$/, '');
-                if (b) return b;
-            }
-        }
-        if (typeof window === 'undefined') return '/slicehub/api';
-        const path = window.location.pathname || '';
-        const marker = '/modules/';
-        const idx = path.indexOf(marker);
-        if (idx > 0) return path.slice(0, idx) + '/api';
-        if (idx === 0) return '/api';
-        const m = path.match(/^\/([^/]+)(?:\/|$)/);
-        if (m && m[1] && m[1] !== 'api') return '/' + m[1] + '/api';
-        return '/slicehub/api';
+    function apiBase() {
+        if (window.SliceHub && window.SliceHub.getApiBase) return window.SliceHub.getApiBase();
+        if (window.SliceHub && window.SliceHub.getApiFallback) return window.SliceHub.getApiFallback();
+        return '/api';
     }
 
     const $ = (id) => document.getElementById(id);
@@ -81,9 +68,9 @@
         if (err) err.textContent = '';
         const btn = $('hub-btn-login');
         if (btn) btn.disabled = true;
-        const apiBase = getApiBase();
+        const base = apiBase();
         try {
-            const res = await fetch(`${apiBase}/auth/login.php`, {
+            const res = await fetch(`${base}/auth/login.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
                 credentials: 'same-origin',
@@ -100,7 +87,7 @@
             const user = json.data.user;
             const role = (user && user.role) || '';
             if (!roleAllowed(role)) {
-                await fetch(`${apiBase}/auth/logout.php`, {
+                await fetch(`${base}/auth/logout.php`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'same-origin',
@@ -119,8 +106,8 @@
     }
 
     async function logout() {
-        const apiBase = getApiBase();
-        await fetch(`${apiBase}/auth/logout.php`, {
+        const base = apiBase();
+        await fetch(`${base}/auth/logout.php`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'same-origin',

@@ -50,7 +50,9 @@ function applySurfaceBackground(filename) {
         root.style.removeProperty('--storefront-bg-image');
         return;
     }
-    const url = `/slicehub/uploads/global_assets/${encodeURIComponent(filename)}`;
+    const url = (window.SliceHub && window.SliceHub.appUrl)
+        ? window.SliceHub.appUrl('/uploads/global_assets/' + encodeURIComponent(filename))
+        : `/slicehub/uploads/global_assets/${encodeURIComponent(filename)}`;
     root.style.setProperty('--storefront-bg-image', `url("${url}")`);
 }
 
@@ -194,7 +196,10 @@ function refreshCartUi() {
         const last = readLastOrder(OnlineAPI.getTenantId());
         if (last?.trackingToken && last?.phone) {
             lastLink.classList.remove('hidden');
-            lastLink.href = `/slicehub/modules/online/track.html?tenant=${OnlineAPI.getTenantId()}&token=${encodeURIComponent(last.trackingToken)}&phone=${encodeURIComponent(last.phone)}`;
+            const trackBase = (window.SliceHub && window.SliceHub.appUrl)
+                ? window.SliceHub.appUrl('/modules/online/track.html')
+                : '/slicehub/modules/online/track.html';
+            lastLink.href = `${trackBase}?tenant=${OnlineAPI.getTenantId()}&token=${encodeURIComponent(last.trackingToken)}&phone=${encodeURIComponent(last.phone)}`;
             lastLink.title = `Ostatnie: ${last.orderNumber}`;
         } else {
             lastLink.classList.add('hidden');
@@ -569,7 +574,10 @@ function init() {
 
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/slicehub/modules/online/sw.js').catch(() => {});
+            const swUrl = (window.SliceHub && window.SliceHub.appUrl)
+                ? window.SliceHub.appUrl('/modules/online/sw.js')
+                : '/slicehub/modules/online/sw.js';
+            navigator.serviceWorker.register(swUrl).catch(() => {});
         }, { once: true });
     }
 }

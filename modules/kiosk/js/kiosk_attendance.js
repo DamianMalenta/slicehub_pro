@@ -12,20 +12,23 @@
     const PIN_LEN = 4;
 
     function apiBase() {
-        const meta = document.querySelector('meta[name="sh-api-base"]');
-        if (meta && meta.content) {
-            const b = String(meta.content).trim().replace(/\/+$/, '');
-            if (b) return b;
-        }
-        const p = window.location.pathname || '';
-        const m = p.indexOf('/modules/');
-        if (m > 0) return p.slice(0, m) + '/api';
-        return '/slicehub/api';
+        if (window.SliceHub && window.SliceHub.getApiBase) return window.SliceHub.getApiBase();
+        if (window.SliceHub && window.SliceHub.getApiFallback) return window.SliceHub.getApiFallback();
+        return '/api';
     }
 
-    const BASE = apiBase();
-    const HR_URL = `${BASE}/backoffice/hr/engine.php`;
-    const LOGIN_URL = `${BASE}/auth/login.php`;
+    function hrUrl() {
+        if (window.SliceHub && window.SliceHub.apiUrl) {
+            return window.SliceHub.apiUrl('backoffice/hr/engine.php');
+        }
+        return apiBase() + '/backoffice/hr/engine.php';
+    }
+    function loginUrl() {
+        if (window.SliceHub && window.SliceHub.apiUrl) {
+            return window.SliceHub.apiUrl('auth/login.php');
+        }
+        return apiBase() + '/auth/login.php';
+    }
 
     let _token = localStorage.getItem(TOKEN_KEY) || '';
     let _pinBuf = '';
@@ -49,7 +52,7 @@
     async function hrPost(payload) {
         const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
         if (_token) headers.Authorization = 'Bearer ' + _token;
-        const res = await fetch(HR_URL, {
+        const res = await fetch(hrUrl(), {
             method: 'POST',
             headers,
             body: JSON.stringify(payload),
@@ -211,7 +214,7 @@
         const p = $('ka-term-pass')?.value || '';
         const err = $('ka-term-err');
         if (err) err.textContent = '';
-        const res = await fetch(LOGIN_URL, {
+        const res = await fetch(loginUrl(), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ mode: 'system', username: u, password: p }),

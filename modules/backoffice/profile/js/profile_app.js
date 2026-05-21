@@ -3,7 +3,7 @@
  * Vanilla JS, brak frameworków per Konstytucja §3.
  *
  * Auth: token JWT z localStorage['sh_token'] (zapisywany przy loginie w Hub).
- * API:  /api/backoffice/profile/engine.php (action=legal_profile_get|save).
+ * API:  SliceHub.apiUrl('/backoffice/profile/engine.php') (action=legal_profile_get|save).
  *
  * Walidacja inline (na blur) dla NIP / REGON / IBAN — natychmiastowy feedback,
  * twarda walidacja po stronie serwera (engine.php) jest zawsze.
@@ -11,7 +11,19 @@
 (function () {
     'use strict';
 
-    const ENDPOINT = '/api/backoffice/profile/engine.php';
+    function apiUrl(path) {
+        if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.apiUrl) {
+            return window.SliceHub.apiUrl(path);
+        }
+        const base = (window.SliceHub && window.SliceHub.getApiBase)
+            ? window.SliceHub.getApiBase()
+            : ((window.SliceHub && window.SliceHub.getApiFallback) ? window.SliceHub.getApiFallback() : '/api');
+        const p = String(path || '').trim();
+        if (!p) return base;
+        return base + (p.startsWith('/') ? p : '/' + p);
+    }
+
+    const ENDPOINT = apiUrl('/backoffice/profile/engine.php');
     const $ = (sel) => document.querySelector(sel);
 
     let state = {

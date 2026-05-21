@@ -549,6 +549,88 @@ seed('Orders (12 total)', function ($pdo, $T) use ($uuid4) {
 });
 
 // =============================================================================
+// 12b. MEAL PACKAGES (F-S3 combo — POS kafelki 🍔)
+// =============================================================================
+seed('Meal Packages (2 combos)', function ($pdo, $T) {
+    // Guard: tabele z migracji 050.
+    try {
+        $pdo->query('SELECT 1 FROM sh_meal_packages LIMIT 0');
+    } catch (Throwable $e) {
+        return 'Pominięto — uruchom apply_migrations_chain.php (050)';
+    }
+
+    $meals = [
+        [
+            'ascii_key' => 'COMBO_FAMILY_FIXED',
+            'name' => 'Zestaw Rodzinny',
+            'category_id' => 8,
+            'type' => 'fixed',
+            'final_price_grosze' => 3500,
+            'description' => 'Margherita + Frytki + Cola',
+            'components' => [
+                ['fixed_item', 'PIZZA_MARGHERITA', null, 1],
+                ['fixed_item', 'SIDE_FRIES', null, 1],
+                ['fixed_item', 'DRINK_COLA_05', null, 1],
+            ],
+        ],
+        [
+            'ascii_key' => 'COMBO_BURGER_CHOICE',
+            'name' => 'Burger Menu (wybór)',
+            'category_id' => 8,
+            'type' => 'choice',
+            'final_price_grosze' => 3200,
+            'description' => 'Burger z kategorii + frytki + napój',
+            'components' => [
+                ['category_choice', null, 2, 1],
+                ['fixed_item', 'SIDE_FRIES', null, 1],
+                ['fixed_item', 'DRINK_COLA_05', null, 1],
+            ],
+        ],
+    ];
+
+    $stmtUpsert = $pdo->prepare(
+        "INSERT INTO sh_meal_packages
+            (tenant_id, ascii_key, name, description, category_id, type,
+             final_price_grosze, publication_status, is_active, display_order)
+         VALUES (?,?,?,?,?,?,?,'Live',1,?)
+         ON DUPLICATE KEY UPDATE
+            name=VALUES(name), description=VALUES(description), category_id=VALUES(category_id),
+            type=VALUES(type), final_price_grosze=VALUES(final_price_grosze),
+            publication_status='Live', is_active=1, is_deleted=0"
+    );
+    $stmtId = $pdo->prepare(
+        "SELECT id FROM sh_meal_packages WHERE tenant_id = ? AND ascii_key = ? LIMIT 1"
+    );
+    $stmtDelComp = $pdo->prepare(
+        'DELETE FROM sh_meal_components WHERE meal_id = ? AND tenant_id = ?'
+    );
+    $stmtComp = $pdo->prepare(
+        "INSERT INTO sh_meal_components
+            (meal_id, tenant_id, component_type, item_sku, category_id, qty, display_order)
+         VALUES (?,?,?,?,?,?,?)"
+    );
+
+    $ord = 0;
+    foreach ($meals as $m) {
+        $stmtUpsert->execute([
+            $T, $m['ascii_key'], $m['name'], $m['description'], $m['category_id'], $m['type'],
+            $m['final_price_grosze'], $ord,
+        ]);
+        $stmtId->execute([$T, $m['ascii_key']]);
+        $mealId = (int)$stmtId->fetchColumn();
+        $stmtDelComp->execute([$mealId, $T]);
+        $cOrd = 0;
+        foreach ($m['components'] as $c) {
+            $stmtComp->execute([
+                $mealId, $T, $c[0], $c[1], $c[2], $c[3], $cOrd++,
+            ]);
+        }
+        $ord++;
+    }
+    return count($meals) . ' meal packages (Zestawy cat #8)';
+});
+
+// =============================================================================
 // 13. WORK SESSIONS (active staff)
 // =============================================================================
 seed('Work Sessions', function ($pdo, $T) use ($uuid4) {

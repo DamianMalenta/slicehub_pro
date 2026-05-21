@@ -9,11 +9,13 @@
 </IfModule>
 
 <IfModule mod_headers.c>
+    SetEnvIf Request_URI "/slicehub/" IS_SH_MOUNT
     <FilesMatch "^sw\.js$">
         Header set Cache-Control "no-cache, no-store, must-revalidate"
         Header set Pragma "no-cache"
         Header set Expires "0"
-        Header set Service-Worker-Allowed "/slicehub/modules/online/"
+        Header set Service-Worker-Allowed "/slicehub/modules/online/" env=IS_SH_MOUNT
+        Header set Service-Worker-Allowed "/modules/online/" env=!IS_SH_MOUNT
     </FilesMatch>
 
     <FilesMatch "\.webmanifest$">

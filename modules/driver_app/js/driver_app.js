@@ -3,24 +3,6 @@
  * Login + hasło (mode: system), 10s polling, GPS 15s, payment lock, emergency recall.
  * 3-Pillar State Machine: payment_status = to_pay | online_unpaid | cash | card | online_paid
  */
-function getDriverApiBase() {
-    if (typeof document !== 'undefined') {
-        const meta = document.querySelector('meta[name="sh-api-base"]');
-        if (meta && meta.content) {
-            const b = String(meta.content).trim().replace(/\/+$/, '');
-            if (b) return b;
-        }
-    }
-    const path = typeof window !== 'undefined' ? (window.location.pathname || '') : '';
-    const marker = '/modules/';
-    const idx = path.indexOf(marker);
-    if (idx > 0) return path.slice(0, idx) + '/api';
-    if (idx === 0) return '/api';
-    const m = path.match(/^\/([^/]+)(?:\/|$)/);
-    if (m && m[1] && m[1] !== 'api') return '/' + m[1] + '/api';
-    return '/slicehub/api';
-}
-
 const DriverApp = (() => {
     const POLL_INTERVAL = 10000;
     const GPS_INTERVAL = 15000;
@@ -114,7 +96,9 @@ const DriverApp = (() => {
         if (tok) {
             h['Authorization'] = 'Bearer ' + tok;
         }
-        fetch(`${getDriverApiBase()}/auth/logout.php`, {
+        fetch((window.SliceHub && window.SliceHub.apiUrl)
+            ? window.SliceHub.apiUrl('auth/logout.php')
+            : ((window.SliceHub && window.SliceHub.getApiFallback) ? window.SliceHub.getApiFallback() : '/api') + '/auth/logout.php', {
             method: 'POST',
             headers: h,
             credentials: 'same-origin',

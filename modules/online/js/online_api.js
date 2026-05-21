@@ -3,7 +3,15 @@
  */
 
 const OnlineAPI = (() => {
-    const BASE = '/slicehub/api';
+    function apiBase() {
+        if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.getApiBase) {
+            return window.SliceHub.getApiBase();
+        }
+        if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.getApiFallback) {
+            return window.SliceHub.getApiFallback();
+        }
+        return '/api';
+    }
 
     function _tenantScope() {
         const meta = document.querySelector('meta[name="sh-tenant-id"]');
@@ -27,7 +35,7 @@ const OnlineAPI = (() => {
         }
         const body = { tenantId: tid, ...payload };
         try {
-            const res = await fetch(`${BASE}/online/engine.php`, {
+            const res = await fetch(`${apiBase()}/online/engine.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json; charset=utf-8' },
                 body: JSON.stringify(body),

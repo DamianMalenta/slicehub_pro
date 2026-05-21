@@ -33,7 +33,16 @@
  */
 
 const LOG_PREFIX = '[SliceHub POS · Sync]';
-const SYNC_ENDPOINT = '/slicehub/api/pos/sync.php';
+
+function syncEndpoint() {
+    if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.apiUrl) {
+        return window.SliceHub.apiUrl('pos/sync.php');
+    }
+    const base = (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.getApiFallback)
+        ? window.SliceHub.getApiFallback()
+        : '/api';
+    return base + '/pos/sync.php';
+}
 
 // Timing stałe — wszystko w ms
 const IDLE_DELAY       = 30_000;   // puste outbox + online → wait
@@ -480,7 +489,7 @@ class PosSyncEngineImpl {
         const timeout = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT);
 
         try {
-            const res = await fetch(SYNC_ENDPOINT, {
+            const res = await fetch(syncEndpoint(), {
                 method:  'POST',
                 headers,
                 body:    JSON.stringify(payload),

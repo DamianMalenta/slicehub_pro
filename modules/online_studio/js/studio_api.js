@@ -2,13 +2,34 @@
  * SliceHub · Online Studio — API client
  * Thin wrapper over fetch(). Session cookies auto-included; Bearer token optional
  * (if present in localStorage['sh_token'], also sent for JWT flows).
+ * Prefiks API: core/js/sh_api_base.js (SliceHub.getApiBase).
  */
 
-const ENGINE_URL        = '/slicehub/api/online_studio/engine.php';
-const UPLOAD_URL        = '/slicehub/api/online_studio/library_upload.php';
-const ASSETS_ENGINE_URL = '/slicehub/api/assets/engine.php';
-const MENU_ENGINE_URL   = '/slicehub/api/backoffice/api_menu_studio.php';
-const LOGIN_PATH        = '/slicehub/login.html';
+function studioApiBase() {
+    if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.getApiBase) {
+        return window.SliceHub.getApiBase();
+    }
+    if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.getApiFallback) {
+        return window.SliceHub.getApiFallback();
+    }
+    return '/api';
+}
+
+function studioApiUrl(path) {
+    if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.apiUrl) {
+        return window.SliceHub.apiUrl(path);
+    }
+    const base = studioApiBase();
+    const p = String(path || '').trim();
+    if (!p) return base;
+    return base + (p.startsWith('/') ? p : '/' + p);
+}
+
+function studioLoginPath() {
+    const base = studioApiBase();
+    const root = base.endsWith('/api') ? base.slice(0, -4) : base;
+    return (root || '') + '/login.html';
+}
 
 function authHeaders() {
     const h = {};
@@ -19,7 +40,7 @@ function authHeaders() {
 
 async function call(action, payload = {}) {
     try {
-        const res = await fetch(ENGINE_URL, {
+        const res = await fetch(studioApiUrl('/online_studio/engine.php'), {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -47,7 +68,7 @@ async function call(action, payload = {}) {
 
 async function upload(formData) {
     try {
-        const res = await fetch(UPLOAD_URL, {
+        const res = await fetch(studioApiUrl('/online_studio/library_upload.php'), {
             method: 'POST',
             credentials: 'include',
             headers: { ...authHeaders() }, // no content-type; let browser set multipart boundary
@@ -68,7 +89,7 @@ async function upload(formData) {
 
 async function callAssets(action, payload = {}) {
     try {
-        const res = await fetch(ASSETS_ENGINE_URL, {
+        const res = await fetch(studioApiUrl('/assets/engine.php'), {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -87,7 +108,7 @@ async function uploadAsset(formData) {
     try {
         // action musi byc w FormData zeby PHP rozpoznal router
         if (!formData.has('action')) formData.append('action', 'upload');
-        const res = await fetch(ASSETS_ENGINE_URL, {
+        const res = await fetch(studioApiUrl('/assets/engine.php'), {
             method: 'POST',
             credentials: 'include',
             headers: { ...authHeaders() }, // no content-type!
@@ -107,7 +128,7 @@ async function uploadAsset(formData) {
 // ---------------------------------------------------------------------------
 async function callMenuApi(action, payload = {}) {
     try {
-        const res = await fetch(MENU_ENGINE_URL, {
+        const res = await fetch(studioApiUrl('/backoffice/api_menu_studio.php'), {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -123,11 +144,11 @@ async function callMenuApi(action, payload = {}) {
 }
 
 function redirectToLogin() {
-    window.location.href = LOGIN_PATH;
+    window.location.href = studioLoginPath();
 }
 
 export const StudioApi = {
-    LOGIN_PATH,
+    get LOGIN_PATH() { return studioLoginPath(); },
     redirectToLogin,
     // -- identity --
     whoami:                  ()                 => call('whoami'),

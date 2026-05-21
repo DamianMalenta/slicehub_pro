@@ -219,7 +219,18 @@ if (location.protocol === 'file:') {
 const TEST_JWT_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0ZW5hbnRfaWQiOjEsInVzZXJfaWQiOjEsImV4cCI6NDEwMjQ0NDgwMH0.dINyVm6UkUlnGVXVOan6u-4alBR-0_M_1bXUS1LImB4';
 
 // ─── Konfiguracja ───────────────────────────────────────────────────────────
-const BASE_PATH = '/slicehub';
+function detectBasePath() {
+    const path = location.pathname || '';
+    const m = path.match(/^(.*)\/tests\//);
+    if (m && m[1]) return m[1];
+    const idx = path.indexOf('/tests/');
+    if (idx > 0) return path.slice(0, idx);
+    if (path.indexOf('/slicehub/') !== -1 || path === '/slicehub' || path.startsWith('/slicehub')) {
+        return '/slicehub';
+    }
+    return '';
+}
+const BASE_PATH = detectBasePath();
 const CFG = {
     loginEndpoint      : `${BASE_PATH}/api/auth/login.php`,
     warehouseStock     : `${BASE_PATH}/api/warehouse/stock_list.php`,

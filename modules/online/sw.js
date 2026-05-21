@@ -1,27 +1,29 @@
-const CACHE_VERSION = 'slicehub-online-v2';
-const OFFLINE_URL = '/slicehub/modules/online/offline.html';
+const CACHE_VERSION = 'slicehub-online-v3';
+const SW_DIR = self.location.pathname.replace(/\/sw\.js$/, '');
+const BASE_PATH = SW_DIR.replace(/\/modules\/online$/, '');
+const OFFLINE_URL = BASE_PATH + '/modules/online/offline.html';
 const PRECACHE = [
-  '/slicehub/modules/online/index.html',
-  '/slicehub/modules/online/track.html',
-  '/slicehub/modules/online/offline.html',
-  '/slicehub/modules/online/manifest.webmanifest',
-  '/slicehub/modules/online/icon.svg',
-  '/slicehub/modules/online/icon-maskable.svg',
-  '/slicehub/modules/online/screenshots/wide.svg',
-  '/slicehub/modules/online/screenshots/narrow.svg',
-  '/slicehub/modules/online/css/style.css',
-  '/slicehub/modules/online/css/track.css',
-  '/slicehub/modules/online/css/doorway.css',
-  '/slicehub/modules/online/css/living-scene.css',
-  '/slicehub/modules/online/js/online_api.js',
-  '/slicehub/modules/online/js/online_app.js',
-  '/slicehub/modules/online/js/online_ui.js',
-  '/slicehub/modules/online/js/online_table.js',
-  '/slicehub/modules/online/js/online_renderer.js',
-  '/slicehub/modules/online/js/online_checkout.js',
-  '/slicehub/modules/online/js/online_track.js',
-  '/slicehub/modules/online/js/online_doorway.js',
-  '/slicehub/modules/online/js/surface/ModifierOrchestrator.js'
+  BASE_PATH + '/modules/online/index.html',
+  BASE_PATH + '/modules/online/track.html',
+  BASE_PATH + '/modules/online/offline.html',
+  BASE_PATH + '/modules/online/manifest.webmanifest',
+  BASE_PATH + '/modules/online/icon.svg',
+  BASE_PATH + '/modules/online/icon-maskable.svg',
+  BASE_PATH + '/modules/online/screenshots/wide.svg',
+  BASE_PATH + '/modules/online/screenshots/narrow.svg',
+  BASE_PATH + '/modules/online/css/style.css',
+  BASE_PATH + '/modules/online/css/track.css',
+  BASE_PATH + '/modules/online/css/doorway.css',
+  BASE_PATH + '/modules/online/css/living-scene.css',
+  BASE_PATH + '/modules/online/js/online_api.js',
+  BASE_PATH + '/modules/online/js/online_app.js',
+  BASE_PATH + '/modules/online/js/online_ui.js',
+  BASE_PATH + '/modules/online/js/online_table.js',
+  BASE_PATH + '/modules/online/js/online_renderer.js',
+  BASE_PATH + '/modules/online/js/online_checkout.js',
+  BASE_PATH + '/modules/online/js/online_track.js',
+  BASE_PATH + '/modules/online/js/online_doorway.js',
+  BASE_PATH + '/modules/online/js/surface/ModifierOrchestrator.js'
 ];
 
 self.addEventListener('install', (event) => {

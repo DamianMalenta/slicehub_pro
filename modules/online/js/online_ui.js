@@ -50,12 +50,17 @@ export function resolveAssetUrl(url) {
     const u = String(url).trim();
     if (!u) return '';
     if (/^(https?:|data:|blob:)/i.test(u)) return u;
-    // Already includes the /slicehub mount prefix (returned by API) → keep as-is.
-    if (u.startsWith('/slicehub/') || u === '/slicehub') return u;
-    // Absolute path (no mount prefix) → add the mount once.
-    if (u.startsWith('/')) return '/slicehub' + u;
-    // Relative path → add full prefix.
-    return '/slicehub/' + u;
+    const appBase = (window.SliceHub && window.SliceHub.getAppBase)
+        ? window.SliceHub.getAppBase()
+        : (function () {
+            const p = window.location.pathname || '';
+            const i = p.indexOf('/modules/');
+            if (i > 0) return p.slice(0, i);
+            return p.indexOf('/slicehub') !== -1 ? '/slicehub' : '';
+        })();
+    if (appBase && (u.startsWith(appBase + '/') || u === appBase)) return u;
+    if (u.startsWith('/')) return appBase + u;
+    return appBase + '/' + u;
 }
 
 export function renderLoading(root, show, text) {

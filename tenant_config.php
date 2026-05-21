@@ -71,9 +71,14 @@ if ($tenantId <= 0) {
 
 // Nadpisuje meta tag sh-tenant-id zanim uruchomi się jakikolwiek app JS.
 // Udostepnia tez globalna zmienna window.__SH_TENANT_ID__ jako backup.
+// SLICEHUB_API_BASE (env) → window.__SH_API_BASE__ (nadpisuje heurystykę pathname).
+$envApiBase = trim((string)(getenv('SLICEHUB_API_BASE') ?: ''));
 echo "(function(){\n";
 echo "  var tid = $tenantId;\n";
 echo "  var m = document.querySelector('meta[name=\"sh-tenant-id\"]');\n";
 echo "  if (m) m.content = String(tid);\n";
 echo "  window.__SH_TENANT_ID__ = tid;\n";
+if ($envApiBase !== '') {
+    echo '  window.__SH_API_BASE__ = ' . json_encode($envApiBase, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . ";\n";
+}
 echo "})();\n";
