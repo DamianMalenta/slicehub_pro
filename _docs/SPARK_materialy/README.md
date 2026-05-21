@@ -1,4 +1,14 @@
-# Materiały SPARK 3.0 — prezentacja (wersja 2026-05-20)
+# Materiały SPARK 3.0
+## 📦 Jedna paczka do pobrania
+
+| Plik | Co zrobić |
+|------|-----------|
+| **[SPARK_Forno_Pakiet.zip](SPARK_Forno_Pakiet.zip)** | Pobierz ZIP (~20 MB), rozpakuj, **otwórz `START.html`** |
+| [INSTRUKCJA_POBIERANIA.md](INSTRUKCJA_POBIERANIA.md) | Linki GitHub + PDF z HTML |
+
+Regeneracja ZIP: `bash scripts/build_spark_download_pack.sh`
+
+ — prezentacja (wersja 2026-05-20)
 
 ## Dla człowieka (wniosek, mentorzy)
 
