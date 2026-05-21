@@ -235,6 +235,7 @@ const CFG = {
     warehouseList      : `${BASE_PATH}/api/warehouse/warehouse_list.php`,
     warehouseApprove   : `${BASE_PATH}/api/warehouse/approve.php`,
     warehouseAddItem   : `${BASE_PATH}/api/warehouse/add_item.php`,
+    biDashboard        : `${BASE_PATH}/api/bi/dashboard_data.php`,
     studio             : `${BASE_PATH}/api/backoffice/api_menu_studio.php`,
     posEngine          : `${BASE_PATH}/api/pos/engine.php`,
     jsClients : {
@@ -361,6 +362,43 @@ function _authHeaders() {
     const h = { 'Content-Type': 'application/json' };
     if (CFG.authToken) h['Authorization'] = `Bearer ${CFG.authToken}`;
     return h;
+}
+
+/**
+ * GET dashboard_data.php — w razie 403 (kelner z domyślnego PIN) ponawia z PIN kierownika 0000.
+ */
+async function biDashboardRequest(query = {}) {
+    const fullUrl = `${CFG.biDashboard}?${new URLSearchParams(query)}`;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), CFG.timeout);
+    const optsBase = { method: 'GET', credentials: 'same-origin', signal: ctrl.signal };
+    const headers = () => {
+        const h = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+        if (CFG.authToken) h['Authorization'] = `Bearer ${CFG.authToken}`;
+        return h;
+    };
+    try {
+        let r = await fetch(fullUrl, { ...optsBase, headers: headers() });
+        if (r.status === 403) {
+            const loginRes = await fetch(CFG.loginEndpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: 'kiosk', tenant_id: CFG.tenantId, pin_code: '0000' }),
+                credentials: 'same-origin',
+                signal: ctrl.signal,
+            });
+            const lj = await loginRes.json().catch(() => ({}));
+            if (lj.success && lj.data && lj.data.token) {
+                const h2 = { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': `Bearer ${lj.data.token}` };
+                r = await fetch(fullUrl, { ...optsBase, headers: h2 });
+            }
+        }
+        clearTimeout(timer);
+        return { httpStatus: r.status, contentType: r.headers.get('content-type') || '', body: await r.text() };
+    } catch (e) {
+        clearTimeout(timer);
+        return { error: e.message };
+    }
 }
 
 async function warehouseRequest(url, opt = {}) {
@@ -508,6 +546,26 @@ const SUITES = [
                         return ['fail', `Odpowiedź zaczyna się od HTML/PHP error:\n${body.substring(0,200)}`];
                     }
                     return ['pass', 'Brak wycieków HTML/PHP przed JSON-em'];
+                }
+            },
+            {
+                id: 'T62', label: 'BI dashboard_data — P&L JSON (manager)',
+                desc: 'GET /api/bi/dashboard_data.php z zakresem dat → success:true, pola *_minor w groszach',
+                async run() {
+                    const r = await biDashboardRequest({ date_from: '2020-01-01', date_to: '2030-12-31' });
+                    if (r.error) return ['fail', r.error];
+                    const json = tryParse(r.body);
+                    if (!json) return ['fail', `Nieparsowalny JSON:\n${r.body.substring(0, 200)}`];
+                    if (r.httpStatus === 403) return ['fail', 'HTTP 403 — brak uprawnień (owner/admin/manager)'];
+                    if (r.httpStatus !== 200) return ['fail', `HTTP ${r.httpStatus}`];
+                    if (json.success !== true) return ['fail', `success=${json.success} msg: ${json.message}`];
+                    const d = json.data;
+                    if (!d || typeof d !== 'object') return ['fail', 'Brak obiektu data'];
+                    const keys = ['net_sales_minor', 'cogs_minor', 'labor_minor', 'opex_minor', 'gross_profit_minor', 'operating_profit_minor', 'stock_value_minor'];
+                    for (const k of keys) {
+                        if (typeof d[k] !== 'number') return ['fail', `Brak lub zły typ: ${k}`];
+                    }
+                    return ['pass', `BI OK: net=${d.net_sales_minor} gr, COGS=${d.cogs_minor} gr`];
                 }
             },
         ]

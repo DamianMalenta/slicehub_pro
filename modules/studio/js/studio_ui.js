@@ -196,7 +196,9 @@ window.Core = {
                 vatRateTakeaway: vatTakeaway,
                 priceMatrix: { POS: 0, Takeaway: 0, Delivery: 0 },
                 kdsStationId: 'NONE',
-                publicationStatus: 'Draft'
+                // F-S4-fix (2026-05-13): nowa pizza default Live (przed: Draft → niewidoczna w POS).
+                // Manager może zmienić na Draft ręcznie command barem przed Save jeśli chce.
+                publicationStatus: 'Live'
             });
         }
     },

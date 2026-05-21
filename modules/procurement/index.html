@@ -27,7 +27,8 @@
         <a href="../warehouse/index.html"><i class="fa-solid fa-boxes-stacked"></i> Magazyn</a>
     </nav>
     <button type="button" class="pi-btn" id="pi-btn-config" title="Konfiguracja KSeF (F4)"><i class="fa-solid fa-gear"></i> KSeF</button>
-    <button type="button" class="pi-btn" id="pi-btn-poll-now" title="Pobierz teraz z KSeF (F4)"><i class="fa-solid fa-cloud-arrow-down"></i> Pobierz</button>
+    <button type="button" class="pi-btn" id="pi-btn-opex-cat" title="Kategorie kosztów OPEX (linie faktury)"><i class="fa-solid fa-tags"></i> OPEX</button>
+    <button type="button" class="pi-btn" id="pi-btn-poll-now" title="Pobierz faktury przychodzące z KSeF (tylko odczyt API — nic nie wysyłamy do MF)"><i class="fa-solid fa-cloud-arrow-down"></i> Pobierz</button>
     <button type="button" class="pi-btn" id="pi-btn-refresh" title="Odśwież"><i class="fa-solid fa-rotate"></i></button>
 </header>
 
@@ -36,6 +37,7 @@
     Moduł wymaga roli <strong>owner</strong> / <strong>admin</strong> / <strong>manager</strong>.
 </div>
 <div id="pi-error-banner" class="pi-banner pi-banner--error hidden"></div>
+<div id="pi-success-banner" class="pi-banner pi-banner--ok hidden"></div>
 
 <main class="pi-main">
 
@@ -49,7 +51,9 @@
                 Parser wyciągnie linie, AutoScan dopasuje surowce (EXACT/ALIAS/NAME/FUZZY) z confidence,
                 manager akceptuje → automatycznie powstaje PZ + stany rosną w magazynie.
                 <br>
-                <strong>F4 (przyszłość):</strong> worker będzie pollował KSeF API, faktury same tu wpadną.
+                <strong>F4 — Pobierz / worker:</strong> wyłącznie <strong>odczyt</strong> faktur z KSeF do inboxu (import do bazy). Wysyłka faktur do MF nie jest w tym module.
+                <br>
+                <strong>F4 (cron):</strong> worker może pollować KSeF API — faktury same tu wpadną, gdy włączysz auto-poll w konfiguracji.
             </div>
         </div>
     </section>
@@ -63,19 +67,19 @@
         <div id="pi-upload-status" class="pi-upload-status hidden"></div>
     </section>
 
-    <!-- STATS BAR -->
+    <!-- STATS BAR: kolejność wyświetlania jak sort listy — Nowe, Zaakceptowane, Odrzucone -->
     <section class="pi-stats">
         <button type="button" class="pi-stat-pill pi-stat-pill--active" data-status="">
             <i class="fa-solid fa-list"></i> Wszystkie <span class="pi-stat-count" id="pi-stat-total">0</span>
         </button>
         <button type="button" class="pi-stat-pill" data-status="draft">
-            <i class="fa-solid fa-hourglass-half"></i> Do akceptacji <span class="pi-stat-count" id="pi-stat-draft">0</span>
+            <i class="fa-solid fa-star"></i> Nowe <span class="pi-stat-count" id="pi-stat-draft">0</span>
         </button>
         <button type="button" class="pi-stat-pill" data-status="accepted">
             <i class="fa-solid fa-check-double"></i> Zaakceptowane <span class="pi-stat-count" id="pi-stat-accepted">0</span>
         </button>
         <button type="button" class="pi-stat-pill" data-status="rejected">
-            <i class="fa-solid fa-circle-xmark"></i> Odrzucone <span class="pi-stat-count" id="pi-stat-rejected">0</span>
+            <i class="fa-solid fa-ban"></i> Odrzucone <span class="pi-stat-count" id="pi-stat-rejected">0</span>
         </button>
     </section>
 
@@ -110,6 +114,10 @@
             <button type="button" class="pi-btn pi-btn--ghost" id="pi-modal-rescan">
                 <i class="fa-solid fa-arrows-rotate"></i> Rescan AutoScan
             </button>
+            <button type="button" class="pi-btn pi-btn--ghost" id="pi-modal-save" title="Zapisz przypisania SKU do linii (status faktury bez zmian)">
+                <i class="fa-solid fa-floppy-disk"></i> Zapisz zmiany
+            </button>
+            <div id="pi-modal-feedback" class="pi-modal-feedback hidden" role="status" aria-live="polite"></div>
             <div class="pi-spacer"></div>
             <button type="button" class="pi-btn pi-btn--danger" id="pi-modal-reject">
                 <i class="fa-solid fa-circle-xmark"></i> Odrzuć
@@ -136,8 +144,8 @@
                 <label>Środowisko</label>
                 <select id="pi-cfg-env" class="pi-sku-select" style="min-width:240px">
                     <option value="mock">🧪 Mock (dev — fixtures, brak KSeF)</option>
-                    <option value="sandbox">🛠️ Sandbox (ksef-test.mf.gov.pl)</option>
-                    <option value="prod">🟢 Produkcja (ksef.mf.gov.pl)</option>
+                    <option value="sandbox">🛠️ Sandbox (api-test.ksef.mf.gov.pl / v2)</option>
+                    <option value="prod">🟢 Produkcja (api.ksef.mf.gov.pl / v2)</option>
                 </select>
             </div>
             <div class="pi-cfg-field">
@@ -160,6 +168,34 @@
             <button type="button" class="pi-btn" id="pi-cfg-test"><i class="fa-solid fa-plug"></i> Test connection</button>
             <div class="pi-spacer"></div>
             <button type="button" class="pi-btn pi-btn--primary" id="pi-cfg-save"><i class="fa-solid fa-floppy-disk"></i> Zapisz</button>
+        </footer>
+    </div>
+</div>
+
+<!-- Kategorie OPEX (słownik kosztów operacyjnych) -->
+<div id="pi-opex-backdrop" class="pi-modal-backdrop hidden">
+    <div class="pi-modal" style="max-width:640px">
+        <header class="pi-modal-header">
+            <div>
+                <div class="pi-modal-title"><i class="fa-solid fa-tags"></i> Kategorie OPEX</div>
+                <div class="pi-modal-sub">Koszty na fakturze (linie „OPEX”) — bez magazynu / PZ</div>
+            </div>
+            <button type="button" class="pi-btn pi-btn--ghost" id="pi-opex-close"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="pi-modal-body">
+            <div id="pi-opex-list-wrap"></div>
+            <div class="pi-cfg-field" style="margin-top:1rem">
+                <label>Nowa kategoria</label>
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+                    <input type="text" id="pi-opex-new-name" class="pi-sku-select" style="flex:1;min-width:200px" placeholder="np. Marketing lokalny" maxlength="128">
+                    <button type="button" class="pi-btn pi-btn--primary" id="pi-opex-add"><i class="fa-solid fa-plus"></i> Dodaj</button>
+                </div>
+            </div>
+            <div id="pi-opex-msg" class="pi-cfg-state hidden" style="margin-top:0.75rem"></div>
+        </div>
+        <footer class="pi-modal-footer">
+            <div class="pi-spacer"></div>
+            <button type="button" class="pi-btn pi-btn--primary" id="pi-opex-done">Gotowe</button>
         </footer>
     </div>
 </div>

@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SliceHub Pro — System operacyjny gastronomii</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+  * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+  html { scroll-behavior: smooth; }
+  body { background: #080812; color: #f1f5f9; }
+
+  /* Glassmorphism */
+  .glass { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); backdrop-filter: blur(12px); }
+  .glass-hover { transition: all 0.2s; }
+  .glass-hover:hover { background: rgba(255,255,255,0.07); border-color: rgba(167,139,250,0.3); transform: translateY(-2px); }
+
+  /* Gradient text */
+  .grad { background: linear-gradient(135deg, #a78bfa, #60a5fa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+
+  /* Live dot */
+  .live-dot { width: 8px; height: 8px; background: #34d399; border-radius: 50%; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; box-shadow:0 0 0 0 rgba(52,211,153,0.4); } 50% { opacity:0.8; box-shadow:0 0 0 6px rgba(52,211,153,0); } }
+
+  /* Section blob */
+  .blob { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.12; pointer-events: none; }
+
+  /* Scroll reveal (simple) */
+  .reveal { opacity: 0; transform: translateY(20px); transition: opacity 0.6s, transform 0.6s; }
+  .reveal.visible { opacity: 1; transform: none; }
+</style>
+</head>
+<body class="antialiased">
+
+<!-- ============================================================ -->
+<!-- NAV -->
+<!-- ============================================================ -->
+<nav class="fixed top-0 inset-x-0 z-50 glass border-b border-white/10" style="backdrop-filter:blur(20px);">
+  <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm text-white" style="background:linear-gradient(135deg,#7c3aed,#2563eb);">SH</div>
+      <span class="font-bold text-lg">SliceHub <span class="text-violet-400">Pro</span></span>
+    </div>
+    <div class="hidden md:flex items-center gap-6 text-sm text-slate-400">
+      <a href="#modules" class="hover:text-white transition-colors">Moduły</a>
+      <a href="#features" class="hover:text-white transition-colors">Wyróżniki</a>
+      <a href="#demo" class="hover:text-white transition-colors">Demo</a>
+      <a href="https://slicehub.net" target="_blank" rel="noopener" class="px-4 py-2 rounded-lg text-white font-semibold text-sm" style="background:linear-gradient(135deg,#7c3aed,#2563eb);">Otwórz system →</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ============================================================ -->
+<!-- HERO -->
+<!-- ============================================================ -->
+<section class="relative min-h-screen flex flex-col justify-center pt-16 overflow-hidden">
+  <div class="blob w-[600px] h-[600px] bg-violet-600" style="top:-100px;right:-100px;"></div>
+  <div class="blob w-[400px] h-[400px] bg-blue-600" style="bottom:-50px;left:-50px;"></div>
+
+  <div class="max-w-7xl mx-auto px-6 py-24 grid lg:grid-cols-2 gap-16 items-center">
+    <!-- Left -->
+    <div class="flex flex-col gap-6">
+      <div class="flex items-center gap-2 w-fit glass px-4 py-2 rounded-full">
+        <div class="live-dot"></div>
+        <span class="text-emerald-400 text-sm font-semibold">Produkcja aktywna · slicehub.net</span>
+      </div>
+      <h1 class="text-5xl xl:text-6xl font-black leading-none">
+        Zbudowałem system,<br>który <span class="grad">rozumie restaurację</span>
+      </h1>
+      <p class="text-lg text-slate-400 leading-relaxed max-w-lg">
+        Jestem <strong class="text-slate-300">Damian Malenta</strong> — solo founder SliceHub.
+        Jedna platforma dla właściciela: kasa z koszykiem, faktury KSeF bez przepisywania, kuchnia, dostawy i prosty raport „czy zarabiam”.
+      </p>
+      <div class="flex flex-wrap gap-3">
+        <a href="#demo" class="flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-white transition-transform hover:scale-105" style="background:linear-gradient(135deg,#7c3aed,#2563eb);">
+          <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/></svg>
+          Zobacz demo (60s)
+        </a>
+        <a href="https://slicehub.net" target="_blank" rel="noopener" class="glass glass-hover px-6 py-3 rounded-xl font-semibold text-slate-200">
+          Otwórz system →
+        </a>
+      </div>
+      <!-- Stats row -->
+      <div class="flex gap-6 pt-4 border-t border-white/10">
+        <div>
+          <div class="text-2xl font-black text-violet-400">17</div>
+          <div class="text-xs text-slate-500 mt-0.5">obszarów pracy</div>
+        </div>
+        <div>
+          <div class="text-2xl font-black text-blue-400">~30s</div>
+          <div class="text-xs text-slate-500 mt-0.5">faktura → magazyn</div>
+        </div>
+        <div>
+          <div class="text-2xl font-black text-emerald-400">1</div>
+          <div class="text-xs text-slate-500 mt-0.5">ekran startowy</div>
+        </div>
+        <div>
+          <div class="text-2xl font-black text-orange-400">PL→CEE</div>
+          <div class="text-xs text-slate-500 mt-0.5">ekspansja</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Hero screenshot -->
+    <div class="relative">
+      <div class="absolute inset-0 rounded-2xl" style="background:radial-gradient(circle at center, rgba(124,58,237,0.2) 0%, transparent 70%);"></div>
+      <img src="hero_03_pos.png" alt="Kasa POS SliceHub" class="w-full rounded-2xl shadow-2xl border border-white/10 relative z-10" style="object-position:top center; max-height:520px; object-fit:cover;" />
+      <div class="absolute bottom-4 left-4 glass px-4 py-3 rounded-xl z-20">
+        <div class="text-xs text-slate-400 mb-1">Kasa na produkcji</div>
+        <div class="text-lg font-black text-emerald-400">Koszyk · warianty · 3 kanały</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- MODUŁY -->
+<!-- ============================================================ -->
+<section id="modules" class="py-24 relative overflow-hidden">
+  <div class="blob w-[500px] h-[500px] bg-blue-600" style="top:50%;right:-100px;transform:translateY(-50%);"></div>
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="text-center mb-16 reveal">
+      <div class="inline-flex items-center gap-2 glass px-4 py-2 rounded-full text-violet-400 text-sm font-semibold mb-6">
+        17 obszarów — jeden login
+      </div>
+      <h2 class="text-4xl font-black mb-4">Cały dzień w lokalu<br><span class="grad">na jednym ekranie</span></h2>
+      <p class="text-slate-400 text-lg max-w-2xl mx-auto">Od zamówienia klienta, przez kuchnię i fakturę dostawcy, po kierowcę i raport na koniec tygodnia.</p>
+    </div>
+
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+
+      <!-- Hub -->
+      <div class="glass glass-hover rounded-2xl overflow-hidden group reveal">
+        <img src="hero_01_hub.png" alt="Hub" class="w-full h-40 object-cover object-top" />
+        <div class="p-5">
+          <div class="w-8 h-8 rounded-lg mb-3 flex items-center justify-center text-lg glass">🏠</div>
+          <h3 class="font-bold text-base mb-1">Hub — Centrum dowodzenia</h3>
+          <p class="text-sm text-slate-500">Nawigacyjny punkt startowy z kafelkami do wszystkich modułów. Jeden login, całe środowisko pracy.</p>
+        </div>
+      </div>
+
+      <!-- Online -->
+      <div class="glass glass-hover rounded-2xl overflow-hidden group reveal">
+        <img src="hero_02_online.png" alt="Online Storefront" class="w-full h-40 object-cover object-top" />
+        <div class="p-5">
+          <div class="w-8 h-8 rounded-lg mb-3 flex items-center justify-center text-lg glass">🌐</div>
+          <h3 class="font-bold text-base mb-1">Online Storefront</h3>
+          <p class="text-sm text-slate-500">Wbudowany sklep B2C z serwerowym koszykiem. Ceny walidowane po stronie serwera — zero manipulacji cenami.</p>
+        </div>
+      </div>
+
+      <!-- POS -->
+      <div class="glass glass-hover rounded-2xl overflow-hidden group reveal">
+        <img src="hero_03_pos.png" alt="POS" class="w-full h-40 object-cover object-top" />
+        <div class="p-5">
+          <div class="w-8 h-8 rounded-lg mb-3 flex items-center justify-center text-lg glass">🖥️</div>
+          <h3 class="font-bold text-base mb-1">Kasa — jak na zmianie</h3>
+          <p class="text-sm text-slate-500">Koszyk z pozycjami, sala / wynos / dostawa z osobnymi cenami. Działa też gdy internet na chwilę pada.</p>
+        </div>
+      </div>
+
+      <!-- Studio -->
+      <div class="glass glass-hover rounded-2xl overflow-hidden group reveal">
+        <img src="hero_04_studio.png" alt="Studio" class="w-full h-40 object-cover object-top" />
+        <div class="p-5">
+          <div class="w-8 h-8 rounded-lg mb-3 flex items-center justify-center text-lg glass">🎨</div>
+          <h3 class="font-bold text-base mb-1">Studio Menu</h3>
+          <p class="text-sm text-slate-500">Edytor menu z recepturami, wariantami rozmiarów, macierzą cenową i live Food Cost AVCO. Wszystko w jednym panelu.</p>
+        </div>
+      </div>
+
+      <!-- Courses -->
+      <div class="glass glass-hover rounded-2xl overflow-hidden group reveal">
+        <img src="hero_05_courses.png" alt="Courses" class="w-full h-40 object-cover object-top" />
+        <div class="p-5">
+          <div class="w-8 h-8 rounded-lg mb-3 flex items-center justify-center text-lg glass">🚴</div>
+          <h3 class="font-bold text-base mb-1">Dostawy & Dyspozytornia</h3>
+          <p class="text-sm text-slate-500">Dispatcher z mapą Leaflet, system K-kursów i L-przystanków, PWA dla kierowców z payment lock i GPS tracking.</p>
+        </div>
+      </div>
+
+      <!-- Warehouse -->
+      <div class="glass glass-hover rounded-2xl overflow-hidden group reveal">
+        <img src="hero_06_warehouse.png" alt="Magazyn" class="w-full h-40 object-cover object-top" />
+        <div class="p-5">
+          <div class="w-8 h-8 rounded-lg mb-3 flex items-center justify-center text-lg glass">📦</div>
+          <h3 class="font-bold text-base mb-1">Magazyn AVCO</h3>
+          <p class="text-sm text-slate-500">Dokumenty PZ/RW/INV z wyceną AVCO. Stany magazynowe w czasie rzeczywistym, integracja z recepturami Studio.</p>
+        </div>
+      </div>
+
+      <!-- KSeF -->
+      <div class="glass glass-hover rounded-2xl overflow-hidden group reveal">
+        <img src="hero_07_ksef.png" alt="KSeF" class="w-full h-40 object-cover object-top" />
+        <div class="p-5">
+          <div class="w-8 h-8 rounded-lg mb-3 flex items-center justify-center text-lg glass">🧾</div>
+          <h3 class="font-bold text-base mb-1">KSeF — surowiec albo prąd</h3>
+          <p class="text-sm text-slate-500">Faktura z urzędu trafia do systemu. Sera idą do magazynu, koszty typu prąd — do raportu, bez dublowania.</p>
+        </div>
+      </div>
+
+      <!-- More modules -->
+      <div class="glass rounded-2xl p-5 flex flex-col justify-center reveal">
+        <h3 class="font-bold text-base mb-3 text-slate-400">Też w pakiecie</h3>
+        <div class="flex flex-col gap-2">
+          <div class="flex items-center gap-2 text-sm text-slate-500"><span class="text-violet-400">→</span> Raport P&L dla właściciela</div>
+          <div class="flex items-center gap-2 text-sm text-slate-500"><span class="text-violet-400">→</span> Kuchnia — tablica zamówień</div>
+          <div class="flex items-center gap-2 text-sm text-slate-500"><span class="text-violet-400">→</span> Aplikacja kierowcy (np. Kasia)</div>
+          <div class="flex items-center gap-2 text-sm text-slate-500"><span class="text-violet-400">→</span> SMS i skrzynka odpowiedzi</div>
+          <div class="flex items-center gap-2 text-sm text-slate-500"><span class="text-violet-400">→</span> Śledzenie zamówienia online</div>
+          <div class="flex items-center gap-2 text-sm text-slate-500"><span class="text-violet-400">→</span> Plan sali i kadry</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- INNOWACJE -->
+<!-- ============================================================ -->
+<section id="features" class="py-24 relative overflow-hidden">
+  <div class="blob w-[600px] h-[600px] bg-violet-700" style="top:-100px;left:-100px;"></div>
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="text-center mb-16 reveal">
+      <div class="inline-flex items-center gap-2 glass px-4 py-2 rounded-full text-blue-400 text-sm font-semibold mb-6">
+        Wyróżniki konkurencyjne
+      </div>
+      <h2 class="text-4xl font-black mb-4">Dlaczego właściciele<br><span class="grad">to doceniają</span></h2>
+    </div>
+    <div class="grid md:grid-cols-2 gap-6">
+
+      <div class="glass rounded-2xl p-8 reveal">
+        <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl mb-5 glass">🧾</div>
+        <div class="text-xs font-bold text-violet-400 uppercase tracking-widest mb-2">KSeF AutoScan</div>
+        <h3 class="text-xl font-bold mb-3">Faktura → Magazyn w ~30 sekund</h3>
+        <p class="text-slate-400 leading-relaxed">Natywna integracja z KSeF umożliwia automatyczne wczytywanie faktur dostawców. Fuzzy matching SKU dopasowuje pozycje faktury do słownika magazynowego bez ręcznego przepisywania. Benchmark: ~15–20 min manualnie vs. ~30s z AutoScan.</p>
+        <div class="mt-4 inline-flex items-center gap-2 text-emerald-400 text-sm font-semibold glass px-3 py-1.5 rounded-lg border border-emerald-500/20">
+          vs. ~15–20 min manualnie
+        </div>
+      </div>
+
+      <div class="glass rounded-2xl p-8 reveal">
+        <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl mb-5 glass">📐</div>
+        <div class="text-xs font-bold text-blue-400 uppercase tracking-widest mb-2">Variant Scales</div>
+        <h3 class="text-xl font-bold mb-3">Jedna receptura, automatyczne warianty</h3>
+        <p class="text-slate-400 leading-relaxed">Multiplier per rozmiar (1.0× mała / 1.5× średnia / 2.0× duża) automatycznie skaluje ilości składników i przelicza Food Cost AVCO na żywo. Nie ma potrzeby tworzenia oddzielnych pozycji menu per wariant — jeden wpis obsługuje wszystkie rozmiary.</p>
+        <div class="mt-4 inline-flex items-center gap-2 text-blue-400 text-sm font-semibold glass px-3 py-1.5 rounded-lg border border-blue-500/20">
+          Pełna automatyzacja kosztów wariantów
+        </div>
+      </div>
+
+      <div class="glass rounded-2xl p-8 reveal">
+        <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl mb-5 glass">💰</div>
+        <div class="text-xs font-bold text-orange-400 uppercase tracking-widest mb-2">Omnichannel Pricing Native</div>
+        <h3 class="text-xl font-bold mb-3">Różne ceny sala / wynos / dostawa</h3>
+        <p class="text-slate-400 leading-relaxed">Macierz cenowa to pierwszorzędny feature modelu danych — nie obejście. Każda pozycja menu ma niezależną cenę per kanał (POS na sali, Takeaway, Delivery) zarządzaną w jednym edytorze bez duplikacji wpisów.</p>
+        <div class="mt-4 inline-flex items-center gap-2 text-orange-400 text-sm font-semibold glass px-3 py-1.5 rounded-lg border border-orange-500/20">
+          First-class w modelu danych
+        </div>
+      </div>
+
+      <div class="glass rounded-2xl p-8 reveal">
+        <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl mb-5 glass">🛡️</div>
+        <div class="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-2">Server-Authoritative Cart</div>
+        <h3 class="text-xl font-bold mb-3">Zero-reload runtime na shared hostingu</h3>
+        <p class="text-slate-400 leading-relaxed">Klient wysyła tylko SKU produktów — serwer waliduje każde zamówienie przez aktualną macierz cenową. Eliminuje możliwość manipulacji cenami po stronie klienta. Stack PHP 8.3 + MariaDB + Vanilla JS działa na hostingu za 30 zł/mies. bez Node.js w produkcji.</p>
+        <div class="mt-4 inline-flex items-center gap-2 text-emerald-400 text-sm font-semibold glass px-3 py-1.5 rounded-lg border border-emerald-500/20">
+          Zero lock-inu na infrastrukturę
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- DEMO VIDEO -->
+<!-- ============================================================ -->
+<section id="demo" class="py-24 relative overflow-hidden">
+  <div class="blob w-[500px] h-[500px] bg-blue-700" style="bottom:-100px;right:-100px;"></div>
+  <div class="max-w-4xl mx-auto px-6 text-center">
+    <div class="inline-flex items-center gap-2 glass px-4 py-2 rounded-full text-violet-400 text-sm font-semibold mb-6 reveal">
+      Demo wideo — 60s przegląd
+    </div>
+    <h2 class="text-4xl font-black mb-4 reveal">Wszystkie moduły<br><span class="grad">w 60 sekund</span></h2>
+    <p class="text-slate-400 text-lg mb-10 reveal">Przegląd Hub → Online → POS → Studio Menu → Dostawy</p>
+
+    <!-- YouTube embed placeholder -->
+    <div class="glass rounded-2xl overflow-hidden aspect-video flex items-center justify-center reveal" style="min-height:360px;">
+      <div id="yt-placeholder" class="flex flex-col items-center gap-4 p-12">
+        <div class="w-16 h-16 rounded-full flex items-center justify-center" style="background:linear-gradient(135deg,#7c3aed,#2563eb);">
+          <svg class="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/></svg>
+        </div>
+        <div>
+          <div class="text-xl font-bold mb-2">Demo wideo</div>
+          <div class="text-slate-500 text-sm">Wideo dostępne na YouTube — wstaw link poniżej i podmień placeholder</div>
+        </div>
+        <a href="YOUR_YOUTUBE_LINK_HERE" target="_blank" rel="noopener" class="px-6 py-3 rounded-xl font-semibold text-white text-sm" style="background:linear-gradient(135deg,#7c3aed,#2563eb);">
+          Obejrzyj na YouTube →
+        </a>
+      </div>
+    </div>
+
+    <p class="text-slate-600 text-xs mt-4">Zastąp href="YOUR_YOUTUBE_LINK_HERE" adresem swojego wideo lub wstaw iframe YouTube embed</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- CTA / FOOTER -->
+<!-- ============================================================ -->
+<section class="py-24 relative overflow-hidden">
+  <div class="max-w-4xl mx-auto px-6 text-center">
+    <div class="glass rounded-3xl p-12 relative overflow-hidden reveal">
+      <div class="blob w-[400px] h-[400px] bg-violet-600" style="top:-100px;right:-100px;opacity:0.15;"></div>
+      <div class="relative z-10">
+        <div class="w-16 h-16 rounded-2xl mx-auto mb-6 flex items-center justify-center font-black text-2xl text-white" style="background:linear-gradient(135deg,#7c3aed,#2563eb);">SH</div>
+        <h2 class="text-4xl font-black mb-4">Chcę pokazać to<br><span class="grad">mentorom SPARK.</span></h2>
+        <p class="text-slate-400 text-lg mb-8 max-w-xl mx-auto">SliceHub działa na slicehub.net. Szukam pilotaży u operatorów z prawdziwym ruchem — PL, potem CEE.</p>
+        <div class="flex flex-wrap gap-4 justify-center">
+          <a href="https://slicehub.net" target="_blank" rel="noopener" class="px-8 py-4 rounded-xl font-bold text-white text-base transition-transform hover:scale-105" style="background:linear-gradient(135deg,#7c3aed,#2563eb);">
+            Otwórz slicehub.net →
+          </a>
+        </div>
+        <div class="mt-8 flex items-center justify-center gap-2 text-emerald-400 text-sm font-semibold">
+          <div class="live-dot"></div>
+          Produkcja aktywna · Multi-tenant · PHP 8.3 + MariaDB
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="border-t border-white/10 py-8">
+  <div class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-slate-600">
+    <div class="flex items-center gap-3">
+      <div class="w-7 h-7 rounded-lg flex items-center justify-center font-black text-xs text-white" style="background:linear-gradient(135deg,#7c3aed,#2563eb);">SH</div>
+      <span>SliceHub Pro · <a href="https://slicehub.net" class="text-violet-400 hover:underline">slicehub.net</a></span>
+    </div>
+    <div>Solo founder: Damian Malenta · Aplikacja SPARK 3.0 · PFR</div>
+    <div class="flex gap-4">
+      <a href="https://slicehub.net" class="hover:text-slate-400 transition-colors">System</a>
+      <a href="#modules" class="hover:text-slate-400 transition-colors">Moduły</a>
+      <a href="#demo" class="hover:text-slate-400 transition-colors">Demo</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Scroll reveal
+  const reveals = document.querySelectorAll('.reveal');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1 });
+  reveals.forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>

@@ -1,37 +1,217 @@
 # =============================================================================
-# .htaccess do wgrania na hostingu uti.pl jako:
-#     public_html/.htaccess
+# SliceHub — production .htaccess (uti.pl, OVH, h88, inne shared hostingi)
+# -----------------------------------------------------------------------------
+# Wgranie: menedżer plików hostingu → public_html/.htaccess
+#          (root domeny, NIE głębiej!)
 #
-# (NIE w public_html/slicehub/, tylko w głównym public_html/.)
+# CO MUSISZ UZUPEŁNIĆ — TYLKO 2 LINIJKI w sekcji [1]:
+#   - SLICEHUB_DB_PASS  ← hasło Twojego użytkownika bazy (linia 36)
+#   - JWT_SECRET        ← losowy 64-znakowy hex (wygeneruj: openssl rand -hex 32)
+#                          (linia 37)
 #
-# Po co:
-#   Kod SliceHub ma w wielu miejscach absolutne ścieżki "/slicehub/...".
-#   Lokalnie (XAMPP) to działa, bo projekt fizycznie leży w htdocs/slicehub/.
-#   Na uti.pl pliki są bezpośrednio w public_html/, więc "/slicehub/api/..."
-#   zwraca 404. Ten .htaccess robi alias: każde żądanie na /slicehub/X jest
-#   przepisywane na /X. Działa dla API, JS, CSS, Service Workerów i PWA.
+# Reszta (DB_HOST/NAME/USER, TENANT_ID) jest już wypełniona pod Twoją instalację.
 #
-# Jak wgrać:
-#   1. Otwórz menedżer plików w panelu uti.pl.
-#   2. Wejdź do public_html/  (root domeny, NIE głębiej).
-#   3. Stwórz plik .htaccess z poniższą zawartością.
-#   4. Wejście na https://slicehub.net/  → automatycznie wpadnie do Hub
-#      (przez index.html z redirectem na modules/hub/index.html).
-#   5. Jeśli już masz .htaccess w public_html/, dodaj tylko sekcję ALIAS
-#      poniżej, NIE usuwaj istniejącej zawartości.
+# OSOBNO STWÓRZ PLIK `core/local_secrets.php` z drugim kluczem
+# SLICEHUB_SCRIPT_KEY — szablon w pliku `local_secrets_template.php` w tym
+# samym folderze _docs/.
+#
+# Wszystkie inne sekcje [2-9] zostaw bez zmian — są gotowe.
+# =============================================================================
+
+
+# =============================================================================
+# [1] DB CREDENTIALS + JWT + TENANT — wstrzykiwane do PHP-FPM przez SetEnv
+# -----------------------------------------------------------------------------
+# Czytane przez core/db_config.php (PDO connection + define JWT_SECRET)
+# oraz tenant_config.php (poprawne ID tenant'a dla POS PIN login + meta tagi).
+# Bez DB-envów PHP fallbackuje na XAMPP defaulty (root / '') → 1045 Access denied.
+# =============================================================================
+
+SetEnv SLICEHUB_DB_HOST localhost
+SetEnv SLICEHUB_DB_NAME slicehub_testA
+SetEnv SLICEHUB_DB_USER damian
+
+# ⬇⬇⬇ UZUPEŁNIJ TE DWIE LINIJKI ⬇⬇⬇
+SetEnv SLICEHUB_DB_PASS <TUTAJ_TWOJE_HASLO_BAZY_17_ZNAKOW>
+SetEnv JWT_SECRET <TUTAJ_64_ZNAKI_HEX_Z_openssl_rand_hex_32>
+# ⬆⬆⬆ UZUPEŁNIJ TE DWIE LINIJKI ⬆⬆⬆
+
+# SLICEHUB_TENANT_ID — forsuje konkretnego tenant'a dla tego hostingu.
+# U Ciebie owner siedzi w tenant_id=2 (zmieniłeś z 1 wcześniej), więc ten
+# SetEnv jest WAŻNY — bez niego POS PIN login szukałby PIN-u w tenant_id=1
+# (hardcoded fallback) i zwracałby "Invalid credentials".
+#
+# Jeśli kiedyś założysz drugą instalację z innym tenant_id, zmień wartość poniżej.
+# Aby sprawdzić jaki masz tenant_id: w phpMyAdmin →
+#   SELECT id, name FROM sh_tenant WHERE COALESCE(is_deleted,0)=0;
+SetEnv SLICEHUB_TENANT_ID 2
+
+
+# =============================================================================
+# [2] REWRITE — Authorization header + alias /slicehub/
 # =============================================================================
 
 RewriteEngine On
 
-# ── (1) Pass Authorization header to PHP (Apache strips it by default) ────
+# (2a) Apache zwykle obcina nagłówek Authorization. Bez tego JWT z aplikacji
+#      mobilnych (Kelner / Kierowca / Driver App) nie dochodzi do PHP.
 RewriteCond %{HTTP:Authorization} .
 RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
-# Fallback for CGI/FastCGI setups
+# (2b) Fallback dla CGI/FastCGI setups
 SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
 
-# ── (2) ALIAS /slicehub/X → /X ────────────────────────────────────────────
-# Ratunek dla absolutnych ścieżek w kodzie ("/slicehub/api/...", SW, PWA).
-# Reguła nie dotyczy localhost/127.0.0.1 — XAMPP działa po staremu.
+# (2c) ALIAS /slicehub/X → /X
+#      Kod ma w wielu miejscach absolutne ścieżki "/slicehub/..." (Service
+#      Workery POS i Online, manifesty PWA, część wrapperów API). Lokalnie
+#      (XAMPP) działa, bo projekt jest w htdocs/slicehub/. Na uti.pl pliki
+#      są w public_html/ — bez tego aliasu API zwracałoby 404.
+#      Reguła nie dotyczy localhost (XAMPP nieruszony).
 RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1) [NC]
 RewriteRule ^slicehub/(.*)$ /$1 [L]
+
+
+# =============================================================================
+# [3] DEFAULT DOC + STRICT MIME
+# =============================================================================
+
+DirectoryIndex index.html index.php
+AddDefaultCharset UTF-8
+
+AddType application/javascript .js
+AddType application/json .json
+AddType application/manifest+json .webmanifest
+
+
+# =============================================================================
+# [4] BEZPIECZEŃSTWO — blokady plików
+# =============================================================================
+
+# Wszystkie dotfiles (.git, .env, .htpasswd itd.)
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# Pliki z sekretami / backupy
+<FilesMatch "(^|/)(local_secrets\.php|db_config\.php|composer\.(json|lock)|package(-lock)?\.json|\.env(\..*)?|.*\.sql|.*\.bak|.*\.backup|.*\.old|.*\.tmp)$">
+    Require all denied
+</FilesMatch>
+
+# Foldery służbowe (zwracaj 404 bez wycieku informacji)
+RedirectMatch 404 /\.git(/|$)
+RedirectMatch 404 /\.idea(/|$)
+RedirectMatch 404 /\.vscode(/|$)
+RedirectMatch 404 /node_modules(/|$)
+RedirectMatch 404 /tests(/|$)
+RedirectMatch 404 /_KOPALNIA_WIEDZY_LEGACY(/|$)
+RedirectMatch 404 /_docs(/|$)
+RedirectMatch 404 /database(/|$)
+
+# Brak directory listing
+Options -Indexes
+IndexIgnore *
+
+# Ukryj sygnaturę serwera
+ServerSignature Off
+<IfModule mod_headers.c>
+    Header unset X-Powered-By
+    Header always unset X-Powered-By
+</IfModule>
+
+
+# =============================================================================
+# [5] SECURITY HEADERS — defense in depth
+# =============================================================================
+
+<IfModule mod_headers.c>
+    Header always set Strict-Transport-Security "max-age=86400; includeSubDomains"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "geolocation=(self), microphone=(), camera=()"
+    Header set Service-Worker-Allowed "/"
+</IfModule>
+
+
+# =============================================================================
+# [6] CACHE HINTS — assety vs API
+# =============================================================================
+
+<IfModule mod_expires.c>
+    ExpiresActive On
+
+    ExpiresByType application/json                  "access plus 0 seconds"
+    ExpiresByType text/html                         "access plus 0 seconds"
+    ExpiresByType application/manifest+json         "access plus 1 hours"
+
+    ExpiresByType application/javascript            "access plus 1 hours"
+    ExpiresByType text/css                          "access plus 1 hours"
+
+    ExpiresByType image/jpeg                        "access plus 30 days"
+    ExpiresByType image/png                         "access plus 30 days"
+    ExpiresByType image/webp                        "access plus 30 days"
+    ExpiresByType image/svg+xml                     "access plus 30 days"
+    ExpiresByType font/woff2                        "access plus 90 days"
+</IfModule>
+
+# tenant_config.php MUSI być świeży (każde wejście do modułu = sprawdź tenant)
+<FilesMatch "tenant_config\.php$">
+    <IfModule mod_headers.c>
+        Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+        Header set Pragma "no-cache"
+    </IfModule>
+</FilesMatch>
+
+# Service Workery muszą być zawsze świeże (krytyczne dla PWA POS/Online)
+<FilesMatch "sw\.js$">
+    <IfModule mod_headers.c>
+        Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+        Header set Pragma "no-cache"
+    </IfModule>
+</FilesMatch>
+
+
+# =============================================================================
+# [7] KOMPRESJA
+# =============================================================================
+
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html
+    AddOutputFilterByType DEFLATE text/css
+    AddOutputFilterByType DEFLATE text/plain
+    AddOutputFilterByType DEFLATE application/javascript
+    AddOutputFilterByType DEFLATE application/json
+    AddOutputFilterByType DEFLATE application/xml
+    AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+
+# =============================================================================
+# [8] PHP — limity dla uploadów (zdjęcia menu, faktury PDF, zdjęcia dań)
+# =============================================================================
+
+<IfModule mod_php.c>
+    php_value upload_max_filesize 16M
+    php_value post_max_size       18M
+    php_value max_execution_time  90
+    php_value memory_limit        256M
+</IfModule>
+<IfModule mod_php7.c>
+    php_value upload_max_filesize 16M
+    php_value post_max_size       18M
+    php_value max_execution_time  90
+    php_value memory_limit        256M
+</IfModule>
+<IfModule mod_php8.c>
+    php_value upload_max_filesize 16M
+    php_value post_max_size       18M
+    php_value max_execution_time  90
+    php_value memory_limit        256M
+</IfModule>
+
+
+# =============================================================================
+# [9] BŁĘDY
+# =============================================================================
+
+ErrorDocument 404 /index.html

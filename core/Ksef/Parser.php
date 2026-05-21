@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace SliceHub\Ksef;
 
 /**
- * SliceHub — FA(2) XML Parser
+ * SliceHub — FA(2) / FA(3) XML Parser (KSeF)
  *
- * Lekki parser polskiego standardu FA(2) (KSeF) używany w F3 do
- * obsługi manual upload XML i w F4 do parsowania response z KSeF API.
+ * Lekki parser struktury logicznej faktury (KSeF) — F3 upload + F4 odpowiedź GET /invoices/ksef/{ksefNumber}.
+ * Od 2026-02 obowiązuje FA(3) (`xmlns` inny niż FA(2)); węzły wyszukiwane po **local-name()**,
+ * żeby ominąć problem prefiksów / domyślnego namespace w SimpleXML.
  *
  * Schema reference: https://ksef.podatki.gov.pl/ (Schemat_FA_2)
  *
@@ -100,32 +101,42 @@ class Parser
             return $this->fail(rtrim($msg, '; '));
         }
 
-        // Detekcja namespace — FA(2) używa namespace MF, ale też akceptujemy bez NS
-        // (np. ręcznie przygotowane przykłady, sandbox bez prawidłowego envelope)
-        $namespaces = $doc->getDocNamespaces(true);
-        $ns = isset($namespaces[''])
-            ? (string) $namespaces['']
-            : (in_array(self::FA2_NS, $namespaces, true) ? self::FA2_NS : '');
-
-        // Walidacja struktury — root powinien być Faktura
+        // Walidacja struktury — root powinien być Faktura (lokalna nazwa, bez prefiksu)
         if ($doc->getName() !== 'Faktura') {
-            return $this->fail('Root XML nie jest <Faktura>. FA(2) wymaga <Faktura xmlns=...>');
+            return $this->fail('Root XML nie jest <Faktura>. Oczekiwany dokument FA(2)/FA(3) z KSeF.');
         }
 
-        $xpath = (string) $ns;
-        $body = $xpath !== '' ? $doc->children($xpath) : $doc;
-
         try {
+            $header = $this->parseHeaderFromDoc($doc);
+            $supplier = $this->parsePodmiotElement(self::findFirstElement($doc, 'Podmiot1'));
+            $buyer = $this->parsePodmiotElement(self::findFirstElement($doc, 'Podmiot2'));
+            $fa = self::findFirstElement($doc, 'Fa');
+            if ($fa === null) {
+                return $this->fail('Brak węzła <Fa> — nie rozpoznano struktury faktury (FA(2)/FA(3) lub zagnieżdżenie).');
+            }
+            $invoice = $this->parseInvoiceFromFa($fa);
+            $lines = $this->parseLinesFromFa($fa);
+            $totals = $this->parseTotalsFromFa($fa);
+
+            $nipS = trim((string) ($supplier['nip'] ?? ''));
+            $invNo = trim((string) ($invoice['number'] ?? ''));
+            if ($nipS === '' && $invNo === '' && $lines === []) {
+                return $this->fail(
+                    'Faktura XML bez rozpoznanych danych (brak NIP dostawcy, numeru i linii). '
+                    . 'Możliwy FA(3) z innymi nazwami pól lub treść pośrednia — sprawdź xml_blob w bazie.'
+                );
+            }
+
             return [
                 'success'  => true,
                 'errors'   => [],
                 'warnings' => $this->warnings,
-                'header'   => $this->parseHeader($body),
-                'supplier' => $this->parsePodmiot($body, 'Podmiot1'),
-                'buyer'    => $this->parsePodmiot($body, 'Podmiot2'),
-                'invoice'  => $this->parseInvoice($body),
-                'lines'    => $this->parseLines($body),
-                'totals'   => $this->parseTotals($body),
+                'header'   => $header,
+                'supplier' => $supplier,
+                'buyer'    => $buyer,
+                'invoice'  => $invoice,
+                'lines'    => $lines,
+                'totals'   => $totals,
             ];
         } catch (\Throwable $e) {
             return $this->fail('Wyjątek parsera: ' . $e->getMessage());
@@ -175,10 +186,34 @@ class Parser
         ];
     }
 
-    private function parseHeader(\SimpleXMLElement $body): array
+    /**
+     * Pierwszy element o podanej **lokalnej** nazwie: bezpośrednie dzieci, potem XPath (namespace-agnostic).
+     */
+    private static function findFirstElement(\SimpleXMLElement $root, string $localName): ?\SimpleXMLElement
     {
-        $h = $body->Naglowek ?? null;
-        if ($h === null) return [];
+        foreach ($root->children() as $child) {
+            if ($child->getName() === $localName) {
+                return $child;
+            }
+        }
+        $direct = $root->xpath('./*[local-name()="' . $localName . '"]');
+        if ($direct !== false && isset($direct[0]) && $direct[0] instanceof \SimpleXMLElement) {
+            return $direct[0];
+        }
+        $xp = './/*[local-name()="' . $localName . '"]';
+        $found = $root->xpath($xp);
+
+        return ($found !== false && isset($found[0]) && $found[0] instanceof \SimpleXMLElement)
+            ? $found[0]
+            : null;
+    }
+
+    private function parseHeaderFromDoc(\SimpleXMLElement $doc): array
+    {
+        $h = self::findFirstElement($doc, 'Naglowek');
+        if ($h === null) {
+            return [];
+        }
         return [
             'kod_formularza'   => (string) ($h->KodFormularza ?? ''),
             'kod_systemowy'    => isset($h->KodFormularza) ? (string) ($h->KodFormularza['kodSystemowy'] ?? '') : '',
@@ -188,10 +223,11 @@ class Parser
         ];
     }
 
-    private function parsePodmiot(\SimpleXMLElement $body, string $tag): array
+    private function parsePodmiotElement(?\SimpleXMLElement $p): array
     {
-        $p = $body->{$tag} ?? null;
-        if ($p === null) return [];
+        if ($p === null) {
+            return [];
+        }
 
         // Identyfikator: DaneIdentyfikacyjne.NIP / KodKraju
         $ident = $p->DaneIdentyfikacyjne ?? null;
@@ -219,11 +255,8 @@ class Parser
         ];
     }
 
-    private function parseInvoice(\SimpleXMLElement $body): array
+    private function parseInvoiceFromFa(\SimpleXMLElement $fa): array
     {
-        $fa = $body->Fa ?? null;
-        if ($fa === null) return [];
-
         // Pola Fa.P_* (numerowane standardem FA(2))
         $invoiceNumber = (string) ($fa->P_2 ?? '');
         $dataWystawienia = (string) ($fa->P_1 ?? '');
@@ -253,14 +286,27 @@ class Parser
         ];
     }
 
-    private function parseLines(\SimpleXMLElement $body): array
+    private function parseLinesFromFa(\SimpleXMLElement $fa): array
     {
-        $fa = $body->Fa ?? null;
-        if ($fa === null) return [];
+        /** @var list<\SimpleXMLElement> $lineNodes */
+        $lineNodes = [];
+        foreach ($fa->FaWiersz as $row) {
+            $lineNodes[] = $row;
+        }
+        if ($lineNodes === []) {
+            $alt = $fa->xpath('.//*[local-name()="FaWiersz"]');
+            if ($alt !== false) {
+                foreach ($alt as $row) {
+                    if ($row instanceof \SimpleXMLElement) {
+                        $lineNodes[] = $row;
+                    }
+                }
+            }
+        }
 
         $lines = [];
         $idx = 0;
-        foreach ($fa->FaWiersz as $row) {
+        foreach ($lineNodes as $row) {
             $idx++;
             $nr = (int) ((string) ($row->NrWierszaFa ?? $idx));
             $name = trim((string) ($row->P_7 ?? ''));
@@ -302,11 +348,8 @@ class Parser
         return $lines;
     }
 
-    private function parseTotals(\SimpleXMLElement $body): array
+    private function parseTotalsFromFa(\SimpleXMLElement $fa): array
     {
-        $fa = $body->Fa ?? null;
-        if ($fa === null) return [];
-
         // FA(2) suma sprzedaży: P_13_1 (netto 23%) + P_13_2 (netto 8%) + P_13_3 (netto 5%) + ...
         // dla MVP: P_13_1 + P_13_2 + P_13_3 + P_13_4 + P_13_5 + P_13_6 + P_13_7 (zw.)
         $totalNet = 0.0;

@@ -10,6 +10,7 @@ Zanim zaczniesz analizować problem lub pisać jakikolwiek kod, MASZ OBOWIĄZEK 
 2. `02_ARCHITEKTURA`
 3. `03_MAPA_KOPALNI`
 4. `04_BAZA_DANYCH`
+5. **Nowa migracja SQL:** `_docs/MIGRATIONS_AGENT_CHECKLIST.md` — dopisz plik na końcu `scripts/_migrations_chain.php` (Install Panel taguje osierocone pliki).
 ZAKAZ zgadywania ścieżek, folderów i relacji. Jeśli nie wiesz, jak coś działa – sprawdź w dokumentacji.
 
 ## 1. STRUKTURA BAZY I ZAKAZ HALUCYNACJI (KRYTYCZNE)

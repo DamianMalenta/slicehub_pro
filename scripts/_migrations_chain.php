@@ -9,8 +9,9 @@ declare(strict_types=1);
  *   - scripts/apply_migrations_chain.php
  *   - scripts/install_panel.php
  *
- * UWAGA: dodając nową migrację, dopisz ją TUTAJ. Audyt w
- * collectChainIntegrityIssues() zgłosi rozbieżność, jeśli zapomnisz.
+ * UWAGA: dodając nową migrację, dopisz ją TUTAJ na końcu tablicy oraz przeczytaj
+ * `_docs/MIGRATIONS_AGENT_CHECKLIST.md` (tag „POZA ŁAŃCUCHEM" w Install Panel).
+ * Audyt w collectChainIntegrityIssues() zgłosi rozbieżność, jeśli zapomnisz.
  *
  * 015_normalize_three_drivers.sql jest ŚWIADOMIE pominięte w chain
  * (DELETE/UPDATE na tenant 1, tylko --include-015 w CLI).
@@ -66,4 +67,6 @@ return [
     '053_subrecipes.sql',
     '054_order_line_combo_meta.sql',
     '055_recipe_display_order.sql',
+    '056_ksef_invoice_cost_category.sql',
+    '057_ksef_line_opex_expense_categories.sql',
 ];

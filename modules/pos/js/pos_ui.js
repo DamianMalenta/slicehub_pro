@@ -70,16 +70,29 @@ const PosUI = (() => {
     function renderItemGrid(items, onClick) {
         const grid = $('#item-grid'); if (!grid) return;
         if (!items.length) { grid.innerHTML = '<div class="empty-state">Brak produktów w tej kategorii</div>'; return; }
-        grid.innerHTML = items.map(item => {
+        // BUGFIX 2026-05-13: identyfikacja kafelka po IDX (closure), nie po ascii_key.
+        // Wczesniej: items.find(i => i.ascii_key === tile.dataset.sku) zwracalo undefined,
+        // gdy ambassador wariantu mial ascii_key=null/'' (legacy parent_sku migration) —
+        // klik nie wywolywal onClick, kasa zaczyna byc "martwa" dla pizz z rozmiarami.
+        grid.innerHTML = items.map((item, idx) => {
             const price = (item.priceGrosze / 100).toFixed(2);
             const hasImg = item.image_url && item.image_url.trim();
             const safeUrl = hasImg ? encodeURI(item.image_url).replace(/'/g, '%27') : '';
             const bgStyle = hasImg ? `background-image:url('${safeUrl}');background-size:cover;background-position:center;` : '';
             const initials = item.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-            return `<div class="item-tile ${hasImg ? '' : 'no-image'}" data-sku="${_e(item.ascii_key)}"><div class="item-tile-bg" style="${bgStyle}">${!hasImg ? `<span class="item-initials">${_e(initials)}</span>` : ''}</div><div class="item-tile-info"><span class="item-tile-name">${_e(item.name)}</span><span class="item-tile-price">${price} zł</span></div></div>`;
+            const variantBadge = item._isVariantAmbassador ? '<span class="item-tile-variant-badge" title="Pizza z rozmiarami — klik wybiera rozmiar">RM</span>' : '';
+            return `<div class="item-tile ${hasImg ? '' : 'no-image'}" data-idx="${idx}" data-sku="${_e(item.ascii_key || '')}"><div class="item-tile-bg" style="${bgStyle}">${!hasImg ? `<span class="item-initials">${_e(initials)}</span>` : ''}${variantBadge}</div><div class="item-tile-info"><span class="item-tile-name">${_e(item.name)}</span><span class="item-tile-price">${price} zł</span></div></div>`;
         }).join('');
-        grid.querySelectorAll('.item-tile').forEach(tile => {
-            tile.addEventListener('click', () => { const it = items.find(i => i.ascii_key === tile.dataset.sku); if (it) onClick(it); });
+        grid.querySelectorAll('.item-tile').forEach((tile) => {
+            tile.addEventListener('click', () => {
+                const idx = parseInt(tile.dataset.idx, 10);
+                const it = Number.isFinite(idx) ? items[idx] : null;
+                if (it) {
+                    onClick(it);
+                } else {
+                    console.warn('[POS] item-tile click: brak itemu pod idx=' + tile.dataset.idx + ' (items.length=' + items.length + ')');
+                }
+            });
         });
     }
 

@@ -6,7 +6,7 @@ declare(strict_types=1);
  * SliceHub — KSeF Inbox Worker
  *
  * Cron-callable script which polls KSeF API for new invoices addressed to
- * our NIP, parses them through FA(2) Parser, runs AutoScan match per line,
+ * our NIP, parses them through FA(2)/FA(3) Parser, runs AutoScan match per line,
  * and INSERTs into sh_ksef_invoices (m046). After this, faktury are
  * automatically visible in Procurement Inbox UI (modules/procurement/).
  *
@@ -27,8 +27,8 @@ declare(strict_types=1);
  *   - Brak konfiguracji = mock mode (3 fixture invoices per tenant — dev test).
  *
  * DEDUP:
- *   ksef_reference_id UNIQUE per tenant w sh_ksef_invoices. INSERT IGNORE
- *   automatycznie pomija powtórzenia (te same faktury pobrane drugi raz).
+ *   UNIQUE (tenant_id, ksef_reference_id) + SELECT przed INSERT; przy wyścigu dwóch workerów
+ *   duplikat SQL (1062) jest łapany i traktowany jak pominięcie.
  *
  * AUDIT:
  *   sh_ksef_inbox_state per tenant: last_polled_at, last_invoice_seen_id,
@@ -59,6 +59,7 @@ require_once __DIR__ . '/../core/db_config.php';
 require_once __DIR__ . '/../core/AutoScanEngine.php';
 require_once __DIR__ . '/../core/Ksef/Parser.php';
 require_once __DIR__ . '/../core/Ksef/Client.php';
+require_once __DIR__ . '/../core/Ksef/InboxInvoiceRepository.php';
 
 if (!isset($pdo)) {
     http_response_code(500);
@@ -122,6 +123,17 @@ foreach ($tenantIds as $tid) {
         $env = $client->getEnvironment();
         $out("Environment: {$env}");
 
+        $stAct = $pdo->prepare(
+            "SELECT COALESCE(is_active, 1) FROM sh_tenant_integrations
+              WHERE tenant_id = :tid AND provider = 'ksef' LIMIT 1"
+        );
+        $stAct->execute([':tid' => $tid]);
+        $intActive = (int) $stAct->fetchColumn();
+        if ($intActive !== 1) {
+            $out('  ⏭  integracja KSeF wyłączona (is_active=0) — pomijam tenant.');
+            continue;
+        }
+
         // Wczytaj cursor z sh_ksef_inbox_state
         $cur = $pdo->prepare(
             "SELECT last_polled_at, last_invoice_seen_id FROM sh_ksef_inbox_state
@@ -130,9 +142,9 @@ foreach ($tenantIds as $tid) {
         $cur->execute([':tid' => $tid]);
         $cursor = $cur->fetch(PDO::FETCH_ASSOC) ?: ['last_polled_at' => null, 'last_invoice_seen_id' => null];
 
-        // Query inbox (od ostatniego polla -1 dzień margines)
+        // Query inbox: margines 14 dni wstecz od ostatniego polla (1 dzień bywał za krótki + rozjazd dat MF vs portal).
         $sinceDate = $cursor['last_polled_at']
-            ? date('Y-m-d', strtotime((string) $cursor['last_polled_at'] . ' -1 day'))
+            ? date('Y-m-d', strtotime((string) $cursor['last_polled_at'] . ' -14 days'))
             : null;
 
         $qres = $client->queryInbox($sinceDate, $cursor['last_invoice_seen_id'] ?: null);
@@ -180,6 +192,11 @@ foreach ($tenantIds as $tid) {
                 $lastSeenRef = $refId;
                 $out("  ✅ wstawiono: {$refId} (sh_ksef_invoices.id={$insertedId})");
             } catch (\Throwable $e) {
+                if (\SliceHub\Ksef\InboxInvoiceRepository::isMysqlDuplicateKey($e)) {
+                    $out("  ⏭  pominięto (duplikat SQL / race): {$refId}");
+                    $globalStats['invoices_skipped']++;
+                    continue;
+                }
                 $out("  ❌ insert {$refId} failed: " . $e->getMessage());
                 $globalStats['errors']++;
             }
@@ -220,94 +237,15 @@ function insertInvoiceFromXml(\PDO $pdo, int $tenantId, string $refId, string $x
         throw new \RuntimeException('Parser: ' . implode('; ', $parsed['errors']));
     }
 
-    $pdo->beginTransaction();
-    try {
-        $st = $pdo->prepare(
-            "INSERT INTO sh_ksef_invoices
-                (tenant_id, ksef_reference_id,
-                 supplier_nip, supplier_name, supplier_address,
-                 buyer_nip, buyer_name,
-                 invoice_number, issue_date, sale_date, payment_due_date, currency,
-                 total_net_minor, total_vat_minor, total_gross_minor,
-                 xml_blob, parsed_json, status)
-             VALUES
-                (:tid, :ref,
-                 :snip, :sname, :saddr,
-                 :bnip, :bname,
-                 :inum, :issd, :sald, :payd, :cur,
-                 :tnet, :tvat, :tgross,
-                 :xml, :pjson, 'draft')"
-        );
-        $st->execute([
-            ':tid'    => $tenantId,
-            ':ref'    => $refId,
-            ':snip'   => $parsed['supplier']['nip'] ?: null,
-            ':sname'  => $parsed['supplier']['name'] ?: null,
-            ':saddr'  => $parsed['supplier']['address'] ?: null,
-            ':bnip'   => $parsed['buyer']['nip'] ?: null,
-            ':bname'  => $parsed['buyer']['name'] ?: null,
-            ':inum'   => $parsed['invoice']['number'] ?: ('KSEF-' . $refId),
-            ':issd'   => $parsed['invoice']['issue_date'],
-            ':sald'   => $parsed['invoice']['sale_date'],
-            ':payd'   => $parsed['invoice']['payment_due_date'],
-            ':cur'    => $parsed['invoice']['currency'] ?: 'PLN',
-            ':tnet'   => $parsed['totals']['total_net_minor'] ?? 0,
-            ':tvat'   => $parsed['totals']['total_vat_minor'] ?? 0,
-            ':tgross' => $parsed['totals']['total_gross_minor'] ?? 0,
-            ':xml'    => $xml,
-            ':pjson'  => json_encode($parsed, JSON_UNESCAPED_UNICODE),
-        ]);
-        $invoiceId = (int) $pdo->lastInsertId();
-
-        $stL = $pdo->prepare(
-            "INSERT INTO sh_ksef_invoice_lines
-                (ksef_invoice_id, line_no, external_name, external_description,
-                 gtu_code, pkwiu, unit, qty, unit_net, line_net_minor, vat_rate)
-             VALUES
-                (:iid, :lno, :name, :desc, :gtu, :pkwiu, :unit, :qty, :unet, :lnet, :vat)"
-        );
-        foreach ($parsed['lines'] as $line) {
-            $stL->execute([
-                ':iid'   => $invoiceId,
-                ':lno'   => $line['line_no'],
-                ':name'  => $line['external_name'],
-                ':desc'  => $line['description'] ?: null,
-                ':gtu'   => $line['gtu_code'] ?: null,
-                ':pkwiu' => $line['pkwiu'] ?: null,
-                ':unit'  => $line['unit'] ?: null,
-                ':qty'   => $line['qty'],
-                ':unet'  => $line['unit_net'],
-                ':lnet'  => $line['line_net_minor'],
-                ':vat'   => $line['vat_rate'],
-            ]);
-        }
-        $pdo->commit();
-    } catch (\Throwable $e) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
-        throw $e;
-    }
-
-    // AutoScan match per linia (poza transakcją PZ — tylko cache w sh_ksef_invoice_lines)
-    $matchUpd = $pdo->prepare(
-        "UPDATE sh_ksef_invoice_lines
-            SET resolved_sku = :sku, match_type = :mt, match_confidence = :conf,
-                match_candidates_json = :cand, resolved_at = NOW()
-          WHERE id = :id"
+    $invoiceId = \SliceHub\Ksef\InboxInvoiceRepository::insertInvoiceWithLines(
+        $pdo,
+        $tenantId,
+        $refId,
+        $xml,
+        $parsed,
+        'KSEF-' . $refId
     );
-    $linesStmt = $pdo->prepare(
-        "SELECT id, external_name FROM sh_ksef_invoice_lines WHERE ksef_invoice_id = :iid"
-    );
-    $linesStmt->execute([':iid' => $invoiceId]);
-    foreach ($linesStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
-        $r = \AutoScanEngine::match($pdo, $tenantId, (string) $row['external_name']);
-        $matchUpd->execute([
-            ':sku'  => $r['sku'],
-            ':mt'   => $r['match_type'] ?? 'NONE',
-            ':conf' => $r['confidence'] ?? 0,
-            ':cand' => json_encode($r['candidates'] ?? [], JSON_UNESCAPED_UNICODE),
-            ':id'   => $row['id'],
-        ]);
-    }
+    \SliceHub\Ksef\InboxInvoiceRepository::matchInvoiceLines($pdo, $tenantId, $invoiceId);
 
     return $invoiceId;
 }

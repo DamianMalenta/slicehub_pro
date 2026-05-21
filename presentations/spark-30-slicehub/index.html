@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="description" content="Prezentacja SliceHub Enterprise — załącznik do wniosku o dofinansowanie, program Startup Spark 3.0." />
+  <title>SliceHub Enterprise — Prezentacja do wniosku · Startup Spark 3.0</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Syne:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg0: #050508;
+      --bg1: #0c0c12;
+      --glass: rgba(255, 255, 255, 0.04);
+      --stroke: rgba(255, 255, 255, 0.1);
+      --text: #e8e8ec;
+      --muted: #9898a8;
+      --accent: #f97316;
+      --accent2: #fb923c;
+      --slide-pad: clamp(1.25rem, 4vw, 3.25rem);
+      --font-display: "Syne", system-ui, sans-serif;
+      --font-body: "DM Sans", system-ui, sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { color-scheme: dark; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg0);
+      color: var(--text);
+      font-family: var(--font-body);
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    body {
+      background:
+        radial-gradient(120% 80% at 80% -10%, rgba(249, 115, 22, 0.1), transparent 55%),
+        radial-gradient(80% 60% at -10% 100%, rgba(99, 102, 241, 0.07), transparent 50%),
+        linear-gradient(180deg, var(--bg1), var(--bg0));
+    }
+
+    .deck {
+      height: 100dvh;
+      width: 100%;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .slide {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      justify-content: center;
+      padding: var(--slide-pad);
+      padding-bottom: calc(var(--slide-pad) + 3rem);
+      max-width: 1180px;
+      margin: 0 auto;
+      width: 100%;
+      animation: inSlide 0.4s ease both;
+    }
+
+    .slide.is-active { display: flex; }
+
+    @keyframes inSlide {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .glass-panel {
+      background: var(--glass);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid var(--stroke);
+      border-radius: 1.15rem;
+      padding: clamp(0.9rem, 2vw, 1.5rem);
+    }
+
+    .eyebrow {
+      font-size: 0.7rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent2);
+      font-weight: 600;
+      margin-bottom: 0.65rem;
+    }
+
+    h1 {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: clamp(1.85rem, 5vw, 3.25rem);
+      line-height: 1.06;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.65rem;
+    }
+
+    h2 {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: clamp(1.35rem, 3.2vw, 2.1rem);
+      line-height: 1.18;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.85rem;
+    }
+
+    .lead {
+      font-size: clamp(0.98rem, 1.85vw, 1.22rem);
+      color: var(--muted);
+      line-height: 1.52;
+      max-width: 44rem;
+    }
+
+    .lead strong { color: var(--text); }
+
+    ul.clean {
+      list-style: none;
+      margin-top: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    ul.clean li {
+      display: flex;
+      gap: 0.65rem;
+      align-items: flex-start;
+      font-size: clamp(0.9rem, 1.5vw, 1.05rem);
+      line-height: 1.45;
+      color: #c8c8d4;
+    }
+
+    ul.clean li::before {
+      content: "";
+      width: 5px;
+      height: 5px;
+      margin-top: 0.42rem;
+      border-radius: 50%;
+      flex-shrink: 0;
+      background: linear-gradient(135deg, var(--accent), #a855f7);
+    }
+
+    .triad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.65rem;
+      margin-top: 1.25rem;
+    }
+
+    @media (max-width: 720px) { .triad { grid-template-columns: 1fr; } }
+
+    .triad-card {
+      padding: 0.95rem 1rem;
+      border-radius: 0.95rem;
+      border: 1px solid var(--stroke);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .triad-card b {
+      display: block;
+      font-family: var(--font-display);
+      font-size: 1.05rem;
+      margin-bottom: 0.3rem;
+      color: #fff;
+    }
+
+    .triad-card span { font-size: 0.84rem; color: var(--muted); line-height: 1.38; }
+
+    .grid-modules {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 0.55rem;
+      margin-top: 1rem;
+    }
+
+    .mod {
+      padding: 0.75rem 0.9rem;
+      border-radius: 0.8rem;
+      border: 1px solid var(--stroke);
+      background: rgba(255, 255, 255, 0.025);
+    }
+
+    .mod h3 {
+      font-family: var(--font-display);
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 0.2rem;
+    }
+
+    .mod p { font-size: 0.76rem; color: var(--muted); line-height: 1.38; }
+
+    .pill-row { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.85rem; }
+
+    .pill {
+      font-size: 0.72rem;
+      padding: 0.3rem 0.6rem;
+      border-radius: 999px;
+      border: 1px solid var(--stroke);
+      background: rgba(255, 255, 255, 0.04);
+      color: #c4c4d4;
+    }
+
+    .table-wrap {
+      margin-top: 0.85rem;
+      overflow: auto;
+      border-radius: 0.95rem;
+      border: 1px solid var(--stroke);
+    }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+
+    th, td {
+      padding: 0.55rem 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      vertical-align: top;
+    }
+
+    th {
+      background: rgba(255, 255, 255, 0.04);
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    td { color: var(--muted); }
+    td:first-child { color: #e4e4ec; font-weight: 500; }
+
+    .blank {
+      display: block;
+      min-height: 1.35rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+      margin: 0.15rem 0 0.35rem;
+      font-style: italic;
+      color: #6b6b7a;
+      font-size: 0.78rem;
+    }
+
+    .quote-box {
+      margin-top: 1rem;
+      padding: 1.25rem 1.4rem;
+      border-left: 3px solid var(--accent);
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 0 0.9rem 0.9rem 0;
+      font-size: clamp(0.95rem, 1.65vw, 1.12rem);
+      line-height: 1.52;
+      color: #d6d6e0;
+    }
+
+    .legal-box {
+      margin-top: 1.1rem;
+      padding: 0.85rem 1rem;
+      border-radius: 0.75rem;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(0, 0, 0, 0.25);
+      font-size: 0.72rem;
+      line-height: 1.45;
+      color: #8b8b9a;
+    }
+
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.25rem;
+      margin-top: 1rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .meta-row div strong { color: #fff; font-weight: 600; }
+
+    .title-slide h1 span {
+      background: linear-gradient(135deg, #fff 0%, #fdba74 45%, #fb923c 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .spark-line {
+      margin-top: 1.1rem;
+      font-size: 0.88rem;
+      color: #c4c4d4;
+      max-width: 38rem;
+      line-height: 1.45;
+    }
+
+    .spark-line strong { color: #fff; }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.85rem;
+      margin-top: 0.85rem;
+    }
+
+    @media (max-width: 800px) { .two-col { grid-template-columns: 1fr; } }
+
+    .mini {
+      font-size: 0.74rem;
+      color: #6b6b7a;
+      margin-top: 0.75rem;
+      line-height: 1.42;
+    }
+
+    .cta-line {
+      margin-top: 1.1rem;
+      font-size: clamp(0.95rem, 1.7vw, 1.15rem);
+      line-height: 1.55;
+      color: #e2e2ea;
+    }
+
+    .footer-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 0.55rem var(--slide-pad);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      background: rgba(5, 5, 8, 0.82);
+      backdrop-filter: blur(14px);
+      border-top: 1px solid var(--stroke);
+      z-index: 50;
+    }
+
+    .progress {
+      flex: 1;
+      height: 3px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 99px;
+      overflow: hidden;
+      max-width: 280px;
+    }
+
+    .progress i {
+      display: block;
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), #c084fc);
+      border-radius: 99px;
+      transition: width 0.32s ease;
+    }
+
+    .nav-hint { font-size: 0.68rem; color: var(--muted); display: none; }
+    @media (min-width: 900px) { .nav-hint { display: block; } }
+
+    .slide-num {
+      font-variant-numeric: tabular-nums;
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .footer-seal { font-size: 0.68rem; color: #6b6b7a; max-width: 200px; text-align: right; line-height: 1.25; }
+
+    .btn-fs {
+      font: inherit;
+      font-size: 0.72rem;
+      padding: 0.35rem 0.65rem;
+      border-radius: 0.45rem;
+      border: 1px solid var(--stroke);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .btn-fs:hover { background: rgba(255, 255, 255, 0.1); }
+
+    .tap-zones { position: fixed; inset: 0; z-index: 40; pointer-events: none; }
+
+    .tap-zones button {
+      pointer-events: auto;
+      position: absolute;
+      top: 0;
+      bottom: 4rem;
+      width: 16%;
+      max-width: 120px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      opacity: 0;
+    }
+
+    .tap-zones .prev { left: 0; }
+    .tap-zones .next { right: 0; }
+
+    kbd {
+      font: inherit;
+      font-size: 0.85em;
+      padding: 0.1rem 0.35rem;
+      border-radius: 0.25rem;
+      border: 1px solid var(--stroke);
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    @media print {
+      html, body { overflow: visible; height: auto; background: #fff !important; color: #111 !important; }
+      .footer-bar, .tap-zones, .btn-fs { display: none !important; }
+      .slide.screen-only { display: none !important; }
+      .slide {
+        display: flex !important;
+        page-break-after: always;
+        page-break-inside: avoid;
+        min-height: 100vh;
+        max-width: 100%;
+        animation: none;
+        padding: 1.6cm 1.8cm;
+      }
+      .glass-panel, .triad-card, .mod, .table-wrap, .legal-box, .quote-box {
+        background: #f7f7fa !important;
+        border-color: #ccc !important;
+        backdrop-filter: none !important;
+      }
+      .eyebrow { color: #9a3412 !important; }
+      h1, h2, h3, .lead, ul.clean li, td, .cta-line, .spark-line { color: #1a1a1a !important; }
+      .lead, td { color: #333 !important; }
+      .pill { background: #eee; border-color: #ccc; color: #333 !important; }
+      .blank { border-color: #999; color: #666 !important; }
+      .legal-box { background: #f0f0f0 !important; color: #444 !important; border-color: #ddd !important; }
+    }
+
+    @page { margin: 14mm; size: A4 portrait; }
+  </style>
+</head>
+<body>
+  <!-- Eksport PDF do wniosku: Chrome/Edge → Ctrl+P → Zapisz jako PDF → włącz „Grafika w tle" jeśli tło ma być kolorowe. -->
+  <div class="deck" id="deck" aria-live="polite">
+    <!-- 1 -->
+    <section class="slide title-slide is-active">
+      <p class="eyebrow">Załącznik do wniosku o dofinansowanie</p>
+      <h1><span>SliceHub</span> Enterprise</h1>
+      <p class="lead">Innowacyjny, zintegrowany system informatyczny dla sektora HoReCa: operacje lokalu (menu, magazyn, kuchnia, sprzedaż), logistyka dostaw oraz kanał zamówień online o charakterze immersyjnym — w architekturze wielolokalowej (SaaS).</p>
+      <p class="spark-line"><strong>Program:</strong> Startup Spark 3.0 Accelerator (dofinansowanie w formie pomocy publicznej, w tym w reżimie de minimis — warunki i limit kwoty zgodnie z aktualnym regulaminem naboru oraz złożonym wnioskiem).</p>
+      <div class="meta-row">
+        <div><strong>Data dokumentu:</strong> 2026-05-11</div>
+        <div><strong>Wersja:</strong> 1.0 (wersja do złożenia)</div>
+        <div><strong>Język:</strong> polski</div>
+      </div>
+      <div class="legal-box glass-panel">
+        <strong style="color:#b4b4c0">Klauzula poufności.</strong> Niniejsza prezentacja może zawierać informacje stanowiące tajemnicę przedsiębiorstwa w rozumieniu ustawy o zwalczaniu nieuczciwej konkurencji. Odbiorca zobowiązany jest do zachowania poufności i wykorzystania materiału wyłącznie w procedurze oceny wniosku o dofinansowanie.
+      </div>
+    </section>
+
+    <!-- 2 -->
+    <section class="slide">
+      <p class="eyebrow">Identyfikacja</p>
+      <h2>Dane Wnioskodawcy</h2>
+      <p class="lead" style="margin-bottom:0.75rem">Poniższe pola uzupełniają Państwo przed złożeniem wniosku — treść musi być <strong>spójna z formularzem elektronicznym</strong> (np. ewniosek / generator wniosku) oraz z dokumentami rejestrowymi.</p>
+      <div class="table-wrap glass-panel">
+        <table>
+          <tbody>
+            <tr><td style="width:32%">Pełna nazwa Wnioskodawcy</td><td><span class="blank">— uzupełnić —</span></td></tr>
+            <tr><td>Forma prawna</td><td><span class="blank">— uzupełnić —</span></td></tr>
+            <tr><td>Siedziba (adres)</td><td><span class="blank">— uzupełnić —</span></td></tr>
+            <tr><td>NIP / REGON / KRS</td><td><span class="blank">— uzupełnić —</span></td></tr>
+            <tr><td>Osoba do kontaktu (imię, nazwisko, stanowisko)</td><td><span class="blank">— uzupełnić —</span></td></tr>
+            <tr><td>E-mail służbowy · telefon</td><td><span class="blank">— uzupełnić —</span></td></tr>
+            <tr><td>Strona WWW projektu / produktu</td><td><span class="blank">— uzupełnić —</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 3 -->
+    <section class="slide">
+      <p class="eyebrow">Streszczenie dla Komitetu</p>
+      <h2>Cel przedstawiony w jednym slajdzie</h2>
+      <ul class="clean">
+        <li><strong>Przedmiot:</strong> dalszy rozwój i przygotowanie do skalowania produktu <strong>SliceHub Enterprise</strong> — zintegrowanego systemu dla gastronomii łączącego operacje lokalu, magazyn, łańcuch dostaw i publiczny kanał zamówień online.</li>
+        <li><strong>Innowacja:</strong> spójny model danych end-to-end (menu, ceny per kanał sprzedaży, magazyn, zamówienia) oraz warstwa doświadczenia klienta wykraczająca poza standardowy „katalog produktów".</li>
+        <li><strong>Wnioskowane dofinansowanie:</strong> <span class="blank" style="display:inline-block;min-width:12rem">— kwota w PLN, zgodnie z wnioskiem —</span></li>
+        <li><strong>Czas realizacji projektu:</strong> <span class="blank" style="display:inline-block;min-width:10rem">— okres w miesiącach, zgodnie z wnioskiem —</span></li>
+        <li><strong>Efekt końcowy:</strong> wdrożenie wybranego etapu roadmapy produktowej (m.in. ukończenie kluczowego modułu kanału online i przygotowanie do pilotażu przemysłowego) z raportem osiągnięcia mierzalnych KPI.</li>
+      </ul>
+    </section>
+
+    <!-- 4 -->
+    <section class="slide">
+      <p class="eyebrow">Uzasadnienie potrzeby</p>
+      <h2>Problem rynkowy</h2>
+      <ul class="clean">
+        <li><strong>Fragmentacja systemów:</strong> narzędzia POS, magazynowe, zamówień online i logistyki często nie tworzą jednej spójnej warstwy danych — rośnie koszt obsługi, błędy operacyjne i trudność w kontroli kosztu surowca.</li>
+        <li><strong>Słaba więź menu z magazynem:</strong> bez cyfrowego odwzorowania receptur i modyfikacji trudno racjonalnie planować zakupy i oceniać wpływ promocji na marżę.</li>
+        <li><strong>Słaba przewaga kanału własnego:</strong> typowa witryna zamówień to lista produktów, a nie doświadczenie budujące rozpoznawalność marki lokalu.</li>
+        <li><strong>Logistyka i rozliczenia:</strong> brak jednolitych reguł statusów i rozliczeń u kierowcy zwiększa ryzyko operacyjne i konflikty z klientem.</li>
+      </ul>
+    </section>
+
+    <!-- 5 -->
+    <section class="slide">
+      <p class="eyebrow">Kierunek rozwiązania</p>
+      <h2>Trzy warstwy operacji — jeden model danych</h2>
+      <p class="lead">Skalowalność w HoReCa wymaga spójności <strong>zaplecza</strong>, <strong>lokalu</strong> i <strong>kanału zewnętrznego</strong>. SliceHub realizuje tę spójność w jednym systemie wielolokalowym, z twardą separacją danych poszczególnych podmiotów (tenantów).</p>
+      <div class="triad">
+        <div class="triad-card glass-panel">
+          <b>Zaplecze</b>
+          <span>Magazyn, receptury, koszt surowca, parametry strat (waste).</span>
+        </div>
+        <div class="triad-card glass-panel">
+          <b>Lokal</b>
+          <span>Sprzedaż w lokalu, obsługa stolików, komunikacja z kuchnią (KDS).</span>
+        </div>
+        <div class="triad-card glass-panel">
+          <b>Kanał zewnętrzny</b>
+          <span>Publiczne zamówienia online, dostawa, śledzenie statusu.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6 -->
+    <section class="slide">
+      <p class="eyebrow">Produkt</p>
+      <h2>SliceHub Enterprise — opis rozwiązania</h2>
+      <p class="lead"><strong>SliceHub Enterprise</strong> to wielomodułowy system klasy enterprise: zarządzanie menu i <strong>macierzą cen w podziale na kanały sprzedaży</strong> (np. konsumpcja w lokalu, wynos, dostawa), magazyn, zamówienia, kuchnia, stoliki, <strong>logistyka kursów dostaw</strong> oraz <strong>warstwa publicznego storefrontu</strong>. Zasada bezpieczeństwa biznesowego: <strong>weryfikacja koszyka i cen po stronie serwera</strong> — aplikacja kliencka przekazuje identyfikatory pozycji i ilości, a nie „wyliczone kwoty".</p>
+      <div class="pill-row">
+        <span class="pill">Macierz cen wielokanałowa</span>
+        <span class="pill">Cyfrowe odwzorowanie magazynu</span>
+        <span class="pill">Publikacja menu w czasie</span>
+        <span class="pill">Kursy i przystanki dostaw</span>
+        <span class="pill">Blokada rozliczenia u kierowcy</span>
+      </div>
+    </section>
+
+    <!-- 7 -->
+    <section class="slide">
+      <p class="eyebrow">Zakres funkcjonalny</p>
+      <h2>Warstwa operacyjna</h2>
+      <div class="grid-modules">
+        <div class="mod glass-panel"><h3>Studio menu i cen</h3><p>Macierz cen per kanał, receptury, modyfikatory z powiązaniem do artykułów magazynowych.</p></div>
+        <div class="mod glass-panel"><h3>Sprzedaż i obsługa sali</h3><p>Terminal sprzedaży, plan stolików, aplikacja kelnerska — z walidacją po stronie serwera.</p></div>
+        <div class="mod glass-panel"><h3>Wyświetlacz kuchenny (KDS)</h3><p>Przepływ zleceń do realizacji w kuchni.</p></div>
+        <div class="mod glass-panel"><h3>Magazyn</h3><p>Dokumenty przyjęć, rozchodów, inwentaryzacji i korekt — spójność z warstwą sprzedażową po identyfikatorach artykułów.</p></div>
+        <div class="mod glass-panel"><h3>Logistyka dostaw</h3><p>Praca dyspozytora, aplikacja kierowcy (PWA), rozliczenia, mechanizmy bezpieczeństwa rozliczenia przed zamknięciem dostawy.</p></div>
+        <div class="mod glass-panel"><h3>Panel startowy</h3><p>Ujednolicony dostęp personelu do modułów systemu.</p></div>
+      </div>
+      <p class="mini"><strong>Architektura danych:</strong> warstwy biznesowa, słownikowa i magazynowa logicznie rozdzielone; powiązania między warstwami realizowane po <strong>kluczach znakowych</strong> (identyfikatory produktów), przy jednoczesnej <strong>izolacji danych per lokal / tenant</strong> — ograniczenie ryzyka przy skalowaniu modelu SaaS.</p>
+    </section>
+
+    <!-- 8 -->
+    <section class="slide">
+      <p class="eyebrow">Innowacja produktowa</p>
+      <h2>Kanał zamówień online</h2>
+      <p class="lead">Warstwa <strong>Online Studio</strong> i <strong>publiczny storefront</strong> służą budowie rozpoznawalnego doświadczenia marki: kompozycja scen wizualnych, spójność stylu kategorii, <strong>metryki jakości sceny</strong> (Harmony Score) wspierające decyzje menedżerskie, a nie tylko estetykę interfejsu. Kierunek rozwoju obejmuje m.in. ukończenie ścieżki „Counter + Drzwi" (realistyczna lada z warstwą produktu i wejściem doświadczeniowym do lokalu).</p>
+      <ul class="clean">
+        <li><strong>Living Scene:</strong> sceny reagujące na kontekst (m.in. pora dnia, obciążenie lokalu).</li>
+        <li><strong>Automatyczna kompozycja wyjściowa:</strong> skrócenie czasu pracy menedżera przy przygotowaniu materiałów wizualnych.</li>
+      </ul>
+    </section>
+
+    <!-- 9 -->
+    <section class="slide">
+      <p class="eyebrow">Technologia</p>
+      <h2>Wykonalność wdrożenia i utrzymania</h2>
+      <ul class="clean">
+        <li><strong>Środowisko produkcyjne:</strong> język JavaScript (ES6+) po stronie przeglądarki bez frameworków typu React/Vue w runtime, PHP 8+ po stronie serwera, baza MariaDB — uproszczenie audytu i hostingu u dostawcy usług chmurowych lub u operatora HoReCa.</li>
+        <li><strong>Wdrożenie:</strong> statyczne zasoby front-endu oraz skrypty serwerowe — brak obowiązkowego etapu budowania aplikacji na serwerze produkcyjnym.</li>
+        <li><strong>Bezpieczeństwo:</strong> parametryzowane zapytania do bazy danych, separacja danych podmiotów, minimalizacja łańcucha zależności zewnętrznych w runtime.</li>
+      </ul>
+      <p class="mini">Powyższe właściwości sprzyjają <strong>due diligence</strong> partnera przemysłowego oraz procedurom oceny wniosku o dofinansowanie.</p>
+    </section>
+
+    <!-- 10 -->
+    <section class="slide">
+      <p class="eyebrow">Komercjalizacja</p>
+      <h2>Stan rozwoju i wskaźniki (uzupełnić)</h2>
+      <p class="lead">Prosimy o wpisanie <strong>liczb zgodnych z wnioskiem</strong> (np. załącznik finansowy, biznesplan). Puste pola należy usunąć lub wypełnić przed finalizacją PDF.</p>
+      <div class="table-wrap glass-panel">
+        <table>
+          <thead>
+            <tr><th>Wskaźnik</th><th>Wartość (uzupełnić)</th><th>Uwagi / źródło danych</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Liczba lokali / tenantów produkcyjnych</td><td><span class="blank">—</span></td><td><span class="blank">—</span></td></tr>
+            <tr><td>Przychody z abonamentu (PLN / rok)</td><td><span class="blank">—</span></td><td><span class="blank">—</span></td></tr>
+            <tr><td>Umowy pilotażowe / list intencyjnych</td><td><span class="blank">—</span></td><td><span class="blank">—</span></td></tr>
+            <tr><td>Kapitał własny lub wkład niepieniężny</td><td><span class="blank">—</span></td><td><span class="blank">—</span></td></tr>
+            <tr><td>Kluczowe kamienie milowe po dofinansowaniu</td><td colspan="2"><span class="blank">— np. data domknięcia modułu, start pilotażu —</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 11 -->
+    <section class="slide">
+      <p class="eyebrow">Model przychodów</p>
+      <h2>Źródła przychodu (uzupełnić)</h2>
+      <div class="table-wrap glass-panel">
+        <table>
+          <thead><tr><th>Strumień</th><th>Opis</th><th>Udział planowany (%)</th></tr></thead>
+          <tbody>
+            <tr><td>Abonament SaaS</td><td><span class="blank">— per lokal / per stanowisko —</span></td><td><span class="blank">—</span></td></tr>
+            <tr><td>Moduły premium</td><td><span class="blank">— np. Online Studio, flota —</span></td><td><span class="blank">—</span></td></tr>
+            <tr><td>Usługi wdrożeniowe</td><td><span class="blank">— migracja menu, szkolenia —</span></td><td><span class="blank">—</span></td></tr>
+            <tr><td>Inne</td><td colspan="2"><span class="blank">—</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 12 -->
+    <section class="slide">
+      <p class="eyebrow">Rynek</p>
+      <h2>Segment docelowy</h2>
+      <p class="lead">Docelowi odbiorcy to <strong>małe i średnie przedsiębiorstwa gastronomiczne</strong> oraz <strong>regionalne sieci</strong> w Polsce i na rynkach sąsiednich, które potrzebują zintegrowanego systemu zamiast wielu rozłącznych subskrypcji. Odniesienie konkurencyjne (jako poziom referencyjny doświadczenia cyfrowego): rozwiązania klas operatorskich i ekosystemy agregatorów — SliceHub koncentruje się na <strong>głębszej integracji operacyjnej</strong> oraz na <strong>odróżnieniu kanału własnego</strong> marki lokalu.</p>
+    </section>
+
+    <!-- 13 -->
+    <section class="slide">
+      <p class="eyebrow">Zgodność z programem</p>
+      <h2>Startup Spark 3.0 — dopasowanie ścieżki</h2>
+      <div class="table-wrap glass-panel">
+        <table>
+          <thead><tr><th>Ścieżka / obszar naboru</th><th>Wyjaśnienie dla oceniających</th></tr></thead>
+          <tbody>
+            <tr><td>Pilot / przemysł</td><td>Wspólny pilotaż z partnerem z branży gastronomicznej lub dystrybucji: magazyn, zamówienia, dostawy, kanał własny — z ustalonymi KPI (czas obsługi, koszt surowca, błędy, SLA dostaw).</td></tr>
+            <tr><td>Skalowanie produktu</td><td>Modułowa sprzedaż funkcjonalna z roadmapą do pełnego systemu — obniżenie progu wejścia dla MŚP.</td></tr>
+            <tr><td>Internacjonalizacja</td><td>Architektura wielolokalowa i lekki stos technologiczny ułatwiają lokalizację językową oraz hosting poza pierwszym rynkiem docelowym.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="mini">Właściwą ścieżkę i słowa kluczowe należy <strong>dopasować do treści aktualnego ogłoszenia</strong> oraz wybranego wariantu wniosku.</p>
+    </section>
+
+    <!-- 14 -->
+    <section class="slide">
+      <p class="eyebrow">Harmonogram</p>
+      <h2>Roadmapa rozwoju (18–24 miesiące)</h2>
+      <div class="table-wrap glass-panel">
+        <table>
+          <thead><tr><th>Horyzont</th><th>Zakres prac (skrót)</th></tr></thead>
+          <tbody>
+            <tr><td>0–6 mies.</td><td>Ukończenie kluczowej ścieżki kanału online (w tym scena wejścia „Drzwi" oraz lada z produktem), dalsza unifikacja spójności wizualnej między narzędziem menedżerskim a storefrontem.</td></tr>
+            <tr><td>6–12 mies.</td><td>Rozszerzenie doświadczenia „stołu" (persistencja dodatków między produktami), płatności mobilne w kanale własnym, powiadomienia dla gościa.</td></tr>
+            <tr><td>12–18 mies.</td><td>Kolejna faza doświadczenia cyfrowego po walidacji rynkowej (np. rozszerzona scenografia lokalu).</td></tr>
+            <tr><td>Równolegle</td><td>Prace nad odpornością terminala sprzedaży na utratę łącza (tryb offline) po domknięciu warstwy synchronizacji i mechanizmu kolejki zdarzeń — zgodnie z planem architektonicznym produktu.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 15 -->
+    <section class="slide">
+      <p class="eyebrow">Budżet</p>
+      <h2>Planowane zastosowanie środków z grantu</h2>
+      <div class="table-wrap glass-panel">
+        <table>
+          <thead><tr><th>Kategoria</th><th>Udział orientacyjny</th><th>Przykładowe pozycje kosztowe</th></tr></thead>
+          <tbody>
+            <tr><td>Prace B+R / rozwój produktu</td><td>45–55%</td><td>Implementacja modułów, testy, optymalizacja i bezpieczeństwo.</td></tr>
+            <tr><td>Koszty zespołu</td><td>25–35%</td><td>Backend, frontend, produkt.</td></tr>
+            <tr><td>Pilot przemysłowy</td><td>10–15%</td><td>Integracja z partnerem, szkolenia, monitoring KPI.</td></tr>
+            <tr><td>Zgodność i i18n</td><td>5–10%</td><td>Tłumaczenia, dokumentacja RODO, przygotowanie pod audyty.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="mini">Kwoty bezwzględne i kwalifikowalność kosztów muszą być <strong>zgodne z budżetem wniosku</strong> oraz z regulaminem naboru.</p>
+    </section>
+
+    <!-- 16 -->
+    <section class="slide">
+      <p class="eyebrow">Ryzyka</p>
+      <h2>Identyfikacja i mitygacja</h2>
+      <div class="table-wrap glass-panel">
+        <table>
+          <thead><tr><th>Ryzyko</th><th>Mitygacja</th></tr></thead>
+          <tbody>
+            <tr><td>Złożoność produktu</td><td>Model sprzedaży modułowej, jasne MVP per segment; utrzymanie zgodności dokumentacji z kodem produkcyjnym.</td></tr>
+            <tr><td>Kluczowe osoby w zespole</td><td>Dokumentacja architektury, procedury onboardingu, rozłożenie wiedzy.</td></tr>
+            <tr><td>Koszt utrzymania jakości warstwy online</td><td>Kryteria „innowacja vs kosmetyka interfejsu", metryki jakości sceny wspierające decyzje.</td></tr>
+            <tr><td>Wydajność i skalowanie</td><td>Izolacja danych tenantów, przeglądy zapytań do bazy, dobór hostingu.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 17 -->
+    <section class="slide">
+      <p class="eyebrow">ESG</p>
+      <h2>Efekty środowiskowe i społeczne</h2>
+      <ul class="clean">
+        <li><strong>Ograniczenie marnotrawstwa surowca:</strong> lepsza widoczność powiązań receptur z magazynem i modelem strat.</li>
+        <li><strong>Bezpieczniejsza dostawa:</strong> mechanizmy rozliczenia u kierowcy i pracy dyspozytora ograniczają konflikty z klientem i nieścisłości rozliczeń.</li>
+      </ul>
+    </section>
+
+    <!-- 18 -->
+    <section class="slide">
+      <p class="eyebrow">Zasoby ludzkie</p>
+      <h2>Zespół realizujący projekt (uzupełnić)</h2>
+      <div class="table-wrap glass-panel">
+        <table>
+          <thead><tr><th>Imię i nazwisko</th><th>Funkcja w projekcie</th><th>Doświadczenie (skrót)</th></tr></thead>
+          <tbody>
+            <tr><td><span class="blank">—</span></td><td><span class="blank">—</span></td><td><span class="blank">—</span></td></tr>
+            <tr><td><span class="blank">—</span></td><td><span class="blank">—</span></td><td><span class="blank">—</span></td></tr>
+            <tr><td><span class="blank">—</span></td><td><span class="blank">—</span></td><td><span class="blank">—</span></td></tr>
+            <tr><td><span class="blank">—</span></td><td><span class="blank">—</span></td><td><span class="blank">—</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="mini">Opcjonalnie: <strong>partnerzy / rada doradcza</strong> — wpisać w osobnej tabeli lub w CV załączonych do wniosku.</p>
+    </section>
+
+    <!-- 19 -->
+    <section class="slide">
+      <p class="eyebrow">Rezultat</p>
+      <h2>KPI pilota przemysłowego (zaproponować w wniosku)</h2>
+      <div class="table-wrap glass-panel">
+        <table>
+          <thead><tr><th>Wskaźnik</th><th>Wartość bazowa</th><th>Cel na koniec projektu</th></tr></thead>
+          <tbody>
+            <tr><td>Redukcja czasu obsługi zamówienia</td><td><span class="blank">—</span></td><td><span class="blank">—</span></td></tr>
+            <tr><td>Redukcja błędów zamówień / reklamacji</td><td><span class="blank">—</span></td><td><span class="blank">—</span></td></tr>
+            <tr><td>Poprawa widoczności kosztu surowca</td><td><span class="blank">—</span></td><td><span class="blank">—</span></td></tr>
+            <tr><td>SLA dostaw (np. % w oknie czasu)</td><td><span class="blank">—</span></td><td><span class="blank">—</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 20 -->
+    <section class="slide">
+      <p class="eyebrow">Zakończenie</p>
+      <h2>Oświadczenie i kontakt</h2>
+      <div class="legal-box glass-panel" style="margin-top:0.5rem">
+        <strong style="color:#c8c8d4">Oświadczenie Wnioskodawcy.</strong> Oświadczamy, że treść merytoryczna niniejszej prezentacji jest zgodna z wnioskiem o dofinansowanie oraz z pozostałymi załącznikami, z wyjątkiem pól przeznaczonych do uzupełnienia przed złożeniem wniosku, które zostaną uzupełnione w wersji ostatecznej i podpisanej (jeżeli wymaga tego procedura).
+      </div>
+      <p class="cta-line" style="margin-top:1rem"><strong>Kontakt w sprawie wniosku:</strong><br />
+        e-mail: <span class="blank" style="display:inline-block;min-width:14rem">—</span><br />
+        telefon: <span class="blank" style="display:inline-block;min-width:10rem">—</span><br />
+        strona WWW: <span class="blank" style="display:inline-block;min-width:14rem">—</span>
+      </p>
+    </section>
+
+    <!-- 21 -->
+    <section class="slide">
+      <p class="eyebrow">Załącznik merytoryczny</p>
+      <h2>Streszczenie ustne (ok. 30 sekund)</h2>
+      <div class="quote-box glass-panel">
+        SliceHub Enterprise to zintegrowany system dla gastronomii: jeden silnik dla menu, magazynu, kuchni, sprzedaży w lokalu, dostaw oraz immersyjnego kanału zamówień online. Łączymy <strong>cyfrowe odwzorowanie kosztu</strong> z <strong>doświadczeniem marki na poziomie premium</strong>, przy technologii ułatwiającej audyt i utrzymanie: PHP, JavaScript modułowy po stronie przeglądarki, MariaDB, z twardą izolacją danych lokali. Środki z programu Startup Spark 3.0 przeznaczamy na <strong>domknięcie kluczowej fazy kanału online</strong> oraz <strong>pilotaż przemysłowy</strong> z mierzalnym ROI.
+      </div>
+    </section>
+
+    <!-- 22 -->
+    <section class="slide">
+      <p class="eyebrow">Słownik</p>
+      <h2>Pojęcia używane w prezentacji</h2>
+      <div class="two-col">
+        <div class="glass-panel">
+          <ul class="clean">
+            <li><strong>Macierz cen wielokanałowa:</strong> ceny zależne od kanału sprzedaży (np. w lokalu, wynos, dostawa), bez pojedynczej „płaskiej" ceny produktu.</li>
+            <li><strong>Weryfikacja koszyka po stronie serwera:</strong> ostateczne przeliczenie zamówienia i kwot następuje w systemie centralnym, nie w przeglądarce klienta.</li>
+          </ul>
+        </div>
+        <div class="glass-panel">
+          <ul class="clean">
+            <li><strong>Blokada rozliczenia u kierowcy:</strong> zamknięcie dostawy wymaga potwierdzenia rozliczenia płatności, z wyjątkiem zamówień opłaconych z góry.</li>
+            <li><strong>Harmony Score:</strong> metryka spójności i kompletności materiałów wizualnych sceny produktowej — wsparcie decyzji menedżerskich.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Instrukcja tylko na ekranie — nie trafia do PDF -->
+    <section class="slide screen-only">
+      <p class="eyebrow">Przed złożeniem wniosku</p>
+      <h2>Eksport do PDF</h2>
+      <ul class="clean">
+        <li>Uzupełnij wszystkie pola oznaczone jako „uzupełnić" oraz usuń ten slajd z pliku HTML <strong>albo</strong> wyłącz go ręcznie w druku (ten slajd jest ukryty przy standardowym druku z przeglądarki).</li>
+        <li><strong>Chrome / Edge:</strong> <kbd>Ctrl</kbd>+<kbd>P</kbd> → miejsce docelowe: Zapisz jako PDF → orientacja: pozioma (dopasuj do wymagań wniosku) → opcja grafiki w tle: według potrzeb.</li>
+        <li>Dołącz wygenerowany PDF jako <strong>załącznik</strong> do pakietu wnioskowego zgodnie z instrukcją operatora programu.</li>
+      </ul>
+      <p class="mini">Nawigacja: strzałki, spacja (następny), Shift+spacja (poprzedni), klik w lewą/prawą krawędź ekranu.</p>
+    </section>
+  </div>
+
+  <div class="tap-zones" aria-hidden="true">
+    <button type="button" class="prev" tabindex="-1" aria-label="Poprzedni slajd"></button>
+    <button type="button" class="next" tabindex="-1" aria-label="Następny slajd"></button>
+  </div>
+
+  <footer class="footer-bar">
+    <span class="slide-num" id="sn">1 / 22</span>
+    <div class="progress" aria-hidden="true"><i id="prog" style="width:4.35%"></i></div>
+    <span class="nav-hint">← → · spacja</span>
+    <span class="footer-seal">Materiał wniosku · poufny</span>
+    <button type="button" class="btn-fs" id="fs">Pełny ekran</button>
+  </footer>
+
+  <script>
+(function () {
+  var slides = Array.prototype.slice.call(document.querySelectorAll(".slide"));
+  var n = slides.length;
+  var i = 0;
+  var sn = document.getElementById("sn");
+  var prog = document.getElementById("prog");
+  var deck = document.getElementById("deck");
+
+  function presTotal() {
+    var t = 0;
+    for (var j = 0; j < n; j++) {
+      if (!slides[j].classList.contains("screen-only")) t++;
+    }
+    return t;
+  }
+
+  function presIndex() {
+    var c = 0;
+    for (var k = 0; k <= i; k++) {
+      if (!slides[k].classList.contains("screen-only")) c++;
+    }
+    return c;
+  }
+
+  function updateLabel() {
+    if (slides[i].classList.contains("screen-only")) {
+      sn.textContent = "Instrukcja (nie drukuje się w PDF)";
+    } else {
+      sn.textContent = presIndex() + " / " + presTotal();
+    }
+    prog.style.width = (100 * (i + 1) / n).toFixed(2) + "%";
+    deck.setAttribute("aria-label", "Slajd " + (i + 1) + " z " + n);
+  }
+
+  function go(delta) {
+    var next = Math.max(0, Math.min(n - 1, i + delta));
+    if (next === i) return;
+    slides[i].classList.remove("is-active");
+    i = next;
+    slides[i].classList.add("is-active");
+    updateLabel();
+  }
+
+  document.querySelector(".tap-zones .prev").addEventListener("click", function () { go(-1); });
+  document.querySelector(".tap-zones .next").addEventListener("click", function () { go(1); });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === " ") {
+      e.preventDefault();
+      go(e.shiftKey ? -1 : 1);
+    } else if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === "Enter") {
+      e.preventDefault();
+      go(1);
+    } else if (e.key === "ArrowLeft" || e.key === "PageUp") {
+      e.preventDefault();
+      go(-1);
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      slides[i].classList.remove("is-active");
+      i = 0;
+      slides[i].classList.add("is-active");
+      updateLabel();
+    } else if (e.key === "End") {
+      e.preventDefault();
+      slides[i].classList.remove("is-active");
+      i = n - 1;
+      slides[i].classList.add("is-active");
+      updateLabel();
+    }
+  });
+
+  var tx = null;
+  document.addEventListener("touchstart", function (e) { tx = e.changedTouches[0].screenX; }, { passive: true });
+  document.addEventListener("touchend", function (e) {
+    if (tx == null) return;
+    var dx = e.changedTouches[0].screenX - tx;
+    tx = null;
+    if (dx > 60) go(-1);
+    else if (dx < -60) go(1);
+  }, { passive: true });
+
+  document.getElementById("fs").addEventListener("click", function () {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(function () {});
+    else document.exitFullscreen();
+  });
+
+  updateLabel();
+})();
+  </script>
+</body>
+</html>

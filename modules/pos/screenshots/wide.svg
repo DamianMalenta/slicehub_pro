@@ -36,7 +36,7 @@
   <g transform="translate(520 16)">
     <rect width="120" height="32" rx="8" fill="#f3c76d" opacity=".15"/>
     <rect width="4" height="32" rx="2" fill="url(#sWAccent)"/>
-    <text x="60" y="22" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" font-weight="700" fill="#f3c76d">Zamówienia</text>
+    <text x="60" y="22" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" font-weight="700" fill="#f3c76d">ZamÃ³wienia</text>
   </g>
   <g transform="translate(660 16)" opacity=".5">
     <text x="0" y="22" font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#f4e7d2">Sala</text>
@@ -79,7 +79,7 @@
     <text x="16" y="28" font-family="Inter, sans-serif" font-size="10" font-weight="800" fill="#f3c76d" letter-spacing="1.2">NOWE ONLINE</text>
     <g transform="translate(12 48)" opacity=".55">
       <rect width="196" height="28" rx="6" fill="rgba(255,255,255,0.03)"/>
-      <text x="14" y="18" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="#f4e7d2">DOWÓZ</text>
+      <text x="14" y="18" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="#f4e7d2">DOWÃ“Z</text>
     </g>
     <g transform="translate(12 84)" opacity=".55">
       <rect width="196" height="28" rx="6" fill="rgba(255,255,255,0.03)"/>
@@ -91,11 +91,11 @@
     </g>
   </g>
 
-  <!-- Columns: DOWÓZ -->
+  <!-- Columns: DOWÃ“Z -->
   <g transform="translate(256 140)">
     <rect width="220" height="560" rx="14" fill="rgba(255,255,255,0.03)" stroke="rgba(243,199,109,0.15)" stroke-width="1"/>
     <g transform="translate(16 20)">
-      <text font-family="Inter, sans-serif" font-size="14" font-weight="800" fill="#f4e7d2">DOWÓZ</text>
+      <text font-family="Inter, sans-serif" font-size="14" font-weight="800" fill="#f4e7d2">DOWÃ“Z</text>
       <rect x="60" y="-12" width="20" height="18" rx="9" fill="#f3c76d" opacity=".2"/>
       <text x="70" y="2" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" font-weight="800" fill="#f3c76d">0</text>
     </g>
@@ -139,7 +139,7 @@
         <text x="26" y="12" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" font-weight="800" fill="#4ade80">GOTOWE</text>
       </g>
       <text x="12" y="42" font-family="Inter, sans-serif" font-size="12" font-weight="700" fill="#f4e7d2">Klient Online</text>
-      <text x="12" y="58" font-family="Inter, sans-serif" font-size="9" fill="#f4e7d2" opacity=".6">2x Zestaw Burger+Frytki+Napój</text>
+      <text x="12" y="58" font-family="Inter, sans-serif" font-size="9" fill="#f4e7d2" opacity=".6">2x Zestaw Burger+Frytki+NapÃ³j</text>
       <text x="184" y="82" text-anchor="end" font-family="Inter, sans-serif" font-size="10" font-weight="800" fill="#ef4444">-3329min</text>
       <text x="184" y="104" text-anchor="end" font-family="Inter, sans-serif" font-size="18" font-weight="900" fill="#f4e7d2">32.00 zB</text>
       <g transform="translate(12 120)">
@@ -164,7 +164,7 @@
         <rect width="52" height="18" rx="4" fill="#16a34a" opacity=".25"/>
         <text x="26" y="12" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" font-weight="800" fill="#4ade80">GOTOWE</text>
       </g>
-      <text x="12" y="42" font-family="Inter, sans-serif" font-size="12" font-weight="700" fill="#f4e7d2">Go[</text>
+      <text x="12" y="42" font-family="Inter, sans-serif" font-size="12" font-weight="700" fill="#f4e7d2">Go[</text>
       <text x="12" y="58" font-family="Inter, sans-serif" font-size="9" fill="#f4e7d2" opacity=".6">1x Frytki, 2x Cheese Burger</text>
       <text x="184" y="82" text-anchor="end" font-family="Inter, sans-serif" font-size="10" font-weight="800" fill="#ef4444">-3359min</text>
       <text x="184" y="104" text-anchor="end" font-family="Inter, sans-serif" font-size="18" font-weight="900" fill="#f4e7d2">57.00 zB</text>
@@ -201,5 +201,5 @@
   </g>
 
   <!-- Bottom caption -->
-  <text x="640" y="700" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="#f3c76d" opacity=".4" letter-spacing="3">SLICEHUB POS · LOCAL-FIRST, CLOUD-SYNCED</text>
+  <text x="640" y="700" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="#f3c76d" opacity=".4" letter-spacing="3">SLICEHUB POS Â· LOCAL-FIRST, CLOUD-SYNCED</text>
 </svg>

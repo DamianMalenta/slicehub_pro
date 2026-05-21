@@ -7,6 +7,9 @@ declare(strict_types=1);
  *
  * Obsługuje zarządzanie:
  *   • Integration adapters (sh_tenant_integrations)     — CRUD + test_ping
+ *     (w tym `provider=ksef`: ten sam rekord co Inbox KSeF; token zapisuje
+ *      `api/procurement/ksef_config.php` — UI Settings ma osobny szablon karty,
+ *      żeby formularz POS nie nadpisywał providera na Papu)
  *   • Webhook endpoints (sh_webhook_endpoints)          — CRUD + rotate_secret + test_ping
  *   • Gateway API keys (sh_gateway_api_keys)            — list + generate + revoke + scopes catalog
  *   • Webhook delivery inspector (sh_webhook_deliveries) — paginated read-only list
@@ -239,9 +242,16 @@ try {
                 unset($r['credentials']);
             }
 
+            $baseProviders  = AdapterRegistry::availableProviders();
+            $providerLabels = array_merge(
+                ['ksef' => 'KSeF — faktury przychodzące (MF)'],
+                $baseProviders
+            );
+
             settings_respond(true, [
                 'integrations'        => $rows,
-                'available_providers' => AdapterRegistry::availableProviders(),
+                'available_providers' => $baseProviders,
+                'provider_labels'     => $providerLabels,
                 'vault_ready'         => CredentialVault::isReady(),
             ]);
         }
@@ -262,6 +272,13 @@ try {
 
             if ($provider === '' || $displayName === '') {
                 settings_respond(false, null, 'provider and display_name are required', 400);
+            }
+
+            if ($provider === 'ksef') {
+                settings_respond(false, null,
+                    'Integracji KSeF (provider=ksef) nie dodaje się w Settings — użyj Hub → Inbox KSeF (konfiguracja koła zębatego).',
+                    400
+                );
             }
 
             $known = array_keys(AdapterRegistry::availableProviders());
@@ -298,6 +315,13 @@ try {
                 );
                 $beforeStmt->execute([':id' => $id, ':tid' => $tenant_id]);
                 $beforeRow = $beforeStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
+                if ($beforeRow && strtolower((string)($beforeRow['provider'] ?? '')) === 'ksef') {
+                    settings_respond(false, null,
+                        'Rekord KSeF Inbox (provider=ksef) jest zapisem technicznym modułu Inbox KSeF — nie edytuj go w Settings (grozi nadpisaniem providera).',
+                        400
+                    );
+                }
 
                 $fields = [
                     'provider'         => $provider,

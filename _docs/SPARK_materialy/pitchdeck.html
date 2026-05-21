@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>SliceHub Pro — Pitch Deck SPARK 3.0</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{--bg:#080812;--glass:rgba(255,255,255,0.04);--border:rgba(255,255,255,0.09);
+    --accent:#a78bfa;--accent2:#60a5fa;--green:#34d399;--orange:#fb923c;--red:#f87171;
+    --text:#f1f5f9;--muted:#94a3b8;--dim:#64748b}
+  html,body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);
+    -webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .slide{width:1920px;height:1080px;display:flex;flex-direction:column;padding:64px 80px;
+    position:relative;overflow:hidden;page-break-after:always;
+    background:linear-gradient(135deg,#080812,#0d0d22,#080812)}
+  .slide::before{content:'';position:absolute;top:-200px;right:-200px;width:600px;height:600px;
+    background:radial-gradient(circle,rgba(124,58,237,0.12),transparent 70%);pointer-events:none}
+  .num{position:absolute;top:28px;right:80px;font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px}
+  h1{font-size:64px;font-weight:900;line-height:1.05}
+  h2{font-size:46px;font-weight:800;line-height:1.1}
+  p{font-size:18px;line-height:1.6;color:var(--muted)}
+  .accent{color:var(--accent)} .green{color:var(--green)}
+  .pill{display:inline-flex;padding:6px 16px;border-radius:100px;font-size:13px;font-weight:600;
+    background:rgba(167,139,250,0.12);border:1px solid rgba(167,139,250,0.25);color:var(--accent)}
+  .card{background:var(--glass);border:1px solid var(--border);border-radius:16px;padding:32px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;flex:1}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:24px;flex:1}
+  .demo{display:grid;grid-template-columns:1.15fr 0.85fr;gap:40px;flex:1;align-items:start;padding-top:20px}
+  .demo img{width:100%;height:580px;object-fit:cover;object-position:top;border-radius:16px;border:1px solid var(--border)}
+  .bullets{list-style:none;display:flex;flex-direction:column;gap:14px}
+  .bullets li{font-size:17px;color:var(--muted);padding-left:20px;position:relative;line-height:1.45}
+  .bullets li::before{content:'→';position:absolute;left:0;color:var(--accent)}
+  .bullets li strong{color:var(--text)}
+  .stat{font-size:13px;font-weight:600;color:var(--green);background:rgba(52,211,153,0.08);
+    border:1px solid rgba(52,211,153,0.15);padding:6px 14px;border-radius:8px;width:fit-content;margin-top:12px}
+  .cover{justify-content:center;align-items:center;text-align:center;gap:28px}
+  .cover-logo{display:flex;align-items:center;gap:20px;justify-content:center}
+  .logo-lg{width:72px;height:72px;border-radius:18px;background:linear-gradient(135deg,#7c3aed,#2563eb);
+    display:flex;align-items:center;justify-content:center;font-weight:900;font-size:28px;color:#fff}
+  table{width:100%;border-collapse:collapse;font-size:15px}
+  th{text-align:left;padding:14px 16px;color:var(--dim);border-bottom:1px solid var(--border);font-size:13px;text-transform:uppercase}
+  td{padding:14px 16px;border-bottom:1px solid rgba(255,255,255,0.04);color:var(--muted)}
+  tr.hl{background:rgba(167,139,250,0.06)} tr.hl td{color:var(--text);font-weight:600}
+  .ok{color:var(--green)} .no{color:var(--red)}
+  @page{size:1920px 1080px;margin:0}
+  @media print{
+    html,body{width:1920px;margin:0;padding:0;background:var(--bg)}
+    .slide{width:1920px;height:1080px;page-break-after:always;margin:0}
+    .slide:last-child{page-break-after:auto}
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  }
+</style>
+</head>
+<body>
+
+<!-- 1 COVER -->
+<div class="slide cover">
+  <div class="num">01 / 14</div>
+  <div class="cover-logo"><div class="logo-lg">SH</div><div style="font-size:52px;font-weight:900">SliceHub <span class="accent">Pro</span></div></div>
+  <p style="font-size:26px;max-width:920px">System operacyjny restauracji — zbudowany przez właściciela dla właścicieli.<br>Od faktury KSeF, przez kuchnię i kasę, po dostawę i prosty raport „czy zarabiam”.</p>
+  <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+    <span class="pill" style="color:var(--green);border-color:rgba(52,211,153,0.3);background:rgba(52,211,153,0.1)">● slicehub.net — produkcja</span>
+    <span class="pill">Damian Malenta · solo founder</span>
+    <span class="pill">PFR SPARK 3.0 · go global</span>
+  </div>
+</div>
+
+<!-- 2 O MNIE -->
+<div class="slide" style="gap:36px">
+  <div class="num">02 / 14</div>
+  <span class="pill">O mnie</span>
+  <h2>Nie zlecaję wizji — <span class="accent">ja ją koduję</span></h2>
+  <div class="grid2" style="flex:1">
+    <div class="card" style="display:flex;flex-direction:column;gap:20px">
+      <p style="font-size:20px;color:var(--text);line-height:1.55"><strong>Jestem Damian Malenta.</strong> Sam projektuję, programuję i wdrażam SliceHub. Widziałem restauracje, które płacą za kasę, magazyn, dostawy i Excel — i nadal nie wiedzą, ile kosztuje jedna pizza po uwzględnieniu prądu i sera.</p>
+      <p>SliceHub powstał, żeby <strong>jeden właściciel miał jeden ekran startowy</strong> i jedną historię dnia: zamówienie → kuchnia → magazyn → faktura → marża.</p>
+      <div class="stat">Solo founder = szybkie decyzje produktowe, zero rozjazdu „działów”</div>
+    </div>
+    <div class="card" style="display:flex;flex-direction:column;gap:16px;justify-content:center">
+      <p style="font-size:16px"><strong>Dla kogo:</strong></p>
+      <ul class="bullets">
+        <li>Pizzerie i QSR z dostawą (PL, potem CEE)</li>
+        <li>Sieci 3–20 lokali — jedna platforma, osobne dane</li>
+        <li>Lokale z KSeF 2026 — bez ręcznego przepisywania faktur</li>
+      </ul>
+      <p style="font-size:15px;margin-top:8px;font-style:italic;color:var(--dim)">Materiały wniosku odświeżone 2026-05 — wcześniejsze wideo nie pokazywało kasy z koszykiem; dziś cały proces jest widoczny na slicehub.net.</p>
+    </div>
+  </div>
+</div>
+
+<!-- 3 PROBLEM -->
+<div class="slide" style="gap:32px">
+  <div class="num">03 / 14</div>
+  <span class="pill">Problem</span>
+  <h2>Właściciel płaci za <span class="accent">chaos</span>, nie za kontrolę</h2>
+  <div class="grid3">
+    <div class="card"><div style="font-size:36px;margin-bottom:12px">🔀</div><h3 style="font-size:22px;margin-bottom:10px">Pięć programów</h3><p style="font-size:16px">Kasa, sklep, magazyn, dostawy i Excel do faktur — każdy z własną ceną i własną „prawdą”.</p></div>
+    <div class="card"><div style="font-size:36px;margin-bottom:12px">🧾</div><h3 style="font-size:22px;margin-bottom:10px">KSeF bez magazynu</h3><p style="font-size:16px">Faktura jest cyfrowa, ale pracownik nadal przepisuje pozycje — <strong>ok. 15–20 min</strong> na dokument.</p></div>
+    <div class="card"><div style="font-size:36px;margin-bottom:12px">📉</div><h3 style="font-size:22px;margin-bottom:10px">Brak marży na żywo</h3><p style="font-size:16px">Przychód w kasie to nie koszt sera, prądu ani pensji — właściciel dowiaduje się za późno.</p></div>
+  </div>
+</div>
+
+<!-- 4 ROZWIĄZANIE -->
+<div class="slide" style="gap:0;padding:0;display:grid;grid-template-columns:1fr 1fr">
+  <div style="padding:64px 48px 64px 80px;display:flex;flex-direction:column;gap:24px">
+    <div class="num" style="position:static;text-align:left">04 / 14</div>
+    <span class="pill" style="width:fit-content">Rozwiązanie</span>
+    <h2>Jeden dzień lokalu — <span class="accent">jeden system</span></h2>
+    <ul class="bullets">
+      <li><strong>Hub</strong> — jeden login, wszystkie obszary</li>
+      <li><strong>Kasa + online</strong> — te same ceny i menu, różne kanały</li>
+      <li><strong>Kuchnia (KDS)</strong> — widać, co pali się teraz</li>
+      <li><strong>KSeF</strong> — surowce do magazynu, prąd do kosztów</li>
+      <li><strong>Dostawy</strong> — mapa, kierowca, rozliczenie gotówki</li>
+      <li><strong>P&L</strong> — czy tydzień się opłaca</li>
+    </ul>
+  </div>
+  <div style="overflow:hidden"><img src="hero_01_hub.png" alt="Hub" style="width:100%;height:100%;object-fit:cover;border:none;border-radius:0"/></div>
+</div>
+
+<!-- 5 DEMO POS — kluczowy slajd -->
+<div class="slide" style="gap:24px">
+  <div class="num">05 / 14</div>
+  <span class="pill">Demo — Kasa</span>
+  <h2>Kasa, która wygląda jak <span class="accent">prawdziwa zmiana</span></h2>
+  <div class="demo">
+    <div><img src="hero_03_pos.png" alt="POS z koszykiem"/></div>
+    <div style="display:flex;flex-direction:column;gap:20px;padding-top:20px">
+      <p>To nie pusty sandbox — <strong>koszyk z pozycjami</strong>, kategorie, kierowcy i kelnerzy w jednym widoku. Sala, wynos i dostawa z osobnymi cenami.</p>
+      <ul class="bullets">
+        <li><strong>Przy słabym internecie</strong> zamówienia nie giną — synchronizacja po powrocie sieci</li>
+        <li><strong>Warianty pizzy</strong> — rozmiar wybierany w kasie i online</li>
+        <li><strong>Bezpieczne ceny</strong> — system przelicza, nie kelner „z głowy”</li>
+      </ul>
+      <div class="stat">Ten widok był niewidoczny w pierwszym nagraniu wniosku — dziś jest na produkcji</div>
+    </div>
+  </div>
+</div>
+
+<!-- 6 KSeF -->
+<div class="slide" style="gap:24px">
+  <div class="num">06 / 14</div>
+  <span class="pill">Demo — KSeF</span>
+  <h2>Faktura rozumie, co jest <span class="accent">serem</span>, a co <span class="accent">prądem</span></h2>
+  <div class="demo">
+    <div><img src="hero_07_ksef.png" alt="KSeF Inbox"/></div>
+    <div style="display:flex;flex-direction:column;gap:20px;padding-top:20px">
+      <p>E-faktura trafia do skrzynki. System <strong>podpowiada dopasowanie</strong> do surowców. Właściciel zatwierdza — magazyn rośnie sam.</p>
+      <ul class="bullets">
+        <li><strong>Surowiec (INVENTORY)</strong> → przyjęcie do magazynu, koszt dania</li>
+        <li><strong>Koszt operacyjny (EXPENSE)</strong> → tag np. prąd, czynsz → raport P&L</li>
+        <li><strong>Bez podwójnego liczenia</strong> — prąd nie jest „serem” w magazynie</li>
+      </ul>
+      <div class="stat">~30 sekund zamiast ~15–20 minut ręcznego przepisywania (benchmark operacyjny)</div>
+    </div>
+  </div>
+</div>
+
+<!-- 7 DOSTAWY -->
+<div class="slide" style="gap:24px">
+  <div class="num">07 / 14</div>
+  <span class="pill">Demo — Dostawy</span>
+  <h2>Dyspozytor i kierowca — <span class="accent">jedna flota</span></h2>
+  <div class="demo">
+    <div><img src="hero_05_courses.png" alt="Dyspozytornia"/></div>
+    <div style="display:flex;flex-direction:column;gap:20px;padding-top:20px">
+      <p>Na mapie widać kierowców i zamówienia. Kierowca (np. Kasia) loguje się na telefonie — trasa, portfel, statusy.</p>
+      <ul class="bullets">
+        <li><strong>Payment lock</strong> — nie zamkniesz dostawy bez rozliczenia gotówki/karty</li>
+        <li><strong>Awaryjne wezwanie</strong> — dyspozytor widzi, że kierowca wraca</li>
+        <li><strong>Klient online</strong> — śledzenie statusu na stronie (bez dzwonienia)</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 8 BI + KUCHNIA -->
+<div class="slide" style="gap:24px">
+  <div class="num">08 / 14</div>
+  <span class="pill">Demo — Kontrola</span>
+  <h2>Właściciel widzi liczby — <span class="accent">bez Excela</span></h2>
+  <div class="grid2" style="flex:1">
+    <div class="card" style="padding:0;overflow:hidden">
+      <img src="hero_08_bi.png" alt="BI P&L" style="width:100%;height:420px;object-fit:cover;object-position:top;border-radius:16px 16px 0 0"/>
+      <div style="padding:24px"><h3 style="font-size:20px;margin-bottom:8px">Raport P&L</h3>
+      <p style="font-size:15px">Przychód, koszt sprzedanych dań, pensje, koszty z oznaczonych faktur, wartość zapasu na magazynie dziś.</p></div>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <img src="hero_10_kds.png" alt="KDS" style="width:100%;height:420px;object-fit:cover;object-position:top"/>
+      <div style="padding:24px"><h3 style="font-size:20px;margin-bottom:8px">Kuchnia (KDS)</h3>
+      <p style="font-size:15px">Tickety w czasie rzeczywistym — kucharz wie, co pali się teraz, bez papierowych kartek.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- 9 WYRÓŻNIKI -->
+<div class="slide" style="gap:32px">
+  <div class="num">09 / 14</div>
+  <span class="pill">Dlaczego my</span>
+  <h2>Czym się <span class="accent">wyróżniam</span></h2>
+  <div class="grid2" style="flex:1">
+    <div class="card"><h3 style="font-size:20px;margin-bottom:10px">🇵🇱 KSeF + podział kosztów</h3><p>Natywnie pod polski rynek 2026 — nie „dopinany konektor”.</p></div>
+    <div class="card"><h3 style="font-size:20px;margin-bottom:10px">🍕 Jedna receptura, wiele rozmiarów</h3><p>Mniej błędów w koszcie pizzy przy zmianie rozmiaru — bez duplikowania menu.</p></div>
+    <div class="card"><h3 style="font-size:20px;margin-bottom:10px">📱 SMS bez drogiej bramki</h3><p>Powiadomienia mogą iść przez telefon firmowy — niższy koszt niż Twilio.</p></div>
+    <div class="card"><h3 style="font-size:20px;margin-bottom:10px">💶 Niski koszt hostingu</h3><p>Działa na zwykłym hostingu — dostępny dla małej pizzerii, nie tylko korporacji.</p></div>
+  </div>
+</div>
+
+<!-- 10 RYNEK -->
+<div class="slide" style="gap:32px">
+  <div class="num">10 / 14</div>
+  <span class="pill">Rynek</span>
+  <h2>Polska → <span class="accent">CEE</span></h2>
+  <div class="grid3">
+    <div class="card" style="text-align:center"><div style="font-size:42px;font-weight:900;color:var(--accent)">~70k</div><p>restauracji w PL</p></div>
+    <div class="card" style="text-align:center"><div style="font-size:42px;font-weight:900;color:var(--accent2)">2026</div><p>KSeF obowiązkowy</p></div>
+    <div class="card" style="text-align:center"><div style="font-size:42px;font-weight:900;color:var(--green)">CEE</div><p>CZ · SK · RO — ekspansja</p></div>
+  </div>
+  <p style="text-align:center;max-width:800px;margin:0 auto">Sieci z Polski wchodzą na sąsiednie rynki — potrzebują jednego systemu z lokalizacją, nie pięciu wdrożeń.</p>
+</div>
+
+<!-- 11 WHY NOW -->
+<div class="slide" style="gap:32px">
+  <div class="num">11 / 14</div>
+  <span class="pill">Dlaczego teraz</span>
+  <h2>Trzy powody, że <span class="accent">teraz</span> jest moment</h2>
+  <div class="grid3">
+    <div class="card"><h3 style="font-size:22px">KSeF</h3><p>Restauracje muszą mieć narzędzie, które łączy fakturę z magazynem i kosztami — nie tylko z urzędem.</p></div>
+    <div class="card"><h3 style="font-size:22px">Koszty surowców</h3><p>Właściciel potrzebuje food cost na żywo — nie raportu po miesiącu.</p></div>
+    <div class="card"><h3 style="font-size:22px">Konsolidacja</h3><p>Mniejsze lokale nie stać na sześć subskrypcji — wygrywa all-in-one z niskim TCO.</p></div>
+  </div>
+</div>
+
+<!-- 12 KONKURENCJA -->
+<div class="slide" style="gap:28px">
+  <div class="num">12 / 14</div>
+  <span class="pill">Konkurencja</span>
+  <h2>Jedyny obraz: <span class="accent">all-in-one + KSeF + P&L</span></h2>
+  <table>
+    <thead><tr><th>System</th><th>Kasa</th><th>Magazyn</th><th>KSeF native</th><th>Dostawy</th><th>Online</th><th>P&L w produkcie</th></tr></thead>
+    <tbody>
+      <tr class="hl"><td>SliceHub Pro</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td><td class="ok">✓</td></tr>
+      <tr><td>Papu.io</td><td class="ok">✓</td><td class="no">✗</td><td class="no">✗</td><td>~</td><td class="ok">✓</td><td class="no">✗</td></tr>
+      <tr><td>Typowa chmura POS</td><td class="ok">✓</td><td>~</td><td class="no">✗</td><td class="no">✗</td><td>~</td><td class="no">✗</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- 13 SPARK -->
+<div class="slide" style="gap:32px">
+  <div class="num">13 / 14</div>
+  <span class="pill">SPARK 3.0</span>
+  <h2>Po co <span class="accent">akcelerator</span></h2>
+  <div class="grid3">
+    <div class="card"><h3 style="color:var(--accent)">Pilotaże</h3><p>Pierwsze lokale poza demo — feedback z prawdziwego ruchu.</p></div>
+    <div class="card"><h3 style="color:var(--accent2)">Playbook</h3><p>Powtarzalne wdrożenie dla sieci 3–20 punktów.</p></div>
+    <div class="card"><h3 style="color:var(--green)">CEE</h3><p>Mentor, język, partnerzy — wejście CZ/SK.</p></div>
+  </div>
+</div>
+
+<!-- 14 KONIEC -->
+<div class="slide cover">
+  <div class="num">14 / 14</div>
+  <div class="cover-logo"><div class="logo-lg">SH</div><div style="font-size:48px;font-weight:900">SliceHub Pro</div></div>
+  <p style="font-size:24px">slicehub.net · Damian Malenta<br>PFR SPARK 3.0 · ścieżka go global</p>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;max-width:900px;margin-top:16px">
+    <img src="hero_03_pos.png" style="width:100%;height:90px;object-fit:cover;border-radius:8px;border:1px solid var(--border)"/>
+    <img src="hero_07_ksef.png" style="width:100%;height:90px;object-fit:cover;border-radius:8px;border:1px solid var(--border)"/>
+    <img src="hero_05_courses.png" style="width:100%;height:90px;object-fit:cover;border-radius:8px;border:1px solid var(--border)"/>
+    <img src="hero_08_bi.png" style="width:100%;height:90px;object-fit:cover;border-radius:8px;border:1px solid var(--border)"/>
+  </div>
+</div>
+
+</body>
+</html>

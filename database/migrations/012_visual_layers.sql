@@ -5,7 +5,7 @@
 -- One row per visual layer per menu item per tenant. No JSON blobs.
 -- =============================================================================
 
-USE slicehub_pro_v2;
+-- USE slicehub_pro_v2; -- removed (used to break deploys on non-default DB names)
 SET NAMES utf8mb4;
 
 CREATE TABLE IF NOT EXISTS sh_visual_layers (

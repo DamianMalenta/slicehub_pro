@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>SliceHub Pro — One-Pager (SPARK 3.0)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root {
+    --bg:#0a0a14; --glass:rgba(255,255,255,0.04); --border:rgba(255,255,255,0.10);
+    --accent:#a78bfa; --accent2:#60a5fa; --green:#34d399;
+    --text:#f1f5f9; --muted:#94a3b8;
+  }
+  html,body { width:210mm; height:297mm; background:var(--bg); font-family:'Inter',sans-serif; color:var(--text);
+    -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .page { width:210mm; height:297mm; padding:10mm 11mm; display:flex; flex-direction:column; gap:4mm;
+    background:linear-gradient(135deg,#0a0a14,#0d0d22,#0a0a14); overflow:hidden; }
+  .header { display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:3mm; }
+  .logo-badge { width:10mm;height:10mm;border-radius:2.5mm;background:linear-gradient(135deg,#7c3aed,#2563eb);
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13pt;color:#fff; }
+  .logo-text { font-size:14pt;font-weight:700;margin-left:2mm; }
+  .logo-text span { color:var(--accent); }
+  .tagline-header { font-size:7pt;color:var(--muted);text-align:right;line-height:1.45;max-width:95mm; }
+  .founder-line { font-size:6.5pt;color:var(--accent);margin-top:1mm; }
+  .hero { display:grid; grid-template-columns:1.05fr 0.95fr; gap:4mm; }
+  .hero img { width:100%;height:54mm;object-fit:cover;object-position:top;border-radius:3mm;border:1px solid var(--border); }
+  .hero h1 { font-size:16pt;font-weight:800;line-height:1.15; }
+  .hero h1 span { color:var(--accent); }
+  .hero p { font-size:7.5pt;color:var(--muted);line-height:1.55;margin-top:2mm; }
+  .pill { display:inline-flex;align-items:center;gap:1.5mm;margin-top:2.5mm;padding:1.5mm 3mm;border-radius:20px;
+    font-size:6.5pt;font-weight:600;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.25);color:var(--green); }
+  .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:3.5mm; }
+  .card { background:var(--glass);border:1px solid var(--border);border-radius:3mm;padding:3.5mm; }
+  .card h2 { font-size:7pt;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--accent);margin-bottom:2mm;
+    padding-bottom:1.5mm;border-bottom:1px solid var(--border); }
+  .card h2.blue { color:var(--accent2); }
+  .card h2.green { color:var(--green); }
+  .card ul { list-style:none; }
+  .card li { font-size:6.4pt;color:var(--muted);line-height:1.45;padding-left:3mm;position:relative;margin-bottom:1.5mm; }
+  .card li::before { content:'→';position:absolute;left:0;color:var(--accent);font-size:6pt; }
+  .card li strong { color:var(--text); }
+  .quote { margin-top:2mm;padding:2mm 2.5mm;border-left:2px solid var(--accent);font-size:6pt;color:var(--muted);font-style:italic; }
+  .thumbs { display:grid; grid-template-columns:repeat(5,1fr); gap:2mm; }
+  .thumbs img { width:100%;height:16mm;object-fit:cover;object-position:top;border-radius:2mm;border:1px solid var(--border); }
+  .thumbs span { display:block;font-size:4.5pt;text-align:center;color:var(--muted);margin-top:0.5mm; }
+  .footer { margin-top:auto;padding-top:2.5mm;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:6pt;color:var(--muted); }
+  .footer strong { color:var(--text); }
+  @media print { * { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="header">
+    <div style="display:flex;align-items:center">
+      <div class="logo-badge">SH</div>
+      <div class="logo-text">SliceHub <span>Pro</span></div>
+    </div>
+    <div class="tagline-header">
+      System operacyjny dla restauracji — nie kolejna kasa<br>
+      <span style="color:var(--accent)">slicehub.net</span> · produkcja aktywna
+      <div class="founder-line">Damian Malenta · solo founder · SPARK 3.0 go global</div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div>
+      <img src="hero_03_pos.png" alt="Kasa POS z koszykiem" />
+    </div>
+    <div>
+      <h1>Zbudowałem jeden system,<br>który <span>rozumie restaurację</span></h1>
+      <p>
+        Dla właścicieli pizzerii i sieci gastronomicznych, którzy mają dość pięciu programów i pięciu cen.
+        SliceHub łączy kasę, sklep internetowy, kuchnię, magazyn, faktury KSeF i dostawy — tak, żeby
+        <strong>widać było cały dzień pracy lokalu</strong>, a nie tylko paragon na końcu zmiany.
+      </p>
+      <div class="pill"><span style="width:2mm;height:2mm;background:var(--green);border-radius:50%"></span> Działa dziś na slicehub.net</div>
+      <p class="quote">„Wcześniejsze nagranie wniosku nie pokazywało kasy z koszykiem — produkt wtedy był niedopracowany. Dziś POS, KSeF i dostawy są gotowe do pokazania.”</p>
+    </div>
+  </section>
+
+  <section class="grid3">
+    <div class="card">
+      <h2>Dlaczego to powstało</h2>
+      <ul>
+        <li><strong>Chaos narzędzi</strong> — kasa, Excel, magazyn i dostawy osobno</li>
+        <li><strong>KSeF od 2026</strong> — faktury cyfrowe, praca nadal ręczna</li>
+        <li><strong>Brak obrazu marży</strong> — przychód ≠ koszt surowca ≠ prąd</li>
+        <li><strong>~70 tys.</strong> lokali w PL szuka prostszego modelu</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2 class="blue">Co daje właścicielowi</h2>
+      <ul>
+        <li><strong>Faktura z KSeF → magazyn</strong> w minutach zamiast ~15–20 min ręcznie</li>
+        <li><strong>Prąd i surowce osobno</strong> — faktura tagowana: sera idą do kuchni, prąd do kosztów</li>
+        <li><strong>Kierowca</strong> nie zamknie dostawy bez rozliczenia gotówki</li>
+        <li><strong>Klient online</strong> widzi status zamówienia na stronie</li>
+        <li><strong>Prosty P&L</strong> — czy tydzień się opłaca, bez Excela</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2 class="green">Dowód, nie slajd</h2>
+      <ul>
+        <li><strong>slicehub.net</strong> — publiczna instancja z demo Pizza Forno</li>
+        <li><strong>17 obszarów</strong> — od kasy po raport i SMS</li>
+        <li><strong>Solo founder</strong> — spójna wizja od pierwszego dnia</li>
+        <li><strong>SPARK</strong> — pilotaże u operatorów, wejście CEE</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="thumbs">
+    <div><img src="hero_01_hub.png" alt="Hub"/><span>Start</span></div>
+    <div><img src="hero_02_online.png" alt="Online"/><span>Sklep</span></div>
+    <div><img src="hero_05_courses.png" alt="Dostawy"/><span>Dostawy</span></div>
+    <div><img src="hero_07_ksef.png" alt="KSeF"/><span>KSeF</span></div>
+    <div><img src="hero_08_bi.png" alt="BI"/><span>P&L</span></div>
+  </section>
+
+  <footer class="footer">
+    <div><strong>slicehub.net</strong></div>
+    <div>PFR SPARK 3.0 · ścieżka go global</div>
+    <div>Damian Malenta</div>
+  </footer>
+</div>
+</body>
+</html>

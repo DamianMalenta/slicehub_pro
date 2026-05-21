@@ -221,7 +221,7 @@
             pane.innerHTML = '';
             pane.appendChild(el('div', { class: 'st-section-head' },
                 el('h2', {}, 'Integration Adapters'),
-                el('span', { class: 'st-subtitle' }, '3rd-party POS/delivery providers (async push)'),
+                el('span', { class: 'st-subtitle' }, 'POS / bramki push + KSeF (wspólny rekord pod inbox i przyszły wysył)'),
                 el('button', { class: 'st-btn st-btn--primary', onClick: () => openIntegrationEditor(null, data.available_providers) },
                     el('i', { class: 'fa-solid fa-plus' }), ' Add Integration')
             ));
@@ -235,8 +235,10 @@
                 return;
             }
 
+            const pLabels = data.provider_labels || data.available_providers || {};
+            const editProviderMap = data.available_providers || {};
             data.integrations.forEach(int => {
-                pane.appendChild(renderIntegrationCard(int, data.available_providers));
+                pane.appendChild(renderIntegrationCard(int, pLabels, editProviderMap));
             });
         } catch (e) {
             pane.innerHTML = '';
@@ -247,8 +249,99 @@
         }
     }
 
-    function renderIntegrationCard(int, providers) {
-        const providerLabel = providers[int.provider] || int.provider;
+    function openKsefIntegrationDetailsModal(int) {
+        const href = '../procurement/index.html';
+        const modal = el('div', { class: 'st-modal' },
+            el('h3', {}, 'KSeF — integracja ministerialna'),
+            el('p', { class: 'st-field__hint', style: 'margin:0 0 14px;line-height:1.5' },
+                'Rekord ',
+                el('code', {}, 'sh_tenant_integrations'),
+                ' z ',
+                el('code', {}, 'provider=ksef'),
+                ' jest wspólny dla tej listy i modułu ',
+                el('strong', {}, 'Inbox KSeF'),
+                '. Token, środowisko i „Test połączenia” zmieniasz tam (nie przez formularz POS poniżej — ten mógłby nadpisać provider na Papu).'
+            ),
+            el('div', { class: 'st-field' },
+                el('label', {}, 'Nazwa'),
+                el('div', {}, escHtml(int.display_name || '—'))
+            ),
+            el('div', { class: 'st-field' },
+                el('label', {}, 'API base URL'),
+                el('div', {}, escHtml(int.api_base_url || '(puste — domyślny host MF wg środowiska w credentials)'))
+            ),
+            el('div', { class: 'st-field' },
+                el('label', {}, 'Kierunek'),
+                el('div', {}, escHtml(String(int.direction || '—')))
+            ),
+            el('div', { class: 'st-field' },
+                el('label', {}, 'Credentials (podgląd)'),
+                el('div', {},
+                    el('code', {}, escHtml(int.credentials_redacted || '—')),
+                    ' ',
+                    int.credentials_encrypted
+                        ? el('span', { class: 'st-chip st-chip--ok' }, 'encrypted')
+                        : el('span', { class: 'st-chip st-chip--warn' }, 'plaintext')
+                )
+            ),
+            el('p', { class: 'st-field__hint', style: 'margin-top:4px' },
+                'Wysyłka faktur do odbiorców (outbound) — ten sam tor danych; pojawi się tu, gdy moduł będzie gotowy.'
+            ),
+            el('div', { class: 'st-modal__footer', style: 'gap:10px;flex-wrap:wrap' },
+                el('a', {
+                    class: 'st-btn st-btn--primary',
+                    href,
+                    style: 'text-decoration:none;display:inline-flex;align-items:center;gap:8px',
+                }, el('i', { class: 'fa-solid fa-inbox' }), ' Inbox KSeF — konfiguracja'),
+                el('button', { class: 'st-btn', onClick: closeModal }, 'Zamknij')
+            )
+        );
+        openModal(modal);
+    }
+
+    function renderIntegrationCard(int, providerLabels, editProviderMap) {
+        const labels = providerLabels || {};
+        const editMap = editProviderMap || {};
+        const isKsef = String(int.provider || '').toLowerCase() === 'ksef';
+        const providerLabel = labels[int.provider] || int.provider;
+
+        if (isKsef) {
+            const statusChip = int.is_active == 1
+                ? el('span', { class: 'st-chip st-chip--ok' }, 'active')
+                : el('span', { class: 'st-chip st-chip--err' }, 'paused');
+            const failChip = (int.consecutive_failures || 0) > 0
+                ? el('span', { class: 'st-chip st-chip--warn' }, `${int.consecutive_failures} fails`)
+                : null;
+            return el('div', { class: 'st-card st-card--ksef' },
+                el('div', { class: 'st-card__main' },
+                    el('h3', {},
+                        el('i', { class: 'fa-solid fa-file-invoice' }),
+                        ' ' + int.display_name,
+                        statusChip,
+                        failChip
+                    ),
+                    el('div', { class: 'st-meta', html:
+                        `<b>${escHtml(providerLabel)}</b> · API: <code>${escHtml(int.api_base_url || 'domyślne MF')}</code><br>` +
+                        `<span class="st-chip st-chip--accent">przychód (inbox)</span> · ` +
+                        `<span class="st-muted">wysyłka (outbound) — plan na tym samym rekordzie</span><br>` +
+                        `Credentials: <code>${escHtml(int.credentials_redacted || 'none')}</code> ` +
+                        (int.credentials_encrypted ? '<span class="st-chip st-chip--ok">encrypted</span>' : '<span class="st-chip st-chip--warn">plaintext</span>') +
+                        `<br>Direction: <code>${escHtml(int.direction)}</code> · Timeout: ${int.timeout_seconds}s · Max retries: ${int.max_retries}` +
+                        (int.last_sync_at ? `<br>Last sync: ${fmtDate(int.last_sync_at)}` : '')
+                    })
+                ),
+                el('div', { class: 'st-card__actions' },
+                    el('button', { class: 'st-btn st-btn--sm st-btn--primary', onClick: () => openKsefIntegrationDetailsModal(int) },
+                        el('i', { class: 'fa-solid fa-gear' }), ' Szczegóły'),
+                    el('button', { class: 'st-btn st-btn--sm', onClick: () => toggleIntegration(int.id, !int.is_active) },
+                        el('i', { class: `fa-solid fa-${int.is_active == 1 ? 'pause' : 'play'}` }),
+                        int.is_active == 1 ? ' Pause' : ' Włącz'),
+                    el('button', { class: 'st-btn st-btn--sm st-btn--danger', onClick: () => deleteIntegration(int.id, int.display_name) },
+                        el('i', { class: 'fa-solid fa-trash' }))
+                )
+            );
+        }
+
         const statusChip = int.is_active == 1
             ? el('span', { class: 'st-chip st-chip--ok' }, 'active')
             : el('span', { class: 'st-chip st-chip--err' }, 'paused');
@@ -284,7 +377,7 @@
                 el('button', { class: 'st-btn st-btn--sm', onClick: () => toggleIntegration(int.id, !int.is_active) },
                     el('i', { class: `fa-solid fa-${int.is_active == 1 ? 'pause' : 'play'}` }),
                     int.is_active == 1 ? ' Pause' : ' Enable'),
-                el('button', { class: 'st-btn st-btn--sm', onClick: () => openIntegrationEditor(int, providers) },
+                el('button', { class: 'st-btn st-btn--sm', onClick: () => openIntegrationEditor(int, editMap) },
                     el('i', { class: 'fa-solid fa-pen' }), ' Edit'),
                 el('button', { class: 'st-btn st-btn--sm st-btn--danger', onClick: () => deleteIntegration(int.id, int.display_name) },
                     el('i', { class: 'fa-solid fa-trash' }))
@@ -293,6 +386,10 @@
     }
 
     function openIntegrationEditor(integration, providers) {
+        if (integration && String(integration.provider || '').toLowerCase() === 'ksef') {
+            openKsefIntegrationDetailsModal(integration);
+            return;
+        }
         const isEdit = !!integration;
         const modal = el('div', { class: 'st-modal' },
             el('h3', {}, isEdit ? `Edit: ${integration.display_name}` : 'Add Integration')
