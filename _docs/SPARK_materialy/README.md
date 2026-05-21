@@ -19,15 +19,22 @@
 
 `_docs/F6S_SPARK_3_0/03_TEKSTY_FORMULARZ_F6S.md` — wersja ludzka.
 
-## PDF (artifacts, nie w repo)
+## Wideo — 7 procesów (localhost, tenant Pizza Forno SPARK)
 
-- `/opt/cursor/artifacts/spark_onepager_v2.pdf`
-- `/opt/cursor/artifacts/spark_pitchdeck_v2.pdf`
+| Plik | Proces |
+|------|--------|
+| [wideo/spark_forno_procesy_final.mp4](wideo/spark_forno_procesy_final.mp4) | Montaż finałowy (~139 s, crossfade 0,4 s) |
+| [wideo/spark_P1_online.webm](wideo/spark_P1_online.webm) | P1 — Online, wariant 30/37 cm |
+| [wideo/spark_P2_kds.webm](wideo/spark_P2_kds.webm) | P2 — KDS |
+| [wideo/spark_P3_track.webm](wideo/spark_P3_track.webm) | P3 — Tracking klienta |
+| [wideo/spark_P4_courses.webm](wideo/spark_P4_courses.webm) | P4 — Courses + POS |
+| [wideo/spark_P5_driver.webm](wideo/spark_P5_driver.webm) | P5 — Driver App |
+| [wideo/spark_P6_ksef.webm](wideo/spark_P6_ksef.webm) | P6 — KSeF Inbox |
+| [wideo/spark_P7_bi.webm](wideo/spark_P7_bi.webm) | P7 — BI + Studio Menu |
 
-## Wideo (pełna ścieżka procesów)
+Bootstrap: `scripts/bootstrap_spark_recording_env.sh` · env: [spark_recording_env.example.json](spark_recording_env.example.json)
 
-**Użyj V2** (7 procesów + przeklikiwanie, nie losowe zrzuty): [`../PROMPT_SPARK_NAGRANIE_PROCESY_FORNO_V2.md`](../PROMPT_SPARK_NAGRANIE_PROCESY_FORNO_V2.md)  
-Merytoryka + seed: [`../PROMPT_SPARK_NAGRANIE_PROCESY_FORNO.md`](../PROMPT_SPARK_NAGRANIE_PROCESY_FORNO.md) · prep: `scripts/prep_spark_demo_orders.py`
+Brief: [`../PROMPT_SPARK_NAGRANIE_PROCESY_FORNO_V2.md`](../PROMPT_SPARK_NAGRANIE_PROCESY_FORNO_V2.md)
 
 ## Regeneracja
 
