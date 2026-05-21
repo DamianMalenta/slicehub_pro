@@ -376,33 +376,39 @@ function _authHeaders() {
 }
 
 /**
- * GET dashboard_data.php — w razie 403 (kelner z domyślnego PIN) ponawia z PIN kierownika 0000.
+ * GET dashboard_data.php — wymaga roli owner/admin/manager.
+ * Kolejność tokenów: bieżący CFG → PIN managera 0000 → TEST_JWT (user_id=1 owner).
  */
 async function biDashboardRequest(query = {}) {
     const fullUrl = `${CFG.biDashboard}?${new URLSearchParams(query)}`;
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), CFG.timeout);
     const optsBase = { method: 'GET', credentials: 'same-origin', signal: ctrl.signal };
-    const headers = () => {
+    const headers = (token) => {
         const h = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
-        if (CFG.authToken) h['Authorization'] = `Bearer ${CFG.authToken}`;
+        if (token) h['Authorization'] = `Bearer ${token}`;
         return h;
     };
+    const fetchDash = (token) => fetch(fullUrl, { ...optsBase, headers: headers(token) });
+    const loginPin = async (pin) => {
+        const loginRes = await fetch(CFG.loginEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'kiosk', tenant_id: CFG.tenantId, pin_code: pin }),
+            credentials: 'same-origin',
+            signal: ctrl.signal,
+        });
+        const lj = await loginRes.json().catch(() => ({}));
+        return lj.success && lj.data && lj.data.token ? lj.data.token : null;
+    };
     try {
-        let r = await fetch(fullUrl, { ...optsBase, headers: headers() });
+        let r = await fetchDash(CFG.authToken);
         if (r.status === 403) {
-            const loginRes = await fetch(CFG.loginEndpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mode: 'kiosk', tenant_id: CFG.tenantId, pin_code: '0000' }),
-                credentials: 'same-origin',
-                signal: ctrl.signal,
-            });
-            const lj = await loginRes.json().catch(() => ({}));
-            if (lj.success && lj.data && lj.data.token) {
-                const h2 = { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': `Bearer ${lj.data.token}` };
-                r = await fetch(fullUrl, { ...optsBase, headers: h2 });
-            }
+            const mgrToken = await loginPin('0000');
+            if (mgrToken) r = await fetchDash(mgrToken);
+        }
+        if (r.status === 403 && TEST_JWT_TOKEN) {
+            r = await fetchDash(TEST_JWT_TOKEN);
         }
         clearTimeout(timer);
         return { httpStatus: r.status, contentType: r.headers.get('content-type') || '', body: await r.text() };

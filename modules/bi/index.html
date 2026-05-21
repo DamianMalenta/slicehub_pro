@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="../../tenant_config.php"></script>
     <meta name="theme-color" content="#0a0e14">
     <title>SliceHub — BI P&amp;L</title>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -131,10 +132,14 @@
     </section>
 </main>
 
+<script src="../../core/js/sh_api_base.js"></script>
 <script>
 (function () {
-    const root = (location.pathname || '').split('/modules/')[0] || '';
-    const API_ROOT = (root || '/slicehub') + '/api';
+    function apiRoot() {
+        return (window.SliceHub && window.SliceHub.getApiBase)
+            ? window.SliceHub.getApiBase()
+            : ((location.pathname || '').split('/modules/')[0] || '/slicehub') + '/api';
+    }
 
     function token() {
         return localStorage.getItem('sh_token') || '';
@@ -232,7 +237,7 @@
 
         const df = document.getElementById('bi-from').value;
         const dt = document.getElementById('bi-to').value;
-        const url = API_ROOT + '/bi/dashboard_data.php?date_from=' + encodeURIComponent(df) + '&date_to=' + encodeURIComponent(dt);
+        const url = apiRoot() + '/bi/dashboard_data.php?date_from=' + encodeURIComponent(df) + '&date_to=' + encodeURIComponent(dt);
         const r = await fetch(url, {
             headers: { 'Authorization': 'Bearer ' + token(), 'Accept': 'application/json' },
             credentials: 'same-origin'
