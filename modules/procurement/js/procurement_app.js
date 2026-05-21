@@ -12,8 +12,14 @@
 (function () {
     'use strict';
 
-    const ENDPOINT = '/api/procurement/inbox.php';
-    const SUGGEST_ENDPOINT = '/api/procurement/suggest.php';
+    function apiRoot() {
+        if (typeof window !== 'undefined' && window.location.pathname.indexOf('/slicehub/') === 0) {
+            return '/slicehub/api';
+        }
+        return '/api';
+    }
+    const ENDPOINT = apiRoot() + '/procurement/inbox.php';
+    const SUGGEST_ENDPOINT = apiRoot() + '/procurement/suggest.php';
     const $ = (s) => document.querySelector(s);
     const $$ = (s) => Array.from(document.querySelectorAll(s));
 
@@ -84,7 +90,7 @@
     // SKU options (z stock_list — fallback, ale jak masz dużo SKU, lepiej zostawić select pusty z search)
     // -------------------------------------------------------------------------
     async function loadExpenseCategories() {
-        const r = await api('list', {}, '/api/procurement/expense_categories.php');
+        const r = await api('list', {}, apiRoot() + '/procurement/expense_categories.php');
         if (r.success && r.data && Array.isArray(r.data.categories)) {
             state.expenseCategories = r.data.categories;
         } else {
@@ -95,7 +101,7 @@
     async function loadSkuOptions() {
         try {
             const tok = getToken();
-            const res = await fetch('/api/warehouse/stock_list.php?warehouse_id=MAIN', {
+            const res = await fetch(apiRoot() + '/warehouse/stock_list.php?warehouse_id=MAIN', {
                 headers: { 'Authorization': 'Bearer ' + tok },
             });
             const json = await res.json();
@@ -1424,7 +1430,7 @@
     }
 
     async function openOpexModal() {
-        const r = await api('list', {}, '/api/procurement/expense_categories.php');
+        const r = await api('list', {}, apiRoot() + '/procurement/expense_categories.php');
         if (!r.success) {
             showError(r.message || 'Nie udało się pobrać kategorii.');
             return;
@@ -1457,7 +1463,7 @@
                 const inp = document.querySelector(`.pi-opex-rename[data-id="${id}"]`);
                 const name = inp ? String(inp.value || '').trim() : '';
                 if (!name) return;
-                const u = await api('update', { id, name }, '/api/procurement/expense_categories.php');
+                const u = await api('update', { id, name }, apiRoot() + '/procurement/expense_categories.php');
                 if (!u.success) { opexModalMsg(u.message || 'Błąd zapisu', 'err'); return; }
                 await openOpexModal();
                 opexModalMsg('Zapisano nazwę.', 'ok');
@@ -1467,7 +1473,7 @@
             btn.addEventListener('click', async () => {
                 if (!confirm('Usunąć tę kategorię? (soft-delete)')) return;
                 const id = parseInt(btn.getAttribute('data-id') || '0', 10);
-                const d = await api('delete', { id }, '/api/procurement/expense_categories.php');
+                const d = await api('delete', { id }, apiRoot() + '/procurement/expense_categories.php');
                 if (!d.success) {
                     opexModalMsg(d.message || 'Nie można usunąć', 'err');
                     return;
@@ -1480,7 +1486,7 @@
     async function submitOpexAdd() {
         const name = ($('#pi-opex-new-name') && $('#pi-opex-new-name').value.trim()) || '';
         if (!name) return;
-        const r = await api('create', { name }, '/api/procurement/expense_categories.php');
+        const r = await api('create', { name }, apiRoot() + '/procurement/expense_categories.php');
         if (!r.success) { opexModalMsg(r.message || 'Błąd', 'err'); return; }
         await openOpexModal();
         opexModalMsg('Dodano kategorię.', 'ok');
@@ -1490,7 +1496,7 @@
     // F4: KSeF Config
     // -------------------------------------------------------------------------
     async function openConfigModal() {
-        const r = await api('config_get', {}, '/api/procurement/ksef_config.php');
+        const r = await api('config_get', {}, apiRoot() + '/procurement/ksef_config.php');
         if (!r.success) { showError(r.message || 'Nie udało się załadować konfiguracji.'); return; }
         const d = r.data;
         $('#pi-cfg-env').value = d.environment || 'mock';
@@ -1506,11 +1512,11 @@
         const token = $('#pi-cfg-token').value.trim();
         const autoPoll = $('#pi-cfg-auto-poll').checked;
 
-        const r = await api('config_save', { environment: env, token }, '/api/procurement/ksef_config.php');
+        const r = await api('config_save', { environment: env, token }, apiRoot() + '/procurement/ksef_config.php');
         if (!r.success) { showError(r.message || 'Save padł.'); return; }
 
         // Auto-poll osobno (osobna akcja)
-        const rA = await api('toggle_auto_poll', { enabled: autoPoll }, '/api/procurement/ksef_config.php');
+        const rA = await api('toggle_auto_poll', { enabled: autoPoll }, apiRoot() + '/procurement/ksef_config.php');
         if (!rA.success) showError(rA.message || 'Toggle auto-poll padł.');
 
         const stateEl = $('#pi-cfg-state');
@@ -1525,7 +1531,7 @@
         stateEl.className = 'pi-cfg-state';
         stateEl.textContent = '⏳ Testuję połączenie...';
         stateEl.classList.remove('hidden');
-        const r = await api('test_connection', {}, '/api/procurement/ksef_config.php');
+        const r = await api('test_connection', {}, apiRoot() + '/procurement/ksef_config.php');
         stateEl.className = 'pi-cfg-state ' + (r.success ? 'ok' : 'err');
         stateEl.textContent = (r.success ? '✓ ' : '✗ ') + (r.message || (r.data && r.data.message) || '');
     }
@@ -1534,7 +1540,7 @@
         const orig = $('#pi-btn-poll-now').innerHTML;
         $('#pi-btn-poll-now').disabled = true;
         $('#pi-btn-poll-now').innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Pobieram…';
-        const r = await api('poll_now', {}, '/api/procurement/ksef_config.php');
+        const r = await api('poll_now', {}, apiRoot() + '/procurement/ksef_config.php');
         $('#pi-btn-poll-now').disabled = false;
         $('#pi-btn-poll-now').innerHTML = orig;
         if (!r.success) { showError(r.message || 'Poll padł.'); return; }
