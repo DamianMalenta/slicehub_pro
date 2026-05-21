@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="sh-tenant-id" content="1">
     <script src="../../tenant_config.php"></script>
+    <script src="../../core/js/sh_api_base.js"></script>
     <title>SliceHub — Marketing SMS</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -186,9 +187,14 @@
 
     const meta = document.querySelector('meta[name="sh-tenant-id"]');
     const tenantId = meta ? parseInt(meta.content, 10) : 1;
-    // Relatywnie do modules/marketing/ — działa przy dowolnej ścieżce (jak settings/notifications.js)
-    const API = '../../api/marketing/engine.php';
-    const SETTINGS_API = '../../api/settings/engine.php';
+    function apiUrl(path) {
+        if (window.SliceHub && window.SliceHub.apiUrl) {
+            return window.SliceHub.apiUrl(path);
+        }
+        return '../../api' + (String(path || '').startsWith('/') ? path : '/' + path);
+    }
+    const API = apiUrl('/marketing/engine.php');
+    const SETTINGS_API = apiUrl('/settings/engine.php');
 
     function toast(msg, ok = true) {
         const root = document.getElementById('toast-root');

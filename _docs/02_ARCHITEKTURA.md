@@ -372,10 +372,13 @@ Wszystkie orphan/planned endpointy mają w nagłówku komentarz `// STATUS: …`
 #### Frontend helpers `/core/js/`
 | Plik | Rola |
 |------|------|
-| `api_client.js` | Bazowy `ApiClient` (fetch wrapper z Bearer tokenem) |
+| `sh_api_base.js` | **SSOT prefiksu URL** — `SliceHub.getApiBase()`, `getAppBase()`, `apiUrl()`, `appUrl()`. Kolejność: meta `sh-api-base` → `window.__SH_API_BASE__` (z `tenant_config.php` / env `SLICEHUB_API_BASE`) → heurystyka pathname przed `/modules/` → fallback. Lokalnie `/slicehub/api`, hosting root `/api`. Każdy moduł ładuje ten plik przed własnym `*_api.js`. |
+| `api_client.js` | Bazowy `ApiClient` (fetch wrapper z Bearer tokenem); endpointy `../../api/...` i `/api/...` resolve'uje przez `SliceHub.apiUrl` |
 | `core_validator.js` | Walidatory współdzielone |
 | `neon_pizza_engine.js` | Animacje / efekty wizualne |
 | `scene_renderer.js` | Rendering scen na frontendzie |
+
+**Konwencja modułu:** w `index.html` → `tenant_config.php` (relatywnie) → `sh_api_base.js` → modułowy JS. W JS: `SliceHub.apiUrl('/{domena}/engine.php')` zamiast hardcoded `/slicehub/api` lub absolutnych ścieżek.
 
 ---
 

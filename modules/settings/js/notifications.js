@@ -14,8 +14,14 @@
 
     // ── Stałe ────────────────────────────────────────────────────────────────
 
-    // Relatywnie jak settings_app.js — działa przy VHost / innej ścieżce niż /slicehub/…
-    const API_URL = '../../api/settings/engine.php';
+    // Prefiks API: core/js/sh_api_base.js (SliceHub.apiUrl).
+    function apiUrl(path) {
+        if (window.SliceHub && window.SliceHub.apiUrl) {
+            return window.SliceHub.apiUrl(path);
+        }
+        return '../../api' + (String(path || '').startsWith('/') ? path : '/' + path);
+    }
+    const API_URL = apiUrl('/settings/engine.php');
 
     const EVENT_TYPES = [
         { key: 'order.created',    label: 'Zamówienie złożone',     icon: 'fa-cart-plus',        color: '#60a5fa' },

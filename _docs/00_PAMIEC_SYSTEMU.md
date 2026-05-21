@@ -235,7 +235,9 @@ slicehub/
 │   ├── StaffFleetPresence.php          # Heartbeat last_seen + TTL=120s (NEW · 2026-05-04)
 │   ├── DriverFleetHelper.php           # Idempotentne dopinanie sh_drivers (NEW · 2026-05-04)
 │   ├── Integrations/PapuClient.php     # Papu/Pyszne (integracja)
-│   └── js/api_client.js                # Frontend fetch wrapper
+│   └── js/
+│       ├── sh_api_base.js              # SSOT prefiksu API/app URL (getApiBase, apiUrl, appUrl)
+│       └── api_client.js               # Frontend fetch wrapper (+ resolve → SliceHub.apiUrl)
 ├── modules/
 │   ├── hub/                            # Centralny launcher (login restauracji + kafelki) (NEW · 2026-05-04)
 │   ├── kiosk/                          # Terminal obecności / zmiana (3-stage flow) (NEW · 2026-05-04)
@@ -424,7 +426,7 @@ try {
 
 ### Frontend API client wzorzec (jak `pos_api.js`)
 
-Prosty wrapper fetch POST → JSON, obsługa błędów i auth header. Powinien być per-moduł (np. `online_api.js`, `pos_api.js`) korzystając z `core/js/api_client.js` jako bazy.
+Prosty wrapper fetch POST → JSON, obsługa błędów i auth header. Powinien być per-moduł (np. `online_api.js`, `pos_api.js`) korzystając z `core/js/sh_api_base.js` (prefiks URL) i opcjonalnie `core/js/api_client.js` (HTTP + auth).
 
 ---
 

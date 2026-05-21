@@ -1,11 +1,17 @@
 /**
  * SliceHub — Backoffice HR module (employees list / upsert / PIN / hourly rate).
- * API: ../../../api/backoffice/hr/engine.php (session JWT jak POS).
+ * API: SliceHub.apiUrl('/backoffice/hr/engine.php') — session JWT jak POS.
  */
 (() => {
     'use strict';
 
-    const API = '../../../api/backoffice/hr/engine.php';
+    function hrApiUrl() {
+        if (window.SliceHub && window.SliceHub.apiUrl) {
+            return window.SliceHub.apiUrl('/backoffice/hr/engine.php');
+        }
+        return '../../../api/backoffice/hr/engine.php';
+    }
+    const API = hrApiUrl();
 
     const PRIMARY_ROLES = ['cook', 'waiter', 'driver', 'manager', 'cashier', 'cleaner', 'runner', 'shift_lead', 'owner', 'team'];
 

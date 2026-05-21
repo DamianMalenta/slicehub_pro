@@ -16,7 +16,14 @@
     'use strict';
 
     // ─── API client ──────────────────────────────────────────────────────
-    const API_URL = '../../api/settings/engine.php';
+    /** Prefiks API: core/js/sh_api_base.js (SliceHub.apiUrl). */
+    function apiUrl(path) {
+        if (window.SliceHub && window.SliceHub.apiUrl) {
+            return window.SliceHub.apiUrl(path);
+        }
+        return '../../api' + (String(path || '').startsWith('/') ? path : '/' + path);
+    }
+    const API_URL = apiUrl('/settings/engine.php');
 
     // Akcje read-only — backend (settings_csrfCheck) nie wymaga od nich
     // headera X-CSRF-Token. Trzymamy to zsynchronizowane z listą w engine.php.
