@@ -33,6 +33,7 @@ Regeneracja ZIP: `bash scripts/build_spark_download_pack.sh`
 
 | Plik | Proces |
 |------|--------|
+| [wideo/spark_forno_procesy_ciagle.mp4](wideo/spark_forno_procesy_ciagle.mp4) | **Zalecane** — jedna sesja ~5 min, bez xfade |
 | [wideo/spark_forno_procesy_final.mp4](wideo/spark_forno_procesy_final.mp4) | Montaż finałowy (~139 s, crossfade 0,4 s) |
 | [wideo/spark_P1_online.webm](wideo/spark_P1_online.webm) | P1 — Online, wariant 30/37 cm |
 | [wideo/spark_P2_kds.webm](wideo/spark_P2_kds.webm) | P2 — KDS |
