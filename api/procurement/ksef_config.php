@@ -266,8 +266,9 @@ try {
                 kfFail(502, 'KSEF_QUERY_FAILED', $qres['message'] ?? 'Query inbox failed');
             }
 
-            $stats = ['fetched' => 0, 'inserted' => 0, 'skipped' => 0, 'errors' => 0];
+            $stats = ['fetched' => 0, 'inserted' => 0, 'skipped' => 0, 'errors' => 0, 'quality_error' => 0];
             $lastSeenRef = null;
+            require_once __DIR__ . '/../../core/Ksef/InboxImport.php';
             foreach ($qres['invoices'] as $inv) {
                 $stats['fetched']++;
                 $refId = (string) $inv['ref_id'];
@@ -283,8 +284,17 @@ try {
                 if (!$fres['success']) { $stats['errors']++; continue; }
 
                 try {
-                    pollInsertInvoice($pdo, $tenant_id, $refId, (string) $fres['xml']);
+                    $import = \SliceHub\Ksef\InboxImport::importFromXml(
+                        $pdo,
+                        $tenant_id,
+                        $refId,
+                        (string) $fres['xml'],
+                        'KSEF-' . $refId
+                    );
                     $stats['inserted']++;
+                    if (($import['status'] ?? '') === 'error') {
+                        $stats['quality_error']++;
+                    }
                     $lastSeenRef = $refId;
                 } catch (\Throwable $e) {
                     if (\SliceHub\Ksef\InboxInvoiceRepository::isMysqlDuplicateKey($e)) {
@@ -306,7 +316,8 @@ try {
             )->execute([':tid' => $tenant_id, ':ref' => $lastSeenRef, ':ref2' => $lastSeenRef]);
 
             kfResponse(true, ['stats' => $stats, 'environment' => $client->getEnvironment()],
-                "KSeF odczyt (bez wysyłki do MF): odczytane z API {$stats['fetched']}, nowe w bazie {$stats['inserted']}, pominięte {$stats['skipped']}, błędy {$stats['errors']}.");
+                "KSeF odczyt (bez wysyłki do MF): odczytane z API {$stats['fetched']}, nowe w bazie {$stats['inserted']}, "
+                . "błąd jakości (puste/KOR) {$stats['quality_error']}, pominięte {$stats['skipped']}, błędy {$stats['errors']}.");
             break;
         }
 

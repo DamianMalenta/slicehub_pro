@@ -58,11 +58,23 @@ $r2 = $parser->parse($xml2);
 $q2 = $parser->assessProcurementQuality($r2);
 $assert($r2['success'] && ($q2['procurement_ok'] ?? false), 'parse+assess: normalna FV');
 
-// 3) KOR — assess reject bez powielania parse fail
+// 3) KOR bez linii — assess reject
 $xml3 = $faHeader('<P_15>50</P_15>', 'KOR');
 $r3 = $parser->parse($xml3);
 $q3 = $parser->assessProcurementQuality($r3);
-$assert($r3['success'] && !($q3['procurement_ok'] ?? true), 'assess: KOR → reject, parse nadal OK');
+$assert($r3['success'] && !($q3['procurement_ok'] ?? true), 'assess: KOR bez linii → reject');
+
+// 3b) KOR z liniami — draft/warn (flow korekty)
+$xml3b = $faHeader('
+    <P_13_1>-20.00</P_13_1><P_15>-24.60</P_15>
+    <FaWiersz>
+      <NrWierszaFa>1</NrWierszaFa><P_7>Bazylia korekta</P_7><P_8A>szt</P_8A><P_8B>-1</P_8B>
+      <P_9A>20</P_9A><P_11>-20</P_11><P_12>23</P_12>
+    </FaWiersz>', 'KOR');
+$r3b = $parser->parse($xml3b);
+$q3b = $parser->assessProcurementQuality($r3b);
+$assert(($r3b['success'] ?? false) && ($q3b['procurement_ok'] ?? false) && ($q3b['level'] ?? '') === 'warn',
+    'assess: KOR z liniami → warn OK (nie error)');
 
 // 4) enrich z linii gdy P_15=0
 $xml4 = $faHeader('

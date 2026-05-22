@@ -220,6 +220,21 @@
             + ` @ <strong>${un.toFixed(2)}</strong> PLN/${escapeHtml(baseUnit)}${hint}</div>`;
     }
 
+    /** Ręczne mapowanie opakowania (pack_qty_base na 1 jednostkę FA) — migracja 058/059. */
+    function packMappingHtml(l, isAccepted) {
+        if (isAccepted) return '';
+        const sku = (l.resolved_sku || '').trim();
+        if (!sku) return '';
+        const meta = l.normalization_meta && typeof l.normalization_meta === 'object' ? l.normalization_meta : {};
+        const hint = meta.pack_qty_base ? String(meta.pack_qty_base) : '';
+        const unitFa = (l.unit || 'szt').trim();
+        return `<div class="pi-pack-row" data-line-id="${l.id}">
+            <label class="pi-pack-label">Opakowanie / 1 ${escapeHtml(unitFa)} → base_unit:</label>
+            <input type="number" class="pi-pack-qty" step="0.000001" min="0.000001" placeholder="np. 0.02" value="${escapeHtml(hint)}" />
+            <button type="button" class="pi-pack-save pi-line-bulk-btn">Zapisz opak.</button>
+        </div>`;
+    }
+
     function filterSkuOptions(q) {
         const n = normSearch(q);
         const list = state.skuOptions;
@@ -788,6 +803,36 @@
         master.indeterminate = k > 0 && k < n;
     }
 
+    function bindPackMappingControls(root, lines, isAccepted) {
+        if (isAccepted || !root) return;
+        const inv = state.currentInvoice;
+        if (!inv) return;
+        root.querySelectorAll('.pi-pack-save').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const row = btn.closest('.pi-pack-row');
+                const lid = parseInt(row?.dataset?.lineId || '0', 10);
+                const line = (lines || []).find(l => l.id === lid);
+                const qty = parseFloat(row?.querySelector('.pi-pack-qty')?.value || '0');
+                if (!lid || !(qty > 0)) {
+                    flashModalFeedback('Podaj ilość base_unit na 1 jednostkę FA (np. 0.02).', 'err');
+                    return;
+                }
+                const r = await api('set_line_pack', {
+                    invoice_id: inv.id,
+                    line_id: lid,
+                    pack_qty_base: qty,
+                    pack_invoice_unit: (line && line.unit) ? line.unit : 'szt',
+                });
+                if (!r.success) {
+                    showError(r.message || 'Zapis opakowania nie powiódł się.');
+                    return;
+                }
+                flashModalFeedback('Mapowanie opakowania zapisane.', 'ok');
+                await openInvoice(inv.id);
+            });
+        });
+    }
+
     function bindBulkLineControls(root) {
         const inv = state.currentInvoice;
         if (!inv || !root.querySelector('#pi-line-bulk-bar')) return;
@@ -1126,6 +1171,7 @@
                     <td style="font-family:ui-monospace,monospace">
                         ${parseFloat(l.qty).toFixed(3)} ${escapeHtml(l.unit || '')}
                         ${normPreviewHtml(l)}
+                        ${packMappingHtml(l, isAccepted)}
                     </td>
                     <td style="font-family:ui-monospace,monospace;text-align:right">${parseFloat(l.unit_net).toFixed(2)}</td>
                     <td style="font-family:ui-monospace,monospace">${parseFloat(l.vat_rate).toFixed(0)}%</td>
@@ -1163,6 +1209,7 @@
                     <td style="font-family:ui-monospace,monospace">
                         ${parseFloat(l.qty).toFixed(3)} ${escapeHtml(l.unit || '')}
                         ${normPreviewHtml(l)}
+                        ${packMappingHtml(l, isAccepted)}
                     </td>
                     <td style="font-family:ui-monospace,monospace;text-align:right">${parseFloat(l.unit_net).toFixed(2)}</td>
                     <td style="font-family:ui-monospace,monospace">${parseFloat(l.vat_rate).toFixed(0)}%</td>
@@ -1204,6 +1251,7 @@
         if (showBulk) {
             bindBulkLineControls($('#pi-modal-body'));
         }
+        bindPackMappingControls($('#pi-modal-body'), lines, isAccepted);
 
         // Lock buttons gdy accepted/rejected/error importu
         $('#pi-modal-accept').disabled = isAccepted || isRejected || isImportError;
@@ -1669,6 +1717,7 @@
                 `Środowisko: ${r.data.environment}\n` +
                 `• Odczytane z API (pozycje na liście): ${s.fetched}\n` +
                 `• Nowe w bazie (import): ${s.inserted}\n` +
+                `• Błąd jakości (puste / KOR bez linii): ${s.quality_error ?? 0}\n` +
                 `• Pominięte (już były / duplikat): ${s.skipped}\n` +
                 `• Błędy (parsowanie / sieć): ${s.errors}`
         );

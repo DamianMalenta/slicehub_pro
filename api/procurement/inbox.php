@@ -29,6 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
  *   - reparse        — ponowny AutoScan match (po dodaniu nowych aliasów / mappingów)
  *   - sync_lines_from_xml — ponowny parse xml_blob → pola linii (P_7/P_7A/qty); dry_run=1 tylko audyt
  *   - preview_normalize — podgląd przeliczenia FA → base_unit (jedna linia lub cała faktura)
+ *   - set_line_pack     — ręczne pack_qty_base / pack_invoice_unit w sh_product_mapping (bez re-upload)
  *   - update_line    — override linii: legacy tylko `sku`; przy migracji 057: `line_type` INVENTORY|EXPENSE,
  *                      INVENTORY + `sku`, EXPENSE + `expense_category_id`
  *   - bulk_update_lines — ta sama logika co update_line, dla wielu line_ids naraz (UI: edycja grupowa / tag OPEX)
@@ -235,8 +236,13 @@ function inboxRescanLines(PDO $pdo, int $tenantId, int $invoiceId): array
     $invOnly = inboxKsefLineHasOpexColumns($pdo)
         ? " AND COALESCE(line_type, 'INVENTORY') = 'INVENTORY' "
         : '';
+    $nipSt = $pdo->prepare('SELECT supplier_nip FROM sh_ksef_invoices WHERE id = :id AND tenant_id = :tid LIMIT 1');
+    $nipSt->execute([':id' => $invoiceId, ':tid' => $tenantId]);
+    $supplierNip = (string) ($nipSt->fetchColumn() ?: '');
+
     $st = $pdo->prepare(
-        "SELECT id, line_no, external_name FROM sh_ksef_invoice_lines
+        "SELECT id, line_no, external_name, resolved_by_user_id
+           FROM sh_ksef_invoice_lines
           WHERE ksef_invoice_id = :iid {$invOnly} ORDER BY line_no"
     );
     $st->execute([':iid' => $invoiceId]);
@@ -249,18 +255,23 @@ function inboxRescanLines(PDO $pdo, int $tenantId, int $invoiceId): array
                 match_confidence = :conf,
                 match_candidates_json = :cand,
                 resolved_at = NOW(),
-                resolved_by_user_id = NULL
+                resolved_by_user_id = :uid_keep
           WHERE id = :id AND ksef_invoice_id = :iid"
     );
 
-    $stats = ['EXACT' => 0, 'ALIAS' => 0, 'NAME' => 0, 'FUZZY' => 0, 'NONE' => 0, 'auto_accept' => 0];
+    $stats = ['EXACT' => 0, 'ALIAS' => 0, 'NAME' => 0, 'FUZZY' => 0, 'NONE' => 0, 'auto_accept' => 0, 'skipped_manual' => 0];
     foreach ($lines as $line) {
-        $r = AutoScanEngine::match($pdo, $tenantId, (string) $line['external_name']);
+        if (!empty($line['resolved_by_user_id'])) {
+            $stats['skipped_manual']++;
+            continue;
+        }
+        $r = AutoScanEngine::match($pdo, $tenantId, (string) $line['external_name'], null, $supplierNip);
         $upd->execute([
             ':sku'  => $r['sku'],
             ':mt'   => $r['match_type'] ?? 'NONE',
             ':conf' => $r['confidence'] ?? 0,
             ':cand' => json_encode($r['candidates'] ?? [], JSON_UNESCAPED_UNICODE),
+            ':uid_keep' => null,
             ':id'   => $line['id'],
             ':iid'  => $invoiceId,
         ]);
@@ -270,6 +281,42 @@ function inboxRescanLines(PDO $pdo, int $tenantId, int $invoiceId): array
     }
     $stats['total'] = count($lines);
     return $stats;
+}
+
+/** Alias external_name → SKU (ręczny wybór / accept) z kontekstem NIP dostawcy. */
+function inboxLearnManualMapping(PDO $pdo, int $tenantId, string $externalName, string $sku, string $supplierNip): void
+{
+    $name = trim($externalName);
+    $skuTrim = trim($sku);
+    if ($name === '' || $skuTrim === '') {
+        return;
+    }
+    AutoScanEngine::learnMapping($pdo, $tenantId, $name, $skuTrim, $supplierNip);
+}
+
+/** Po ręcznym SKU (update_line / bulk) — alias per nazwa linii + NIP dostawcy. */
+function inboxLearnManualFromLineIds(
+    PDO $pdo,
+    int $tenantId,
+    int $invoiceId,
+    array $lineIds,
+    string $sku,
+    string $supplierNip
+): void {
+    $skuTrim = trim($sku);
+    if ($skuTrim === '' || $lineIds === []) {
+        return;
+    }
+    $placeholders = implode(',', array_fill(0, count($lineIds), '?'));
+    $params = array_merge([$invoiceId], array_map('intval', $lineIds));
+    $st = $pdo->prepare(
+        "SELECT DISTINCT external_name FROM sh_ksef_invoice_lines
+          WHERE ksef_invoice_id = ? AND id IN ({$placeholders})"
+    );
+    $st->execute($params);
+    foreach ($st->fetchAll(PDO::FETCH_COLUMN) ?: [] as $extName) {
+        inboxLearnManualMapping($pdo, $tenantId, (string) $extName, $skuTrim, $supplierNip);
+    }
 }
 
 /** Odśwież cache qty_normalized / unit_net_normalized dla linii z SKU. */
@@ -842,7 +889,11 @@ try {
                 $upd->execute([':sku' => $sku, ':uid' => $user_id, ':lid' => $lid]);
                 $nipSt = $pdo->prepare('SELECT supplier_nip FROM sh_ksef_invoices WHERE id = :id AND tenant_id = :tid LIMIT 1');
                 $nipSt->execute([':id' => $iid, ':tid' => $tenant_id]);
-                inboxRefreshNormalizations($pdo, $tenant_id, $iid, (string) ($nipSt->fetchColumn() ?: ''));
+                $sn = (string) ($nipSt->fetchColumn() ?: '');
+                $extSt = $pdo->prepare('SELECT external_name FROM sh_ksef_invoice_lines WHERE id = :lid LIMIT 1');
+                $extSt->execute([':lid' => $lid]);
+                inboxLearnManualMapping($pdo, $tenant_id, (string) ($extSt->fetchColumn() ?: ''), $sku, $sn);
+                inboxRefreshNormalizations($pdo, $tenant_id, $iid, $sn);
                 inboxResponse(true, ['line_id' => $lid, 'sku' => $sku], 'Linia zaktualizowana.');
                 break;
             }
@@ -885,7 +936,11 @@ try {
                 $upd->execute([':sku' => $sku, ':uid' => $user_id, ':lid' => $lid, ':iid' => $iid]);
                 $nipSt = $pdo->prepare('SELECT supplier_nip FROM sh_ksef_invoices WHERE id = :id AND tenant_id = :tid LIMIT 1');
                 $nipSt->execute([':id' => $iid, ':tid' => $tenant_id]);
-                inboxRefreshNormalizations($pdo, $tenant_id, $iid, (string) ($nipSt->fetchColumn() ?: ''));
+                $sn = (string) ($nipSt->fetchColumn() ?: '');
+                $extSt = $pdo->prepare('SELECT external_name FROM sh_ksef_invoice_lines WHERE id = :lid LIMIT 1');
+                $extSt->execute([':lid' => $lid]);
+                inboxLearnManualMapping($pdo, $tenant_id, (string) ($extSt->fetchColumn() ?: ''), $sku, $sn);
+                inboxRefreshNormalizations($pdo, $tenant_id, $iid, $sn);
                 inboxResponse(true, [
                     'line_id' => $lid, 'line_type' => 'INVENTORY', 'sku' => $sku,
                 ], 'Linia zaktualizowana (magazyn).');
@@ -912,6 +967,54 @@ try {
             inboxResponse(true, [
                 'line_id' => $lid, 'line_type' => 'EXPENSE', 'expense_category_id' => $ecid,
             ], 'Linia zaktualizowana (koszt OPEX).');
+            break;
+        }
+
+        // ---------------------------------------------------------------------
+        case 'set_line_pack': {
+            inboxRequireRole($actorRole, ['owner', 'manager']);
+            $iid = (int) ($input['invoice_id'] ?? 0);
+            $lid = (int) ($input['line_id'] ?? 0);
+            $packQty = (float) ($input['pack_qty_base'] ?? 0);
+            $packUnit = trim((string) ($input['pack_invoice_unit'] ?? 'szt'));
+            if ($iid <= 0 || $lid <= 0 || $packQty <= 0) {
+                inboxFail(400, 'INVALID_INPUT', 'Wymagane: invoice_id, line_id, pack_qty_base > 0.');
+            }
+
+            $own = $pdo->prepare(
+                "SELECT i.status, i.supplier_nip, l.external_name, l.resolved_sku
+                   FROM sh_ksef_invoices i
+                   JOIN sh_ksef_invoice_lines l ON l.ksef_invoice_id = i.id
+                  WHERE i.tenant_id = :tid AND i.id = :iid AND l.id = :lid LIMIT 1"
+            );
+            $own->execute([':tid' => $tenant_id, ':iid' => $iid, ':lid' => $lid]);
+            $row = $own->fetch(PDO::FETCH_ASSOC);
+            if (!$row) {
+                inboxFail(404, 'NOT_FOUND');
+            }
+            if (($row['status'] ?? '') === 'accepted') {
+                inboxFail(400, 'ALREADY_ACCEPTED');
+            }
+            $sku = trim((string) ($row['resolved_sku'] ?? ''));
+            if ($sku === '') {
+                inboxFail(400, 'SKU_REQUIRED', 'Najpierw przypisz SKU do linii (INVENTORY).');
+            }
+
+            InvoiceLineQtyNormalizer::learnPackMapping(
+                $pdo,
+                $tenant_id,
+                (string) ($row['external_name'] ?? ''),
+                (string) ($row['supplier_nip'] ?? ''),
+                $packQty,
+                $packUnit !== '' ? $packUnit : 'szt',
+                $sku
+            );
+            inboxRefreshNormalizations($pdo, $tenant_id, $iid, (string) ($row['supplier_nip'] ?? ''));
+            inboxResponse(true, [
+                'line_id' => $lid,
+                'pack_qty_base' => $packQty,
+                'pack_invoice_unit' => $packUnit,
+            ], 'Mapowanie opakowania zapisane.');
             break;
         }
 
@@ -982,6 +1085,11 @@ try {
                 foreach ($lineIds as $lid) {
                     $upd->execute([':sku' => $sku, ':uid' => $user_id, ':lid' => $lid, ':iid' => $iid]);
                 }
+                $nipSt = $pdo->prepare('SELECT supplier_nip FROM sh_ksef_invoices WHERE id = :id AND tenant_id = :tid LIMIT 1');
+                $nipSt->execute([':id' => $iid, ':tid' => $tenant_id]);
+                $sn = (string) ($nipSt->fetchColumn() ?: '');
+                inboxLearnManualFromLineIds($pdo, $tenant_id, $iid, $lineIds, $sku, $sn);
+                inboxRefreshNormalizations($pdo, $tenant_id, $iid, $sn);
                 $n = count($lineIds);
                 inboxResponse(true, ['updated' => $n, 'sku' => $sku],
                     "Zaktualizowano {$n} " . ($n === 1 ? 'linię' : 'linii') . ' (SKU).');
@@ -1027,7 +1135,9 @@ try {
                 }
                 $nipSt = $pdo->prepare('SELECT supplier_nip FROM sh_ksef_invoices WHERE id = :id AND tenant_id = :tid LIMIT 1');
                 $nipSt->execute([':id' => $iid, ':tid' => $tenant_id]);
-                inboxRefreshNormalizations($pdo, $tenant_id, $iid, (string) ($nipSt->fetchColumn() ?: ''));
+                $sn = (string) ($nipSt->fetchColumn() ?: '');
+                inboxLearnManualFromLineIds($pdo, $tenant_id, $iid, $lineIds, $sku, $sn);
+                inboxRefreshNormalizations($pdo, $tenant_id, $iid, $sn);
                 $n = count($lineIds);
                 inboxResponse(true, [
                     'updated' => $n, 'line_type' => 'INVENTORY', 'sku' => $sku,

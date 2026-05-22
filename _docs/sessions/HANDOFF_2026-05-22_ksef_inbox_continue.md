@@ -84,17 +84,17 @@ Stare wpisy `draft` z `total_gross_minor=0` w bazie — import ich nie naprawi.
 - Per faktura: `POST inbox.php` `action=reassess_invoice` (wymaga `xml_blob`)
 - Lub odrzucić/usunąć ręcznie
 
-### P3 — Opcjonalnie (follow-up)
+### ~~P3 — Opcjonalnie (follow-up)~~ ✅ (branch `cursor/ksef-inbox-p3-d8f0`)
 
-| Temat | Opis |
-|-------|------|
-| **Migracja 059** | `UNIQUE (tenant_id, supplier_nip, external_name)` na `sh_product_mapping` — dziś UNIQUE tylko po `external_name`; `loadPackMapping` preferuje NIP w SELECT, ale learn może się gryźć między dostawcami |
-| **reparse** | Nadal nadpisuje ręczne SKU, czyści `resolved_by_user_id` — znany drift |
-| **learn przy update_line** | Tylko `smart_create_sku` uczy mapping; sam wybór SKU nie zapisuje aliasu |
-| **KOR z liniami** | Wszystkie `KOR`/`ROZ` → `error`; ewentualny osobny flow korekt magazynowych |
-| **UI korekty pack** | Ręczne `pack_qty_base` w modalu bez re-upload |
-| **poll_now stats** | Pokazać w UI liczbę „błąd jakości” jak w workerze |
-| **Dokumentacja** | Uzupełnić `_docs/sessions/2026-05-22_ksef_qty_normalization.md` o puste faktury + Parser layers |
+| Temat | Status |
+|-------|--------|
+| **Migracja 059** | ✅ `uq_mapping_supplier` |
+| **reparse** | ✅ pomija linie z `resolved_by_user_id` |
+| **learn przy update_line** | ✅ `learnMapping` + NIP |
+| **KOR z liniami** | ✅ `draft` + warn (puste KOR → `error`) |
+| **UI korekty pack** | ✅ `set_line_pack` + wiersz w modalu |
+| **poll_now stats** | ✅ `quality_error` w alert |
+| **Dokumentacja** | ✅ `2026-05-22_ksef_qty_normalization.md` |
 
 ---
 

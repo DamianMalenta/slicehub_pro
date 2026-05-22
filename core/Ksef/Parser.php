@@ -244,18 +244,28 @@ class Parser
             'KOR', 'KOR_ZAL', 'KOR_ROZ', 'KOR_POD', 'KOR_ODS',
             'ROZ', 'UPR', 'KOR_UPR', 'NOT', 'KOR_NOT',
         ];
+        $lines = is_array($parsed['lines'] ?? null) ? $parsed['lines'] : [];
         if ($invoiceType !== '' && in_array($invoiceType, $nonProcurementTypes, true)) {
+            if (self::countMeaningfulLines($lines) > 0 && !self::headerTotalsAreZero($parsed)) {
+                return [
+                    'procurement_ok' => true,
+                    'level'          => 'warn',
+                    'messages'       => [
+                        "Dokument „{$invoiceType}” (korekta/rozliczenie) — zweryfikuj znaki ilości przed accept.",
+                        'Cofnięcie zaakceptowanej faktury: akcja Reverse w inbox (KOR PZ).',
+                    ],
+                ];
+            }
             return [
                 'procurement_ok' => false,
                 'level'          => 'reject',
                 'messages'       => [
-                    "Rodzaj faktury „{$invoiceType}” — dokument korygujący/rozliczeniowy (nie zakup na magazyn).",
+                    "Rodzaj faktury „{$invoiceType}” — dokument korygujący/rozliczeniowy bez pozycji magazynowych.",
                 ],
             ];
         }
 
         $messages = [];
-        $lines = is_array($parsed['lines'] ?? null) ? $parsed['lines'] : [];
         if (self::countMeaningfulLines($lines) === 0) {
             $messages[] = 'Brak pozycji FaWiersz z nazwą, ilością i kwotą — nie można przyjąć na magazyn.';
         }
@@ -305,8 +315,8 @@ class Parser
                 continue;
             }
             $hasName = trim((string) ($line['external_name'] ?? '')) !== '';
-            $hasQty = (float) ($line['qty'] ?? 0) > 0;
-            $hasMoney = self::lineNetMinor($line) > 0;
+            $hasQty = abs((float) ($line['qty'] ?? 0)) > 0;
+            $hasMoney = abs(self::lineNetMinor($line)) > 0;
             if ($hasName && ($hasQty || $hasMoney)) {
                 $n++;
             }

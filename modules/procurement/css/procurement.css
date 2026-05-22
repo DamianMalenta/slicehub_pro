@@ -640,3 +640,22 @@ html, body {
     margin-top: 0.15rem;
     font-style: italic;
 }
+
+.pi-pack-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: 0.35rem;
+    font-size: 0.65rem;
+}
+.pi-pack-label { color: #94a3b8; }
+.pi-pack-qty {
+    width: 4.5rem;
+    padding: 0.2rem 0.35rem;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.25);
+    color: #e2e8f0;
+    font-family: ui-monospace, monospace;
+}

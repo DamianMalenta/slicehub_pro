@@ -216,7 +216,7 @@ final class InvoiceLineQtyNormalizer
             return;
         }
         $nip = preg_replace('/\D+/', '', $supplierNip) ?? '';
-        $nipVal = $nip !== '' ? $nip : null;
+        $nipVal = $nip !== '' ? $nip : '';
         try {
             $pdo->prepare(
                 "INSERT INTO sh_product_mapping

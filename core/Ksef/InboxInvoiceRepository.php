@@ -127,11 +127,17 @@ final class InboxInvoiceRepository
             $sql .= " AND COALESCE(line_type, 'INVENTORY') = 'INVENTORY'";
         }
         $sql .= ' ORDER BY line_no';
+        $nipSt = $pdo->prepare(
+            'SELECT supplier_nip FROM sh_ksef_invoices WHERE id = :iid AND tenant_id = :tid LIMIT 1'
+        );
+        $nipSt->execute([':iid' => $invoiceId, ':tid' => $tenantId]);
+        $supplierNip = (string) ($nipSt->fetchColumn() ?: '');
+
         $linesStmt = $pdo->prepare($sql);
         $linesStmt->execute([':iid' => $invoiceId]);
         $stats = ['total' => 0, 'auto_accept' => 0];
         foreach ($linesStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
-            $r = \AutoScanEngine::match($pdo, $tenantId, (string) $row['external_name']);
+            $r = \AutoScanEngine::match($pdo, $tenantId, (string) $row['external_name'], null, $supplierNip);
             $mt = (string) ($r['match_type'] ?? 'NONE');
             $conf = (int) ($r['confidence'] ?? 0);
             $matchUpd->execute([

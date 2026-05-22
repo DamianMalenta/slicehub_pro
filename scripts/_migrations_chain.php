@@ -70,4 +70,5 @@ return [
     '056_ksef_invoice_cost_category.sql',
     '057_ksef_line_opex_expense_categories.sql',
     '058_ksef_line_qty_normalization.sql',
+    '059_product_mapping_unique_supplier.sql',
 ];

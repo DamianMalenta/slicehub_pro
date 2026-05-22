@@ -100,8 +100,13 @@ class AutoScanEngine
      *   candidates: list<array{sku:string,name:string,confidence:int,match_type:string}>
      * }
      */
-    public static function match(PDO $pdo, int $tenantId, string $externalName, ?int $autoAcceptThreshold = null): array
-    {
+    public static function match(
+        PDO $pdo,
+        int $tenantId,
+        string $externalName,
+        ?int $autoAcceptThreshold = null,
+        string $supplierNip = ''
+    ): array {
         $threshold = $autoAcceptThreshold ?? self::resolveAutoAcceptThreshold($pdo, $tenantId);
         $name = trim($externalName);
 
@@ -110,7 +115,7 @@ class AutoScanEngine
         }
 
         // 1. EXACT — sprawdź sh_product_mapping (poprzednie akceptacje)
-        $exactMatch = self::lookupExactMapping($pdo, $tenantId, $name);
+        $exactMatch = self::lookupExactMapping($pdo, $tenantId, $name, $supplierNip);
         if ($exactMatch !== null) {
             return self::buildResult(
                 $externalName, self::MATCH_EXACT, self::CONFIDENCE_EXACT,
@@ -191,13 +196,21 @@ class AutoScanEngine
      *
      * @return array{success:bool, learned:bool, error?:string}
      */
-    public static function learnMapping(PDO $pdo, int $tenantId, string $externalName, string $sku): array
-    {
+    public static function learnMapping(
+        PDO $pdo,
+        int $tenantId,
+        string $externalName,
+        string $sku,
+        string $supplierNip = ''
+    ): array {
         $name = trim($externalName);
         $skuTrim = trim($sku);
         if ($name === '' || $skuTrim === '') {
             return ['success' => false, 'learned' => false, 'error' => 'external_name i sku są wymagane.'];
         }
+
+        $nip = preg_replace('/\D+/', '', $supplierNip) ?? '';
+        $nipVal = $nip !== '' ? $nip : '';
 
         try {
             // Walidacja: SKU musi istnieć w sys_items dla tego tenanta (Prawo VI + cross-silo SKU)
@@ -212,12 +225,12 @@ class AutoScanEngine
                 return ['success' => false, 'learned' => false, 'error' => "SKU '{$skuTrim}' nie istnieje w słowniku surowców (sys_items)."];
             }
 
-            // INSERT IGNORE — idempotentne
             $stmt = $pdo->prepare(
-                "INSERT IGNORE INTO sh_product_mapping (tenant_id, external_name, internal_sku)
-                 VALUES (:tid, :ext, :sku)"
+                "INSERT INTO sh_product_mapping (tenant_id, external_name, internal_sku, supplier_nip)
+                 VALUES (:tid, :ext, :sku, :nip)
+                 ON DUPLICATE KEY UPDATE internal_sku = VALUES(internal_sku)"
             );
-            $stmt->execute([':tid' => $tenantId, ':ext' => $name, ':sku' => $skuTrim]);
+            $stmt->execute([':tid' => $tenantId, ':ext' => $name, ':sku' => $skuTrim, ':nip' => $nipVal]);
             $learned = $stmt->rowCount() > 0;
 
             // Invalidate cache (next match() rebuild index, mapping check też się zaktualizuje)
@@ -234,9 +247,37 @@ class AutoScanEngine
     // Private helpers
     // =========================================================================
 
-    /** Lookup exact match in sh_product_mapping (case-insensitive). */
-    private static function lookupExactMapping(PDO $pdo, int $tenantId, string $externalName): ?array
-    {
+    /** Lookup exact match in sh_product_mapping (case-insensitive, prefer NIP dostawcy). */
+    private static function lookupExactMapping(
+        PDO $pdo,
+        int $tenantId,
+        string $externalName,
+        string $supplierNip = ''
+    ): ?array {
+        $nip = preg_replace('/\D+/', '', $supplierNip) ?? '';
+        if ($nip !== '') {
+            $stmt = $pdo->prepare(
+                "SELECT m.internal_sku AS sku, s.name, s.base_unit AS unit
+                   FROM sh_product_mapping m
+                   JOIN sys_items s
+                     ON s.sku = m.internal_sku AND s.tenant_id = m.tenant_id
+                  WHERE m.tenant_id = :tid
+                    AND LOWER(m.external_name) = LOWER(:ext)
+                    AND m.supplier_nip = :nip
+                    AND s.is_deleted = 0 AND s.is_active = 1
+                  LIMIT 1"
+            );
+            $stmt->execute([':tid' => $tenantId, ':ext' => $externalName, ':nip' => $nip]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($row) {
+                return [
+                    'sku'  => (string) $row['sku'],
+                    'name' => (string) $row['name'],
+                    'unit' => (string) ($row['unit'] ?? ''),
+                ];
+            }
+        }
+
         $stmt = $pdo->prepare(
             "SELECT m.internal_sku AS sku, s.name, s.base_unit AS unit
                FROM sh_product_mapping m
@@ -245,11 +286,13 @@ class AutoScanEngine
                 AND s.tenant_id = m.tenant_id
               WHERE m.tenant_id = :tid
                 AND LOWER(m.external_name) = LOWER(:ext)
+                AND (m.supplier_nip IS NULL OR m.supplier_nip = '')
                 AND s.is_deleted = 0
                 AND s.is_active = 1
+              ORDER BY (m.supplier_nip = :nip2) DESC
               LIMIT 1"
         );
-        $stmt->execute([':tid' => $tenantId, ':ext' => $externalName]);
+        $stmt->execute([':tid' => $tenantId, ':ext' => $externalName, ':nip2' => $nip]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$row) return null;
         return [

@@ -1,52 +1,56 @@
 # Sesja: KSeF — normalizacja ilości FA → base_unit magazynu
 
 **Data:** 2026-05-22  
-**Branch:** `cursor/ksef-qty-normalization-b255`
+**Branch:** `cursor/ksef-inbox-p3-d8f0` (P3 po merge PR #32)
 
 ---
 
 ## Cel
 
-Naprawić błąd przyjmowania faktur (np. `BAZYLIA CIĘTA 20G`, 1 SZT. → magazyn w kg): poprawna ilość i AVCO w `sys_items.base_unit`, podgląd przed akceptacją.
+Naprawić błąd przyjmowania faktur (np. `BAZYLIA CIĘTA 20G`, 1 SZT. → magazyn w kg): poprawna ilość i AVCO w `sys_items.base_unit`, podgląd przed akceptacją. **P3:** domknięcie follow-up z HANDOFF (mapping per NIP, reparse, learn, KOR z liniami, UI pack, poll stats).
 
 ---
 
-## Pliki dotknięte
+## Pliki dotknięte (P1 + P3)
 
 | Plik | Zmiana |
 |------|--------|
-| `core/Units.php` | NEW |
-| `core/PackSizeExtractor.php` | NEW |
-| `core/InvoiceLineQtyNormalizer.php` | NEW |
-| `core/Ksef/InboxQtyNormalize.php` | NEW |
-| `database/migrations/058_ksef_line_qty_normalization.sql` | NEW |
-| `scripts/_migrations_chain.php` | +058 |
-| `scripts/test_invoice_qty_normalizer.php` | NEW |
-| `api/procurement/inbox.php` | accept, preview_normalize, refresh cache |
-| `scripts/worker_ksef_inbox.php` | refresh po imporcie |
-| `modules/procurement/js/procurement_app.js` | Podgląd normalizacji |
-| `modules/procurement/css/procurement.css` | Style podglądu |
-| `_docs/proposals/ksef_invoice_qty_normalization.md` | Stan obecny + status wdrożenia |
+| `core/Units.php`, `PackSizeExtractor.php`, `InvoiceLineQtyNormalizer.php` | Normalizacja qty |
+| `core/Ksef/InboxQtyNormalize.php`, `InboxImport.php`, `Parser.php`, `Client.php` | Import, warstwy, KOR z liniami → warn/draft |
+| `core/AutoScanEngine.php` | `learnMapping` + `match` z `supplier_nip` |
+| `core/Ksef/InboxInvoiceRepository.php` | AutoScan z NIP dostawcy |
+| `database/migrations/058_*.sql`, `059_product_mapping_unique_supplier.sql` | Cache linii + UNIQUE mapping |
+| `api/procurement/inbox.php` | accept (+ P_7A w SELECT), reparse (ochrona MANUAL), `set_line_pack`, learn przy `update_line` |
+| `api/procurement/ksef_config.php` | `poll_now` → `quality_error` w stats |
+| `modules/procurement/js/procurement_app.js` | Pack UI, poll alert |
+| `scripts/test_*.php` | CLI regresja |
 
 ---
 
 ## Decyzje architektoniczne
 
-1. **Autorytatywne przeliczenie w `accept`** — cache w DB (`qty_normalized`) to podgląd; PZ zawsze z `InvoiceLineQtyNormalizer`.
-2. **Warstwy:** mapping `pack_*` → konwersja jednostki FA → ekstrakcja z nazwy (warn).
-3. **Learn:** po accept z `name_weight` / `name_multipack` zapis `pack_qty_base` w `sh_product_mapping`.
-4. **AutoScan bez zmian** — tylko SKU; qty poza scoringiem.
+1. **Autorytatywne przeliczenie w `accept`** — cache w DB to podgląd; PZ z `InvoiceLineQtyNormalizer`.
+2. **Warstwy walidacji (Parser):** transport (`Client`) → struktura (`parse`) → sumy (`enrichParsedTotals`) → gate zakupów (`assessProcurementQuality`) → SKU/PZ (`accept`).
+3. **Puste FA / KOR bez linii** → `status=error`; **KOR z FaWiersz + kwoty** → `draft` + `level=warn` (Reverse/KOR PZ w UI).
+4. **Migracja 059:** `UNIQUE (tenant_id, supplier_nip, external_name)` — learn pack i alias per dostawca.
+5. **reparse:** nie dotyka linii z `resolved_by_user_id` (ręczne SKU).
+6. **update_line / bulk INVENTORY:** `AutoScanEngine::learnMapping` z NIP dostawcy.
 
 ---
 
 ## Otwarte pytania
 
-- UI ręcznej korekty `pack_qty_base` bez ponownego uploadu (formularz w modalu) — opcjonalny follow-up.
-- Retroaktywna korekta już zaakceptowanych PZ — poza zakresem (tylko nowe accept).
+- Retroaktywna korekta już zaakceptowanych PZ — poza zakresem.
+- **reparse** nadal nadpisuje AutoScan na liniach bez ręcznego `resolved_by_user_id` (zamierzone).
 
 ---
 
 ## Test (E2E)
 
-- CLI: `php scripts/test_invoice_qty_normalizer.php` — 10/10 OK.
-- Manual: migracja 058 + inbox accept linia E1 (wymaga środowiska z Apache/MariaDB).
+```bash
+php scripts/apply_migrations_chain.php   # 058 + 059
+php scripts/test_invoice_qty_normalizer.php
+php scripts/test_ksef_parser_quality.php   # + KOR z liniami → warn
+```
+
+**Test (E2E) manualny:** BAZYLIA + P_7A 20G → accept → +0,02 kg; `set_line_pack` w modalu; poll_now pokazuje `quality_error`.
