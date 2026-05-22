@@ -27,6 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
  *                      duplikat (tenant + NIP dostawcy + numer FA): HTTP 409 DUPLICATE_INVOICE
  *                      lub `duplicate_resolution: replace` (nie dla accepted + PZ).
  *   - reparse        — ponowny AutoScan match (po dodaniu nowych aliasów / mappingów)
+ *   - sync_lines_from_xml — ponowny parse xml_blob → pola linii (P_7/P_7A/qty); dry_run=1 tylko audyt
  *   - preview_normalize — podgląd przeliczenia FA → base_unit (jedna linia lub cała faktura)
  *   - update_line    — override linii: legacy tylko `sku`; przy migracji 057: `line_type` INVENTORY|EXPENSE,
  *                      INVENTORY + `sku`, EXPENSE + `expense_category_id`
@@ -605,6 +606,118 @@ try {
             $nipSt->execute([':id' => $iid, ':tid' => $tenant_id]);
             inboxRefreshNormalizations($pdo, $tenant_id, $iid, (string) ($nipSt->fetchColumn() ?: ''));
             inboxResponse(true, ['match_stats' => $stats], 'Rescan zakończony.');
+            break;
+        }
+
+        // ---------------------------------------------------------------------
+        case 'sync_lines_from_xml': {
+            inboxRequireRole($actorRole, ['owner', 'manager']);
+            $iid = (int) ($input['invoice_id'] ?? 0);
+            $dryRun = !empty($input['dry_run']);
+            if ($iid <= 0) {
+                inboxFail(400, 'INVALID_INVOICE_ID');
+            }
+
+            $invSt = $pdo->prepare(
+                "SELECT id, status, supplier_nip, xml_blob FROM sh_ksef_invoices
+                  WHERE id = :id AND tenant_id = :tid LIMIT 1"
+            );
+            $invSt->execute([':id' => $iid, ':tid' => $tenant_id]);
+            $inv = $invSt->fetch(PDO::FETCH_ASSOC);
+            if (!$inv) {
+                inboxFail(404, 'NOT_FOUND');
+            }
+            if ($inv['status'] === 'accepted') {
+                inboxFail(400, 'ALREADY_ACCEPTED', 'Zaakceptowana faktura — synchronizacja z XML zablokowana (cofnij accept / reverse).');
+            }
+            $xml = trim((string) ($inv['xml_blob'] ?? ''));
+            if ($xml === '') {
+                inboxFail(400, 'NO_XML', 'Brak xml_blob — nie da się zweryfikować źródła KSeF.');
+            }
+
+            $parser = new \SliceHub\Ksef\Parser();
+            $parsed = $parser->parse($xml);
+            if (!$parsed['success']) {
+                inboxFail(400, 'PARSE_FAILED', implode('; ', $parsed['errors']));
+            }
+
+            $dbLinesSt = $pdo->prepare(
+                "SELECT id, line_no, external_name, external_description, unit, qty, unit_net
+                   FROM sh_ksef_invoice_lines WHERE ksef_invoice_id = :iid ORDER BY line_no"
+            );
+            $dbLinesSt->execute([':iid' => $iid]);
+            $dbByNo = [];
+            foreach ($dbLinesSt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $dbByNo[(int) $row['line_no']] = $row;
+            }
+
+            $diffs = [];
+            $upd = $pdo->prepare(
+                "UPDATE sh_ksef_invoice_lines
+                    SET external_name = :name,
+                        external_description = :desc,
+                        unit = :unit,
+                        qty = :qty,
+                        unit_net = :unet,
+                        line_net_minor = :lnet,
+                        vat_rate = :vat
+                  WHERE id = :lid AND ksef_invoice_id = :iid"
+            );
+
+            foreach ($parsed['lines'] as $pl) {
+                $lno = (int) ($pl['line_no'] ?? 0);
+                $db = $dbByNo[$lno] ?? null;
+                $xmlName = trim((string) ($pl['external_name'] ?? ''));
+                $xmlDesc = trim((string) ($pl['description'] ?? ''));
+                $dbName = $db ? trim((string) ($db['external_name'] ?? '')) : '';
+                $dbDesc = $db ? trim((string) ($db['external_description'] ?? '')) : '';
+
+                $diffs[] = [
+                    'line_no'        => $lno,
+                    'xml_p_7'        => $xmlName,
+                    'xml_p_7a'       => $xmlDesc,
+                    'db_external_name' => $dbName,
+                    'db_external_description' => $dbDesc,
+                    'name_match'     => $dbName === $xmlName,
+                    'desc_match'     => $dbDesc === $xmlDesc,
+                ];
+
+                if (!$dryRun && $db !== null) {
+                    $upd->execute([
+                        ':name' => $xmlName,
+                        ':desc' => $xmlDesc !== '' ? $xmlDesc : null,
+                        ':unit' => $pl['unit'] ?: null,
+                        ':qty'  => $pl['qty'],
+                        ':unet' => $pl['unit_net'],
+                        ':lnet' => $pl['line_net_minor'],
+                        ':vat'  => $pl['vat_rate'],
+                        ':lid'  => (int) $db['id'],
+                        ':iid'  => $iid,
+                    ]);
+                }
+            }
+
+            if (!$dryRun) {
+                $pdo->prepare(
+                    "UPDATE sh_ksef_invoices SET parsed_json = :pj WHERE id = :id AND tenant_id = :tid"
+                )->execute([
+                    ':pj' => json_encode($parsed, JSON_UNESCAPED_UNICODE),
+                    ':id' => $iid,
+                    ':tid' => $tenant_id,
+                ]);
+                inboxRefreshNormalizations($pdo, $tenant_id, $iid, (string) ($inv['supplier_nip'] ?? ''));
+            }
+
+            $mismatch = array_values(array_filter($diffs, static fn ($d) => !$d['name_match'] || !$d['desc_match']));
+
+            inboxResponse(true, [
+                'invoice_id'   => $iid,
+                'dry_run'      => $dryRun,
+                'lines'        => $diffs,
+                'mismatch_count' => count($mismatch),
+            ], $dryRun
+                ? 'Audyt XML vs baza (bez zapisu).'
+                : 'Linie zsynchronizowane z xml_blob KSeF.');
             break;
         }
 

@@ -633,3 +633,10 @@ html, body {
 .pi-norm-preview--ok { color: #86efac; }
 .pi-norm-preview--warn { color: #fcd34d; }
 .pi-norm-preview--blocked { color: #f87171; font-weight: 600; }
+
+.pi-line-p7a {
+    color: #94a3b8;
+    font-size: 0.68rem;
+    margin-top: 0.15rem;
+    font-style: italic;
+}

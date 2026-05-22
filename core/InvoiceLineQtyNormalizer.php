@@ -27,6 +27,7 @@ final class InvoiceLineQtyNormalizer
         $lineNetMinor = (int) ($line['line_net_minor'] ?? 0);
         $lineNet = $lineNetMinor > 0 ? $lineNetMinor / 100.0 : ($qtyInvoice * $unitNetInvoice);
         $externalName = trim((string) ($line['external_name'] ?? ''));
+        $externalDesc = trim((string) ($line['external_description'] ?? ''));
         $baseUnit = Units::normalizeLabel((string) ($sysItem['base_unit'] ?? 'kg'));
         if ($baseUnit === '') {
             $baseUnit = 'kg';
@@ -72,7 +73,7 @@ final class InvoiceLineQtyNormalizer
         // 3) Szt/op + waga/objętość w nazwie lub mapping
         if ($qtyBase === null && Units::isPieceLikeUnit($unitInvoice) && in_array($baseUnit, ['kg', 'l'], true)) {
             if ($faGroup !== $baseGroup || Units::isPieceLikeUnit($unitInvoice)) {
-                $pack = PackSizeExtractor::extractPerPiece($externalName, $baseUnit);
+                $pack = PackSizeExtractor::extractPerPiece($externalName, $baseUnit, $externalDesc);
                 if ($pack !== null && $pack['qty_base'] > 0) {
                     $qtyBase = $qtyInvoice * $pack['qty_base'];
                     $source = $pack['source'];

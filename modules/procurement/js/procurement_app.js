@@ -1104,6 +1104,7 @@
                     ${cbTd}<td style="color:#64748b">${l.line_no}</td>
                     <td>
                         <div>${escapeHtml(l.external_name)}</div>
+                        ${l.external_description ? `<div class="pi-line-p7a">P_7A: ${escapeHtml(l.external_description)}</div>` : ''}
                         ${l.gtu_code ? `<div style="color:#94a3b8;font-size:0.7rem">${escapeHtml(l.gtu_code)}${l.pkwiu ? ' · PKWiU ' + escapeHtml(l.pkwiu) : ''}</div>` : ''}
                     </td>
                     <td style="font-family:ui-monospace,monospace">
@@ -1140,6 +1141,7 @@
                     ${cbTd}<td style="color:#64748b">${l.line_no}</td>
                     <td>
                         <div>${escapeHtml(l.external_name)}</div>
+                        ${l.external_description ? `<div class="pi-line-p7a">P_7A: ${escapeHtml(l.external_description)}</div>` : ''}
                         ${l.gtu_code ? `<div style="color:#94a3b8;font-size:0.7rem">${escapeHtml(l.gtu_code)}${l.pkwiu ? ' · PKWiU ' + escapeHtml(l.pkwiu) : ''}</div>` : ''}
                     </td>
                     <td style="font-family:ui-monospace,monospace">
@@ -1191,6 +1193,8 @@
         $('#pi-modal-accept').disabled = isAccepted || isRejected;
         $('#pi-modal-reject').disabled = isAccepted || isRejected;
         $('#pi-modal-rescan').disabled = isAccepted;
+        const auditBtn = $('#pi-modal-audit-xml');
+        if (auditBtn) auditBtn.disabled = isAccepted;
         updateModalSaveButtonState();
 
         // F4.5: gdy accepted, pokaż przycisk Reverse + zamień Accept/Reject style

@@ -110,5 +110,28 @@ $r = InvoiceLineQtyNormalizer::normalize(
 );
 assertNear('mapping qty', (float) $r['qty_normalized'], 0.04, 0.0001);
 
+// P_7A: nazwa bez wagi, opis z 200G
+$r = InvoiceLineQtyNormalizer::normalize(
+    [
+        'external_name' => 'BAZYLIA CIĘTA',
+        'external_description' => 'opakowanie 200G',
+        'qty' => 1,
+        'unit' => 'szt',
+        'unit_net' => 40,
+        'line_net_minor' => 4000,
+    ],
+    ['base_unit' => 'kg'],
+    null
+);
+assertNear('P7A 200G qty', (float) $r['qty_normalized'], 0.2, 0.001);
+
+// 0,5kg / 1.5kg w nazwie
+$r = InvoiceLineQtyNormalizer::normalize(
+    ['external_name' => 'ZIOŁA 0,5kg', 'qty' => 2, 'unit' => 'szt', 'unit_net' => 5, 'line_net_minor' => 1000],
+    ['base_unit' => 'kg'],
+    null
+);
+assertNear('0,5kg', (float) $r['qty_normalized'], 1.0, 0.01);
+
 echo $fail === 0 ? "\nAll tests passed.\n" : "\n{$fail} test(s) failed.\n";
 exit($fail === 0 ? 0 : 1);

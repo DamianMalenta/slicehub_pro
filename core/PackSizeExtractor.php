@@ -11,22 +11,30 @@ final class PackSizeExtractor
      * @return array{qty_base: float, base_unit: string, source: string}|null
      *         qty_base = ilość w jednostce bazowej na 1 jednostkę FA (szt/op)
      */
-    public static function extractPerPiece(string $externalName, string $targetBaseUnit): ?array
-    {
+    /**
+     * @param string $externalDescription FA P_7A (często tu jest gramatura, gdy P_7 jest skrócone)
+     */
+    public static function extractPerPiece(
+        string $externalName,
+        string $targetBaseUnit,
+        string $externalDescription = ''
+    ): ?array {
         $target = Units::normalizeLabel($targetBaseUnit);
         if (!in_array($target, ['kg', 'l'], true)) {
             return null;
         }
 
         $name = trim($externalName);
-        if ($name === '') {
+        $desc = trim($externalDescription);
+        $haystack = trim($name . ($desc !== '' ? ' ' . $desc : ''));
+        if ($haystack === '') {
             return null;
         }
 
         // 6×1L, 12x500ml
         if (preg_match(
             '/(\d+)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(kg|g|dag|l|ml)\b/iu',
-            $name,
+            $haystack,
             $m
         )) {
             $count = (float) str_replace(',', '.', $m[1]);
@@ -47,7 +55,7 @@ final class PackSizeExtractor
         // Ostatnie wystąpienie: 20G, 1,5 kg, 750ml (unikaj mylenia z nr artykułu — preferuj sufiks)
         if (preg_match_all(
             '/(\d+(?:[.,]\d+)?)\s*(kg|g|dag|l|ml)\b/iu',
-            $name,
+            $haystack,
             $all,
             PREG_SET_ORDER
         )) {

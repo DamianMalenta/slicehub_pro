@@ -24,7 +24,7 @@ final class InboxQtyNormalize
         }
 
         $st = $pdo->prepare(
-            "SELECT l.id, l.external_name, l.unit, l.qty, l.unit_net, l.line_net_minor, l.resolved_sku
+            "SELECT l.id, l.external_name, l.external_description, l.unit, l.qty, l.unit_net, l.line_net_minor, l.resolved_sku
                FROM sh_ksef_invoice_lines l
               WHERE l.ksef_invoice_id = :iid {$invOnly}
                 AND l.resolved_sku IS NOT NULL AND TRIM(l.resolved_sku) <> ''
