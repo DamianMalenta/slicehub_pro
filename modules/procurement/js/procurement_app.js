@@ -197,6 +197,29 @@
         return state.skuOptions.find(o => o.sku === s) || null;
     }
 
+    /** Podgląd przeliczenia FA → base_unit (cache z API / migracja 058). */
+    function normPreviewHtml(l) {
+        const st = (l.normalization_status || '').toLowerCase();
+        const sku = (l.resolved_sku || '').trim();
+        if (!sku || st === '') return '';
+
+        const baseUnit = (findSkuOption(sku)?.unit || 'kg').trim();
+        if (st === 'blocked') {
+            const meta = l.normalization_meta && typeof l.normalization_meta === 'object' ? l.normalization_meta : {};
+            const msg = meta.message || 'Brak przeliczenia — zmień SKU lub mapowanie opakowania.';
+            return `<div class="pi-norm-preview pi-norm-preview--blocked">${escapeHtml(msg)}</div>`;
+        }
+
+        const qn = parseFloat(l.qty_normalized);
+        const un = parseFloat(l.unit_net_normalized);
+        if (!Number.isFinite(qn) || qn <= 0) return '';
+
+        const cls = st === 'warn' ? 'pi-norm-preview--warn' : 'pi-norm-preview--ok';
+        const hint = st === 'warn' ? ' <span title="Gramatura z nazwy — sprawdź">⚠</span>' : '';
+        return `<div class="pi-norm-preview ${cls}">→ magazyn: <strong>${qn.toFixed(3)}</strong> ${escapeHtml(baseUnit)}`
+            + ` @ <strong>${un.toFixed(2)}</strong> PLN/${escapeHtml(baseUnit)}${hint}</div>`;
+    }
+
     function filterSkuOptions(q) {
         const n = normSearch(q);
         const list = state.skuOptions;
@@ -1083,7 +1106,10 @@
                         <div>${escapeHtml(l.external_name)}</div>
                         ${l.gtu_code ? `<div style="color:#94a3b8;font-size:0.7rem">${escapeHtml(l.gtu_code)}${l.pkwiu ? ' · PKWiU ' + escapeHtml(l.pkwiu) : ''}</div>` : ''}
                     </td>
-                    <td style="font-family:ui-monospace,monospace">${parseFloat(l.qty).toFixed(3)} ${escapeHtml(l.unit || '')}</td>
+                    <td style="font-family:ui-monospace,monospace">
+                        ${parseFloat(l.qty).toFixed(3)} ${escapeHtml(l.unit || '')}
+                        ${normPreviewHtml(l)}
+                    </td>
                     <td style="font-family:ui-monospace,monospace;text-align:right">${parseFloat(l.unit_net).toFixed(2)}</td>
                     <td style="font-family:ui-monospace,monospace">${parseFloat(l.vat_rate).toFixed(0)}%</td>
                     <td>
@@ -1116,7 +1142,10 @@
                         <div>${escapeHtml(l.external_name)}</div>
                         ${l.gtu_code ? `<div style="color:#94a3b8;font-size:0.7rem">${escapeHtml(l.gtu_code)}${l.pkwiu ? ' · PKWiU ' + escapeHtml(l.pkwiu) : ''}</div>` : ''}
                     </td>
-                    <td style="font-family:ui-monospace,monospace">${parseFloat(l.qty).toFixed(3)} ${escapeHtml(l.unit || '')}</td>
+                    <td style="font-family:ui-monospace,monospace">
+                        ${parseFloat(l.qty).toFixed(3)} ${escapeHtml(l.unit || '')}
+                        ${normPreviewHtml(l)}
+                    </td>
                     <td style="font-family:ui-monospace,monospace;text-align:right">${parseFloat(l.unit_net).toFixed(2)}</td>
                     <td style="font-family:ui-monospace,monospace">${parseFloat(l.vat_rate).toFixed(0)}%</td>
                     <td>

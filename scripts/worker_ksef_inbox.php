@@ -247,6 +247,10 @@ function insertInvoiceFromXml(\PDO $pdo, int $tenantId, string $refId, string $x
     );
     \SliceHub\Ksef\InboxInvoiceRepository::matchInvoiceLines($pdo, $tenantId, $invoiceId);
 
+    require_once __DIR__ . '/../core/Ksef/InboxQtyNormalize.php';
+    $sn = (string) ($parsed['supplier']['nip'] ?? '');
+    \SliceHub\Ksef\InboxQtyNormalize::refreshInvoiceLines($pdo, $tenantId, $invoiceId, $sn, true);
+
     return $invoiceId;
 }
 

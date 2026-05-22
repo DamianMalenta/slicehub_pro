@@ -69,4 +69,5 @@ return [
     '055_recipe_display_order.sql',
     '056_ksef_invoice_cost_category.sql',
     '057_ksef_line_opex_expense_categories.sql',
+    '058_ksef_line_qty_normalization.sql',
 ];

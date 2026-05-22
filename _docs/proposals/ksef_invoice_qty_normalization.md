@@ -1,8 +1,46 @@
 # KSeF → magazyn: normalizacja ilości i kosztu jednostkowego
 
-**Status:** Propozycja (Faza 2) — **bez implementacji produkcyjnej**  
+**Status:** Zaimplementowano (Faza 3) · branch `cursor/ksef-qty-normalization-b255`  
 **Data:** 2026-05-22  
 **Kontekst:** Faktura realna — `BAZYLIA CIĘTA 20G`, 1,000 × SZT., 26,67 PLN/szt., magazyn `base_unit = kg` → oczekiwane **0,02 kg** i AVCO **1333,50 PLN/kg** (wartość linii 26,67 PLN bez zmiany).
+
+---
+
+## Stan obecny — mapowanie (przed zmianą, Faza 1)
+
+### Co system mapuje dziś
+
+| Warstwa | Mapuje | Nie mapuje |
+|---------|--------|------------|
+| `Parser` + DB | `external_name`, `unit`, `qty`, `unit_net`, `line_net_minor` z FA | `base_unit`, gramatura z nazwy |
+| `AutoScanEngine` | `external_name` → `resolved_sku` (EXACT/ALIAS/NAME/FUZZY) | `qty`, `unit`, cenę |
+| `sh_product_mapping` | Pełny string `external_name` → `internal_sku` | Opakowanie, NIP dostawcy (do m058) |
+| `update_line` | Ręczne SKU, `MANUAL` 100% | Learn mapping (tylko `smart_create_sku`) |
+| `reparse` | Nadpisuje SKU z AutoScan, czyści `resolved_by_user_id` | Nie zmienia qty/unit z FA |
+| `accept` | `qty` + `unit_net` → PZ 1:1 | `sys_items.base_unit` |
+
+### Przepływ SKU (bez jednostek)
+
+```mermaid
+sequenceDiagram
+  participant XML as FA XML
+  participant DB as sh_ksef_invoice_lines
+  participant AS as AutoScanEngine
+  participant UI as procurement_app.js
+  participant ACC as inbox accept
+  participant PZ as PzEngine
+
+  XML->>DB: P_7,P_8A,P_8B,P_9A
+  AS->>DB: resolved_sku, match_*
+  UI->>DB: update_line sku (MANUAL)
+  ACC->>PZ: quantity=qty, unit_net_cost=unit_net
+  Note over ACC,PZ: Brak konwersji na base_unit
+```
+
+### Learn `sh_product_mapping`
+
+- **Tak:** `smart_create_sku`, `PzEngine` po ALIAS (tylko gdy brak `resolved_sku` w payload — ręczne PZ).
+- **Nie:** samo `update_line` przy wyborze SKU w inbox.
 
 ---
 
@@ -245,8 +283,21 @@ PzEngine::processReceipt(...);
 
 ---
 
-## Następny krok
+## Faza 3 — Implementacja (2026-05-22)
 
-Po akceptacji tego dokumentu przez właściciela produktu → **Faza 3** na branchu `cursor/ksef-qty-normalization-b255`: PR-1…PR-4, commit z sekcją `Test (E2E):`, sesja w `_docs/sessions/`.
+| Plik | Rola |
+|------|------|
+| `core/Units.php` | Kanon jednostek (port `SliceValidator`) |
+| `core/PackSizeExtractor.php` | Gramatura z nazwy (20G, 6×1L) |
+| `core/InvoiceLineQtyNormalizer.php` | Przeliczenie + learn `pack_*` |
+| `core/Ksef/InboxQtyNormalize.php` | Cache linii + payload PZ |
+| `database/migrations/058_ksef_line_qty_normalization.sql` | Kolumny cache + `pack_*` na mapping |
+| `api/procurement/inbox.php` | `accept`, `preview_normalize`, refresh po upload/reparse/update |
+| `modules/procurement/js/procurement_app.js` | Podgląd „→ magazyn: …” |
+| `scripts/test_invoice_qty_normalizer.php` | Testy CLI E1–E9 |
 
-**Nie implementować kodu produkcyjnego przed akceptacją koncepcji.**
+**Wdrożenie migracji:** `php scripts/apply_migrations_chain.php` (058 na końcu łańcucha).
+
+**Test CLI:** `php scripts/test_invoice_qty_normalizer.php`
+
+**Test (E2E) manualny:** upload FA z linią `BAZYLIA CIĘTA 20G` 1 SZT → SKU w `kg` → accept → PZ +0,02 kg, AVCO ~1333,50 PLN/kg.
