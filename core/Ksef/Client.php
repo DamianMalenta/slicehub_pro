@@ -388,7 +388,33 @@ class Client
         if ($res['code'] !== 200) {
             return ['success' => false, 'message' => $this->formatHttpFailure('GET invoice XML', $res)];
         }
-        return ['success' => true, 'xml' => (string) $res['body']];
+        $body = (string) $res['body'];
+        $xmlErr = self::validateInvoiceXmlBody($body);
+        if ($xmlErr !== null) {
+            return ['success' => false, 'message' => $xmlErr];
+        }
+
+        return ['success' => true, 'xml' => $body];
+    }
+
+    /** Odrzuca HTML/JSON i odpowiedzi bez <Faktura> (błędne pobranie z API). */
+    public static function validateInvoiceXmlBody(string $body): ?string
+    {
+        $t = ltrim($body);
+        if ($t === '') {
+            return 'Pusta odpowiedź API KSeF.';
+        }
+        if ($t[0] === '{' || $t[0] === '[') {
+            return 'API zwróciło JSON zamiast XML faktury.';
+        }
+        if (stripos($t, '<html') !== false || stripos($t, '<!DOCTYPE html') !== false) {
+            return 'Odpowiedź wygląda na stronę HTML (błąd serwera/proxy), nie XML FA.';
+        }
+        if (!str_contains($t, '<Faktura') && !preg_match('/<Faktura[\s>]/', $t)) {
+            return 'Brak elementu <Faktura> w odpowiedzi — to nie jest dokument FA(2)/FA(3).';
+        }
+
+        return null;
     }
 
     // -------------------------------------------------------------------------

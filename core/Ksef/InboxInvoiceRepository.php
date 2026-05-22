@@ -21,8 +21,13 @@ final class InboxInvoiceRepository
         ?string $ksefReferenceId,
         string $xml,
         array $parsed,
-        string $invoiceNumberFallback
+        string $invoiceNumberFallback,
+        string $status = 'draft',
+        ?string $statusMessage = null
     ): int {
+        if (!in_array($status, ['draft', 'error', 'new'], true)) {
+            $status = 'draft';
+        }
         $invoiceNo = trim((string) ($parsed['invoice']['number'] ?? ''));
         if ($invoiceNo === '') {
             $invoiceNo = $invoiceNumberFallback;
@@ -37,14 +42,14 @@ final class InboxInvoiceRepository
                      buyer_nip, buyer_name,
                      invoice_number, issue_date, sale_date, payment_due_date, currency,
                      total_net_minor, total_vat_minor, total_gross_minor,
-                     xml_blob, parsed_json, status)
+                     xml_blob, parsed_json, status, status_message)
                  VALUES
                     (:tid, :ref,
                      :snip, :sname, :saddr,
                      :bnip, :bname,
                      :inum, :issd, :sald, :payd, :cur,
                      :tnet, :tvat, :tgross,
-                     :xml, :pjson, 'draft')"
+                     :xml, :pjson, :st, :stmsg)"
             );
             $st->execute([
                 ':tid'    => $tenantId,
@@ -64,6 +69,8 @@ final class InboxInvoiceRepository
                 ':tgross' => $parsed['totals']['total_gross_minor'] ?? 0,
                 ':xml'    => $xml,
                 ':pjson'  => json_encode($parsed, JSON_UNESCAPED_UNICODE),
+                ':st'     => $status,
+                ':stmsg'  => $statusMessage,
             ]);
             $invoiceId = (int) $pdo->lastInsertId();
 
@@ -104,7 +111,10 @@ final class InboxInvoiceRepository
      * AutoScan dla linii faktury — tylko INVENTORY gdy istnieje kolumna line_type (m057),
      * żeby nie nadpisywać dopasowań SKU na liniach OPEX (EXPENSE).
      */
-    public static function matchInvoiceLines(\PDO $pdo, int $tenantId, int $invoiceId): void
+    /**
+     * @return array{total:int, auto_accept:int, EXACT?:int, ALIAS?:int, NAME?:int, FUZZY?:int, NONE?:int}
+     */
+    public static function matchInvoiceLines(\PDO $pdo, int $tenantId, int $invoiceId): array
     {
         $matchUpd = $pdo->prepare(
             "UPDATE sh_ksef_invoice_lines
@@ -119,16 +129,26 @@ final class InboxInvoiceRepository
         $sql .= ' ORDER BY line_no';
         $linesStmt = $pdo->prepare($sql);
         $linesStmt->execute([':iid' => $invoiceId]);
+        $stats = ['total' => 0, 'auto_accept' => 0];
         foreach ($linesStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
             $r = \AutoScanEngine::match($pdo, $tenantId, (string) $row['external_name']);
+            $mt = (string) ($r['match_type'] ?? 'NONE');
+            $conf = (int) ($r['confidence'] ?? 0);
             $matchUpd->execute([
                 ':sku'  => $r['sku'],
-                ':mt'   => $r['match_type'] ?? 'NONE',
-                ':conf' => $r['confidence'] ?? 0,
+                ':mt'   => $mt,
+                ':conf' => $conf,
                 ':cand' => json_encode($r['candidates'] ?? [], JSON_UNESCAPED_UNICODE),
                 ':id'   => $row['id'],
             ]);
+            $stats['total']++;
+            $stats[$mt] = ($stats[$mt] ?? 0) + 1;
+            if ($conf >= 70 && $mt !== 'NONE' && !empty($r['sku'])) {
+                $stats['auto_accept']++;
+            }
         }
+
+        return $stats;
     }
 
     private static function invoiceLinesHaveLineTypeColumn(\PDO $pdo): bool

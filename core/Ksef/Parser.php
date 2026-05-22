@@ -48,6 +48,14 @@ namespace SliceHub\Ksef;
  * Konstytucja v5 § Prawo IV (Zero Zaufania): walidacja na poziomie XML
  * przed zapisem do bazy. Brak namespace warningu / structurally invalid →
  * exception. Każde DateTime parsowane przez DateTimeImmutable z catch.
+ *
+ * Warstwy (nie powielaj w inbox / worker / Client):
+ * - Client::validateInvoiceXmlBody() — transport HTTP (pusty body, JSON/HTML, brak <Faktura>)
+ * - parse() — well-formed XML, root Faktura, węzeł Fa, minimalna tożsamość dokumentu
+ * - enrichParsedTotals() (wewnątrz parse) — normalizacja sum z FaWiersz, nie gate workflow
+ * - parseAndVerifyBuyer() — upload ręczny: nabywca = NIP tenanta (poza KSeF poll)
+ * - assessProcurementQuality() — draft vs error (zakupy); po parse(), przed INSERT
+ * - inbox accept / rescan — SKU, OPEX, PZ (operacyjne; poza Parserem)
  */
 class Parser
 {
@@ -118,16 +126,7 @@ class Parser
             $lines = $this->parseLinesFromFa($fa);
             $totals = $this->parseTotalsFromFa($fa);
 
-            $nipS = trim((string) ($supplier['nip'] ?? ''));
-            $invNo = trim((string) ($invoice['number'] ?? ''));
-            if ($nipS === '' && $invNo === '' && $lines === []) {
-                return $this->fail(
-                    'Faktura XML bez rozpoznanych danych (brak NIP dostawcy, numeru i linii). '
-                    . 'Możliwy FA(3) z innymi nazwami pól lub treść pośrednia — sprawdź xml_blob w bazie.'
-                );
-            }
-
-            return [
+            $parsed = [
                 'success'  => true,
                 'errors'   => [],
                 'warnings' => $this->warnings,
@@ -138,6 +137,18 @@ class Parser
                 'lines'    => $lines,
                 'totals'   => $totals,
             ];
+            $parsed = $this->enrichParsedTotals($parsed);
+
+            $nipS = trim((string) ($supplier['nip'] ?? ''));
+            $invNo = trim((string) ($invoice['number'] ?? ''));
+            if ($nipS === '' && $invNo === '' && $lines === []) {
+                return $this->fail(
+                    'Faktura XML bez rozpoznanych danych (brak NIP dostawcy, numeru i linii). '
+                    . 'Możliwy FA(3) z innymi nazwami pól lub treść pośrednia — sprawdź xml_blob w bazie.'
+                );
+            }
+
+            return $parsed;
         } catch (\Throwable $e) {
             return $this->fail('Wyjątek parsera: ' . $e->getMessage());
         }
@@ -164,6 +175,155 @@ class Parser
             ]];
         }
         return [$parsed, []];
+    }
+
+    /**
+     * Uzupełnia sumy nagłówka z pozycji FaWiersz, gdy P_13/P_15 w XML są puste (częste FA(3) / nietypowe układy).
+     *
+     * @param array<string,mixed> $parsed
+     * @return array<string,mixed>
+     */
+    public function enrichParsedTotals(array $parsed): array
+    {
+        if (!self::headerTotalsAreZero($parsed)) {
+            return $parsed;
+        }
+
+        $lines = is_array($parsed['lines'] ?? null) ? $parsed['lines'] : [];
+        if ($lines === []) {
+            return $parsed;
+        }
+
+        $sumNet = 0;
+        $sumVat = 0;
+        foreach ($lines as $line) {
+            if (!is_array($line)) {
+                continue;
+            }
+            $lineNet = self::lineNetMinor($line);
+            if ($lineNet <= 0) {
+                continue;
+            }
+            $sumNet += $lineNet;
+            $vatRate = (float) ($line['vat_rate'] ?? 0);
+            if ($vatRate > 0) {
+                $sumVat += (int) round($lineNet * $vatRate / 100);
+            }
+        }
+
+        if ($sumNet <= 0) {
+            return $parsed;
+        }
+
+        $parsed['totals'] = [
+            'total_net_minor'    => $sumNet,
+            'total_vat_minor'    => $sumVat,
+            'total_gross_minor'  => $sumNet + $sumVat,
+            'derived_from_lines' => true,
+        ];
+        $warnings = is_array($parsed['warnings'] ?? null) ? $parsed['warnings'] : [];
+        $warnings[] = 'Sumy P_13/P_15 w nagłówku puste — policzone z pozycji FaWiersz.';
+        $parsed['warnings'] = $warnings;
+
+        return $parsed;
+    }
+
+    /**
+     * Gate workflow zakupów (draft vs error). Wymaga parse() z success=true (w tym enrich sum).
+     * Nie powiela walidacji strukturalnej parse() ani SKU z accept.
+     *
+     * @param array<string,mixed> $parsed
+     * @return array{procurement_ok:bool, level:string, messages:list<string>}
+     */
+    public function assessProcurementQuality(array $parsed): array
+    {
+        $invoiceType = strtoupper(trim((string) ($parsed['invoice']['invoice_type'] ?? '')));
+
+        /** Rodzaje poza zakupem towarów — trafiają do status=error zamiast „pustego” draft. */
+        $nonProcurementTypes = [
+            'KOR', 'KOR_ZAL', 'KOR_ROZ', 'KOR_POD', 'KOR_ODS',
+            'ROZ', 'UPR', 'KOR_UPR', 'NOT', 'KOR_NOT',
+        ];
+        if ($invoiceType !== '' && in_array($invoiceType, $nonProcurementTypes, true)) {
+            return [
+                'procurement_ok' => false,
+                'level'          => 'reject',
+                'messages'       => [
+                    "Rodzaj faktury „{$invoiceType}” — dokument korygujący/rozliczeniowy (nie zakup na magazyn).",
+                ],
+            ];
+        }
+
+        $messages = [];
+        $lines = is_array($parsed['lines'] ?? null) ? $parsed['lines'] : [];
+        if (self::countMeaningfulLines($lines) === 0) {
+            $messages[] = 'Brak pozycji FaWiersz z nazwą, ilością i kwotą — nie można przyjąć na magazyn.';
+        }
+        if (self::headerTotalsAreZero($parsed)) {
+            $messages[] = 'Suma brutto i netto wynosi 0 — sprawdź XML (Audyt XML) lub odrzuć wpis.';
+        }
+
+        if ($messages !== []) {
+            return ['procurement_ok' => false, 'level' => 'reject', 'messages' => $messages];
+        }
+
+        return [
+            'procurement_ok' => true,
+            'level'          => 'ok',
+            'messages'       => is_array($parsed['warnings'] ?? null) ? $parsed['warnings'] : [],
+        ];
+    }
+
+    /**
+     * Netto linii w groszach (P_11 lub qty × P_9A) — wspólne dla enrich i assess.
+     *
+     * @param array<string,mixed> $line
+     */
+    public static function lineNetMinor(array $line): int
+    {
+        $lineNet = (int) ($line['line_net_minor'] ?? 0);
+        if ($lineNet > 0) {
+            return $lineNet;
+        }
+        $qty = (float) ($line['qty'] ?? 0);
+        $unitNet = (float) ($line['unit_net'] ?? 0);
+        if ($qty > 0 && $unitNet > 0) {
+            return (int) round($qty * $unitNet * 100);
+        }
+
+        return 0;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $lines
+     */
+    public static function countMeaningfulLines(array $lines): int
+    {
+        $n = 0;
+        foreach ($lines as $line) {
+            if (!is_array($line)) {
+                continue;
+            }
+            $hasName = trim((string) ($line['external_name'] ?? '')) !== '';
+            $hasQty = (float) ($line['qty'] ?? 0) > 0;
+            $hasMoney = self::lineNetMinor($line) > 0;
+            if ($hasName && ($hasQty || $hasMoney)) {
+                $n++;
+            }
+        }
+
+        return $n;
+    }
+
+    /**
+     * @param array<string,mixed> $parsed
+     */
+    public static function headerTotalsAreZero(array $parsed): bool
+    {
+        $totals = is_array($parsed['totals'] ?? null) ? $parsed['totals'] : [];
+
+        return ((int) ($totals['total_gross_minor'] ?? 0)) === 0
+            && ((int) ($totals['total_net_minor'] ?? 0)) === 0;
     }
 
     // =========================================================================
@@ -350,19 +510,57 @@ class Parser
 
     private function parseTotalsFromFa(\SimpleXMLElement $fa): array
     {
-        // FA(2) suma sprzedaży: P_13_1 (netto 23%) + P_13_2 (netto 8%) + P_13_3 (netto 5%) + ...
-        // dla MVP: P_13_1 + P_13_2 + P_13_3 + P_13_4 + P_13_5 + P_13_6 + P_13_7 (zw.)
+        // FA(2): P_13_1…P_13_7; FA(3): dodatkowo P_13_6_1, P_13_8, P_13_10 itd. — sumujemy po local-name().
         $totalNet = 0.0;
-        for ($i = 1; $i <= 7; $i++) {
-            $totalNet += $this->parseDecimal((string) ($fa->{"P_13_{$i}"} ?? '0'));
+        // Tylko bezpośrednie dzieci Fa — unikamy podwójnego zliczania z zagnieżdżeń / innych węzłów.
+        $netNodes = $fa->xpath('./*[starts-with(local-name(), "P_13_")]');
+        if (is_array($netNodes)) {
+            foreach ($netNodes as $node) {
+                if (!$node instanceof \SimpleXMLElement) {
+                    continue;
+                }
+                $name = $node->getName();
+                if (preg_match('/^P_13_\d/', $name) === 1) {
+                    $totalNet += $this->parseDecimal((string) $node);
+                }
+            }
+        }
+        if ($totalNet <= 0.0) {
+            for ($i = 1; $i <= 7; $i++) {
+                $totalNet += $this->parseDecimal((string) ($fa->{"P_13_{$i}"} ?? '0'));
+            }
         }
 
         $totalVat = 0.0;
-        for ($i = 1; $i <= 6; $i++) {
-            $totalVat += $this->parseDecimal((string) ($fa->{"P_14_{$i}"} ?? '0'));
+        $vatNodes = $fa->xpath('./*[starts-with(local-name(), "P_14_") and not(contains(local-name(), "W"))]');
+        if (is_array($vatNodes)) {
+            foreach ($vatNodes as $node) {
+                if (!$node instanceof \SimpleXMLElement) {
+                    continue;
+                }
+                $name = $node->getName();
+                if (preg_match('/^P_14_\d+$/', $name) === 1) {
+                    $totalVat += $this->parseDecimal((string) $node);
+                }
+            }
+        }
+        if ($totalVat <= 0.0) {
+            for ($i = 1; $i <= 6; $i++) {
+                $totalVat += $this->parseDecimal((string) ($fa->{"P_14_{$i}"} ?? '0'));
+            }
         }
 
         $totalGross = $this->parseDecimal((string) ($fa->P_15 ?? '0'));
+        if ($totalGross <= 0.0) {
+            $p15 = $fa->xpath('./*[local-name()="P_15"]');
+            if (is_array($p15) && isset($p15[0])) {
+                $totalGross = $this->parseDecimal((string) $p15[0]);
+            }
+        }
+
+        if ($totalGross <= 0.0 && $totalNet > 0.0) {
+            $totalGross = $totalNet + $totalVat;
+        }
 
         return [
             'total_net_minor'   => (int) round($totalNet * 100),

@@ -60,6 +60,7 @@ require_once __DIR__ . '/../core/AutoScanEngine.php';
 require_once __DIR__ . '/../core/Ksef/Parser.php';
 require_once __DIR__ . '/../core/Ksef/Client.php';
 require_once __DIR__ . '/../core/Ksef/InboxInvoiceRepository.php';
+require_once __DIR__ . '/../core/Ksef/InboxImport.php';
 
 if (!isset($pdo)) {
     http_response_code(500);
@@ -111,6 +112,7 @@ $globalStats = [
     'invoices_fetched'  => 0,
     'invoices_inserted' => 0,
     'invoices_skipped'  => 0,
+    'invoices_quality_error' => 0,
     'errors'            => 0,
 ];
 
@@ -187,10 +189,16 @@ foreach ($tenantIds as $tid) {
 
             // Parse + insert
             try {
-                $insertedId = insertInvoiceFromXml($pdo, $tid, $refId, $xml);
+                $import = insertInvoiceFromXml($pdo, $tid, $refId, $xml);
+                $insertedId = $import['invoice_id'];
                 $globalStats['invoices_inserted']++;
+                if (($import['status'] ?? '') === 'error') {
+                    $globalStats['invoices_quality_error']++;
+                    $out("  ⚠️  zapisano jako BŁĄD (pusta/nietypowa): {$refId} id={$insertedId}");
+                } else {
+                    $out("  ✅ wstawiono: {$refId} (sh_ksef_invoices.id={$insertedId})");
+                }
                 $lastSeenRef = $refId;
-                $out("  ✅ wstawiono: {$refId} (sh_ksef_invoices.id={$insertedId})");
             } catch (\Throwable $e) {
                 if (\SliceHub\Ksef\InboxInvoiceRepository::isMysqlDuplicateKey($e)) {
                     $out("  ⏭  pominięto (duplikat SQL / race): {$refId}");
@@ -218,6 +226,7 @@ $out('  Tenanty: ' . $globalStats['tenants_processed']);
 $out('  Faktur pobranych: ' . $globalStats['invoices_fetched']);
 $out('  Wstawionych: ' . $globalStats['invoices_inserted']);
 $out('  Pominiętych (dedup): ' . $globalStats['invoices_skipped']);
+$out('  Oznaczonych błąd jakości (puste/KOR): ' . ($globalStats['invoices_quality_error'] ?? 0));
 $out('  Błędów: ' . $globalStats['errors']);
 
 if (!$isCli) {
@@ -229,29 +238,16 @@ exit($globalStats['errors'] > 0 ? 1 : 0);
 // Helpers
 // =============================================================================
 
-function insertInvoiceFromXml(\PDO $pdo, int $tenantId, string $refId, string $xml): int
+/** @return array{invoice_id:int, status:string} */
+function insertInvoiceFromXml(\PDO $pdo, int $tenantId, string $refId, string $xml): array
 {
-    $parser = new \SliceHub\Ksef\Parser();
-    $parsed = $parser->parse($xml);
-    if (!$parsed['success']) {
-        throw new \RuntimeException('Parser: ' . implode('; ', $parsed['errors']));
-    }
-
-    $invoiceId = \SliceHub\Ksef\InboxInvoiceRepository::insertInvoiceWithLines(
+    return \SliceHub\Ksef\InboxImport::importFromXml(
         $pdo,
         $tenantId,
         $refId,
         $xml,
-        $parsed,
         'KSEF-' . $refId
     );
-    \SliceHub\Ksef\InboxInvoiceRepository::matchInvoiceLines($pdo, $tenantId, $invoiceId);
-
-    require_once __DIR__ . '/../core/Ksef/InboxQtyNormalize.php';
-    $sn = (string) ($parsed['supplier']['nip'] ?? '');
-    \SliceHub\Ksef\InboxQtyNormalize::refreshInvoiceLines($pdo, $tenantId, $invoiceId, $sn, true);
-
-    return $invoiceId;
 }
 
 function upsertCursor(\PDO $pdo, int $tenantId, ?string $lastSeenRef): void

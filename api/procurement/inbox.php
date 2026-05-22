@@ -328,6 +328,7 @@ try {
     require_once __DIR__ . '/../../core/AutoScanEngine.php';
     require_once __DIR__ . '/../../core/Ksef/Parser.php';
     require_once __DIR__ . '/../../core/Ksef/InboxInvoiceRepository.php';
+    require_once __DIR__ . '/../../core/Ksef/InboxImport.php';
     require_once __DIR__ . '/../../core/PzEngine.php';
     require_once __DIR__ . '/../../core/InvoiceLineQtyNormalizer.php';
     require_once __DIR__ . '/../../core/Ksef/InboxQtyNormalize.php';
@@ -367,6 +368,9 @@ try {
             if ($status !== '') {
                 $sql .= " AND status = :st";
                 $params[':st'] = $status;
+            } else {
+                // Domyślnie ukryj „puste” / nietypowe dokumenty (status=error) — osobny filtr w UI.
+                $sql .= " AND status <> 'error'";
             }
             $sql .= " ORDER BY CASE status WHEN 'draft' THEN 1 WHEN 'accepted' THEN 2 WHEN 'rejected' THEN 3 ELSE 4 END,
                       COALESCE(issue_date, DATE(fetched_at)) DESC, id DESC
@@ -489,18 +493,16 @@ try {
             $tenantNip = (string) ($tStmt->fetchColumn() ?: '');
 
             $parser = new \SliceHub\Ksef\Parser();
-            $parsed = $parser->parse($xml);
-            if (!$parsed['success']) {
-                inboxFail(400, 'PARSE_FAILED',
-                    'Nie udało się sparsować FA(2): ' . implode('; ', $parsed['errors']));
-            }
-
-            // Walidacja: buyer NIP w XML musi pasować do sh_tenant.nip (jeśli sh_tenant ma NIP)
-            $buyerNip = preg_replace('/\D+/', '', (string) ($parsed['buyer']['nip'] ?? '')) ?? '';
-            $myNip = preg_replace('/\D+/', '', $tenantNip) ?? '';
-            if ($myNip !== '' && $buyerNip !== '' && $buyerNip !== $myNip) {
-                inboxFail(400, 'WRONG_BUYER_NIP',
-                    "Faktura wystawiona na inny NIP nabywcy. Oczekiwano: {$myNip}, w XML: {$buyerNip}. Sprawdź czy faktura jest skierowana do Twojej firmy.");
+            [$parsed, $buyerErrors] = $parser->parseAndVerifyBuyer($xml, $tenantNip);
+            if ($parsed === null) {
+                $code = 'PARSE_FAILED';
+                foreach ($buyerErrors as $err) {
+                    if (str_contains($err, 'NIP nabywcy')) {
+                        $code = 'WRONG_BUYER_NIP';
+                        break;
+                    }
+                }
+                inboxFail(400, $code, implode('; ', $buyerErrors));
             }
 
             $inum = trim((string) ($parsed['invoice']['number'] ?? ''));
@@ -548,25 +550,29 @@ try {
 
             $fallbackNo = 'UPLOAD-' . date('YmdHis');
             try {
-                $invoiceId = \SliceHub\Ksef\InboxInvoiceRepository::insertInvoiceWithLines(
+                $import = \SliceHub\Ksef\InboxImport::importFromXml(
                     $pdo,
                     $tenant_id,
                     null,
                     $xml,
-                    $parsed,
-                    $fallbackNo
+                    $fallbackNo,
+                    $parsed
                 );
+                $invoiceId = (int) $import['invoice_id'];
             } catch (\Throwable $e) {
                 inboxFail(500, 'INSERT_FAILED', 'Zapis faktury padł: ' . $e->getMessage());
             }
 
-            $matchStats = inboxRescanLines($pdo, $tenant_id, $invoiceId);
-            inboxRefreshNormalizations(
-                $pdo,
-                $tenant_id,
-                $invoiceId,
-                (string) ($parsed['supplier']['nip'] ?? '')
-            );
+            if (($import['status'] ?? '') === 'error') {
+                inboxResponse(true, [
+                    'invoice_id'       => $invoiceId,
+                    'status'           => 'error',
+                    'quality_messages' => $import['quality_messages'] ?? [],
+                ], implode(' ', $import['quality_messages'] ?? []), 'IMPORT_QUALITY_ERROR');
+                break;
+            }
+
+            $matchStats = $import['match_stats'] ?? ['total' => 0, 'auto_accept' => 0];
 
             inboxAudit($pdo, $tenant_id, $user_id, 'ksef_upload', $invoiceId, [
                 'supplier_nip' => $parsed['supplier']['nip'] ?? '',
@@ -606,6 +612,25 @@ try {
             $nipSt->execute([':id' => $iid, ':tid' => $tenant_id]);
             inboxRefreshNormalizations($pdo, $tenant_id, $iid, (string) ($nipSt->fetchColumn() ?: ''));
             inboxResponse(true, ['match_stats' => $stats], 'Rescan zakończony.');
+            break;
+        }
+
+        // ---------------------------------------------------------------------
+        case 'reassess_invoice': {
+            inboxRequireRole($actorRole, ['owner', 'admin', 'manager']);
+            $iid = (int) ($input['invoice_id'] ?? 0);
+            if ($iid <= 0) {
+                inboxFail(400, 'INVALID_INVOICE_ID');
+            }
+            try {
+                $result = \SliceHub\Ksef\InboxImport::reassessExistingInvoice($pdo, $tenant_id, $iid);
+            } catch (\Throwable $e) {
+                inboxFail(400, 'REASSESS_FAILED', $e->getMessage());
+            }
+            inboxResponse(true, array_merge(['invoice_id' => $iid], $result),
+                $result['procurement_ok']
+                    ? 'Faktura ponownie oceniona — kwoty i linie zaktualizowane.'
+                    : 'Faktura oznaczona jako błąd importu (pusta lub nietypowa).');
             break;
         }
 
@@ -1080,6 +1105,10 @@ try {
             }
             if ($invoice['status'] === 'accepted') {
                 inboxFail(400, 'ALREADY_ACCEPTED');
+            }
+            if ((string) ($invoice['status'] ?? '') === 'error') {
+                inboxFail(400, 'IMPORT_ERROR',
+                    'Faktura oznaczona jako błąd importu (pusta lub nietypowa). Użyj „Ponów ocenę” po poprawce XML albo odrzuć wpis.');
             }
 
             if (inboxKsefLineHasOpexColumns($pdo)) {
