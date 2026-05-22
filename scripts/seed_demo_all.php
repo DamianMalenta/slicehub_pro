@@ -204,7 +204,15 @@ seed('Menu Items (33)', function ($pdo, $T) {
     $stmt = $pdo->prepare(
         "INSERT INTO sh_menu_items (id, tenant_id, category_id, name, ascii_key, `type`, is_active, display_order, vat_rate_dine_in, vat_rate_takeaway, kds_station_id)
          VALUES (?,?,?,?,?,'standard',1,?,?,?,?)
-         ON DUPLICATE KEY UPDATE name=VALUES(name), category_id=VALUES(category_id), is_active=1, kds_station_id=VALUES(kds_station_id)"
+         ON DUPLICATE KEY UPDATE
+            ascii_key=VALUES(ascii_key),
+            name=VALUES(name),
+            category_id=VALUES(category_id),
+            is_active=1,
+            display_order=VALUES(display_order),
+            vat_rate_dine_in=VALUES(vat_rate_dine_in),
+            vat_rate_takeaway=VALUES(vat_rate_takeaway),
+            kds_station_id=VALUES(kds_station_id)"
     );
     foreach ($items as $i => $it) {
         $vatD = $isDrink($it[3]) ? 23.00 : 8.00;
@@ -350,6 +358,17 @@ seed('Warehouse (43 items + stock)', function ($pdo, $T) {
 // 8. RECIPES
 // =============================================================================
 seed('Recipes (menu → warehouse)', function ($pdo, $T) {
+    // Usuń stare linie demo — unikaj FK na nieistniejące ascii_key po zmianie menu
+    $demoMenuSkus = [
+        'PIZZA_MARGHERITA','PIZZA_PEPPERONI','PIZZA_CAPRICCIOSA','PIZZA_HAWAJSKA','PIZZA_4FORMAGGI',
+        'BURGER_CLASSIC','PASTA_BOLOGNESE','SALAD_CAESAR','SIDE_FRIES',
+    ];
+    $ph = implode(',', array_fill(0, count($demoMenuSkus), '?'));
+    $del = $pdo->prepare(
+        "DELETE FROM sh_recipes WHERE tenant_id = ? AND menu_item_sku IN ({$ph})"
+    );
+    $del->execute(array_merge([$T], $demoMenuSkus));
+
     $recipes = [
         ['PIZZA_MARGHERITA','MKA_TIPO00',0.25,2],['PIZZA_MARGHERITA','SER_MOZZ',0.20,0],['PIZZA_MARGHERITA','SOS_POM',0.10,0],['PIZZA_MARGHERITA','OLJ_OLIWA',0.015,0],['PIZZA_MARGHERITA','DRZ_SUCHE',0.003,0],['PIZZA_MARGHERITA','OPAK_PIZZA',1.0,0,1],
         ['PIZZA_PEPPERONI','MKA_TIPO00',0.25,2],['PIZZA_PEPPERONI','SER_MOZZ',0.18,0],['PIZZA_PEPPERONI','SOS_POM',0.10,0],['PIZZA_PEPPERONI','PEPP_SALAMI',0.08,0],['PIZZA_PEPPERONI','OPAK_PIZZA',1.0,0,1],
@@ -361,12 +380,31 @@ seed('Recipes (menu → warehouse)', function ($pdo, $T) {
         ['SALAD_CAESAR','SALATA_RZY',0.15,5],['SALAD_CAESAR','KURCZAK',0.10,0],['SALAD_CAESAR','SER_PARM',0.03,0],['SALAD_CAESAR','OLJ_OLIWA',0.02,0],
         ['SIDE_FRIES','FRYTKI_MRZ',0.25,5],
     ];
-    $stmt = $pdo->prepare("INSERT INTO sh_recipes (tenant_id,menu_item_sku,warehouse_sku,quantity_base,waste_percent,is_packaging) VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE quantity_base=VALUES(quantity_base), waste_percent=VALUES(waste_percent)");
+    $chk = $pdo->prepare(
+        "SELECT 1 FROM sh_menu_items WHERE tenant_id = ? AND ascii_key = ? LIMIT 1"
+    );
+    $stmt = $pdo->prepare(
+        "INSERT INTO sh_recipes (tenant_id,menu_item_sku,warehouse_sku,quantity_base,waste_percent,is_packaging)
+         VALUES (?,?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE quantity_base=VALUES(quantity_base), waste_percent=VALUES(waste_percent)"
+    );
+    $ins = 0;
+    $skip = 0;
     foreach ($recipes as $r) {
+        $chk->execute([$T, $r[0]]);
+        if (!$chk->fetchColumn()) {
+            $skip++;
+            continue;
+        }
         $pkg = $r[4] ?? 0;
         $stmt->execute([$T, $r[0], $r[1], $r[2], $r[3], $pkg]);
+        $ins++;
     }
-    return count($recipes) . ' recipe lines';
+    $msg = "{$ins} recipe lines";
+    if ($skip > 0) {
+        $msg .= " (pominięto {$skip} — brak menu_item_sku; uruchom ponownie od kroku Menu Items)";
+    }
+    return $msg;
 });
 
 // =============================================================================
