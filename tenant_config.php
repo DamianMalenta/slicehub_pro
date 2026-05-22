@@ -44,19 +44,30 @@ if ($tenantId <= 0) {
     }
 }
 
-// 3. Auto-discovery z bazy (typowo: jeden tenant na hosting)
+// 3. Auto-discovery z bazy — tenant z co najmniej jednym aktywnym użytkownikiem (unika pustego demo id=1)
 if ($tenantId <= 0) {
     try {
         require_once __DIR__ . '/core/db_config.php';
         if (isset($pdo) && $pdo instanceof PDO) {
             $row = $pdo->query("
-                SELECT id FROM sh_tenant
-                WHERE COALESCE(is_deleted, 0) = 0
-                ORDER BY id ASC
+                SELECT t.id
+                FROM sh_tenant t
+                WHERE EXISTS (
+                    SELECT 1 FROM sh_users u
+                    WHERE u.tenant_id = t.id
+                      AND u.status = 'active'
+                      AND u.is_deleted = 0
+                )
+                ORDER BY t.id ASC
                 LIMIT 1
             ")->fetch(PDO::FETCH_ASSOC);
             if ($row && (int)$row['id'] > 0) {
                 $tenantId = (int)$row['id'];
+            } else {
+                $fallback = $pdo->query('SELECT id FROM sh_tenant ORDER BY id ASC LIMIT 1')->fetch(PDO::FETCH_ASSOC);
+                if ($fallback && (int)$fallback['id'] > 0) {
+                    $tenantId = (int)$fallback['id'];
+                }
             }
         }
     } catch (Throwable $e) {
@@ -75,6 +86,10 @@ if ($tenantId <= 0) {
 $envApiBase = trim((string)(getenv('SLICEHUB_API_BASE') ?: ''));
 echo "(function(){\n";
 echo "  var tid = $tenantId;\n";
+echo "  try {\n";
+echo "    var qs = parseInt(new URLSearchParams(location.search).get('tenant') || '0', 10);\n";
+echo "    if (qs > 0) tid = qs;\n";
+echo "  } catch (e) {}\n";
 echo "  var m = document.querySelector('meta[name=\"sh-tenant-id\"]');\n";
 echo "  if (m) m.content = String(tid);\n";
 echo "  window.__SH_TENANT_ID__ = tid;\n";

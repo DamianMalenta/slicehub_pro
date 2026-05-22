@@ -768,10 +768,14 @@ function action_create_owner(array $body): void
     $tenantId = (int)    ($body['tenant_id'] ?? 0);
     $username = trim((string) ($body['username'] ?? ''));
     $password = (string) ($body['password'] ?? '');
+    $pinCode  = trim((string) ($body['pin_code'] ?? ''));
     $role     = (string) ($body['role'] ?? 'owner');
     $name     = trim((string) ($body['name'] ?? ''));
     $first    = trim((string) ($body['first_name'] ?? ''));
     $last     = trim((string) ($body['last_name'] ?? ''));
+    if ($pinCode !== '' && !preg_match('/^\d{4}$/', $pinCode)) {
+        panel_json(false, 'PIN kasowy: dokładnie 4 cyfry (np. 0000).');
+    }
 
     if ($tenantId <= 0)       panel_json(false, 'Wymagany tenant_id.');
     if ($username === '')     panel_json(false, 'Wymagany login.');
@@ -794,12 +798,13 @@ function action_create_owner(array $body): void
                 (tenant_id, username, password_hash, pin_code, name,
                  first_name, last_name, role, status, is_active, is_deleted)
              VALUES
-                (:tid, :un, :ph, NULL, :nm, :fn, :ln, :rl, 'active', 1, 0)"
+                (:tid, :un, :ph, :pin, :nm, :fn, :ln, :rl, 'active', 1, 0)"
         );
         $st->execute([
             ':tid' => $tenantId,
             ':un'  => $username,
             ':ph'  => $hash,
+            ':pin' => $pinCode !== '' ? $pinCode : null,
             ':nm'  => $name,
             ':fn'  => $first,
             ':ln'  => $last,

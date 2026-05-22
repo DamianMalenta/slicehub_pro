@@ -215,8 +215,8 @@ if (location.protocol === 'file:') {
     throw new Error('Test Runner requires HTTP server. Open via http://localhost/slicehub/tests/test_runner.html');
 }
 
-// ─── Fallback JWT (tenant_id=1, user_id=1, exp=2100, secret=dev_localhost_secret) ─
-const TEST_JWT_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0ZW5hbnRfaWQiOjEsInVzZXJfaWQiOjEsImV4cCI6NDEwMjQ0NDgwMH0.dINyVm6UkUlnGVXVOan6u-4alBR-0_M_1bXUS1LImB4';
+// ─── Fallback JWT (user_id=1 owner, tenant z discovery, secret=db_config default) ─
+const TEST_JWT_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJ0ZW5hbnRfaWQiOjIsImV4cCI6NDEwMjQ0NDgwMH0.fudkCuT6H5qsBZG85j-YBHZWdQk3nHBbxq6rPmYxCr8';
 
 // ─── Konfiguracja ───────────────────────────────────────────────────────────
 function detectBasePath() {
@@ -260,10 +260,32 @@ const CFG = {
         posApp       : `${BASE_PATH}/modules/pos/js/pos_app.js`,
     },
     authToken : '',
-    loginPin  : '1111',
+    loginPin  : '0000',
     tenantId  : 1,
     timeout   : 8000,
 };
+
+/** Znajdź pierwszy tenant z działającym PIN-em (demo 1..10, typowe PIN-y). */
+async function discoverAuthTenant() {
+    const pins = ['0000', '1111', '2222', '3333', '4444', '5555', '6666'];
+    for (let tid = 1; tid <= 10; tid++) {
+        for (const pin of pins) {
+            try {
+                const loginRes = await fetch(CFG.loginEndpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode: 'kiosk', tenant_id: tid, pin_code: pin }),
+                    credentials: 'same-origin',
+                });
+                const lj = await loginRes.json().catch(() => ({}));
+                if (lj.success && lj.data?.token) {
+                    return { tenantId: tid, pin, token: lj.data.token };
+                }
+            } catch (_) { /* next */ }
+        }
+    }
+    return null;
+}
 
 // ─── Globalny licznik ───────────────────────────────────────────────────────
 let COUNTS = { total: 0, pass: 0, fail: 0, warn: 0 };
@@ -1532,32 +1554,42 @@ async function runAllTests() {
     COUNTS = { total: 0, pass: 0, fail: 0, warn: 0 };
     DONE_TESTS = 0;
 
-    // Auto-login: get a real JWT token before running tests
+    // Auto-login: discovery tenant+PIN, potem fallback JWT
     if (!CFG.authToken) {
         let loginOk = false;
-        try {
-            const loginRes = await fetch(CFG.loginEndpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mode: 'kiosk', tenant_id: CFG.tenantId, pin_code: CFG.loginPin }),
-                credentials: 'same-origin',
-            });
-            const loginJson = await loginRes.json();
-            if (loginJson.success && loginJson.data?.token) {
-                CFG.authToken = loginJson.data.token;
-                loginOk = true;
-                console.log('[TestRunner] Auto-login OK, token acquired');
-            } else {
-                console.warn('[TestRunner] Auto-login failed:', loginJson.message,
-                    '\n→ Uruchom: http://localhost/slicehub/scripts/setup_database.php');
+        const discovered = await discoverAuthTenant();
+        if (discovered) {
+            CFG.tenantId = discovered.tenantId;
+            CFG.loginPin = discovered.pin;
+            CFG.authToken = discovered.token;
+            loginOk = true;
+            console.log(`[TestRunner] Auto-login OK tenant_id=${CFG.tenantId} pin=${CFG.loginPin}`);
+        } else {
+            try {
+                const loginRes = await fetch(CFG.loginEndpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode: 'kiosk', tenant_id: CFG.tenantId, pin_code: CFG.loginPin }),
+                    credentials: 'same-origin',
+                });
+                const loginJson = await loginRes.json();
+                if (loginJson.success && loginJson.data?.token) {
+                    CFG.authToken = loginJson.data.token;
+                    loginOk = true;
+                    console.log('[TestRunner] Auto-login OK, token acquired');
+                } else {
+                    console.warn('[TestRunner] Auto-login failed:', loginJson.message,
+                        '\n→ Uruchom: http://localhost/slicehub/scripts/setup_database.php');
+                }
+            } catch (e) {
+                console.warn('[TestRunner] Auto-login error:', e.message,
+                    '\n→ Sprawdz czy XAMPP Apache jest uruchomiony');
             }
-        } catch (e) {
-            console.warn('[TestRunner] Auto-login error:', e.message,
-                '\n→ Sprawdz czy XAMPP Apache jest uruchomiony');
         }
         if (!loginOk && TEST_JWT_TOKEN) {
             CFG.authToken = TEST_JWT_TOKEN;
-            console.log('[TestRunner] Using fallback TEST_JWT_TOKEN (dev secret, tenant_id=1)');
+            CFG.tenantId = 2;
+            console.log('[TestRunner] Using fallback TEST_JWT_TOKEN');
         }
         if (!loginOk) {
             const warn = document.createElement('div');
