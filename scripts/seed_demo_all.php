@@ -9,7 +9,7 @@ declare(strict_types=1);
 //
 // Creates a complete, coherent test dataset for:
 //   POS, Studio, Warehouse, Courses/Dispatch, Driver App, KDS, Dashboard,
-//   Procurement / KSeF Inbox (draft + error + accepted demo)
+//   Procurement / KSeF Inbox, Menu Studio + Online (hero SVG, sceny, aliasy)
 //
 // WYMAGANE PRZED SEEDEM (świeża baza):
 //   mysql … < database/migrations/001_init_slicehub_pro_v2.sql   # tylko pusta DB
@@ -20,6 +20,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../core/db_config.php';
 require_once __DIR__ . '/lib/seed_search_aliases.php';
+require_once __DIR__ . '/lib/seed_dish_visuals.php';
 
 if (!isset($pdo)) {
     die(json_encode(['success' => false, 'message' => 'Database connection failed.']));
@@ -856,6 +857,13 @@ seed('Meal Packages (2 combos)', function ($pdo, $T) {
 });
 
 // =============================================================================
+// 12c. STUDIO + ONLINE — zdjęcia, sceny, storefront (po menu + zestawach)
+// =============================================================================
+seed('Studio visuals (heroes + scenes)', function ($pdo, $T) {
+    return seed_apply_studio_visuals($pdo, $T);
+});
+
+// =============================================================================
 // 13. WORK SESSIONS (active staff)
 // =============================================================================
 seed('Work Sessions', function ($pdo, $T) use ($uuid4) {
@@ -888,7 +896,8 @@ if ($isCli) {
     echo "  driver1  (driver)  — PIN: 4444\n";
     echo "  driver2  (driver)  — PIN: 5555\n";
     echo "  team1    (team)    — PIN: 6666\n\n";
-    echo "  Inbox KSeF: FA/DEMO/2026/001 (draft), FA/DEMO/2026/002 (accepted), FA/DEMO/KOR-001 (error)\n\n";
+    echo "  Inbox KSeF: FA/DEMO/2026/001 (draft), FA/DEMO/2026/002 (accepted), FA/DEMO/KOR-001 (error)\n";
+    echo "  Studio: miniatury hero SVG + 10 scen pizza + Scene Kit (tenant 0)\n\n";
     exit;
 }
 ?>
@@ -948,7 +957,9 @@ if ($isCli) {
 
     <div class="links">
         <a href="/slicehub/modules/pos/" style="background:#3b82f6;">POS</a>
-        <a href="/slicehub/modules/studio/" style="background:#06b6d4;">Studio</a>
+        <a href="/slicehub/modules/studio/" style="background:#06b6d4;">Menu Studio</a>
+        <a href="/slicehub/modules/online_studio/" style="background:#0ea5e9;">Online Studio</a>
+        <a href="/slicehub/modules/online/" style="background:#14b8a6;">Sklep online</a>
         <a href="/slicehub/modules/courses/" style="background:#a855f7;">Kursy / Dispatch</a>
         <a href="/slicehub/modules/driver_app/" style="background:#22c55e;">Driver App</a>
         <a href="/slicehub/modules/warehouse/" style="background:#f97316;">Magazyn</a>

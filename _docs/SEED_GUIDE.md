@@ -37,6 +37,7 @@ Bezpieczny wielokrotny run (`ON DUPLICATE KEY UPDATE`). KSeF demo (`FA/DEMO/%`) 
 | Mapowania | `sh_product_mapping` z `supplier_nip` + `pack_qty_base` (P_7A bazylia) |
 | KSeF | 3 faktury: `draft`, `accepted` (PZ #1), `error` (pusta korekta) |
 | OPEX | Kategorie kosztów (m057) |
+| **Studio / Online** | Scene Kit (53 SVG tła/props), **33 hero** dań + opisy, `composition_profile`, 10 scen pizza, warstwy modów, storefront channels |
 | Operacje | PZ/RW, kierowcy, 12 zamówień, 2 zestawy POS, sesje pracy |
 
 ## Czego seed **nie** robi
@@ -52,7 +53,15 @@ php scripts/seed_demo_all.php
 php scripts/audit_ksef_matching.php
 ```
 
-W przeglądarce: `http://localhost/slicehub/modules/procurement/` (login: admin / password).
+W przeglądarce:
+- Inbox KSeF: `/slicehub/modules/procurement/`
+- Menu Studio (miniatury): `/slicehub/modules/studio/`
+- Online Studio (sceny): `/slicehub/modules/online_studio/`
+- Sklep: `/slicehub/modules/online/`
+
+Login: admin / password.
+
+**Uwaga:** pliki SVG trafiają do `uploads/` (gitignore) — są **generowane przy każdym seedzie**, nie trzeba ich commitować.
 
 ## Znane problemy chain na starych instancjach
 
