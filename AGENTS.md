@@ -64,5 +64,6 @@ Open `http://localhost/slicehub/tests/test_runner.html` in a browser and click "
 3. **MariaDB root auth** must use `mysql_native_password` with empty password (not unix_socket) for Apache's PHP process to connect.
 4. **Migration failures for 015/030/037** are pre-existing MariaDB 10.11 compatibility issues and do not block the application from running.
 5. **Internal URLs** assume the app is at path `/slicehub/`. The symlink `/var/www/html/slicehub -> /workspace` provides this.
-6. **Database reset path:** `nuclear_reset.php` → `seed_demo_all.php` to get clean demo data.
-7. **Full schema rebuild:** Import `001_init_slicehub_pro_v2.sql` → `php scripts/apply_migrations_chain.php` → `php scripts/setup_database.php` → `php scripts/seed_demo_all.php`
+6. **Database reset path:** `nuclear_reset.php` → `seed_demo_all.php` to get clean demo data (orders/users only — not full schema).
+7. **Full schema rebuild (golden path):** Import `001_init_slicehub_pro_v2.sql` → `php scripts/apply_migrations_chain.php` → `php scripts/seed_demo_all.php`. See `_docs/SEED_GUIDE.md`. Optional: `seed_pizzaforno.sql` (tenant 2).
+8. **KSeF demo data** is included in `seed_demo_all.php` (`FA/DEMO/*` invoices). Run migrations through **059** before seeding.

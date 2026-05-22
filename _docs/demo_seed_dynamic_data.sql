@@ -155,7 +155,7 @@ VALUES
    25000,   -- 250.00 zł netto
    5750,    -- 57.50 zł VAT (23%)
    30750,   -- 307.50 zł brutto
-   'new',
+   'draft',
    NOW() - INTERVAL 30 MINUTE);
 
 SET @inv1_id := LAST_INSERT_ID();

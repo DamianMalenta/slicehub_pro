@@ -8,12 +8,18 @@ declare(strict_types=1);
 // Run via CLI:     php scripts/seed_demo_all.php
 //
 // Creates a complete, coherent test dataset for:
-//   POS, Studio, Warehouse, Courses/Dispatch, Driver App, KDS, Dashboard
+//   POS, Studio, Warehouse, Courses/Dispatch, Driver App, KDS, Dashboard,
+//   Procurement / KSeF Inbox (draft + error + accepted demo)
+//
+// WYMAGANE PRZED SEEDEM (świeża baza):
+//   mysql … < database/migrations/001_init_slicehub_pro_v2.sql   # tylko pusta DB
+//   php scripts/apply_migrations_chain.php
 //
 // SAFE TO RE-RUN: Uses ON DUPLICATE KEY UPDATE throughout.
 // =============================================================================
 
 require_once __DIR__ . '/../core/db_config.php';
+require_once __DIR__ . '/lib/seed_search_aliases.php';
 
 if (!isset($pdo)) {
     die(json_encode(['success' => false, 'message' => 'Database connection failed.']));
@@ -47,51 +53,23 @@ $uuid4 = function (): string {
 $PW = '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi';
 
 // =============================================================================
-// 0. SCHEMA GUARDS (run missing ALTERs)
+// 0. SCHEMA PREFLIGHT (nie duplikuje apply_migrations_chain — tylko brakujące legacy)
 // =============================================================================
-seed('Migration 006 — Studio columns', function ($pdo) {
-    $alters = [
-        "ALTER TABLE sh_categories ADD COLUMN default_vat_dine_in DECIMAL(5,2) NOT NULL DEFAULT 8.00",
-        "ALTER TABLE sh_categories ADD COLUMN default_vat_takeaway DECIMAL(5,2) NOT NULL DEFAULT 5.00",
-        "ALTER TABLE sh_categories ADD COLUMN default_vat_delivery DECIMAL(5,2) NOT NULL DEFAULT 5.00",
-        "ALTER TABLE sh_menu_items ADD COLUMN printer_group VARCHAR(64) NULL DEFAULT NULL",
-        "ALTER TABLE sh_menu_items ADD COLUMN plu_code VARCHAR(32) NULL DEFAULT NULL",
-        "ALTER TABLE sh_menu_items ADD COLUMN available_days VARCHAR(32) NULL DEFAULT '1,2,3,4,5,6,7'",
-        "ALTER TABLE sh_menu_items ADD COLUMN available_start TIME NULL DEFAULT NULL",
-        "ALTER TABLE sh_menu_items ADD COLUMN available_end TIME NULL DEFAULT NULL",
-    ];
-    $applied = 0;
-    foreach ($alters as $sql) {
-        try { $pdo->exec($sql); $applied++; } catch (\Throwable $e) {
-            if (!str_contains($e->getMessage(), 'Duplicate column')) throw $e;
+seed('Schema preflight', function ($pdo) {
+    $need = [];
+    foreach (['sh_ksef_invoices', 'sh_meal_packages', 'sh_expense_categories'] as $tbl) {
+        try {
+            $pdo->query("SELECT 1 FROM {$tbl} LIMIT 0");
+        } catch (Throwable $e) {
+            $need[] = $tbl;
         }
     }
-    return "{$applied} new columns";
-});
-
-seed('Migration 007 — POS Engine columns', function ($pdo) {
-    $alters = [
-        "ALTER TABLE sh_orders ADD COLUMN receipt_printed TINYINT(1) NOT NULL DEFAULT 0",
-        "ALTER TABLE sh_orders ADD COLUMN kitchen_ticket_printed TINYINT(1) NOT NULL DEFAULT 0",
-        "ALTER TABLE sh_orders ADD COLUMN kitchen_changes TEXT NULL",
-        "ALTER TABLE sh_orders ADD COLUMN cart_json JSON NULL",
-        "ALTER TABLE sh_orders ADD COLUMN nip VARCHAR(32) NULL",
-    ];
-    $applied = 0;
-    foreach ($alters as $sql) {
-        try { $pdo->exec($sql); $applied++; } catch (\Throwable $e) {
-            if (!str_contains($e->getMessage(), 'Duplicate column')) throw $e;
-        }
+    if ($need !== []) {
+        return 'Brak: ' . implode(', ', $need) . ' — uruchom: php scripts/apply_migrations_chain.php';
     }
-    return "{$applied} new columns";
-});
-
-seed('Migration 008 — Driver Locations', function ($pdo) {
     try {
-        $chk = $pdo->query("SELECT 1 FROM sh_driver_locations LIMIT 0");
-        $chk->closeCursor();
-        return 'Table exists';
-    } catch (\Throwable $e) {
+        $pdo->query('SELECT 1 FROM sh_driver_locations LIMIT 0');
+    } catch (Throwable $e) {
         $pdo->exec("CREATE TABLE IF NOT EXISTS sh_driver_locations (
             driver_id BIGINT UNSIGNED NOT NULL, tenant_id INT UNSIGNED NOT NULL,
             lat DECIMAL(10,7) NOT NULL, lng DECIMAL(10,7) NOT NULL,
@@ -99,8 +77,9 @@ seed('Migration 008 — Driver Locations', function ($pdo) {
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (tenant_id, driver_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-        return 'Created';
+        return 'Utworzono sh_driver_locations (legacy); zalecany pełny chain';
     }
+    return 'OK';
 });
 
 // =============================================================================
@@ -202,13 +181,15 @@ seed('Menu Items (33)', function ($pdo, $T) {
     ];
     $isDrink = fn($sku) => str_starts_with($sku, 'DRINK_');
     $stmt = $pdo->prepare(
-        "INSERT INTO sh_menu_items (id, tenant_id, category_id, name, ascii_key, `type`, is_active, display_order, vat_rate_dine_in, vat_rate_takeaway, kds_station_id)
-         VALUES (?,?,?,?,?,'standard',1,?,?,?,?)
+        "INSERT INTO sh_menu_items (id, tenant_id, category_id, name, ascii_key, `type`, is_active, display_order,
+            publication_status, vat_rate_dine_in, vat_rate_takeaway, kds_station_id)
+         VALUES (?,?,?,?,?,'standard',1,?, 'Live', ?, ?, ?)
          ON DUPLICATE KEY UPDATE
             ascii_key=VALUES(ascii_key),
             name=VALUES(name),
             category_id=VALUES(category_id),
             is_active=1,
+            publication_status='Live',
             display_order=VALUES(display_order),
             vat_rate_dine_in=VALUES(vat_rate_dine_in),
             vat_rate_takeaway=VALUES(vat_rate_takeaway),
@@ -344,7 +325,11 @@ seed('Warehouse (43 items + stock)', function ($pdo, $T) {
         ['OPAK_BURGER','Opakowanie styro burger','szt',150.0,0.80],
     ];
 
-    $stmtI = $pdo->prepare("INSERT INTO sys_items (tenant_id,sku,name,base_unit) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE name=VALUES(name), base_unit=VALUES(base_unit)");
+    $stmtI = $pdo->prepare(
+        "INSERT INTO sys_items (tenant_id,sku,name,base_unit,is_active,is_deleted)
+         VALUES (?,?,?,?,1,0)
+         ON DUPLICATE KEY UPDATE name=VALUES(name), base_unit=VALUES(base_unit), is_active=1, is_deleted=0"
+    );
     $stmtS = $pdo->prepare("INSERT INTO wh_stock (tenant_id,warehouse_id,sku,quantity,current_avco_price,unit_net_cost) VALUES (?,'MAIN',?,?,?,?) ON DUPLICATE KEY UPDATE quantity=VALUES(quantity), current_avco_price=VALUES(current_avco_price)");
 
     foreach ($items as $it) {
@@ -352,6 +337,19 @@ seed('Warehouse (43 items + stock)', function ($pdo, $T) {
         $stmtS->execute([$T, $it[0], $it[3], $it[4], $it[4]]);
     }
     return count($items) . ' items + stock';
+});
+
+// =============================================================================
+// 7b. SEARCH ALIASES (AutoScan — migracja 004, po sys_items)
+// =============================================================================
+seed('Search aliases (AutoScan)', function ($pdo) {
+    try {
+        $pdo->query('SELECT search_aliases FROM sys_items LIMIT 0');
+    } catch (Throwable $e) {
+        return 'Pominięto — brak kolumny search_aliases (chain 004)';
+    }
+    $n = seed_apply_search_aliases($pdo);
+    return "{$n} aliasów z 004";
 });
 
 // =============================================================================
@@ -411,14 +409,49 @@ seed('Recipes (menu → warehouse)', function ($pdo, $T) {
 // 9. PRODUCT MAPPING + MODIFIER WAREHOUSE LINKS
 // =============================================================================
 seed('Product Mapping + Modifier links', function ($pdo, $T) {
-    $pdo->exec("INSERT INTO sh_product_mapping (tenant_id,external_name,internal_sku) VALUES
-        ({$T},'Mąka pszenna Caputo \"00\"','MKA_TIPO00'),
-        ({$T},'Mozzarella Fior di Latte 1kg','SER_MOZZ'),
-        ({$T},'Passata pomidorowa S.Marzano 2.5L','SOS_POM'),
-        ({$T},'Oliwa extra vergine Ferrini 5L','OLJ_OLIWA'),
-        ({$T},'Coca-Cola 0.5L x24 zgrzewka','COCA_COLA_05'),
-        ({$T},'Woda Żywiec 0.5L x12','WODA_05')
-        ON DUPLICATE KEY UPDATE internal_sku=VALUES(internal_sku)");
+    // supplier_nip + pack_* (m058/m059) — unikalny klucz (tenant, nip, external_name)
+    $nipMakro = '5252311234';
+    $nipGastro = '7780012345';
+    $nipNapoje = '9511111111';
+
+    $maps = [
+        [$nipMakro, 'Mąka pszenna Caputo "00"', 'MKA_TIPO00', null, null],
+        [$nipMakro, 'Mozzarella Fior di Latte 1kg', 'SER_MOZZ', 1.0, 'kg'],
+        [$nipMakro, 'Passata pomidorowa S.Marzano 2.5L', 'SOS_POM', 2.5, 'l'],
+        [$nipGastro, 'Oliwa extra vergine Ferrini 5L', 'OLJ_OLIWA', 5.0, 'l'],
+        [$nipGastro, 'Bazylia świeża P_7A op. 20G', 'BAZYLIA_SW', 0.02, 'kg'],
+        [$nipNapoje, 'Coca-Cola 0.5L x24 zgrzewka', 'COCA_COLA_05', null, null],
+        [$nipNapoje, 'Woda Żywiec 0.5L x12', 'WODA_05', null, null],
+    ];
+
+    $hasPack = false;
+    try {
+        $pdo->query('SELECT pack_qty_base FROM sh_product_mapping LIMIT 0');
+        $hasPack = true;
+    } catch (Throwable $e) {
+        // m058 nie zastosowany
+    }
+
+    if ($hasPack) {
+        $stmt = $pdo->prepare(
+            "INSERT INTO sh_product_mapping (tenant_id, supplier_nip, external_name, internal_sku, pack_qty_base, pack_invoice_unit)
+             VALUES (?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE internal_sku=VALUES(internal_sku),
+               pack_qty_base=VALUES(pack_qty_base), pack_invoice_unit=VALUES(pack_invoice_unit)"
+        );
+        foreach ($maps as $m) {
+            $stmt->execute([$T, $m[0], $m[1], $m[2], $m[3], $m[4]]);
+        }
+    } else {
+        $stmt = $pdo->prepare(
+            "INSERT INTO sh_product_mapping (tenant_id, external_name, internal_sku)
+             VALUES (?, ?, ?)
+             ON DUPLICATE KEY UPDATE internal_sku=VALUES(internal_sku)"
+        );
+        foreach ($maps as $m) {
+            $stmt->execute([$T, $m[1], $m[2]]);
+        }
+    }
 
     $pdo->exec("UPDATE sh_modifiers SET linked_warehouse_sku='SER_MOZZ', linked_quantity=0.1 WHERE ascii_key='EXTRA_CHEESE'");
     $pdo->exec("UPDATE sh_modifiers SET linked_warehouse_sku='JALAPENO', linked_quantity=0.03 WHERE ascii_key='EXTRA_JALAP'");
@@ -428,7 +461,161 @@ seed('Product Mapping + Modifier links', function ($pdo, $T) {
     $pdo->exec("UPDATE sh_modifiers SET linked_warehouse_sku='SOS_BBQ', linked_quantity=0.03 WHERE ascii_key='SAUCE_BBQ'");
     $pdo->exec("UPDATE sh_modifiers SET linked_warehouse_sku='SOS_OSTRY', linked_quantity=0.03 WHERE ascii_key='SAUCE_HOT'");
 
-    return '6 mappings, 7 modifier links';
+    return count($maps) . ' mappings (NIP+dostawca), 7 modifier links';
+});
+
+// =============================================================================
+// 9b. KSEF INBOX (demo faktury — status draft / accepted / error)
+// =============================================================================
+seed('KSeF Inbox (3 demo invoices)', function ($pdo, $T) {
+    try {
+        $pdo->query('SELECT 1 FROM sh_ksef_invoices LIMIT 0');
+    } catch (Throwable $e) {
+        return 'Pominięto — uruchom apply_migrations_chain.php (046+)';
+    }
+
+    $pdo->exec(
+        "DELETE l FROM sh_ksef_invoice_lines l
+         INNER JOIN sh_ksef_invoices i ON i.id = l.ksef_invoice_id
+         WHERE i.tenant_id = {$T} AND i.invoice_number LIKE 'FA/DEMO/%'"
+    );
+    $pdo->exec("DELETE FROM sh_ksef_invoices WHERE tenant_id = {$T} AND invoice_number LIKE 'FA/DEMO/%'");
+
+    $nipMakro = '5252311234';
+    $nipGastro = '7780012345';
+
+    $hasLineType = false;
+    try {
+        $pdo->query('SELECT line_type FROM sh_ksef_invoice_lines LIMIT 0');
+        $hasLineType = true;
+    } catch (Throwable $e) {
+    }
+
+    $hasNorm = false;
+    try {
+        $pdo->query('SELECT qty_normalized FROM sh_ksef_invoice_lines LIMIT 0');
+        $hasNorm = true;
+    } catch (Throwable $e) {
+    }
+
+    // 1) draft — do akceptacji w Inbox (linie z mapowaniem + P_7A bazylia)
+    $pdo->prepare(
+        "INSERT INTO sh_ksef_invoices
+            (tenant_id, ksef_reference_id, supplier_nip, supplier_name, supplier_address,
+             buyer_nip, buyer_name, invoice_number, issue_date, sale_date, payment_due_date,
+             currency, total_net_minor, total_vat_minor, total_gross_minor,
+             status, status_message, fetched_at)
+         VALUES (?, 'KSEF-DEMO-REF-001', ?, 'Makro Cash & Carry Sp. z o.o.',
+                 'ul. Hurtowa 1, Poznań', '7790000001', 'SliceHub Pizzeria Poznań',
+                 'FA/DEMO/2026/001', CURDATE() - INTERVAL 2 DAY, CURDATE() - INTERVAL 2 DAY,
+                 CURDATE() + INTERVAL 14 DAY, 'PLN', 65965, 3298, 69263,
+                 'draft', NULL, NOW() - INTERVAL 1 HOUR)"
+    )->execute([$T, $nipMakro]);
+    $inv1 = (int)$pdo->lastInsertId();
+
+    $lines1 = [
+        [1, 'Mąka pszenna Caputo "00"', 25.0, 'kg', 385, 9625, 5.0, 'MKA_TIPO00', 'ALIAS', 92],
+        [2, 'Mozzarella Fior di Latte 1kg', 10.0, 'szt', 2850, 28500, 5.0, 'SER_MOZZ', 'ALIAS', 90],
+        [3, 'Passata pomidorowa S.Marzano 2.5L', 6.0, 'szt', 890, 5340, 5.0, 'SOS_POM', 'ALIAS', 88],
+        [4, 'Bazylia świeża P_7A op. 20G', 50.0, 'szt', 450, 22500, 5.0, 'BAZYLIA_SW', 'ALIAS', 85],
+    ];
+
+    if ($hasLineType && $hasNorm) {
+        $stmtL = $pdo->prepare(
+            "INSERT INTO sh_ksef_invoice_lines
+                (ksef_invoice_id, line_no, external_name, qty, unit, unit_net, line_net_minor, vat_rate,
+                 resolved_sku, match_type, match_confidence, line_type,
+                 qty_normalized, unit_net_normalized, normalization_status)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,'INVENTORY',?,?,?)"
+        );
+        foreach ($lines1 as $ln) {
+            $qtyNorm = $ln[0] === 4 ? 1.0 : $ln[2];
+            $unitNorm = $ln[0] === 4 ? 9.0 : $ln[4];
+            $normSt = $ln[0] === 4 ? 'warn' : 'ok';
+            $stmtL->execute([
+                $inv1, $ln[0], $ln[1], $ln[2], $ln[3], $ln[4], $ln[5], $ln[6],
+                $ln[7], $ln[8], $ln[9], $qtyNorm, $unitNorm, $normSt,
+            ]);
+        }
+    } elseif ($hasLineType) {
+        $stmtL = $pdo->prepare(
+            "INSERT INTO sh_ksef_invoice_lines
+                (ksef_invoice_id, line_no, external_name, qty, unit, unit_net, line_net_minor, vat_rate,
+                 resolved_sku, match_type, match_confidence, line_type)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,'INVENTORY')"
+        );
+        foreach ($lines1 as $ln) {
+            $stmtL->execute([$inv1, $ln[0], $ln[1], $ln[2], $ln[3], $ln[4], $ln[5], $ln[6], $ln[7], $ln[8], $ln[9]]);
+        }
+    } else {
+        $stmtL = $pdo->prepare(
+            "INSERT INTO sh_ksef_invoice_lines
+                (ksef_invoice_id, line_no, external_name, qty, unit, unit_net, line_net_minor, vat_rate,
+                 resolved_sku, match_type, match_confidence)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+        );
+        foreach ($lines1 as $ln) {
+            $stmtL->execute([$inv1, $ln[0], $ln[1], $ln[2], $ln[3], $ln[4], $ln[5], $ln[6], $ln[7], $ln[8], $ln[9]]);
+        }
+    }
+
+    // 2) accepted — historia (powiązana z PZ #1 z seeda magazynu)
+    $pdo->prepare(
+        "INSERT INTO sh_ksef_invoices
+            (tenant_id, ksef_reference_id, supplier_nip, supplier_name, invoice_number,
+             issue_date, currency, total_net_minor, total_vat_minor, total_gross_minor,
+             status, linked_wh_document_id, fetched_at, processed_at, processed_by_user_id)
+         VALUES (?, 'KSEF-DEMO-REF-002', ?, 'Hurtownia Gastro-Pol', 'FA/DEMO/2026/002',
+                 CURDATE() - INTERVAL 10 DAY, 'PLN', 11300, 565, 11865,
+                 'accepted', 1, NOW() - INTERVAL 10 DAY, NOW() - INTERVAL 9 DAY, 2)"
+    )->execute([$T, $nipGastro]);
+    $inv2 = (int)$pdo->lastInsertId();
+    $pdo->prepare(
+        "INSERT INTO sh_ksef_invoice_lines
+            (ksef_invoice_id, line_no, external_name, qty, unit, unit_net, line_net_minor, vat_rate,
+             resolved_sku, match_type, match_confidence)
+         VALUES (?, 1, 'Oliwa extra vergine Ferrini 5L', 2.0, 'szt', 3200, 6400, 5.0, 'OLJ_OLIWA', 'ALIAS', 90),
+                (?, 2, 'Ser Mozzarella Fior di Latte', 2.0, 'kg', 2450, 4900, 5.0, 'SER_MOZZ', 'FUZZY', 72)"
+    )->execute([$inv2, $inv2]);
+
+    // 3) error — pusta korekta (workflow błędu)
+    $pdo->prepare(
+        "INSERT INTO sh_ksef_invoices
+            (tenant_id, ksef_reference_id, supplier_nip, supplier_name, invoice_number,
+             issue_date, currency, total_net_minor, total_vat_minor, total_gross_minor,
+             status, status_message, fetched_at)
+         VALUES (?, 'KSEF-DEMO-REF-003', ?, 'Dostawca Demo KOR', 'FA/DEMO/2026/KOR-001',
+                 CURDATE(), 'PLN', 0, 0, 0, 'error',
+                 'Korekta bez pozycji — wymaga ręcznej weryfikacji lub odrzucenia', NOW() - INTERVAL 2 HOUR)"
+    )->execute([$T, $nipMakro]);
+
+    return '3 faktury (draft/accepted/error), ' . count($lines1) . ' linii na draft';
+});
+
+// =============================================================================
+// 9c. EXPENSE CATEGORIES (OPEX — m057, jeśli chain pominął INSERT)
+// =============================================================================
+seed('Expense categories (OPEX)', function ($pdo, $T) {
+    try {
+        $pdo->query('SELECT 1 FROM sh_expense_categories LIMIT 0');
+    } catch (Throwable $e) {
+        return 'Pominięto — m057';
+    }
+    $names = ['Food Cost', 'Packaging', 'Logistics', 'Facility', 'Sales & Marketing', 'IT & Admin'];
+    $stmt = $pdo->prepare(
+        "INSERT INTO sh_expense_categories (tenant_id, name, is_system, is_active, is_deleted)
+         SELECT ?, ?, 1, 1, 0 FROM DUAL
+         WHERE NOT EXISTS (
+           SELECT 1 FROM sh_expense_categories WHERE tenant_id = ? AND name = ? AND is_deleted = 0
+         )"
+    );
+    $n = 0;
+    foreach ($names as $name) {
+        $stmt->execute([$T, $name, $T, $name]);
+        $n += $stmt->rowCount();
+    }
+    $cnt = (int)$pdo->query("SELECT COUNT(*) FROM sh_expense_categories WHERE tenant_id = {$T} AND is_deleted = 0")->fetchColumn();
+    return "{$cnt} kategorii (+" . $n . ' nowych)';
 });
 
 // =============================================================================
@@ -701,6 +888,7 @@ if ($isCli) {
     echo "  driver1  (driver)  — PIN: 4444\n";
     echo "  driver2  (driver)  — PIN: 5555\n";
     echo "  team1    (team)    — PIN: 6666\n\n";
+    echo "  Inbox KSeF: FA/DEMO/2026/001 (draft), FA/DEMO/2026/002 (accepted), FA/DEMO/KOR-001 (error)\n\n";
     exit;
 }
 ?>
@@ -764,6 +952,7 @@ if ($isCli) {
         <a href="/slicehub/modules/courses/" style="background:#a855f7;">Kursy / Dispatch</a>
         <a href="/slicehub/modules/driver_app/" style="background:#22c55e;">Driver App</a>
         <a href="/slicehub/modules/warehouse/" style="background:#f97316;">Magazyn</a>
+        <a href="/slicehub/modules/procurement/" style="background:#10b981;">Inbox KSeF</a>
         <a href="/slicehub/tests/test_runner.html" style="background:#64748b;">Test Runner</a>
     </div>
 
