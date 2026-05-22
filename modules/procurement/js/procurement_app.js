@@ -197,6 +197,29 @@
         return state.skuOptions.find(o => o.sku === s) || null;
     }
 
+    /** Podgląd przeliczenia FA → base_unit (cache z API / migracja 058). */
+    function normPreviewHtml(l) {
+        const st = (l.normalization_status || '').toLowerCase();
+        const sku = (l.resolved_sku || '').trim();
+        if (!sku || st === '') return '';
+
+        const baseUnit = (findSkuOption(sku)?.unit || 'kg').trim();
+        if (st === 'blocked') {
+            const meta = l.normalization_meta && typeof l.normalization_meta === 'object' ? l.normalization_meta : {};
+            const msg = meta.message || 'Brak przeliczenia — zmień SKU lub mapowanie opakowania.';
+            return `<div class="pi-norm-preview pi-norm-preview--blocked">${escapeHtml(msg)}</div>`;
+        }
+
+        const qn = parseFloat(l.qty_normalized);
+        const un = parseFloat(l.unit_net_normalized);
+        if (!Number.isFinite(qn) || qn <= 0) return '';
+
+        const cls = st === 'warn' ? 'pi-norm-preview--warn' : 'pi-norm-preview--ok';
+        const hint = st === 'warn' ? ' <span title="Gramatura z nazwy — sprawdź">⚠</span>' : '';
+        return `<div class="pi-norm-preview ${cls}">→ magazyn: <strong>${qn.toFixed(3)}</strong> ${escapeHtml(baseUnit)}`
+            + ` @ <strong>${un.toFixed(2)}</strong> PLN/${escapeHtml(baseUnit)}${hint}</div>`;
+    }
+
     function filterSkuOptions(q) {
         const n = normSearch(q);
         const list = state.skuOptions;
@@ -553,11 +576,17 @@
     }
 
     function renderStats() {
-        const total = Object.values(state.stats).reduce((s, n) => s + (parseInt(n, 10) || 0), 0);
+        const errN = parseInt(state.stats['error'] || 0, 10) || 0;
+        const total = Object.entries(state.stats).reduce(
+            (s, [k, n]) => (k === 'error' ? s : s + (parseInt(n, 10) || 0)),
+            0
+        );
         $('#pi-stat-total').textContent = total;
         $('#pi-stat-draft').textContent = state.stats['draft'] || 0;
         $('#pi-stat-accepted').textContent = state.stats['accepted'] || 0;
         $('#pi-stat-rejected').textContent = state.stats['rejected'] || 0;
+        const errEl = $('#pi-stat-error');
+        if (errEl) errEl.textContent = errN;
     }
 
     function renderList() {
@@ -949,7 +978,8 @@
         const opex = state.lineOpexEnabled;
         const isAccepted = inv.status === 'accepted';
         const isRejected = inv.status === 'rejected';
-        const showBulk = !isAccepted && !isRejected;
+        const isImportError = inv.status === 'error';
+        const showBulk = !isAccepted && !isRejected && !isImportError;
         const bulkBarHtml = showBulk ? renderBulkLineBarHtml(opex) : '';
         const cbTh = showBulk
             ? `<th class="pi-th-cb"><input type="checkbox" id="pi-line-cb-master" title="Zaznacz / odznacz wszystkie linie" aria-label="Zaznacz wszystkie linie" /></th>`
@@ -993,6 +1023,13 @@
 
         const mapHeaders = opex ? '<th>Typ</th><th>Mapowanie</th>' : '<th>SKU</th>';
 
+        const importErrorBanner = isImportError
+            ? `<div class="pi-banner pi-banner--error" style="margin:0 0 0.75rem">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                ${escapeHtml(inv.status_message || 'Import oznaczony jako błąd (pusta lub nietypowa faktura). Użyj „Ponów ocenę” po poprawce XML lub odrzuć wpis.')}
+               </div>`
+            : '';
+
         let html = `
             <div class="pi-detail-grid">
                 <div><div class="pi-detail-label">Dostawca</div><div class="pi-detail-value">${escapeHtml(inv.supplier_name || '?')}</div></div>
@@ -1002,6 +1039,8 @@
                 <div><div class="pi-detail-label">Data sprzedaży</div><div class="pi-detail-value">${escapeHtml(inv.sale_date || '?')}</div></div>
                 <div><div class="pi-detail-label">Termin płatności</div><div class="pi-detail-value">${escapeHtml(inv.payment_due_date || '—')}</div></div>
             </div>
+
+            ${importErrorBanner}
 
             <div class="pi-match-stats">
                 <span>AutoScan (threshold ${state.threshold}%):</span>
@@ -1081,9 +1120,13 @@
                     ${cbTd}<td style="color:#64748b">${l.line_no}</td>
                     <td>
                         <div>${escapeHtml(l.external_name)}</div>
+                        ${l.external_description ? `<div class="pi-line-p7a">P_7A: ${escapeHtml(l.external_description)}</div>` : ''}
                         ${l.gtu_code ? `<div style="color:#94a3b8;font-size:0.7rem">${escapeHtml(l.gtu_code)}${l.pkwiu ? ' · PKWiU ' + escapeHtml(l.pkwiu) : ''}</div>` : ''}
                     </td>
-                    <td style="font-family:ui-monospace,monospace">${parseFloat(l.qty).toFixed(3)} ${escapeHtml(l.unit || '')}</td>
+                    <td style="font-family:ui-monospace,monospace">
+                        ${parseFloat(l.qty).toFixed(3)} ${escapeHtml(l.unit || '')}
+                        ${normPreviewHtml(l)}
+                    </td>
                     <td style="font-family:ui-monospace,monospace;text-align:right">${parseFloat(l.unit_net).toFixed(2)}</td>
                     <td style="font-family:ui-monospace,monospace">${parseFloat(l.vat_rate).toFixed(0)}%</td>
                     <td>
@@ -1114,9 +1157,13 @@
                     ${cbTd}<td style="color:#64748b">${l.line_no}</td>
                     <td>
                         <div>${escapeHtml(l.external_name)}</div>
+                        ${l.external_description ? `<div class="pi-line-p7a">P_7A: ${escapeHtml(l.external_description)}</div>` : ''}
                         ${l.gtu_code ? `<div style="color:#94a3b8;font-size:0.7rem">${escapeHtml(l.gtu_code)}${l.pkwiu ? ' · PKWiU ' + escapeHtml(l.pkwiu) : ''}</div>` : ''}
                     </td>
-                    <td style="font-family:ui-monospace,monospace">${parseFloat(l.qty).toFixed(3)} ${escapeHtml(l.unit || '')}</td>
+                    <td style="font-family:ui-monospace,monospace">
+                        ${parseFloat(l.qty).toFixed(3)} ${escapeHtml(l.unit || '')}
+                        ${normPreviewHtml(l)}
+                    </td>
                     <td style="font-family:ui-monospace,monospace;text-align:right">${parseFloat(l.unit_net).toFixed(2)}</td>
                     <td style="font-family:ui-monospace,monospace">${parseFloat(l.vat_rate).toFixed(0)}%</td>
                     <td>
@@ -1158,10 +1205,14 @@
             bindBulkLineControls($('#pi-modal-body'));
         }
 
-        // Lock buttons gdy accepted/rejected
-        $('#pi-modal-accept').disabled = isAccepted || isRejected;
+        // Lock buttons gdy accepted/rejected/error importu
+        $('#pi-modal-accept').disabled = isAccepted || isRejected || isImportError;
         $('#pi-modal-reject').disabled = isAccepted || isRejected;
-        $('#pi-modal-rescan').disabled = isAccepted;
+        $('#pi-modal-rescan').disabled = isAccepted || isImportError;
+        const auditBtn = $('#pi-modal-audit-xml');
+        if (auditBtn) auditBtn.disabled = isAccepted;
+        const reassessBtn = $('#pi-modal-reassess');
+        if (reassessBtn) reassessBtn.disabled = isAccepted || isRejected;
         updateModalSaveButtonState();
 
         // F4.5: gdy accepted, pokaż przycisk Reverse + zamień Accept/Reject style
@@ -1336,6 +1387,57 @@
             await openInvoice(state.currentInvoice.id);
         });
 
+        $('#pi-modal-reassess')?.addEventListener('click', async () => {
+            if (!state.currentInvoice) return;
+            const r = await api('reassess_invoice', { invoice_id: state.currentInvoice.id });
+            if (!r.success) {
+                showError(r.message || 'Ponowna ocena nieudana.');
+                return;
+            }
+            const ok = r.data?.procurement_ok;
+            showSuccess(r.message || (ok ? 'Faktura przeniesiona do „Nowe”.' : 'Nadal błąd importu — sprawdź komunikat.'));
+            await loadList();
+            await openInvoice(state.currentInvoice.id);
+        });
+
+        $('#pi-modal-audit-xml')?.addEventListener('click', async () => {
+            if (!state.currentInvoice) return;
+            const r = await api('sync_lines_from_xml', {
+                invoice_id: state.currentInvoice.id,
+                dry_run: true,
+            });
+            if (!r.success) {
+                showError(r.message || 'Audyt XML nieudany.');
+                return;
+            }
+            const lines = r.data.lines || [];
+            const bad = lines.filter(x => !x.name_match || !x.desc_match);
+            let msg = `Porównanie xml_blob vs baza (${lines.length} linii).\n`;
+            if (bad.length === 0) {
+                msg += 'Nazwy P_7 i opisy P_7A zgodne z zapisem w bazie.';
+            } else {
+                msg += `Rozjazdy: ${bad.length}\n`;
+                bad.slice(0, 5).forEach((x) => {
+                    msg += `\n#${x.line_no} XML P_7: "${x.xml_p_7}"`;
+                    if (x.xml_p_7a) msg += ` | P_7A: "${x.xml_p_7a}"`;
+                    msg += `\n    DB: "${x.db_external_name}"`;
+                    if (x.db_external_description) msg += ` | P_7A: "${x.db_external_description}"`;
+                });
+                if (bad.length > 5) msg += `\n… +${bad.length - 5} linii`;
+                if (confirm(msg + '\n\nZsynchronizować linie z XML (nadpisać nazwy/ilości z P_7)?')) {
+                    const sync = await api('sync_lines_from_xml', { invoice_id: state.currentInvoice.id, dry_run: false });
+                    if (!sync.success) {
+                        showError(sync.message || 'Sync padł.');
+                        return;
+                    }
+                    showSuccess('Zsynchronizowano z xml_blob KSeF.');
+                    await openInvoice(state.currentInvoice.id);
+                    return;
+                }
+            }
+            alert(msg);
+        });
+
         $('#pi-modal-save').addEventListener('click', async () => {
             if (!state.currentInvoice) return;
             const btn = $('#pi-modal-save');
@@ -1360,6 +1462,10 @@
         $('#pi-modal-accept').addEventListener('click', async () => {
             if (!state.currentInvoice) return;
             const inv = state.currentInvoice;
+            if (inv.status === 'error') {
+                showError('Faktura ma status błędu importu — użyj „Ponów ocenę” lub odrzuć wpis.');
+                return;
+            }
             const flush = await savePendingLineSkus();
             if (!flush.ok) {
                 showError(flush.message || 'Nie udało się zapisać zmian na liniach.');

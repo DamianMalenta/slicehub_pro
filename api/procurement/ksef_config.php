@@ -358,19 +358,6 @@ try {
 // =============================================================================
 function pollInsertInvoice(\PDO $pdo, int $tenantId, string $refId, string $xml): void
 {
-    $parser = new \SliceHub\Ksef\Parser();
-    $parsed = $parser->parse($xml);
-    if (!$parsed['success']) {
-        throw new \RuntimeException('Parser: ' . implode('; ', $parsed['errors']));
-    }
-
-    $invoiceId = \SliceHub\Ksef\InboxInvoiceRepository::insertInvoiceWithLines(
-        $pdo,
-        $tenantId,
-        $refId,
-        $xml,
-        $parsed,
-        'KSEF-' . $refId
-    );
-    \SliceHub\Ksef\InboxInvoiceRepository::matchInvoiceLines($pdo, $tenantId, $invoiceId);
+    require_once __DIR__ . '/../../core/Ksef/InboxImport.php';
+    \SliceHub\Ksef\InboxImport::importFromXml($pdo, $tenantId, $refId, $xml, 'KSEF-' . $refId);
 }

@@ -81,6 +81,9 @@
         <button type="button" class="pi-stat-pill" data-status="rejected">
             <i class="fa-solid fa-ban"></i> Odrzucone <span class="pi-stat-count" id="pi-stat-rejected">0</span>
         </button>
+        <button type="button" class="pi-stat-pill" data-status="error">
+            <i class="fa-solid fa-triangle-exclamation"></i> Błąd importu <span class="pi-stat-count" id="pi-stat-error">0</span>
+        </button>
     </section>
 
     <!-- INVOICES TABLE -->
@@ -113,6 +116,12 @@
         <footer class="pi-modal-footer">
             <button type="button" class="pi-btn pi-btn--ghost" id="pi-modal-rescan">
                 <i class="fa-solid fa-arrows-rotate"></i> Rescan AutoScan
+            </button>
+            <button type="button" class="pi-btn pi-btn--ghost" id="pi-modal-audit-xml" title="Porównaj P_7/P_7A z zapisanego XML KSeF (xml_blob)">
+                <i class="fa-solid fa-file-code"></i> Audyt XML
+            </button>
+            <button type="button" class="pi-btn pi-btn--ghost" id="pi-modal-reassess" title="Ponownie sparsuj xml_blob i ustaw status draft/error">
+                <i class="fa-solid fa-scale-balanced"></i> Ponów ocenę
             </button>
             <button type="button" class="pi-btn pi-btn--ghost" id="pi-modal-save" title="Zapisz przypisania SKU do linii (status faktury bez zmian)">
                 <i class="fa-solid fa-floppy-disk"></i> Zapisz zmiany
