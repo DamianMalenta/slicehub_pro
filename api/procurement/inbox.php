@@ -1113,7 +1113,8 @@ try {
 
             if (inboxKsefLineHasOpexColumns($pdo)) {
                 $linesSt = $pdo->prepare(
-                    "SELECT id, line_no, external_name, qty, unit_net, vat_rate, resolved_sku, match_confidence,
+                    "SELECT id, line_no, external_name, external_description, unit, qty, unit_net, line_net_minor,
+                            vat_rate, resolved_sku, match_confidence,
                             COALESCE(line_type, 'INVENTORY') AS line_type, expense_category_id
                        FROM sh_ksef_invoice_lines WHERE ksef_invoice_id = :iid ORDER BY line_no"
                 );
@@ -1285,7 +1286,8 @@ try {
             $costCategory = inboxSanitizeCostCategory($input['cost_category'] ?? ($invoice['cost_category'] ?? 'magazyn'));
 
             $linesSt = $pdo->prepare(
-                "SELECT id, line_no, external_name, qty, unit_net, vat_rate, resolved_sku, match_confidence
+                "SELECT id, line_no, external_name, external_description, unit, qty, unit_net, line_net_minor,
+                        vat_rate, resolved_sku, match_confidence
                    FROM sh_ksef_invoice_lines WHERE ksef_invoice_id = :iid ORDER BY line_no"
             );
             $linesSt->execute([':iid' => $iid]);
