@@ -59,17 +59,10 @@ e13a2cc fix(ksef): P_7A w gramaturze + audyt xml_blob vs baza (200G)
 
 ## Co DOKOŃCZYĆ (priorytet)
 
-### P0 — UI + commit lokalny
+### ~~P0 — UI + commit lokalny~~ ✅ (2026-05-22, ten commit)
 
-**Niezacommitowane:** `modules/procurement/js/procurement_app.js` — handler przycisku **„Audyt XML”** (`#pi-modal-audit-xml` → `sync_lines_from_xml` dry_run/sync). Przycisk jest w `index.html`, na origin **brak** listenera.
-
-Dodać w procurement:
-
-1. **Pigułka filtra** `data-status="error"` + `#pi-stat-error` (licznik ze `stats.error`)
-2. **Baner** w modalu: `status_message` gdy `inv.status === 'error'`
-3. **Przycisk** „Ponów ocenę” → `api('reassess_invoice', { invoice_id })` + przeładowanie modalu
-4. **Wyłączyć Accept** w JS przy `status === 'error'` (API już blokuje)
-5. Commit + push brancha, zaktualizować PR #32
+- Audyt XML, filtr `error`, reassess, baner `status_message`, Accept wyłączony dla `error`
+- **Nowy czat:** `git pull` → czysty `git status`, od razu **P1**
 
 ### P1 — Deploy / test
 
@@ -158,12 +151,7 @@ Kontynuuj pracę na branchu cursor/ksef-qty-normalization-b255 (PR #32).
 
 Przeczytaj: _docs/sessions/HANDOFF_2026-05-22_ksef_inbox_continue.md
 
-Zadania P0:
-1. Zacommituj handler Audyt XML w procurement_app.js (jest lokalnie niezacommitowany)
-2. UI: filtr status=error, licznik, baner status_message, przycisk reassess_invoice, wyłącz Accept dla error
-3. Push + update PR
-
-Potem P1: migracja 058 + test E2E bazylia 20G/200G.
+P0 zrobione — od razu P1: migracja 058 + test E2E bazylia 20G/200G.
 
 Konstytucja v5: tenant_id, silosy SKU, zero npm na produkcji.
 ```
@@ -175,7 +163,7 @@ Konstytucja v5: tenant_id, silosy SKU, zero npm na produkcji.
 ```bash
 git checkout cursor/ksef-qty-normalization-b255
 git pull origin cursor/ksef-qty-normalization-b255
-git status   # sprawdź procurement_app.js
+git status   # powinno być clean
 ```
 
 Cloud Agent: branch prefix `cursor/`, suffix `-7fca` tylko dla **nowych** branchy; ten branch już istnieje bez suffixu.
