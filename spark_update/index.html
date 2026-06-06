@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SliceHub - Aktualizacja Projektu (Spark 3.0)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #05050a; color: #e2e8f0; font-family: system-ui, -apple-system, sans-serif; }
+        .glass { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); }
+        .img-container { position: relative; border-radius: 0.75rem; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); border: 1px solid rgba(255,255,255,0.1); }
+        .img-container img { width: 100%; display: block; }
+    </style>
+</head>
+<body class="antialiased selection:bg-purple-500/30">
+
+    <div class="max-w-4xl mx-auto px-6 py-16">
+        <header class="mb-16 text-center">
+            <h1 class="text-4xl md:text-5xl font-bold tracking-tight text-white mb-4">SliceHub <span class="text-purple-500">Update</span></h1>
+            <p class="text-xl text-slate-400">Stan prac i nowe technologie (Czerwiec 2026)</p>
+        </header>
+
+        <section class="glass rounded-2xl p-8 mb-16 leading-relaxed text-slate-300">
+            <h2 class="text-2xl font-semibold text-white mb-4">Kilka słów ode mnie</h2>
+            <p class="mb-4">
+                Dzień dobry. Nazywam się Damian Malenta. Od 15 lat pracuję ciężko w branży gastronomicznej, a od kilku miesięcy równolegle utrzymuję rodzinę prowadząc własny e-commerce. SliceHub to system, w który wlewam całą moją wiedzę o problemach dzisiejszych restauracji. 
+            </p>
+            <p class="mb-4">
+                Zbudowałem ten ekosystem od podstaw zupełnie sam. Projektuję i programuję go po godzinach pracy, zarwając noce, nierzadko kosztem snu. Moja żona jest dziś jedyną osobą, która widzi pełną skalę mojego wysiłku i wie, jak potężne oprogramowanie już działa pod maską.
+            </p>
+            <p>
+                Powoli jednak dochodzę do sufitu swoich możliwości fizycznych. Mam w rękach technologię, która wyprzedza obecne rozwiązania rynkowe, ale by bezpiecznie dowieźć ten projekt do końca, przetestować go i skutecznie sprzedawać, potrzebuję partnera i środków z programu Spark 3.0. Poniżej przedstawiam konkretne dowody na to, nad czym pracowałem od złożenia mojego pierwszego wniosku.
+            </p>
+        </section>
+
+        <!-- KSEF -->
+        <section class="mb-20">
+            <h2 class="text-3xl font-bold text-white mb-6">1. Działająca integracja z KSeF (AutoScan)</h2>
+            <p class="text-slate-400 mb-8 leading-relaxed">
+                Stworzyłem moduł, który eliminuje ręczne przepisywanie faktur. System samodzielnie zaciąga dokumenty XML z Krajowego Systemu e-Faktur, a algorytm <strong>AutoScan</strong> z 99% precyzją decyduje co zrobić z każdą pozycją. Mapuje produkty spożywcze na magazyn (tworząc PZ i przeliczając gramatury), a koszty takie jak czynsz, media czy prąd odfiltrowuje bezpośrednio w koszty operacyjne (OPEX).
+            </p>
+            
+            <div class="space-y-12">
+                <div>
+                    <h3 class="text-lg font-medium text-slate-200 mb-3">Precyzyjne mapowanie pozycji z faktury</h3>
+                    <div class="img-container">
+                        <img src="assets/03_ksef_faktura_mapowanie.png" alt="Mapowanie KSeF" loading="lazy">
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-lg font-medium text-slate-200 mb-3">Zautomatyzowana skrzynka odbiorcza dla menedżera</h3>
+                    <div class="img-container">
+                        <img src="assets/02_ksef_inbox_lista.png" alt="Lista KSeF" loading="lazy">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- BI & Finanse -->
+        <section class="mb-20">
+            <h2 class="text-3xl font-bold text-white mb-6">2. Analityka finansowa w czasie rzeczywistym (BI P&L)</h2>
+            <p class="text-slate-400 mb-8 leading-relaxed">
+                Dane pozyskane z KSeF automatycznie zasilają nowy moduł statystyk. Restaurator widzi na żywo przepalane koszty, zamrożony kapitał w towarze, przepływy kapitału operacyjnego oraz marżowość z dokładnością co do grosza.
+            </p>
+            <div class="space-y-12">
+                <div>
+                    <div class="img-container">
+                        <img src="assets/04_bi_pl_dashboard.png" alt="Dashboard BI" loading="lazy">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Architektura -->
+        <section class="mb-20">
+            <h2 class="text-3xl font-bold text-white mb-6">3. Architektura "Klocków LEGO" (Izolowane API)</h2>
+            <p class="text-slate-400 mb-8 leading-relaxed">
+                System od samego początku opiera się na rygorystycznie odseparowanych od siebie silosach (POS, Magazyn, HR, KSeF). Wszystkie łączą się wyłącznie przez jedno centralne API. Dzięki temu aplikacja jest niesamowicie elastyczna i skalowalna – możemy w niej dowolnie podmieniać lub dodawać nowe bloki bez ryzyka awarii całego systemu.
+            </p>
+            <div class="img-container">
+                <img src="assets/01_hub_moduly_lego.png" alt="Hub API" loading="lazy">
+            </div>
+        </section>
+
+        <!-- AI Factory -->
+        <section class="mb-20">
+            <h2 class="text-3xl font-bold text-white mb-6">4. Autonomiczna Fabryka AI do oprogramowania (Moje R&D)</h2>
+            <p class="text-slate-400 mb-8 leading-relaxed">
+                Poza SliceHub rozwijam autonomiczną technologię, która jest rewolucją w mojej pracy. Tworzę "fabrykę AI" przeznaczoną do generowania oprogramowania. <strong>Wymyśliłem działający sposób, który całkowicie eliminuje halucynacje AI</strong> i przyspiesza działanie modelu 100-krotnie. <br><br>
+                Podczas ostatnich testów system ten, na podstawie prostego promptu, <strong>w nieco ponad sekundę</strong> wygenerował stronę z modułem rezerwacji i całym działającym backendem. Docelowo ten bezbłędny silnik sztucznej inteligencji planuję zaszczepić bezpośrednio do API SliceHub.
+            </p>
+            <div class="space-y-12">
+                <div>
+                    <h3 class="text-lg font-medium text-slate-200 mb-3">Panel generowania kodu w ułamek sekundy</h3>
+                    <div class="img-container">
+                        <img src="assets/07_ai_factory_backend.png" alt="Panel AI Factory" loading="lazy">
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-lg font-medium text-slate-200 mb-3">Integracje z platformami E-commerce (Base.com)</h3>
+                    <div class="img-container">
+                        <img src="assets/06_ai_ecommerce_kolaz.jfif" alt="AI E-commerce Kolaż" loading="lazy">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <footer class="text-center pt-10 border-t border-white/10 text-slate-500">
+            <p>Z poważaniem,<br><strong class="text-slate-300">Damian Malenta</strong><br>Twórca SliceHub</p>
+        </footer>
+    </div>
+
+</body>
+</html>
