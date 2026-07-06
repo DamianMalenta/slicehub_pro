@@ -8,11 +8,9 @@
 
 name: Deno
 
+# CI uruchamiaj ręcznie dopóki nie ma deno.json + testów JS w repo (Konstytucja: Zero-Reload).
 on:
-  push:
-    branches: ["main"]
-  pull_request:
-    branches: ["main"]
+  workflow_dispatch:
 
 permissions:
   contents: read

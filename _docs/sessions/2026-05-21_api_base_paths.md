@@ -4,7 +4,7 @@
 **Czas trwania:** ~2 sesje (Tier 1–4, potem Tier 5 + BI/test_runner)  
 **Architekt:** AI (Cursor Agent) z udziałem właściciela  
 **Commity:** `22a4efc`, `ad57f8e`, `c05a70d`  
-**Handoff:** `.cursor/plans/api_base_paths_handoff.md`
+**Handoff:** ten plik (`2026-05-21_api_base_paths.md`) — kanon audytu Tier 1–5
 
 ---
 
