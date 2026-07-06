@@ -31,3 +31,5 @@ Zawartość — 4 sekcje:
 - [`2026-05-14_settings_ksef_integration_isolation.md`](2026-05-14_settings_ksef_integration_isolation.md) — Settings: widoczny `provider=ksef`, karta + modal z linkiem do Inbox; blokada edycji POS na wierszu KSeF.
 - [`2026-05-14_ksef_inbox_cost_category.md`](2026-05-14_ksef_inbox_cost_category.md) — UI statusów i sortowanie listy inbox; nagłówkowe `sh_ksef_invoices.cost_category` (m056) + akceptacja bez PZ dla kosztów.
 - [`2026-05-14_ksef_opex_line_types.md`](2026-05-14_ksef_opex_line_types.md) — m057: linie `INVENTORY` vs `EXPENSE`, `sh_expense_categories`, `api/procurement/expense_categories.php`, `commission_amount` na `sh_orders`; `main` @ `71a0e3f`.
+- [`2026-05-21_api_base_paths.md`](2026-05-21_api_base_paths.md) — SSOT prefiksów API/aplikacji (`sh_api_base.js`, Tier 1–5): XAMPP `/slicehub/api` vs hosting root `/api`; 62/62 test_runner.
+- [`2026-05-22_tenant_discovery_auth.md`](2026-05-22_tenant_discovery_auth.md) — `tenant_config.php` discovery tenanta z użytkownikami; test runner auto-discovery PIN; `install_panel` `pin_code` przy `create_owner`.

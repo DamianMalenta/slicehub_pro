@@ -68,6 +68,10 @@ return [
 3. Powinno wyświetlić `Chain OK — 48 migracji zaaplikowanych` (1 może mieć WARN dla 037 jeśli MariaDB > 10.6 — to znana niegroźna sytuacja na MySQL działa)
 4. Wejdź na `https://twoja-domena.pl/install_owner.php` (jeśli istnieje) lub utwórz pierwszego owner'a przez `install_panel.php` → akcja **Create owner**
 
+   Przy tworzeniu konta możesz podać opcjonalnie **`pin_code`** (4 cyfry, np. `0000`) — od razu działa logowanie kasowe POS (`mode=kiosk`). Hasło systemowe (`password` w body) to **Twoje** hasło Hubu; nie ma domyślnego `password` poza seedem demo.
+
+5. (Opcjonalnie) Ustaw env **`SLICEHUB_TENANT_ID`** na id nowego tenanta, jeśli na domenie ma być tylko jeden lokal.
+
 ### Krok 6 — opcjonalnie: dane demo
 
 Jeśli chcesz mieć od razu menu/składniki demo do testów, otwórz Plesk → phpMyAdmin → Twoja baza → SQL i wklej zawartość `_docs/demo_seed_test.sql`. **PAMIĘTAJ** o ustawieniu `SET @tid := X;` na początku pliku — wpisz `tenant_id` swojego konta (sprawdzisz przez `SELECT id, name FROM sh_tenant`).

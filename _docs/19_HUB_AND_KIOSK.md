@@ -72,6 +72,8 @@ POS APP (z `target_module` w response)
 
 **Owner OK od 2026-05-04** (model jak Toast / Square — typowy POS pozwala wszystkim rolom z PIN-em, dawne `AuthForbiddenException` dla owner usunięte).
 
+**Tenant ID w POS (2026-05-22):** `modules/pos/index.html` ma meta `sh-tenant-id` nadpisywane przez `tenant_config.php` **przed** startem `pos_app.js`. Kolejność discovery: env `SLICEHUB_TENANT_ID` → sesja PHP → tenant z aktywnymi użytkownikami → fallback. Override: `?tenant=2` w URL. `loginKiosk()` wymaga zgodności `(tenant_id, pin_code)` — PIN z innego lokalu zawsze zwraca 401.
+
 ### 2.3. Kiosk obecności (3-stage)
 
 ```

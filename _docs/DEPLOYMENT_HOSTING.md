@@ -50,9 +50,14 @@ Manifesty PWA (`online/manifest.webmanifest`, `waiter/manifest.json`, `pos/manif
 
 Moduły `.htaccess` (POS, Online) ustawiają `Service-Worker-Allowed` dynamicznie wg `Request_URI` (XAMPP vs root).
 
-Opcjonalnie w panelu hostingu (Plesk / env): `SLICEHUB_API_BASE=/api` — ustawia `window.__SH_API_BASE__` przez `tenant_config.php`.
+Opcjonalnie w panelu hostingu (Plesk / env):
 
-Moduły ładują `tenant_config.php` jako `<script src="../../tenant_config.php">` (relatywnie od `modules/*/`).
+| Zmienna | Efekt |
+|---------|--------|
+| `SLICEHUB_API_BASE=/api` | `window.__SH_API_BASE__` w `tenant_config.php` |
+| `SLICEHUB_TENANT_ID=N` | wymusza `meta sh-tenant-id` dla całego vhosta (single-tenant na domenie) |
+
+Moduły ładują `tenant_config.php` jako `<script src="../../tenant_config.php">` (relatywnie od `modules/*/`). Bez env na multi-tenant dev wybierany jest tenant z aktywnymi użytkownikami; override w URL: `?tenant=N`.
 
 ---
 

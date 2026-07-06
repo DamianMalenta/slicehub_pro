@@ -59,7 +59,18 @@ W przeglądarce:
 - Online Studio (sceny): `/slicehub/modules/online_studio/`
 - Sklep: `/slicehub/modules/online/`
 
-Login: admin / password.
+Login: admin / password (po `seed_demo_all.php`).
+
+### Multi-tenant bez seeda demo
+
+Typowy flow po `install_panel.php`: tenant 1 pusty (Demo Tenant), dane w tenant 2+. Wtedy:
+
+- **Nie** zakładaj demo PIN-ów z tabeli powyżej — użyj PIN/hasła z install panelu.
+- POS/Online: `tenant_config.php` wybiera tenanta z użytkownikami; opcjonalnie `?tenant=2` w URL.
+- Test runner: auto-discovery PIN przed suite'ami (`discoverAuthTenant()`).
+- Pełny reseed demo: `php scripts/seed_demo_all.php` (tenant 1) lub `scripts/seed_pizzaforno.sql` z `@tid`.
+
+Szczegóły: `_docs/sessions/2026-05-22_tenant_discovery_auth.md`.
 
 **Uwaga:** pliki SVG trafiają do `uploads/` (gitignore) — są **generowane przy każdym seedzie**, nie trzeba ich commitować.
 
