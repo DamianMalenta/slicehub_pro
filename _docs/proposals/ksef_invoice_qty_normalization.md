@@ -1,14 +1,41 @@
 # KSeF → magazyn: normalizacja ilości i kosztu jednostkowego
 
-**Status:** Zaimplementowano (Faza 3) · branch `cursor/ksef-qty-normalization-b255`  
-**Data:** 2026-05-22  
+**Status:** Zaimplementowano na **`main`** (2026-05-22) · PR #32 + P3 + migracje **058** / **059**  
+**Sesja wdrożenia:** [`_docs/sessions/2026-05-22_ksef_qty_normalization.md`](../sessions/2026-05-22_ksef_qty_normalization.md)  
 **Kontekst:** Faktura realna — `BAZYLIA CIĘTA 20G`, 1,000 × SZT., 26,67 PLN/szt., magazyn `base_unit = kg` → oczekiwane **0,02 kg** i AVCO **1333,50 PLN/kg** (wartość linii 26,67 PLN bez zmiany).
+
+> **Szybki start (dev):** `php scripts/apply_migrations_chain.php` → `php scripts/test_invoice_qty_normalizer.php` → Inbox KSeF → accept.
 
 ---
 
-## Stan obecny — mapowanie (przed zmianą, Faza 1)
+## Stan po wdrożeniu (aktualny kod na `main`)
 
-### Co system mapuje dziś
+| Warstwa | Zachowanie |
+|---------|------------|
+| `Parser` | `P_7`, `P_7A` (opis), `P_8A`/`P_8B`, `P_9A` → DB; KOR bez linii → `error`; KOR z liniami → `draft` + `warn` |
+| `AutoScanEngine` | SKU po `external_name` + opcjonalnie `supplier_nip` (m059); `learnMapping` przy `update_line` / bulk |
+| `sh_product_mapping` | `(tenant_id, supplier_nip, external_name)` → `internal_sku` + opcjonalnie `pack_qty_base`, `pack_invoice_unit` |
+| `InboxQtyNormalize` | Cache `qty_normalized` po upload/reparse/update; **autorytatywne** przeliczenie w `accept` |
+| `accept` | `quantity` / `unit_net_cost` w `sys_items.base_unit`; `blocked` → `400 NORMALIZATION_REQUIRED` |
+| `reparse` | AutoScan **nie nadpisuje** linii z `resolved_by_user_id` (ręczne SKU) |
+| `set_line_pack` | Ręczne `pack_qty_base` + `learnPackMapping` bez re-upload XML |
+| UI | Podgląd „→ magazyn: …”; `warn` = ⚠ (accept dozwolony); `blocked` = czerwony baner (accept zablokowany) |
+
+**Polityka `normalization_status`:**
+
+| Status | Accept | UI |
+|--------|--------|-----|
+| `ok` | Tak | Zielony podgląd przeliczenia |
+| `warn` | **Tak** (gramatura z nazwy / P_7A — manager widzi ⚠) | Żółty podgląd |
+| `blocked` | **Nie** (`NORMALIZATION_REQUIRED`) | Komunikat + pole „Zapisz opak.” |
+
+---
+
+## ARCHIWUM — stan przed wdrożeniem (Faza 1 audyt, 2026-05-22)
+
+> Poniższe sekcje dokumentują **problem i audyt sprzed implementacji**. Nie opisują dzisiejszego kodu — patrz tabelę „Stan po wdrożeniu” powyżej.
+
+### Co system mapował wtedy (przed zmianą)
 
 | Warstwa | Mapuje | Nie mapuje |
 |---------|--------|------------|
@@ -91,7 +118,7 @@ Przy błędnej ilości **i** błędnym koszcie jednostkowym:
 qty_invoice × unit_net_invoice ≈ qty_base × unit_net_base ≈ line_net (PLN)
 ```
 
-Przelicznik: `qty_base = qty_invoice × pack_factor_to_base`, `unit_net_base = line_net / qty_base`.
+Przelicznik: `qty_base = qty_invoice × pack_qty_base`, `unit_net_base = line_net / qty_base`.
 
 ### 1.3 Reverse / KOR (`inbox.php` → `reverse`)
 
@@ -109,7 +136,7 @@ Przelicznik: `qty_base = qty_invoice × pack_factor_to_base`, `unit_net_base = l
 | `modules/studio/js/studio_margin.js` | Food Cost: `SliceValidator.convert` przed × AVCO | Nie |
 | `modules/warehouse/js/warehouse_rw.js` | RW: `standardizeUnit` na ilości wprowadzonej | Nie (inna ścieżka niż KSeF) |
 | `modules/warehouse/js/warehouse_pz.js` | Ręczne PZ: qty/cena **jak wpisze użytkownik** | Nie |
-| PHP `core/` | **Brak** klasy konwersji jednostek | — |
+| PHP `core/` | Po wdrożeniu: **`core/Units.php`** (+ normalizer w accept) | **Tak** (KSeF accept) |
 
 **Jedyna wspólna „prawda” do przeniesienia:** mapa `UNITS_CANON` z `SliceValidator` → port do PHP (`core/Units.php` lub `core/UnitConverter.php`) + opcjonalnie require tego samego pliku JS z PHP jako nie — utrzymujemy **dwie kopie z jednym testem kontraktu** (patrz sekcja B).
 
@@ -138,7 +165,7 @@ Przelicznik: `qty_base = qty_invoice × pack_factor_to_base`, `unit_net_base = l
 | E6 | 1 × l | — | l | 1 l | Trywialne |
 | E7 | 750 × ml | — | l | 0,75 l | Konwersja objętości |
 | E8 | 1 × OP. | `KARTON 6×1L` | l | Wymaga rozpoznania **6 l** lub blokady | Wielokrotność w nazwie |
-| E9 | 1 × SZT. | `POMIDOR KOKTAIL` (bez wagi) | kg | **Brak automatycznej masy** → ostrzeżenie / mapowanie ręczne | Fałszywy regex |
+| E9 | 1 × SZT. | `POMIDOR KOKTAIL` (bez wagi) | kg | **`blocked`** — accept zablokowany; `set_line_pack` lub inny SKU | Fałszywy regex |
 | E10 | 1 × kg | nazwa `20G` (myjąca) | kg | **Nie** brać 20 g z nazwy gdy FA już w kg | Konflikt nazwa vs FA |
 | E11 | 0,001 × t | — | kg | 1 kg (jeśli obsługa `t`) | Rzadkie, słownik rozszerzalny |
 | E12 | 1 × SZT. | ta sama nazwa, inny dostawca, inna waga | kg | Per-dostawca mapping (learn) | Wielodostawca |
@@ -156,16 +183,16 @@ Przelicznik: `qty_base = qty_invoice × pack_factor_to_base`, `unit_net_base = l
 **Model warstwowy (Mapping-first + Unit canon + Name fallback):**
 
 1. **Warstwa A — `sh_product_mapping` rozszerzone (learn)**  
-   Przy pierwszym accept lub ręcznej korekcie zapis: `pack_qty`, `pack_unit`, `invoice_unit_hint` (opcjonalnie `supplier_nip` w kluczu). Kolejna faktura z tą samą `external_name` (+ ten sam NIP) → deterministyczny przelicznik **bez regex**.
+   Przy accept / `set_line_pack` / gramatura z nazwy: `pack_qty_base`, `pack_invoice_unit`, klucz `(tenant_id, supplier_nip, external_name)` (m059). Kolejna faktura z tą samą nazwą + NIP → przelicznik **bez regex**.
 
-2. **Warstwa B — `UnitConverter` (PHP, wspólny kontrakt z JS)**  
+2. **Warstwa B — `core/Units.php` (port `SliceValidator`)**  
    FA `P_8A` znormalizowane (`SZT.`→`szt`, `KG`→`kg`) → przeliczenie do `sys_items.base_unit` gdy grupy zgodne (Masa/Objętość/Sztuka/Opakowanie).
 
-3. **Warstwa C — `PackSizeExtractor` (regex + słownik)**  
-   Tylko gdy: `base_unit` ∈ {kg, l}, FA unit ∈ {szt, op, …} **oraz** brak wpisu w warstwie A. Wzorce: `(\d+(?:[.,]\d+)?)\s*(G|KG|ML|L)\b`, `6×1L`, `12x500ml`. Wynik: `pack_factor` w jednostce bazowej **na 1 jednostkę FA**.
+3. **Warstwa C — `PackSizeExtractor` (regex + P_7A)**  
+   Tylko gdy: `base_unit` ∈ {kg, l}, FA unit ∈ {szt, op, …} **oraz** brak wpisu w warstwie A. Wzorce: `20G`, `6×1L`, opis `P_7A`. Wynik: `pack_qty_base` **na 1 jednostkę FA**.
 
 4. **Warstwa D — UI preview + polityka błędu**  
-   `show` / modal: „Z faktury: 1 szt → Do magazynu: 0,02 kg (@ 1333,50 PLN/kg)”. Accept **zablokowany** gdy `confidence < 100%` na ilości (nie na SKU) — manager musi potwierdzić checkbox lub uzupełnić mapping.
+   `show` / modal: „→ magazyn: 0,02 kg @ 1333,50 PLN/kg”. Accept **zablokowany** tylko przy `normalization_status = blocked`. Przy `warn` — podgląd + ⚠, accept **dozwolony** (bez checkboxa — uproszczenie vs pierwotna propozycja).
 
 Regex sam w sobie jest **warstwą C**, nie całym rozwiązaniem — zgodnie z audytem i network effect AutoScan.
 
@@ -173,15 +200,14 @@ Regex sam w sobie jest **warstwą C**, nie całym rozwiązaniem — zgodnie z au
 
 ### A. Rozwiązanie docelowe (SliceHub)
 
-| Element | Rekomendacja |
-|---------|----------------|
-| Klasa | `core/InvoiceLineQtyNormalizer.php` (stanless, czyste funkcje + `normalizeLine(array $line, array $sysItem, ?array $mapping, array $opts): NormalizationResult`) |
-| Kiedy liczyć | **(1)** Po `insert`/`reparse` — zapis cache do DB; **(2)** Ponownie w `accept` — autoritative, nie ufaj wyłącznie cache (Prawo IV) |
-| Wejście | `qty`, `unit`, `unit_net`, `line_net_minor`, `external_name`, `supplier_nip`, `resolved_sku` → JOIN `sys_items.base_unit` po SKU (cross-silo po SKU + `tenant_id`) |
-| Wyjście PZ | `quantity` = qty w `base_unit`; `unit_net_cost` = `line_net / quantity` (grosze z `line_net_minor` jako source of truth przy rozjazdach ≤ 1 gr) |
-| Parser nazwy | `PackSizeExtractor` — osobna klasa, testowana tabelą przypadków E1–E14 |
-| GTU/PKWiU | Faza 1.5 — tylko logowanie; nie blokować MVP (słaba korelacja z gramaturą) |
-| Gdy brak przeliczenia | `status: needs_review` — accept zwraca `400 NORMALIZATION_REQUIRED` z meta; UI: żółty baner + pole „Gramatura opakowania (kg)” |
+| Element | Rekomendacja / implementacja |
+|---------|------------------------------|
+| Klasa | `core/InvoiceLineQtyNormalizer.php` — `normalize($line, $sysItem, $packMapping)`; wrapper API: `InboxQtyNormalize::normalizeLine()` |
+| Kiedy liczyć | **(1)** Po `insert`/`reparse`/`update_line` — cache w DB; **(2)** Ponownie w `accept` — autoritative (Prawo IV) |
+| Wejście | `qty`, `unit`, `unit_net`, `line_net_minor`, `external_name`, `external_description` (P_7A), `supplier_nip`, `resolved_sku` → `sys_items.base_unit` po SKU + `tenant_id` |
+| Wyjście PZ | `quantity` = qty w `base_unit`; `unit_net_cost` = `line_net / quantity` (`line_net_minor` jako source of truth) |
+| Parser nazwy | `PackSizeExtractor::extractPerPiece()` — testy E1–E9 + P_7A w CLI |
+| Gdy brak przeliczenia | `normalization_status = blocked` → accept `400 NORMALIZATION_REQUIRED`; UI: `set_line_pack` |
 
 **Pseudokod accept (fragment):**
 
@@ -190,8 +216,8 @@ foreach ($inventoryLines as $l) {
     $item = loadSysItem($tenantId, $l['resolved_sku']);
     $mapping = loadMapping($tenantId, $l['external_name'], $invoice['supplier_nip']);
     $norm = InvoiceLineQtyNormalizer::normalize($l, $item, $mapping);
-    if (!$norm->isOk() && !$norm->isConfirmed()) {
-        inboxFail(400, 'NORMALIZATION_REQUIRED', $norm->message, $norm->toArray());
+    if (!empty($norm['is_blocked'])) {
+        inboxFail(400, 'NORMALIZATION_REQUIRED', $norm['message'] ?? 'Normalizacja zablokowana.');
     }
     $pzLines[] = [
         'resolved_sku'  => $l['resolved_sku'],
@@ -208,13 +234,14 @@ PzEngine::processReceipt(...);
 
 ### B. Ulepszenia koncepcji (cache, UI, learn)
 
-| Ulepszenie | Opis |
-|------------|------|
-| Kolumny na `sh_ksef_invoice_lines` | `qty_normalized`, `unit_net_normalized`, `normalization_status` (`ok`/`warn`/`blocked`), `normalization_meta` JSON |
-| Podgląd w modalu | Wiersz pod tabelą FA: przeliczenie + AVCO preview (opcjonalnie AJAX `preview_normalize` action) |
-| Rozszerzenie `sh_product_mapping` | `pack_factor_base`, `pack_unit`, `source` (`learn`/`manual`), opcjonalnie `supplier_nip` |
-| Learn | Po accept z potwierdzoną korektą → `learnPackMapping()` (jak `learnMapping` dla SKU) |
-| Kontrakt PHP+JS | `core/Units.php` + `_tests/units_contract.json` wspólny dla PHP i testu generującego asserty w `test_runner` |
+| Ulepszenie | Opis | Stan |
+|------------|------|------|
+| Kolumny na `sh_ksef_invoice_lines` | `qty_normalized`, `unit_net_normalized`, `normalization_status` (`ok`/`warn`/`blocked`), `normalization_meta` | **058** ✓ |
+| Podgląd w modalu | `show` + `preview_normalize`; wiersz „→ magazyn: …” | ✓ |
+| Rozszerzenie `sh_product_mapping` | `pack_qty_base`, `pack_invoice_unit`, `supplier_nip`; UNIQUE `(tenant, nip, external_name)` | **058** + **059** ✓ |
+| Learn pack | `learnPackMapping()` po accept (gramatura z nazwy) + `set_line_pack` | ✓ |
+| Learn SKU | `AutoScanEngine::learnMapping` przy `update_line` / bulk + NIP | ✓ (P3) |
+| Kontrakt PHP+JS | `_tests/units_contract.json` wspólny dla PHP i JS | **Nie wdrożono** — tylko `core/Units.php` + test CLI |
 
 ---
 
@@ -229,15 +256,17 @@ PzEngine::processReceipt(...);
 
 ---
 
-### D. Plan wdrożenia (kolejność PR)
+### D. Plan wdrożenia — wykonanie
 
-| PR | Zakres | Migracja |
-|----|--------|----------|
-| **PR-1** | `core/Units.php` + `PackSizeExtractor` + `InvoiceLineQtyNormalizer` + testy jednostkowe PHP (tabela E1–E8) | Opcjonalnie brak — tylko logika |
-| **PR-2** | Migracja `058_ksef_line_normalization.sql` + chain; zapis cache w `reparse`/`upload`; `show` zwraca pola | **Tak** |
-| **PR-3** | `inbox.php` `accept` + `preview_normalize`; learn pack w mapping | Rozszerzenie `sh_product_mapping` w tej samej lub **058b** migracji |
-| **PR-4** | `procurement_app.js` — UI preview, blokada accept, formularz korekty | Bez |
-| **PR-5** | Dokumentacja manual test + wpis `_docs/sessions/2026-05-22_ksef_qty_normalization.md` | — |
+| Etap | Zakres | Stan |
+|------|--------|------|
+| **PR-1** | `Units.php` + `PackSizeExtractor` + `InvoiceLineQtyNormalizer` + CLI E1–E9 | ✓ merged |
+| **PR-2** | Migracja **058** + cache w upload/reparse; `show` z polami normalizacji | ✓ merged (#32) |
+| **PR-3** | `accept` + `preview_normalize` + `set_line_pack`; learn pack; **059** UNIQUE NIP | ✓ merged (P3) |
+| **PR-4** | `procurement_app.js` — podgląd, `set_line_pack`, filtr `error` | ✓ |
+| **PR-5** | Sesja + ten dokument + testy CLI | ✓ |
+
+**Nie wdrożono z pierwotnej propozycji:** checkbox potwierdzenia przy `warn`; `_tests/units_contract.json`; retroaktywna korekta starych PZ.
 
 **Ryzyka regresji:** istniejące zaakceptowane faktury — **nie** retroaktywnie; tylko nowe accept. Ręczne PZ bez zmian.
 
@@ -252,8 +281,9 @@ PzEngine::processReceipt(...);
 3. `line_net_value` dokumentu PZ = **26,67 PLN** (zgodne z FA).
 4. Food Cost po accept nie skacze o rząd wielkości dla tego SKU.
 5. `reverse` cofa dokładnie ilość z PZ (0,02 kg).
-6. Linia E9 (brak wagi): accept **zablokowany** z czytelnym komunikatem, nie cichy błąd.
-7. AutoScan: ten sam SKU/confidence co przed zmianą dla tej samej nazwy.
+6. Linia E9 (brak wagi): accept **zablokowany** (`blocked`) z komunikatem; `set_line_pack` lub zmiana SKU.
+7. Linia E1 z `warn` (gramatura z nazwy): accept **dozwolony** po weryfikacji podglądu (⚠).
+8. AutoScan: ten sam SKU/confidence co przed zmianą dla tej samej nazwy (progi bez zmian).
 
 ---
 
@@ -266,7 +296,7 @@ PzEngine::processReceipt(...);
 | **Nadpisywanie `qty` w DB** | Prostsze SELECT | Utrata oryginału FA (compliance) | Odrzucone |
 | **Tylko rozszerzenie mapping bez regex** | Bardzo bezpieczne po nauczeniu | Pierwsza faktura zawsze ręczna | Średnia długoterminowo |
 
-**Rekomendacja #1:** **Cache w DB (`qty_normalized`, `unit_net_normalized`, `normalization_meta`) + autoritative przeliczenie w `accept` + rozszerzenie `sh_product_mapping` w PR-3.**
+**Rekomendacja #1 (wdrożona):** Cache w DB (`qty_normalized`, `unit_net_normalized`, `normalization_meta`) + autoritative przeliczenie w `accept` + `pack_qty_base` / `pack_invoice_unit` na `sh_product_mapping` (058) + UNIQUE per NIP (059).
 
 **Bez migracji wystarczy tylko na POC** — do produkcji z przejrzystością dla managera **migracja jest potrzebna**.
 
@@ -283,21 +313,41 @@ PzEngine::processReceipt(...);
 
 ---
 
-## Faza 3 — Implementacja (2026-05-22)
+## Faza 3 — Implementacja (referencja kodu)
 
 | Plik | Rola |
 |------|------|
 | `core/Units.php` | Kanon jednostek (port `SliceValidator`) |
-| `core/PackSizeExtractor.php` | Gramatura z nazwy (20G, 6×1L) |
-| `core/InvoiceLineQtyNormalizer.php` | Przeliczenie + learn `pack_*` |
-| `core/Ksef/InboxQtyNormalize.php` | Cache linii + payload PZ |
+| `core/PackSizeExtractor.php` | Gramatura z nazwy / P_7A (20G, 6×1L) |
+| `core/InvoiceLineQtyNormalizer.php` | Przeliczenie + `learnPackMapping()` |
+| `core/Ksef/InboxQtyNormalize.php` | Cache linii + `resolvePzLine()` dla PZ |
+| `core/Ksef/InboxImport.php` | Refresh cache po imporcie |
+| `core/Ksef/Parser.php` | `P_7A` → `external_description`; jakość KOR |
+| `core/AutoScanEngine.php` | Match + learn z `supplier_nip` |
 | `database/migrations/058_ksef_line_qty_normalization.sql` | Kolumny cache + `pack_*` na mapping |
-| `api/procurement/inbox.php` | `accept`, `preview_normalize`, refresh po upload/reparse/update |
-| `modules/procurement/js/procurement_app.js` | Podgląd „→ magazyn: …” |
-| `scripts/test_invoice_qty_normalizer.php` | Testy CLI E1–E9 |
+| `database/migrations/059_product_mapping_unique_supplier.sql` | UNIQUE `(tenant_id, supplier_nip, external_name)` |
+| `api/procurement/inbox.php` | `accept`, `preview_normalize`, `set_line_pack`, `update_line`, `reparse` |
+| `api/procurement/ksef_config.php` | `poll_now` → statystyka `quality_error` |
+| `modules/procurement/js/procurement_app.js` | Podgląd „→ magazyn”, pack row, reassess |
+| `scripts/test_invoice_qty_normalizer.php` | CLI: E1–E9, mapping, P_7A |
+| `scripts/test_ksef_parser_quality.php` | CLI: KOR z liniami → `draft`+`warn` |
+| `scripts/seed_demo_all.php` | Demo: mapping P_7A bazylia + faktura `FA/DEMO/*` |
 
-**Wdrożenie migracji:** `php scripts/apply_migrations_chain.php` (058 na końcu łańcucha).
+**Migracje:** `php scripts/apply_migrations_chain.php` (łańcuch do **059**).
 
-**Test CLI:** `php scripts/test_invoice_qty_normalizer.php`
+**Testy CLI:**
 
-**Test (E2E) manualny:** upload FA z linią `BAZYLIA CIĘTA 20G` 1 SZT → SKU w `kg` → accept → PZ +0,02 kg, AVCO ~1333,50 PLN/kg.
+```bash
+php scripts/test_invoice_qty_normalizer.php   # 10 asercji
+php scripts/test_ksef_parser_quality.php      # 8 asercji
+php scripts/audit_ksef_matching.php             # audyt mapowań (opcjonalnie)
+```
+
+**Test (E2E) manualny:**
+
+1. Upload FA: `BAZYLIA CIĘTA 20G` lub nazwa + **P_7A** `200G`, 1 SZT, SKU `BAZYLIA_SW` / `kg`.
+2. Modal: podgląd `→ magazyn: 0,020 kg @ … PLN/kg`.
+3. Accept → PZ: `+0,02 kg`, AVCO ≈ 1333,50 PLN/kg, `line_net` = 26,67 PLN.
+4. Opcjonalnie: `set_line_pack` bez ponownego uploadu XML.
+
+**Demo bez XML:** po `seed_demo_all.php` — faktura `FA/DEMO/2026/001` (tenant 1) w Inbox KSeF.
