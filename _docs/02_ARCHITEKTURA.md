@@ -372,7 +372,7 @@ Wszystkie orphan/planned endpointy mają w nagłówku komentarz `// STATUS: …`
 #### Frontend helpers `/core/js/`
 | Plik | Rola |
 |------|------|
-| `sh_api_base.js` | **SSOT prefiksu URL** — `SliceHub.getApiBase()`, `getAppBase()`, `apiUrl()`, `appUrl()`. Kolejność: meta `sh-api-base` → `window.__SH_API_BASE__` (z `tenant_config.php` / env `SLICEHUB_API_BASE`) → heurystyka pathname przed `/modules/` → fallback. Lokalnie `/slicehub/api`, hosting root `/api`. Każdy moduł ładuje ten plik przed własnym `*_api.js`. |
+| `sh_api_base.js` | **SSOT prefiksu URL** — `SliceHub.getApiBase()`, `getAppBase()`, `apiUrl()`, `appUrl()`. Kolejność: meta `sh-api-base` (opcj., nieużywany w modułach) → `window.__SH_API_BASE__` (env) → heurystyka pathname przed `/modules/` → heurystyka segmentu URL → fallback. Handoff: `.cursor/plans/api_base_paths_handoff.md`. |
 
 **`tenant_config.php` (root repo, serwowany jako JS):** ustawia `meta[name=sh-tenant-id]` i `window.__SH_TENANT_ID__` przed modułowym JS. Kolejność: `SLICEHUB_TENANT_ID` → sesja PHP → tenant z aktywnymi `sh_users` → pierwszy `sh_tenant` → `1`; w przeglądarce `?tenant=N` nadpisuje wynik. Env `SLICEHUB_API_BASE` → `window.__SH_API_BASE__`. Audyt: `_docs/sessions/2026-05-22_tenant_discovery_auth.md`.
 | `api_client.js` | Bazowy `ApiClient` (fetch wrapper z Bearer tokenem); endpointy `../../api/...` i `/api/...` resolve'uje przez `SliceHub.apiUrl` |

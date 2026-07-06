@@ -1,40 +1,40 @@
 # HANDOFF — KSeF Inbox (normalizacja qty + puste faktury)
 
+> **Status: DOMKNIĘTE (2026-05-22).** Kanon audytu sesji → [`2026-05-22_ksef_qty_normalization.md`](2026-05-22_ksef_qty_normalization.md).  
+> Ten plik zostaje jako **skrót operacyjny** (API ściąga, lista plików). Nie używaj go jako jedynego źródła prawdy.
+
 **Data handoff:** 2026-05-22  
-**Branch:** `cursor/ksef-qty-normalization-b255`  
-**PR (draft):** https://github.com/DamianMalenta/slicehub_pro/pull/32  
+**Gałęzie robocze:** `cursor/ksef-qty-normalization-b255` (PR #32, P0–P2), `cursor/ksef-inbox-p3-d8f0` (P3)  
 **Base:** `main`
 
 ---
 
-## Cel sesji w nowym czacie
+## Szybki start (po merge)
 
-Domknąć PR #32: UI procurement (błędy importu, reassess, Audyt XML), deploy migracji 058, test E2E, opcjonalnie migracja 059 (mapping per NIP).
+```bash
+php scripts/apply_migrations_chain.php   # 058 + 059
+php scripts/test_invoice_qty_normalizer.php
+php scripts/test_ksef_parser_quality.php
+```
+
+Manual E2E: linia `BAZYLIA CIĘTA` + P_7A `200G`, 1 SZT, SKU w **kg** → accept → PZ **+0,02 kg**.  
+Test runner: `tests/test_runner.html` — 62/62 po `seed_demo_all.php`.
 
 ---
 
-## Co już jest zrobione (nie przerabiać od zera)
+## Co zostało wdrożone (skrót)
 
-### 1. Normalizacja ilości FA → magazyn (`base_unit`)
+Szczegóły decyzji i plików → [`2026-05-22_ksef_qty_normalization.md`](2026-05-22_ksef_qty_normalization.md).
 
-- `core/Units.php`, `PackSizeExtractor.php` (P_7 + **P_7A**), `InvoiceLineQtyNormalizer.php`, `Ksef/InboxQtyNormalize.php`
-- Migracja **`058_ksef_line_qty_normalization.sql`** (kolumny cache linii + `pack_*` na `sh_product_mapping`)
-- `api/procurement/inbox.php`: `accept`, `preview_normalize`, refresh po upload/reparse/update
-- `modules/procurement/js/procurement_app.js`: podgląd „→ magazyn: …”
-- CLI: `php scripts/test_invoice_qty_normalizer.php` — **10/10 OK**
+| Obszar | Status |
+|--------|--------|
+| Normalizacja qty FA → `base_unit` (m058) | ✅ |
+| Mapping per NIP (m059) | ✅ |
+| Puste FA / KOR bez linii → `error`; KOR z liniami → `draft`+warn | ✅ |
+| `reparse` chroni linie z `resolved_by_user_id` | ✅ |
+| UI pack (`set_line_pack`), poll `quality_error` | ✅ |
 
-### 2. Puste / dziwne faktury z KSeF
-
-- `core/Ksef/InboxImport.php` — jedna ścieżka importu (worker, `poll_now`, upload)
-- `Parser::assessProcurementQuality()` → `status=error` zamiast pustego `draft`
-- `Parser::enrichParsedTotals()` — sumy z `FaWiersz` gdy P_13/P_15 puste
-- `Client::validateInvoiceXmlBody()` — odrzucenie JSON/HTML bez `<Faktura>`
-- API `reassess_invoice` w `inbox.php`
-- Lista inbox: **domyślnie** `AND status <> 'error'` (filtr `status=error` pokazuje błędy)
-- Worker: stat `invoices_quality_error`
-- CLI: `php scripts/test_ksef_parser_quality.php` — **7/7 OK**
-
-### 3. Warstwy walidacji (bez duplikacji)
+### Warstwy walidacji
 
 | Warstwa | Gdzie |
 |---------|--------|
@@ -44,57 +44,6 @@ Domknąć PR #32: UI procurement (błędy importu, reassess, Audyt XML), deploy 
 | Nabywca (upload) | `parseAndVerifyBuyer()` |
 | Zakupy draft/error | `assessProcurementQuality()` |
 | SKU/PZ | `inbox.php` `accept` |
-
-- `upload_xml`: **jeden** parse (`parseAndVerifyBuyer` → `preParsed` do `InboxImport`), bez drugiego rescan.
-
-### Commity istotne
-
-```
-db90285 fix(ksef): warstwy walidacji Parser + jeden parse na import
-e13a2cc fix(ksef): P_7A w gramaturze + audyt xml_blob vs baza (200G)
-85c8f20 feat(procurement): normalizacja ilości KSeF do base_unit przy accept PZ
-```
-
----
-
-## Co DOKOŃCZYĆ (priorytet)
-
-### ~~P0 — UI + commit lokalny~~ ✅ (2026-05-22, ten commit)
-
-- Audyt XML, filtr `error`, reassess, baner `status_message`, Accept wyłączony dla `error`
-- **Nowy czat:** `git pull` → czysty `git status`, od razu **P1**
-
-### P1 — Deploy / test
-
-```bash
-php scripts/apply_migrations_chain.php   # wymaga 058
-php scripts/test_invoice_qty_normalizer.php
-php scripts/test_ksef_parser_quality.php
-```
-
-Manual E2E (Apache + MariaDB):
-
-- Upload/poll FA: linia `BAZYLIA CIĘTA` + P_7A `200G`, 1 SZT, SKU w **kg** → accept → PZ **+0,02 kg**, AVCO ~1333 PLN/kg
-- Browser: `http://localhost/slicehub/tests/test_runner.html` — 62 testy
-
-### P2 — Dane historyczne
-
-Stare wpisy `draft` z `total_gross_minor=0` w bazie — import ich nie naprawi.
-
-- Per faktura: `POST inbox.php` `action=reassess_invoice` (wymaga `xml_blob`)
-- Lub odrzucić/usunąć ręcznie
-
-### ~~P3 — Opcjonalnie (follow-up)~~ ✅ (branch `cursor/ksef-inbox-p3-d8f0`)
-
-| Temat | Status |
-|-------|--------|
-| **Migracja 059** | ✅ `uq_mapping_supplier` |
-| **reparse** | ✅ pomija linie z `resolved_by_user_id` |
-| **learn przy update_line** | ✅ `learnMapping` + NIP |
-| **KOR z liniami** | ✅ `draft` + warn (puste KOR → `error`) |
-| **UI korekty pack** | ✅ `set_line_pack` + wiersz w modalu |
-| **poll_now stats** | ✅ `quality_error` w alert |
-| **Dokumentacja** | ✅ `2026-05-22_ksef_qty_normalization.md` |
 
 ---
 
@@ -111,8 +60,8 @@ api/procurement/inbox.php
 api/procurement/ksef_config.php
 scripts/worker_ksef_inbox.php
 modules/procurement/js/procurement_app.js
-modules/procurement/index.html
 database/migrations/058_ksef_line_qty_normalization.sql
+database/migrations/059_product_mapping_unique_supplier.sql
 _docs/proposals/ksef_invoice_qty_normalization.md
 ```
 
@@ -120,9 +69,9 @@ _docs/proposals/ksef_invoice_qty_normalization.md
 
 ## API — szybka ściąga
 
-**Auth:** `POST /slicehub/api/auth/login.php` system → Bearer token.
+**Auth:** `POST {api_base}/auth/login.php` system → Bearer token (`SliceHub.apiUrl()`).
 
-**Inbox:** `POST /slicehub/api/procurement/inbox.php`
+**Inbox:** `POST {api_base}/procurement/inbox.php`
 
 | action | Uwagi |
 |--------|--------|
@@ -130,40 +79,24 @@ _docs/proposals/ksef_invoice_qty_normalization.md
 | `upload_xml` | `parseAndVerifyBuyer` + `InboxImport`; może zwrócić `IMPORT_QUALITY_ERROR` |
 | `reassess_invoice` | `{ invoice_id }` — przebudowa z `xml_blob` |
 | `sync_lines_from_xml` | `{ invoice_id, dry_run: true\|false }` — audyt P_7/P_7A |
-| `accept` | Blokuje `status=error`; używa `inboxBuildPzLine` + normalizacja |
+| `accept` | Blokuje `status=error`; `InvoiceLineQtyNormalizer` przy PZ |
+| `set_line_pack` | Korekta pack w modalu (learn → mapping) |
 
-**Poll KSeF:** `POST .../api/procurement/ksef_config.php` `action=poll_now` lub `php scripts/worker_ksef_inbox.php [tenant_id]`
-
----
-
-## Znane ograniczenia (nie traktować jako bug bez decyzji)
-
-- Retroaktywna korekta już zaakceptowanych PZ — **poza zakresem**
-- `accept` nie zmienia progów AutoScan
-- Puste faktury z poll Issue+Invoicing metadata — część to KOR/noty; teraz lądują w `error`, nie w „Nowe”
+**Poll KSeF:** `POST .../procurement/ksef_config.php` `action=poll_now` lub `php scripts/worker_ksef_inbox.php [tenant_id]`
 
 ---
 
-## Prompt do wklejenia w nowym czacie
+## Znane ograniczenia
 
-```
-Kontynuuj pracę na branchu cursor/ksef-qty-normalization-b255 (PR #32).
-
-Przeczytaj: _docs/sessions/HANDOFF_2026-05-22_ksef_inbox_continue.md
-
-P0 zrobione — od razu P1: migracja 058 + test E2E bazylia 20G/200G.
-
-Konstytucja v5: tenant_id, silosy SKU, zero npm na produkcji.
-```
+- Retroaktywna korekta już zaakceptowanych PZ — poza zakresem.
+- `accept` nie zmienia progów AutoScan.
+- Stare wpisy `draft` z `total_gross_minor=0` — `reassess_invoice` lub ręczne usunięcie.
 
 ---
 
-## Git
+## Dane historyczne (P2)
 
-```bash
-git checkout cursor/ksef-qty-normalization-b255
-git pull origin cursor/ksef-qty-normalization-b255
-git status   # powinno być clean
-```
+Stare wpisy `draft` z zerowymi sumami — import ich nie naprawi:
 
-Cloud Agent: branch prefix `cursor/`, suffix `-7fca` tylko dla **nowych** branchy; ten branch już istnieje bez suffixu.
+- Per faktura: `POST inbox.php` `action=reassess_invoice` (wymaga `xml_blob`)
+- Lub odrzucić/usunąć ręcznie

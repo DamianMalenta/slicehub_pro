@@ -74,10 +74,11 @@ Wzorzec: `<script src=".../sh_api_base.js">` przed `*_api.js`; fetch przez `Slic
 
 ### 3.2 Kolejność rozwiązywania prefiksu
 
-1. `<meta name="sh-api-base">` — ręczny override per strona  
+1. `<meta name="sh-api-base">` — ręczny override per strona (w repo nieużywany)  
 2. `window.__SH_API_BASE__` — deploy / env  
 3. Heurystyka pathname: prefix przed `/modules/` + `/api`  
-4. Fallback: `/slicehub/api` gdy URL zawiera `slicehub`, inaczej `/api`
+4. Heurystyka segmentu: `/^\/([^/]+)/` + `/api` gdy brak `/modules/` w URL  
+5. Fallback: `/slicehub/api` gdy URL zawiera `slicehub`, inaczej `/api`
 
 **Powód:** Hosting root nie ma segmentu `/slicehub/`; lokalny XAMPP ma. Heurystyka działa bez konfiguracji; env/meta dla edge case'ów.
 

@@ -56,3 +56,9 @@ Przeglądarka: `http://localhost/slicehub/tests/test_runner.html` → **Uruchom 
 1. Czy usuwać pusty „Demo Tenant" (id=1) przy instalacji produkcyjnej przez install panel, żeby uniknąć mylenia z prawdziwym lokalem?
 2. Czy dodać `SLICEHUB_TENANT_ID` do checklisty XAMPP obok `SLICEHUB_API_BASE`?
 3. Fallback JWT w test_runner jest hardcoded pod `user_id=1` — przy wielu tenantach z różnymi ID ownerów discovery PIN jest właściwą ścieżką; JWT tylko awaryjnie.
+
+## Test (E2E)
+
+- `Invoke-WebRequest http://localhost/slicehub/tenant_config.php` → `tid=2` gdy tenant 1 pusty.
+- Kiosk `tenant_id=2` + PIN z install panelu → token; BI `dashboard_data.php` → 200.
+- `tests/test_runner.html` → **62/62 PASS** (auto-discovery PIN + retry manager z [`api_base_paths`](2026-05-21_api_base_paths.md)).

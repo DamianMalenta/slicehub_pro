@@ -1,6 +1,7 @@
 /**
  * SliceHub — jeden prefiks API dla wszystkich modułów (SSOT).
- * Kolejność: meta sh-api-base → window.__SH_API_BASE__ → pathname przed /modules/ → fallback z pathname.
+ * Kolejność: meta sh-api-base → window.__SH_API_BASE__ → pathname przed /modules/
+ * → pierwszy segment ścieżki + /api (gdy brak /modules/) → fallback (/api lub /slicehub/api).
  * Fallback: /api (hosting root); /slicehub/api tylko gdy w URL jest folder slicehub.
  */
 (function () {

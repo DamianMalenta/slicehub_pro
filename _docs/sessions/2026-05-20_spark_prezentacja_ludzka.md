@@ -1,7 +1,6 @@
 # Sesja AI — prezentacja SPARK od zera (język ludzki + nowe screeny)
 
 ## Cel
-
 Nadpisać słabe materiały wniosku (pusty POS na starym wideo) kompletną prezentacją po ludzku: screeny z slicehub.net, HTML, PDF, teksty F6S.
 
 ## Pliki dotknięte
@@ -11,13 +10,13 @@ Nadpisać słabe materiały wniosku (pusty POS na starym wideo) kompletną preze
 - `scripts/capture_spark_screenshots.py` — Playwright + JWT
 - `/opt/cursor/artifacts/spark_onepager_v2.pdf`, `spark_pitchdeck_v2.pdf`
 
-## Decyzje
+## Decyzje architektoniczne
 
 - Narracja: solo founder Damian Malenta, odbiorca = komisja/mentorzy, nie programiści.
 - Slajd dedykowany POS z koszykiem + notatka o odświeżeniu względem pierwszego nagrania.
 - KSeF: surowiec vs koszt operacyjny (ludzkie sformułowanie INVENTORY/EXPENSE).
 
-## Otwarte
+## Otwarte pytania
 
 - `hero_09_driver.png`, `hero_10_kds.png` — małe pliki; ewentualnie dłuższe czekanie w Playwright.
 - Nowe wideo 60s wg zaktualizowanego storyboardu — po stronie usera.

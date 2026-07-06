@@ -97,7 +97,7 @@ Mechanizm: `_docs/sessions/YYYY-MM-DD_<topic>.md` po każdej znaczącej sesji. 4
 ### 4.1 Migracja istniejących `@planned` funkcji
 
 Zidentyfikowane:
-- `core/WzEngine.php::consumeForOrder` — sesja **F1** (Pętla zużycia POS↔Magazyn). To była planowana następna sesja przed pytaniem o Konstytucję — teraz robimy ją z czystym fundamentem.
+- ~~`core/WzEngine.php::consumeForOrder`~~ — **DOMKNIĘTE** w [`2026-05-11_phase_f1_consume_loop.md`](2026-05-11_phase_f1_consume_loop.md).
 - `api/payments/settle.php` — wymaga decyzji właściciela: promote do canonical settlement albo merge do `pos/engine.php`. Deadline: kolejna sesja audytu płatności (planowanie po fiskalizacji).
 - `api/orders/edit.php` / `estimate.php` / `sla_monitor.php` — placeholdery, oznaczone `🟡 PLANNED` w `02_ARCHITEKTURA.md`. Każdy wymaga osobnej sesji.
 
@@ -119,18 +119,9 @@ W `00_PAMIEC_SYSTEMU.md` mają więcej szczegółów (np. fallback POS w I, soft
 
 **Decyzja w tej sesji:** zostawiamy. v5 i tak wprowadziła dużo zmian. Pełna synchronizacja Prawa I/III do osobnej sesji jak ktoś zauważy konkretny problem w runtime.
 
-### 4.5 Faza F1 (Pętla zużycia POS↔Magazyn)
+### 4.5 Faza F1 (Pętla zużycia POS↔Magazyn) — **DOMKNIĘTE**
 
-To jest następny krok zgodnie z planem właściciela. Konstytucja v5 daje czysty fundament:
-- Prawo VIII wymusza wpięcie + test.
-- Prawo X wymusza session audit po sesji.
-
-**Plan F1:**
-1. Hook `WzEngine::consumeForOrder` w `OrderStateMachine::transitionOrder('accepted')`.
-2. Sync inline (nie async) — Konstytucja §3 wymaga że hosting nie odpala workerów; shared hosting uti.pl nie ma stabilnego cron-a.
-3. Test E2E: sprzedaj pizzę → sprawdź `wh_stock` przed/po.
-4. Po teście: usunąć `@planned` z `WzEngine.php` + zaktualizować listę w `01_KONSTYTUCJA.md` § Prawo VIII + zaktualizować `02_ARCHITEKTURA.md`.
-5. Audyt sesji w `_docs/sessions/2026-05-XX_phase_f1_consume_loop.md`.
+Zrealizowane w [`2026-05-11_phase_f1_consume_loop.md`](2026-05-11_phase_f1_consume_loop.md): hook `WarehouseConsumeHook` → `accept_order`, test E2E, `@planned` usunięte z `WzEngine.php`.
 
 ---
 

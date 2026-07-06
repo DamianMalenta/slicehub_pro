@@ -1,5 +1,7 @@
 # Sesja: F4 — KSeF API Client + Worker + Settings UI
 
+> **⚠️ SUPERSEDED (2026-05-14):** Opisuje klienta **KSeF API 1.0** (`SessionToken`, hosty `ksef*.mf.gov.pl/api/online/…`). **Aktualny kontrakt produkcyjny:** [`2026-05-14_ksef_api_v2_client.md`](2026-05-14_ksef_api_v2_client.md) (JWT + NIP, `api*.ksef.mf.gov.pl/v2`). Decyzje F4.5 (smart-create, reverse-PZ, worker, CredentialVault) nadal obowiązują — zmienił się wyłącznie transport auth i endpointy MF.
+
 **Data:** 2026-05-11 (po F3)
 **Czas trwania:** ~2.5h
 **Architekt:** AI (Cloud Agent) + użytkownik
@@ -129,9 +131,9 @@ Plan: po wgraniu paczki na uti.pl, user generuje sandbox token, testuje. F4 jest
 
 ### 4.2 KSeF Session model
 
-Obecny client używa **stateless** SessionToken (header). KSeF Online API zalecane jest sesja: `Session/InitToken` → otrzymanie session_id → wszystkie kolejne calle z `Authorization: Bearer <session_id>` → na koniec `Session/Terminate`.
+> **Nieaktualne po 2026-05-14:** API v2 używa JWT (`ksef_access_token` / refresh), nie SessionToken API 1.0. Patrz [`2026-05-14_ksef_api_v2_client.md`](2026-05-14_ksef_api_v2_client.md).
 
-Plan F4.1 (po sandbox testach): jeśli stateless nie działa stabilnie, dorzucić session management z cache w `sh_tenant_integrations.credentials` (`auth_session_id` + `expires_at`).
+Obecny client (F4, API 1.0) używał **stateless** SessionToken (header). Plan F4.1 (session management) **nie został wdrożony** — zastąpiony migracją v2.
 
 ### 4.3 Pełna FA(2) XSD validation
 

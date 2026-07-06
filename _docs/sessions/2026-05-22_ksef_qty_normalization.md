@@ -1,7 +1,8 @@
 # Sesja: KSeF — normalizacja ilości FA → base_unit magazynu
 
 **Data:** 2026-05-22  
-**Branch:** `cursor/ksef-inbox-p3-d8f0` (P3 po merge PR #32)
+**Branch:** `cursor/ksef-inbox-p3-d8f0` (P3 po merge PR #32)  
+**Skrót operacyjny:** [`HANDOFF_2026-05-22_ksef_inbox_continue.md`](HANDOFF_2026-05-22_ksef_inbox_continue.md) (API ściąga, lista plików)
 
 ---
 

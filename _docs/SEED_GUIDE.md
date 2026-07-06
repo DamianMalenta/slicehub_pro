@@ -70,7 +70,8 @@ Typowy flow po `install_panel.php`: tenant 1 pusty (Demo Tenant), dane w tenant 
 - Test runner: auto-discovery PIN przed suite'ami (`discoverAuthTenant()`).
 - Pełny reseed demo: `php scripts/seed_demo_all.php` (tenant 1) lub `scripts/seed_pizzaforno.sql` z `@tid`.
 
-Szczegóły: `_docs/sessions/2026-05-22_tenant_discovery_auth.md`.
+Szczegóły seeda: [`sessions/2026-05-22_seed_refresh.md`](sessions/2026-05-22_seed_refresh.md).  
+Multi-tenant / auth: [`sessions/2026-05-22_tenant_discovery_auth.md`](sessions/2026-05-22_tenant_discovery_auth.md).
 
 **Uwaga:** pliki SVG trafiają do `uploads/` (gitignore) — są **generowane przy każdym seedzie**, nie trzeba ich commitować.
 
