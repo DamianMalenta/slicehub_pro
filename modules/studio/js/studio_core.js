@@ -1,4 +1,4 @@
-window.StudioState = { items: [], categories: [], bulkSelectedItems: [], sceneTemplates: null };
+window.StudioState = { items: [], categories: [], menuTree: [], bulkSelectedItems: [], sceneTemplates: null };
 
 window.apiStudio = async function(action, payload = {}) {
     payload.action = action;
@@ -13,11 +13,24 @@ window.loadMenuTree = async function() {
     if (res.success === true && res.data) {
         window.StudioState.categories = res.data.categories || [];
         window.StudioState.items = res.data.items || [];
+        window.StudioState.menuTree = (res.data.categories || []).map(cat => ({
+            ...cat,
+            items: (res.data.items || []).filter(it => it.categoryId === cat.id),
+        }));
         window.StudioState.modifierGroups = res.data.modifierGroups || window.StudioState.modifierGroups || [];
         return res.data;
     }
     console.error('Błąd API:', res.message);
     return null;
+};
+
+/** Zgrupowane pozycje menu (menuTree lub fallback z flat items). */
+window.StudioState.getItemsGrouped = function() {
+    if (this.menuTree && this.menuTree.length) return this.menuTree;
+    return (this.categories || []).map(cat => ({
+        ...cat,
+        items: (this.items || []).filter(it => it.categoryId === cat.id),
+    }));
 };
 
 // Dodana funkcja ładująca szczegóły, w pełni zintegrowana z camelCase z backendu

@@ -37,6 +37,14 @@ try {
         $warehouseId = 'MAIN';
     }
 
+    $activeFilter = '';
+    try {
+        $pdo->query('SELECT is_active, is_deleted FROM sys_items LIMIT 0');
+        $activeFilter = ' AND s.is_active = 1 AND s.is_deleted = 0';
+    } catch (Throwable $e) {
+        // legacy schema without soft-delete flags
+    }
+
     $stmt = $pdo->prepare("
         SELECT
             s.sku,
@@ -50,7 +58,7 @@ try {
             ON w.sku = s.sku
            AND w.tenant_id = s.tenant_id
            AND w.warehouse_id = :wid
-        WHERE s.tenant_id = :tid
+        WHERE s.tenant_id = :tid{$activeFilter}
         ORDER BY s.name ASC
     ");
     $stmt->execute([':tid' => $tenant_id, ':wid' => $warehouseId]);
