@@ -39,6 +39,14 @@ All output should say "No syntax errors detected". Any other output is a failure
 
 Open `http://localhost/slicehub/tests/test_runner.html` in a browser and click "Uruchom Wszystkie Testy". All 62 tests should pass. The tests are JavaScript-based and call the REST API endpoints.
 
+Headless (agent/CI, bez `package.json` w repo):
+
+```bash
+cd /tmp && npm install puppeteer-core
+node /workspace/scripts/run_test_runner_headless.cjs
+# Oczekiwany wynik: "pass": "62", "fail": "0"
+```
+
 Test runner **auto-discovery:** przed suite'ami skanuje tenant 1–10 i typowe PIN-y (`0000`…`6666`); nie zakłada `tenant_id=1`. Po `seed_demo_all.php` loguje się jako waiter PIN `1111` na tenant 1. Po instalacji przez `install_panel.php` (tylko tenant 2) — PIN ownera ustawiony przy `create_owner` lub ręcznie w HR.
 
 ### API authentication

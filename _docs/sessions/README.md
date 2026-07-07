@@ -58,9 +58,11 @@ Spine czytania: [`2026-05-11_STUDIO_RELEASE_INDEX.md`](2026-05-11_STUDIO_RELEASE
 
 ### Infra / deploy / seed / auth
 
-- [`2026-05-21_api_base_paths.md`](2026-05-21_api_base_paths.md) — SSOT prefiksów API (`sh_api_base.js`, Tier 1–5); 62/62 test_runner. **Skrót:** [`.cursor/plans/api_base_paths_handoff.md`](../../.cursor/plans/api_base_paths_handoff.md).
+- [`2026-05-21_api_base_paths.md`](2026-05-21_api_base_paths.md) — SSOT prefiksów API (`sh_api_base.js`, Tier 1–5); 62/62 test_runner.
 - [`2026-05-22_tenant_discovery_auth.md`](2026-05-22_tenant_discovery_auth.md) — `tenant_config.php` discovery tenanta; test runner `discoverAuthTenant()`; `install_panel` `pin_code`.
 - [`2026-05-22_seed_refresh.md`](2026-05-22_seed_refresh.md) — `seed_demo_all.php` po m046–059; aliasy, KSeF demo, Studio visuals.
+
+- [`2026-07-07_docs_start_tutaj_verification.md`](2026-07-07_docs_start_tutaj_verification.md) — START_TUTAJ.md, weryfikacja 62/62, fix Deno CI workflow_dispatch.
 
 ### SPARK (materiały wniosku — bez zmian runtime)
 
