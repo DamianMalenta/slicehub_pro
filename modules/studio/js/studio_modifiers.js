@@ -641,6 +641,7 @@ window.ModifierInspector = {
         const actionType = opt.actionType || 'NONE';
         const linkedSku = opt.linkedWarehouseSku || opt.sku || '';
         const qty = opt.linkedQuantity !== undefined ? opt.linkedQuantity : (opt.qty || '');
+        const linkedWaste = opt.linkedWastePercent !== undefined ? opt.linkedWastePercent : (opt.wastePercent || '0');
 
         const warehouseSource = window.StudioState.warehouseItems.length
             ? window.StudioState.warehouseItems
@@ -702,7 +703,7 @@ window.ModifierInspector = {
                     </select>
                 </div>
 
-                <div class="col-span-4 lock-opt-warehouse">
+                <div class="col-span-3 lock-opt-warehouse">
                     <label class="block text-[8px] font-black uppercase text-slate-500 mb-1">Powiązany Surowiec</label>
                     <select class="opt-sku w-full bg-black/50 border border-white/10 text-white text-[9px] rounded p-2 outline-none font-mono ${actionType==='NONE' ? 'opacity-30 cursor-not-allowed' : ''}" ${actionType==='NONE' ? 'disabled' : ''}>
                         ${skuOptions}
@@ -712,6 +713,11 @@ window.ModifierInspector = {
                 <div class="col-span-2 lock-opt-warehouse">
                     <label class="block text-[8px] font-black uppercase text-slate-500 mb-1">linkedQuantity (ułamek)</label>
                     <input type="number" step="0.001" class="opt-qty w-full bg-black/50 border border-white/10 text-white text-[9px] rounded p-2 outline-none text-center ${actionType!=='ADD' ? 'opacity-30 cursor-not-allowed' : ''}" placeholder="0.000" value="${qty}" ${actionType!=='ADD' ? 'disabled' : ''}>
+                </div>
+
+                <div class="col-span-2 lock-opt-warehouse">
+                    <label class="block text-[8px] font-black uppercase text-slate-500 mb-1">waste %</label>
+                    <input type="number" step="0.1" min="0" max="100" class="opt-waste w-full bg-black/50 border border-white/10 text-white text-[9px] rounded p-2 outline-none text-center ${actionType!=='ADD' ? 'opacity-30 cursor-not-allowed' : ''}" placeholder="0" value="${linkedWaste}" ${actionType!=='ADD' ? 'disabled' : ''}>
                 </div>
 
                 <!-- F-S2.1 (2026-05-11): Size Pricing — przycisk otwiera modal z macierzą cen per rozmiar -->
@@ -1175,6 +1181,7 @@ window.ModifierInspector = {
             const actionType = row.querySelector('.opt-action').value;
             const linkedSku = row.querySelector('.opt-sku').value;
             const linkedQty = parseFloat(row.querySelector('.opt-qty').value) || 0;
+            const linkedWaste = parseFloat(row.querySelector('.opt-waste')?.value) || 0;
 
             if (!name || !cleanAscii) return; 
 
@@ -1212,6 +1219,7 @@ window.ModifierInspector = {
                 actionType,
                 linkedWarehouseSku: linkedSku,
                 linkedQuantity: parseFloat(linkedQty),
+                linkedWastePercent: linkedWaste,
                 hasVisualImpact: vImpact ? !!vImpact.checked : true,
                 layerTopDownAssetId: layerTopDownAssetId && layerTopDownAssetId > 0 ? layerTopDownAssetId : null,
                 modifierHeroAssetId: modifierHeroAssetId && modifierHeroAssetId > 0 ? modifierHeroAssetId : null

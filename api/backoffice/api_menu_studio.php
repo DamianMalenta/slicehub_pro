@@ -1153,10 +1153,16 @@ try {
             $categoriesRaw = $stmtCat->fetchAll(PDO::FETCH_ASSOC);
 
             // -- Items --
+            $itemVariantCols = '';
+            try {
+                $pdo->query('SELECT parent_item_id FROM sh_menu_items LIMIT 0');
+                $itemVariantCols = ', parent_item_id, is_variant_parent';
+            } catch (PDOException $e) {}
+
             if ($schemaV2) {
-                $stmtItems = $pdo->prepare("SELECT id, category_id, name, ascii_key, is_active, badge_type, is_secret, stock_count, vat_rate_dine_in, vat_rate_takeaway, kds_station_id, is_locked_by_hq, image_url, description FROM sh_menu_items WHERE tenant_id = ? AND is_deleted = 0 ORDER BY display_order ASC, name ASC");
+                $stmtItems = $pdo->prepare("SELECT id, category_id, name, ascii_key, is_active, badge_type, is_secret, stock_count, vat_rate_dine_in, vat_rate_takeaway, kds_station_id, is_locked_by_hq, image_url, description{$itemVariantCols} FROM sh_menu_items WHERE tenant_id = ? AND is_deleted = 0 ORDER BY display_order ASC, name ASC");
             } else {
-                $stmtItems = $pdo->prepare("SELECT id, category_id, name, ascii_key, is_active, badge_type, is_secret, stock_count, vat_rate AS vat_rate_dine_in, vat_rate AS vat_rate_takeaway, printer_group AS kds_station_id, 0 AS is_locked_by_hq, NULL AS image_url, description FROM sh_menu_items WHERE tenant_id = ? AND is_deleted = 0 ORDER BY display_order ASC, name ASC");
+                $stmtItems = $pdo->prepare("SELECT id, category_id, name, ascii_key, is_active, badge_type, is_secret, stock_count, vat_rate AS vat_rate_dine_in, vat_rate AS vat_rate_takeaway, printer_group AS kds_station_id, 0 AS is_locked_by_hq, NULL AS image_url, description{$itemVariantCols} FROM sh_menu_items WHERE tenant_id = ? AND is_deleted = 0 ORDER BY display_order ASC, name ASC");
             }
             $stmtItems->execute([$tenant_id]);
             $itemsRaw = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
@@ -1226,7 +1232,9 @@ try {
                     'isLockedByHq' => (bool)($i['is_locked_by_hq'] ?? 0),
                     'imageUrl' => $i['image_url'] ?? '',
                     'description' => $i['description'] ?? '',
-                    'priceTiers' => $tiersBySku[$i['ascii_key'] ?? ''] ?? [] 
+                    'priceTiers' => $tiersBySku[$i['ascii_key'] ?? ''] ?? [],
+                    'parentItemId' => isset($i['parent_item_id']) ? (int)$i['parent_item_id'] : null,
+                    'isVariantParent' => !empty($i['is_variant_parent']),
                 ];
             }, $itemsRaw);
 
@@ -1835,8 +1843,19 @@ try {
                 } catch (PDOException $e) {}
 
                 if ($hasModifiersTable) {
-                    $stmtInsertOpt = $pdo->prepare("INSERT INTO sh_modifiers (group_id, name, ascii_key, action_type, linked_warehouse_sku, linked_quantity, is_default) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                    $stmtUpdateOpt = $pdo->prepare("UPDATE sh_modifiers SET name = ?, action_type = ?, linked_warehouse_sku = ?, linked_quantity = ?, is_default = ?, is_deleted = 0 WHERE id = ? AND group_id = ?");
+                    $hasLinkedWaste = false;
+                    try {
+                        $pdo->query('SELECT linked_waste_percent FROM sh_modifiers LIMIT 0');
+                        $hasLinkedWaste = true;
+                    } catch (PDOException $e) {}
+
+                    if ($hasLinkedWaste) {
+                        $stmtInsertOpt = $pdo->prepare('INSERT INTO sh_modifiers (group_id, name, ascii_key, action_type, linked_warehouse_sku, linked_quantity, linked_waste_percent, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+                        $stmtUpdateOpt = $pdo->prepare('UPDATE sh_modifiers SET name = ?, action_type = ?, linked_warehouse_sku = ?, linked_quantity = ?, linked_waste_percent = ?, is_default = ?, is_deleted = 0 WHERE id = ? AND group_id = ?');
+                    } else {
+                        $stmtInsertOpt = $pdo->prepare('INSERT INTO sh_modifiers (group_id, name, ascii_key, action_type, linked_warehouse_sku, linked_quantity, is_default) VALUES (?, ?, ?, ?, ?, ?, ?)');
+                        $stmtUpdateOpt = $pdo->prepare('UPDATE sh_modifiers SET name = ?, action_type = ?, linked_warehouse_sku = ?, linked_quantity = ?, is_default = ?, is_deleted = 0 WHERE id = ? AND group_id = ?');
+                    }
 
                     foreach ($options as $opt) {
                         $optId = intval($opt['id'] ?? 0);
@@ -1845,17 +1864,26 @@ try {
                         $actionType = in_array($opt['actionType'] ?? '', ['NONE','ADD','REMOVE']) ? $opt['actionType'] : 'NONE';
                         $linkedSku = $toNull($opt['linkedWarehouseSku'] ?? null);
                         $linkedQty = (float)($opt['linkedQuantity'] ?? 0);
+                        $linkedWaste = (float)($opt['linkedWastePercent'] ?? 0);
                         $isDefault = !empty($opt['isDefault']) ? 1 : 0;
                         $optPriceTiers = $opt['priceTiers'] ?? [];
 
                         if (empty($optName) || empty($optAsciiKey)) continue;
 
                         if ($optId > 0) {
-                            $stmtUpdateOpt->execute([$optName, $actionType, $linkedSku, $linkedQty, $isDefault, $optId, $groupId]);
+                            if ($hasLinkedWaste) {
+                                $stmtUpdateOpt->execute([$optName, $actionType, $linkedSku, $linkedQty, $linkedWaste, $isDefault, $optId, $groupId]);
+                            } else {
+                                $stmtUpdateOpt->execute([$optName, $actionType, $linkedSku, $linkedQty, $isDefault, $optId, $groupId]);
+                            }
                             $savedOptionIds[] = $optId;
                             $resolvedModId = $optId;
                         } else {
-                            $stmtInsertOpt->execute([$groupId, $optName, $optAsciiKey, $actionType, $linkedSku, $linkedQty, $isDefault]);
+                            if ($hasLinkedWaste) {
+                                $stmtInsertOpt->execute([$groupId, $optName, $optAsciiKey, $actionType, $linkedSku, $linkedQty, $linkedWaste, $isDefault]);
+                            } else {
+                                $stmtInsertOpt->execute([$groupId, $optName, $optAsciiKey, $actionType, $linkedSku, $linkedQty, $isDefault]);
+                            }
                             $resolvedModId = (int)$pdo->lastInsertId();
                             $savedOptionIds[] = $resolvedModId;
                         }
@@ -2005,6 +2033,7 @@ try {
                     'actionType' => $opt['action_type'] ?? 'NONE',
                     'linkedWarehouseSku' => $opt['linked_warehouse_sku'] ?? null,
                     'linkedQuantity' => (float)($opt['linked_quantity'] ?? 0),
+                    'linkedWastePercent' => (float)($opt['linked_waste_percent'] ?? 0),
                     'priceTiers' => $pricesBySku[$ascii] ?? [],
                     'hasVisualImpact' => $hasModifierVisualImpact
                         ? (bool)((int)($opt['has_visual_impact'] ?? 1))
@@ -3000,28 +3029,77 @@ try {
             if (!in_array($srcKey, $found, true)) throw new Exception("Source SKU '{$srcKey}' not found.");
             if (!in_array($dstKey, $found, true)) throw new Exception("Target SKU '{$dstKey}' not found.");
 
-            $stmtSrc = $pdo->prepare(
-                "SELECT warehouse_sku, quantity_base, waste_percent, is_packaging
-                   FROM sh_recipes WHERE tenant_id = ? AND menu_item_sku = ?"
-            );
+            $hasSubrecipeCols = false;
+            try { $pdo->query('SELECT is_subrecipe FROM sh_recipes LIMIT 0'); $hasSubrecipeCols = true; }
+            catch (\PDOException $e) {}
+            $hasDisplayOrder = false;
+            try { $pdo->query('SELECT display_order FROM sh_recipes LIMIT 0'); $hasDisplayOrder = true; }
+            catch (\PDOException $e) {}
+
+            if ($hasSubrecipeCols && $hasDisplayOrder) {
+                $selectSql = 'SELECT warehouse_sku, quantity_base, waste_percent, is_packaging, is_subrecipe, subrecipe_yield, display_order FROM sh_recipes WHERE tenant_id = ? AND menu_item_sku = ?';
+            } elseif ($hasSubrecipeCols) {
+                $selectSql = 'SELECT warehouse_sku, quantity_base, waste_percent, is_packaging, is_subrecipe, subrecipe_yield FROM sh_recipes WHERE tenant_id = ? AND menu_item_sku = ?';
+            } else {
+                $selectSql = 'SELECT warehouse_sku, quantity_base, waste_percent, is_packaging FROM sh_recipes WHERE tenant_id = ? AND menu_item_sku = ?';
+            }
+
+            $stmtSrc = $pdo->prepare($selectSql);
             $stmtSrc->execute([$tenant_id, $srcKey]);
             $rows = $stmtSrc->fetchAll(PDO::FETCH_ASSOC);
             if (!$rows) throw new Exception("Source '{$srcKey}' has no recipe lines.");
 
             $pdo->beginTransaction();
             try {
-                $pdo->prepare("DELETE FROM sh_recipes WHERE tenant_id = ? AND menu_item_sku = ?")
+                $pdo->prepare('DELETE FROM sh_recipes WHERE tenant_id = ? AND menu_item_sku = ?')
                     ->execute([$tenant_id, $dstKey]);
-                $stmtIns = $pdo->prepare(
-                    "INSERT INTO sh_recipes (tenant_id, menu_item_sku, warehouse_sku, quantity_base, waste_percent, is_packaging)
-                     VALUES (?, ?, ?, ?, ?, ?)"
-                );
+
+                if ($hasSubrecipeCols && $hasDisplayOrder) {
+                    $stmtIns = $pdo->prepare(
+                        'INSERT INTO sh_recipes
+                            (tenant_id, menu_item_sku, warehouse_sku, quantity_base, waste_percent,
+                             is_packaging, is_subrecipe, subrecipe_yield, display_order)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                    );
+                } elseif ($hasSubrecipeCols) {
+                    $stmtIns = $pdo->prepare(
+                        'INSERT INTO sh_recipes
+                            (tenant_id, menu_item_sku, warehouse_sku, quantity_base, waste_percent,
+                             is_packaging, is_subrecipe, subrecipe_yield)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+                    );
+                } else {
+                    $stmtIns = $pdo->prepare(
+                        'INSERT INTO sh_recipes (tenant_id, menu_item_sku, warehouse_sku, quantity_base, waste_percent, is_packaging)
+                         VALUES (?, ?, ?, ?, ?, ?)'
+                    );
+                }
+
                 foreach ($rows as $r) {
-                    $stmtIns->execute([
-                        $tenant_id, $dstKey,
-                        $r['warehouse_sku'],
-                        $r['quantity_base'], $r['waste_percent'], $r['is_packaging']
-                    ]);
+                    if ($hasSubrecipeCols && $hasDisplayOrder) {
+                        $stmtIns->execute([
+                            $tenant_id, $dstKey,
+                            $r['warehouse_sku'],
+                            $r['quantity_base'], $r['waste_percent'], $r['is_packaging'],
+                            (int)($r['is_subrecipe'] ?? 0),
+                            (float)($r['subrecipe_yield'] ?? 1.0),
+                            (int)($r['display_order'] ?? 0),
+                        ]);
+                    } elseif ($hasSubrecipeCols) {
+                        $stmtIns->execute([
+                            $tenant_id, $dstKey,
+                            $r['warehouse_sku'],
+                            $r['quantity_base'], $r['waste_percent'], $r['is_packaging'],
+                            (int)($r['is_subrecipe'] ?? 0),
+                            (float)($r['subrecipe_yield'] ?? 1.0),
+                        ]);
+                    } else {
+                        $stmtIns->execute([
+                            $tenant_id, $dstKey,
+                            $r['warehouse_sku'],
+                            $r['quantity_base'], $r['waste_percent'], $r['is_packaging'],
+                        ]);
+                    }
                 }
                 $pdo->commit();
                 $response['success'] = true;
