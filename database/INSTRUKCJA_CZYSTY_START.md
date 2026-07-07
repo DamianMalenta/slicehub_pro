@@ -1,6 +1,27 @@
 # Instrukcja: naprawa środowiska, czyste konta i przykładowe zamówienia
 
-Założenia: **XAMPP**, baza **MySQL/MariaDB**, projekt w `htdocs/slicehub`, domyślny tenant **`tenant_id = 1`**. Ścieżki URL zakładają `http://localhost/slicehub/` — dopasuj je do swojej konfiguracji.
+Założenia: **XAMPP** lub **Cloud Agent**, baza **MySQL/MariaDB**, projekt w `htdocs/slicehub`, domyślny tenant demo **`tenant_id = 1`**. Ścieżki URL: `http://localhost/slicehub/` — dopasuj do swojej konfiguracji.
+
+> **Hosting (uti.pl):** ten sam łańcuch migracji, ale bez seeda w Install Panelu — patrz [`_docs/20_DEPLOY_TEST_HOSTING.md`](../_docs/20_DEPLOY_TEST_HOSTING.md) oraz sekcja *Produkty* poniżej.
+
+---
+
+## Migracje a produkty — nie myl tych kroków
+
+```
+001 (tabele)  →  chain 004–059 (kolumny)  →  SEED lub Studio (dane)
+                                              ↑
+                                    bez tego POS = pusty
+```
+
+| Po kroku | `sh_menu_items` | POS |
+|----------|-----------------|-----|
+| Tylko `001` | 0 | pusty |
+| `001` + chain | 0 | pusty |
+| + `seed_demo_all.php` (tenant 1) | 33 | pełne menu demo |
+| + `seed_pizzaforno.sql` (tenant 2) | ~229 | menu Forno (`?tenant=2`) |
+
+Ceny są w **`sh_price_tiers`**, nie w `sh_menu_items`. Seed wstawia obie tabele.
 
 ---
 
@@ -10,102 +31,101 @@ Założenia: **XAMPP**, baza **MySQL/MariaDB**, projekt w `htdocs/slicehub`, dom
 
 | Grupa | Pliki |
 |--------|--------|
-| **Baza startowa (osobno)** | `001_init_slicehub_pro_v2.sql` — **nie** jest w `apply_migrations_chain.php` (import ręczny przed łańcuchem). |
-| **Archiwum (celowo poza łańcuchem)** | `_archive_014_ingredient_assets.sql`, `_archive_018_modifier_visual_map.sql` — zastąpione przez nowsze migracje / cleanup w **025**. |
-| **Opcjonalnie destrukcyjne dane** | `015_normalize_three_drivers.sql` — **domyślnie pominięte**; łańcuch: `php scripts/apply_migrations_chain.php --include-015`. |
-| **Reszta numerów** | Wszystkie pozostałe `*.sql` (004, 006–014, 016–034, dwa pliki **032**) są **w tablicy `$chain`** w `scripts/apply_migrations_chain.php`. |
+| **Baza startowa (osobno)** | `001_init_slicehub_pro_v2.sql` — **nie** jest w łańcuchu (import przed chain). |
+| **Archiwum** | `_archive_014_ingredient_assets.sql`, `_archive_018_modifier_visual_map.sql` — nie uruchamiaj. |
+| **Opcjonalnie destrukcyjne** | `015_normalize_three_drivers.sql` — tylko `php scripts/apply_migrations_chain.php --include-015`. |
+| **Łańcuch kanoniczny** | **53 pliki** `004` … `059` (bez 015) — tablica w `scripts/_migrations_chain.php`. |
 
-**Brak plików dla numerów 002, 003, 005, 018** w katalogu — to zamierzone luki w repozytorium (nie ma czego „dopinać”).
+**Brak plików 002, 003, 005, 018** — zamierzone luki.
 
 ### Automatyczna weryfikacja dysku ↔ łańcuch
 
-```text
-c:\xampp\php\php.exe scripts\apply_migrations_chain.php --audit
+```bash
+php scripts/apply_migrations_chain.php --audit
 ```
 
-- Kod **0**: każdy plik `migrations/*.sql` (poza `001` i `_archive_*`) jest w łańcuchu; każdy wpis łańcucha istnieje na dysku.  
-- Kod **1**: nowy plik `.sql` dopisany do folderu, ale nie dodany do skryptu — trzeba zaktualizować `$chain`.
+- Kod **0**: każdy plik `migrations/*.sql` (poza `001`, `_archive_*`, domyślnie `015`) jest w łańcuchu.
+- Kod **1**: nowy `.sql` na dysku bez wpisu w `_migrations_chain.php` — napraw przed deployem.
 
-Przy normalnym uruchomieniu (bez `--audit`) skrypt **najpierw** wykonuje ten sam audyt; przy błędzie **nie łączy się z bazą**.
+Przy normalnym uruchomieniu skrypt **najpierw** robi audyt; przy błędzie **nie łączy się z bazą**.
 
 ### `setup_database.php` a pełny schemat
 
-`setup_database.php` **nie zastępuje** importu wszystkich plików z `migrations/`. Wykonuje m.in. **kopie** **006/008** (007 inline), pliki **012–014**, **016–017** (część w PHP), **020–023**, **024–029** oraz **ALTER-y fazy 2–3** migracji **022** (tylko w PHP).  
+`setup_database.php` **nie zastępuje** `apply_migrations_chain.php`. Wykonuje kopie **006–008**, część plików **012–029** oraz ALTER-y fazy 2–3 migracji **022** (tylko w PHP).
 
-**Tylko w `apply_migrations_chain.php`** (po **001**) pojawiają się m.in.: **004**, **009**, **010**, **011**, **019**, **030–034**. Dlatego ścieżka **001 → apply_migrations_chain → setup_database** jest kompletna dla plików SQL w repozytorium.
+**Tylko w chain** (po `001`) są m.in.: **004**, **009–011**, **019**, **030–059**, **037–046**, **048–055**. Ścieżka kompletna:
+
+**001 → apply_migrations_chain → (opcjonalnie) setup_database → seed**
 
 ### Poza folderem `migrations/`
 
-**`scripts/setup_enterprise_tables.php`** — stoły / dine-in / dodatkowe FK (nie jest to ten sam zestaw co `migrations/`). Uruchom **tylko jeśli** używasz modułu stolików / dokumentacji enterprise.
+| Skrypt | Rola |
+|--------|------|
+| `scripts/setup_enterprise_tables.php` | Legacy stołów — kanon w migracji **037** |
+| `scripts/install_panel.php` | Panel hostingowy: 001 + chain + tenant/owner (**bez produktów**) |
+| `scripts/seed_demo_all.php` | Dane demo tenant 1 |
+| `scripts/seed_pizzaforno.sql` | Pełne menu tenant 2 (phpMyAdmin) |
 
 ---
 
 ## Ścieżka A — „od zera” (gdy schemat jest stary / podejrzany)
 
-Najpewniejsza metoda: nowa baza + pełny łańcuch migracji + seed.
+1. **Zatrzymaj ruch na produkcji** — kroki wyłącznie na lokalnym/dev.
 
-1. **Zatrzymaj ruch na produkcji** — te kroki są wyłącznie na lokalnym/dev.
+2. **Utwórz pustą bazę**, np. `slicehub_pro_v2`, kodowanie **utf8mb4_unicode_ci**.
 
-2. **Utwórz pustą bazę** (phpMyAdmin lub konsola), np. `slicehub_pro_v2`, kodowanie **utf8mb4_unicode_ci**.
+3. **Import schematu startowego** — `database/migrations/001_init_slicehub_pro_v2.sql`  
+   Na hostingu usuń linie `CREATE DATABASE` i `USE` przed importem.
 
-3. **Import schematu startowego**  
-   W phpMyAdmin: Import → plik  
-   `database/migrations/001_init_slicehub_pro_v2.sql`  
-   (tworzy tabele `sh_*`, `sys_*`, `wh_*` itd.)
+4. **Połączenie DB** — lokalnie `core/db_config.php` (fallback XAMPP); na hostingu env-y `SLICEHUB_DB_*`.
 
-4. **Dopasuj `core/db_config.php`**  
-   Ustaw `$db`, `$user`, `$pass` tak, aby wskazywały **tę samą bazę**, co w imporcie.
+5. **Łańcuch migracji SQL (004–059)**  
+   ```bash
+   php scripts/apply_migrations_chain.php
+   ```  
+   lub w przeglądarce: `http://localhost/slicehub/scripts/apply_migrations_chain.php`  
+   Opcjonalnie: `--dry-run`, `--audit`. **015** domyślnie pominięte.
 
-5. **Łańcuch migracji SQL (004–034)**  
-   W przeglądarce lub CLI (XAMPP):  
-   `http://localhost/slicehub/scripts/apply_migrations_chain.php`  
-   lub:  
-   `c:\xampp\php\php.exe scripts\apply_migrations_chain.php`  
-   (z katalogu głównego projektu).  
-   Opcjonalnie najpierw: `--dry-run` lub sam audyt zgodności: `--audit`.  
-   **015** domyślnie pominięte; na dev z seedem jak w migracji:  
-   `php scripts/apply_migrations_chain.php --include-015`
-
-6. **Domknięcie schematu (ALTER-y M022 z PHP)**  
-   Otwórz:  
+6. **Domknięcie schematu (opcjonalnie)**  
    `http://localhost/slicehub/scripts/setup_database.php`  
-   (idempotentne; nakłada się m.in. na 006–008 — to celowe **kopie** w kodzie).
+   Idempotentne; na świeżej bazie po pełnym chain zwykle zbędne do logowania.
 
-7. **Dane demo: użytkownicy, menu, magazyn, 12 przykładowych zamówień**  
+7. **Dane demo — produkty, użytkownicy, magazyn, 12 zamówień**  
    `http://localhost/slicehub/scripts/seed_demo_all.php`  
-   Poczekaj na zielony wynik sekcji **„Orders (12 total)”**.
+   Poczekaj na sekcję **„Orders (12 total)”**. Wymaga chain do co najmniej **046, 050, 057** (preflight w seedzie).
 
 8. **Logowanie kiosk (PIN)**  
-   Po seedzie m.in.: kelner `1111`, kierowca `4444` / `5555` (użytkownicy `waiter1`, `driver1`, `driver2` w `seed_demo_all.php`).  
-   W `modules/pos/index.html` meta **tenant** musi być **`1`**, jeśli POS filtruje po `tenant_id`.
+   Po seedzie: kelner `1111`, kierowca `4444` / `5555`. Tenant **1** w meta / `tenant_config.php`.
+
+---
+
+## Ścieżka A2 — produkcja Pizza Forno (tenant 2)
+
+Po **001 + chain** (bez `seed_demo_all`):
+
+1. W phpMyAdmin zaimportuj `scripts/seed_pizzaforno.sql` (idempotentny, `SET @tid := 2`).
+2. Weryfikacja: `bash scripts/seed_pizzaforno_verify.sh slicehub_pro_v2 2`
+3. Moduły: `?tenant=2` w URL lub env `SLICEHUB_TENANT_ID=2`.
+
+Szczegóły: [`_docs/SEED_GUIDE.md`](../_docs/SEED_GUIDE.md), [`_docs/menu_pizzaforno/SEED_REPORT.md`](../_docs/menu_pizzaforno/SEED_REPORT.md).
 
 ---
 
 ## Ścieżka B — schemat OK, chcesz tylko wyczyścić konta i zamówienia
 
-Gdy migracje już są, a chcesz **puste zamówienia + świeże konta** bez przebudowywania całej bazy:
+1. **`nuclear_reset.php`** — DSN na sztywno `slicehub_pro_v2` / `localhost` (dostosuj jeśli inna baza).
 
-1. **Sprawdź nazwę bazy**  
-   Skrypt `scripts/nuclear_reset.php` ma **na sztywno** host `localhost` i bazę `slicehub_pro_v2` (linie ~41–44).  
-   Jeśli używasz innej nazwy bazy — tymczasowo zmień tam DSN **albo** zmień nazwę bazy w MySQL na `slicehub_pro_v2`.
+2. Uruchom: `http://localhost/slicehub/scripts/nuclear_reset.php`  
+   Kasuje zamówienia i userów tenant 1; **nie kasuje menu** (`sh_menu_items` zostaje).
 
-2. **Uruchom nuclear reset**  
-   `http://localhost/slicehub/scripts/nuclear_reset.php`  
-   Skrypt usuwa m.in. linie zamówień, audyt, `sh_orders`, dyspozycje, zmiany kierowców, GPS, `sh_drivers`, **wszystkich `sh_users` dla tenant 1**, resetuje sekwencje, potem tworzy **6 kont** z PIN-ami `0000`–`5555` (manager, kelnerzy, kucharz, 2 kierowców).
-
-3. **Przykładowe zamówienia ponownie**  
-   `nuclear_reset` **nie** wstawia zamówień — tylko czyści i daje 6 użytkowników.  
-   Żeby znów mieć **12 zamówień demo** (jak w seedzie), **jednorazowo** uruchom:  
-   `http://localhost/slicehub/scripts/seed_demo_all.php`  
-   Ten skrypt robi `ON DUPLICATE KEY UPDATE` na użytkownikach/menu — **uzupełni** konta do zestawu 8 osób z seeda i wstawi paczkę zamówień.  
-   **Uwaga:** sekcja zamówień generuje **nowe UUID** przy każdym pełnym przebiegu seeda — **nie uruchamiaj `seed_demo_all.php` wielokrotnie** bez wcześniejszego wyczyszczenia zamówień (np. ponownie `nuclear_reset`), bo narastają duplikaty zamówień.
+3. Ponowne zamówienia demo: **jednorazowo** `seed_demo_all.php` (sekcja Orders).  
+   Wielokrotny seed bez resetu zamówień → duplikaty UUID zamówień.
 
 ---
 
 ## Ścieżka C — tylko wymiana kont (bez kasowania zamówień)
 
-`http://localhost/slicehub/scripts/reset_users.php`  
-— używa `db_config.php`, usuwa użytkowników tenant 1 i wstawia **5** kont z innym rosterem. **Zamówień nie usuwa** (mogą zostać „sieroty” względem `user_id` — stąd dla pełnego resetu lepszy **nuclear_reset**).
+`http://localhost/slicehub/scripts/reset_users.php` — 5 kont, tenant 1. Zamówień nie usuwa.
 
 ---
 
@@ -113,19 +133,33 @@ Gdy migracje już są, a chcesz **puste zamówienia + świeże konta** bez przeb
 
 | Problem | Gdzie szukać |
 |--------|----------------|
-| Błąd połączenia z bazą | `core/db_config.php` vs rzeczywista nazwa bazy użytkownika/hasło |
-| Kiosk 401 / Invalid credentials | `pin_code` + `status = 'active'` w `sh_users`; po seedzie/nuclear sprawdź wiersze dla `tenant_id = 1` |
-| Brak tabel / kolumn | Czy wykonano **001** → **apply_migrations_chain** → **setup_database** |
-| Nuclear reset nie łączy się | Nazwa bazy w `nuclear_reset.php` musi być zgodna z MySQL |
+| Błąd połączenia z bazą | `core/db_config.php` / env `SLICEHUB_DB_*` |
+| Kiosk 401 | `pin_code` + `tenant_id` w `sh_users` |
+| **Brak produktów w POS** | Czy był **seed** lub ręczne dodanie w Studio? Po samym chain: **0 produktów = OK** |
+| Produkty w DB, pusty POS | Zły `tenant_id`; `publication_status` ≠ `Live`; sezonowe `valid_to` w przeszłości |
+| Brak cen | Brak wierszy w `sh_price_tiers` dla `target_sku` |
+| Brak tabel / kolumn | **001** → **apply_migrations_chain** (do **059**) |
+| Nuclear reset nie łączy się | Nazwa bazy w `nuclear_reset.php` |
+
+### Szybka diagnostyka SQL (phpMyAdmin)
+
+```sql
+SELECT tenant_id, COUNT(*) AS produkty
+FROM sh_menu_items WHERE is_deleted = 0 GROUP BY tenant_id;
+
+SELECT tenant_id, COUNT(*) AS ceny
+FROM sh_price_tiers WHERE target_type = 'ITEM' GROUP BY tenant_id;
+```
 
 ---
 
-## Krótkie podsumowanie kolejności (najczęstszy dev)
+## Krótkie podsumowanie kolejności
 
 | Cel | Kolejność |
 |-----|-----------|
-| Wszystko od zera | **001** → **apply_migrations_chain** → **setup_database** → **seed_demo_all** |
-| Czyste konto + czyste zamówienia + potem demo | **nuclear_reset** → **seed_demo_all** (raz) |
-| Tylko schema bez danych | **001** → **apply_migrations_chain** → **setup_database** (bez seeda) |
+| Wszystko od zera (demo) | **001** → **apply_migrations_chain** → **seed_demo_all** |
+| Forno (tenant 2) | **001** → **chain** → import **seed_pizzaforno.sql** |
+| Tylko schema (hosting czysty) | **001** → **chain** → Install Panel (tenant+owner) → Studio lub seed |
+| Czyste zamówienia + demo | **nuclear_reset** → **seed_demo_all** (raz) |
 
-Szczegóły łańcucha migracji: `database/README.md`.
+Szczegóły łańcucha: [`database/README.md`](README.md).
