@@ -31,6 +31,7 @@ try {
     require_once __DIR__ . '/../../core/db_config.php';
     require_once __DIR__ . '/../../core/auth_guard.php';
     require_once __DIR__ . '/../../core/OrderStateMachine.php';
+    require_once __DIR__ . '/../../core/SettlementEngine.php';
     require_once __DIR__ . '/../../core/AssetResolver.php';
     require_once __DIR__ . '/../../core/StaffFleetPresence.php';
 
@@ -1279,9 +1280,26 @@ try {
 
         $pdo->beginTransaction();
         try {
-            $result = OrderStateMachine::fastComplete(
-                $pdo, $oid, $tenant_id, $user_id, $method, $tenantFlags,
-                ['print_receipt' => ($print === 1)]
+            $stmtGt = $pdo->prepare(
+                "SELECT grand_total FROM sh_orders WHERE id = :oid AND tenant_id = :tid"
+            );
+            $stmtGt->execute([':oid' => $oid, ':tid' => $tenant_id]);
+            $grandTotalGrosze = (int)$stmtGt->fetchColumn();
+            $stmtGt->closeCursor();
+
+            $payments = [[
+                'method' => $method,
+                'amount' => $grandTotalGrosze / 100,
+            ]];
+
+            $result = SettlementEngine::settleAndClose(
+                $pdo,
+                $oid,
+                $tenant_id,
+                $user_id,
+                $payments,
+                ['print_receipt' => ($print === 1), 'settled_via' => 'pos'],
+                $tenantFlags
             );
 
             if (!$result['success']) {
@@ -1289,23 +1307,29 @@ try {
                 posResponse(false, null, $result['message']);
             }
 
-            require_once __DIR__ . '/../../core/OrderEventPublisher.php';
-            OrderEventPublisher::publishOrderLifecycle(
-                $pdo, $tenant_id, 'order.completed', $oid,
-                [
-                    'from_status'    => $result['old_status'],
-                    'payment_method' => $method,
-                    'completed_at'   => date('Y-m-d H:i:s'),
-                ],
-                [
-                    'source'    => 'pos',
-                    'actorType' => 'staff',
-                    'actorId'   => (string)$user_id,
-                ]
-            );
+            if (empty($result['idempotent'])) {
+                require_once __DIR__ . '/../../core/OrderEventPublisher.php';
+                OrderEventPublisher::publishOrderLifecycle(
+                    $pdo, $tenant_id, 'order.completed', $oid,
+                    [
+                        'from_status'    => $result['old_status'],
+                        'payment_method' => $method,
+                        'completed_at'   => date('Y-m-d H:i:s'),
+                        'settled_via'    => 'pos',
+                    ],
+                    [
+                        'source'    => 'pos',
+                        'actorType' => 'staff',
+                        'actorId'   => (string)$user_id,
+                    ]
+                );
+            }
 
             $pdo->commit();
-            posResponse(true, ['old_status' => $result['old_status']]);
+            posResponse(true, [
+                'old_status' => $result['old_status'],
+                'idempotent' => !empty($result['idempotent']),
+            ]);
         } catch (\Throwable $e) {
             $pdo->rollBack();
             error_log('[POS Engine] settle_and_close: ' . $e->getMessage());

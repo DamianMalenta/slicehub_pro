@@ -125,8 +125,8 @@ Jeśli w przyszłości powstanie nowy silos (np. `pay_`, `log_`, `aud_`), automa
 - Funkcja opisana w `_docs/*.md` jako produkcyjna MUSI mieć call-site w `api/` lub `core/` + przynajmniej jeden test (manualny w `_docs/manual_tests.md` albo automatyczny).
 - Funkcja kompletna ale niewpięta = adnotacja `@planned (Prawo VIII)` w docblocku z konkretnym powodem i datą planowanego włączenia.
 - Audyt modułu (sesja typu „przejrzyj X") raportuje listę `@planned` + funkcji opisanych w docs ale bez call-sitów. Nie wolno tego ukryć.
-- Aktualne `@planned`: `api/payments/settle.php` (decyzja: integracja albo usunięcie), `api/orders/edit.php`, `api/orders/estimate.php`, `api/orders/sla_monitor.php`.
-- Domknięte: ~~`core/WzEngine.php::consumeForOrder`~~ (F1 · 2026-05-11 — `core/WarehouseConsumeHook`).
+- Aktualne `@planned`: `api/orders/edit.php`, `api/orders/estimate.php`, `api/orders/sla_monitor.php`.
+- Domknięte: ~~`core/WzEngine.php::consumeForOrder`~~ (F1 · 2026-05-11 — `core/WarehouseConsumeHook`); ~~`api/payments/settle.php`~~ (F1 · 2026-07-07 — `core/SettlementEngine.php`).
 
 ## 11. PRAWO DATOWANYCH ZAMROŻEŃ (Freeze Discipline) — NEW v5 (2026-05-11)
 Każda sekcja `FREEZE NOTICE` w jakimkolwiek dokumencie systemu MUSI zawierać:

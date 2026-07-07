@@ -1,28 +1,16 @@
 <?php
 // =============================================================================
-// STATUS: @planned (Prawo VIII Konstytucji v5 — Domknięcie Kontraktu).
-// ORPHAN (audit 2026-04-19) — not wired from any frontend module.
-// Overlaps with `api/pos/engine.php#settle_and_close`, but this version has
-// richer split-tender logic (integer grosze math, sh_order_payments rows).
-// Events (transactional outbox): `order.completed` when auto-complete triggers;
-// `payment.settled` when payment captured without status→completed (e.g. delivery).
-//
-// DECISION PENDING (deadline: kolejna sesja audytu warstwy płatności):
-//   (a) Promować ten plik do canonical settlement i zmigrować pos/engine.php
-//       na używanie tych endpoint-ów; albo
-//   (b) Wyciągnąć split-tender logic do `core/SettlementEngine.php` shared
-//       i usunąć ten plik (Soft Delete: rename do `_archive_settle.php`).
-//
-// Do czasu decyzji NIE wolno tego pliku usuwać ani edytować bez zatwierdzenia.
-// =============================================================================
-// SliceHub Enterprise — Payment Settlement (Split Tender)
+// SliceHub Enterprise — Payment Settlement (Phase 1 wrapper)
 // POST /api/payments/settle.php
 //
-// Settles an order's payment with full split-tender support.
-// All monetary arithmetic uses integer grosze to eliminate floating-point drift.
+// Thin HTTP adapter over core/SettlementEngine.php (canonical settlement brain).
+// Phase 1: exactly one payment line — split-tender UI is Phase 2.
 //
-// Schema: sh_orders, sh_order_payments, sh_order_audit
+// @see core/SettlementEngine.php
+// @see _docs/sessions/2026-07-07_settlement_engine_phase1.md
 // =============================================================================
+
+declare(strict_types=1);
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -43,14 +31,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 try {
     require_once __DIR__ . '/../../core/db_config.php';
     require_once __DIR__ . '/../../core/auth_guard.php';
+    require_once __DIR__ . '/../../core/OrderStateMachine.php';
+    require_once __DIR__ . '/../../core/SettlementEngine.php';
 
     if (!isset($pdo)) {
         throw new RuntimeException('Database connection unavailable.');
     }
 
-    // =========================================================================
-    // 1. PARSE & VALIDATE INPUT
-    // =========================================================================
     $raw   = file_get_contents('php://input');
     $input = json_decode($raw, true);
 
@@ -68,22 +55,18 @@ try {
     }
 
     $payments = $input['payments'] ?? null;
-    if (!is_array($payments) || count($payments) === 0) {
+    if (!is_array($payments) || count($payments) !== 1) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Missing or empty payments array.']);
+        echo json_encode(['success' => false, 'message' => 'Phase 1 requires exactly one payment entry.']);
         exit;
     }
 
-    $toGrosze = fn($val): int => (int)round((float)$val * 100);
-
+    $toGrosze      = fn($val): int => (int)round((float)$val * 100);
     $tipAmountGrosze = $toGrosze($input['tip_amount'] ?? '0.00');
     $printReceipt    = (bool)($input['print_receipt'] ?? false);
 
-    // =========================================================================
-    // 2. FETCH ORDER (Multi-tenant isolation barrier)
-    // =========================================================================
     $stmtOrder = $pdo->prepare(
-        "SELECT id, grand_total, payment_status, status, channel, source
+        "SELECT id, grand_total, payment_status, status, channel, source, order_type
          FROM sh_orders
          WHERE id = :order_id AND tenant_id = :tenant_id
          LIMIT 1"
@@ -93,6 +76,7 @@ try {
         ':tenant_id' => $tenant_id,
     ]);
     $order = $stmtOrder->fetch(PDO::FETCH_ASSOC);
+    $stmtOrder->closeCursor();
 
     if (!$order) {
         http_response_code(404);
@@ -100,247 +84,97 @@ try {
         exit;
     }
 
-    // Idempotent: already settled → return gracefully
-    if ($order['payment_status'] === 'paid') {
-        echo json_encode([
-            'success' => true,
-            'data'    => [
-                'payment_status'  => 'paid',
-                'change_due'      => '0.00',
-                'receipt_printed' => false,
-            ],
-        ]);
-        exit;
-    }
-
-    $grandTotalGrosze = (int)$order['grand_total'];
-
-    // =========================================================================
-    // 3. VALIDATION ENGINE (Split Tender Math)
-    // =========================================================================
-    $totalAppliedGrosze  = 0;
-    $totalTenderedGrosze = 0;
-    $receiptPrinted      = $printReceipt;
-    $validMethods        = ['cash', 'card', 'online'];
-
-    foreach ($payments as $idx => $p) {
-        $method = $p['method'] ?? '';
-        if (!in_array($method, $validMethods, true)) {
-            http_response_code(400);
-            echo json_encode([
-                'success' => false,
-                'message' => "Invalid payment method '{$method}' at index {$idx}.",
-            ]);
-            exit;
-        }
-
-        $amountGrosze   = $toGrosze($p['amount'] ?? '0.00');
-        $tenderedGrosze = $toGrosze($p['tendered'] ?? $p['amount'] ?? '0.00');
-
-        if ($amountGrosze <= 0) {
-            http_response_code(400);
-            echo json_encode([
-                'success' => false,
-                'message' => "Payment amount must be positive at index {$idx}.",
-            ]);
-            exit;
-        }
-
-        if ($method === 'online' && empty($p['transaction_id'])) {
-            http_response_code(400);
-            echo json_encode([
-                'success' => false,
-                'message' => "Online payment at index {$idx} requires a transaction_id.",
-            ]);
-            exit;
-        }
-
-        // Polish tax law: card payments mandate a printed fiscal receipt
-        if ($method === 'card') {
-            $receiptPrinted = true;
-        }
-
-        $totalAppliedGrosze  += $amountGrosze;
-        $totalTenderedGrosze += $tenderedGrosze;
-    }
-
-    // Strict tolerance: applied total must equal grand_total ±1 grosz
-    if (abs($totalAppliedGrosze - $grandTotalGrosze) > 1) {
-        $fmtExpected = number_format($grandTotalGrosze / 100, 2, '.', '');
-        $fmtApplied  = number_format($totalAppliedGrosze / 100, 2, '.', '');
-        http_response_code(400);
-        echo json_encode([
-            'success' => false,
-            'message' => "Payment total ({$fmtApplied}) does not match order total ({$fmtExpected}). Tolerance: ±0.01 PLN.",
-        ]);
-        exit;
-    }
-
-    // =========================================================================
-    // 4. BUSINESS LOGIC CALCULATIONS
-    // =========================================================================
-    $changeDueGrosze = max(0, $totalTenderedGrosze - $totalAppliedGrosze - $tipAmountGrosze);
-
-    $methods       = array_unique(array_column($payments, 'method'));
-    $paymentMethod = count($methods) === 1 ? $methods[0] : 'mixed';
-
-    // STATE GUARD: auto-complete ONLY if status is exactly 'ready'
-    // AND the order is NOT a delivery or aggregator channel.
-    $oldStatus       = $order['status'];
-    $canAutoComplete = ($oldStatus === 'ready')
-        && !in_array($order['source'] ?? '', ['AGGREGATOR'], true)
-        && !in_array($order['channel'] ?? '', ['Delivery'], true);
-    $newStatus = $canAutoComplete ? 'completed' : $oldStatus;
-
-    // =========================================================================
-    // 5. TRANSACTIONAL PERSISTENCE
-    // =========================================================================
-    $generateUuidV4 = function (): string {
-        $data    = random_bytes(16);
-        $data[6] = chr((ord($data[6]) & 0x0f) | 0x40);
-        $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
-        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
-    };
-
-    $now = date('Y-m-d H:i:s');
+    $canAutoComplete = SettlementEngine::shouldAutoComplete($order);
+    $tenantFlags     = OrderStateMachine::loadTenantFlags($pdo, $tenant_id);
 
     $pdo->beginTransaction();
 
     try {
-        // — 5a. Insert payment entries ————————————————————————————————————
-        $stmtPayment = $pdo->prepare(
-            "INSERT INTO sh_order_payments
-                (id, order_id, tenant_id, method, amount_grosze, tendered_grosze, transaction_id)
-             VALUES
-                (:id, :order_id, :tenant_id, :method, :amount, :tendered, :txn_id)"
+        $result = SettlementEngine::settle(
+            $pdo,
+            (string)$orderId,
+            $tenant_id,
+            $user_id,
+            $payments,
+            [
+                'complete_order' => $canAutoComplete,
+                'print_receipt'  => $printReceipt,
+                'tip_grosze'     => $tipAmountGrosze,
+                'settled_via'    => 'payments_settle',
+            ],
+            $tenantFlags
         );
 
-        foreach ($payments as $p) {
-            $stmtPayment->execute([
-                ':id'        => $generateUuidV4(),
-                ':order_id'  => $orderId,
-                ':tenant_id' => $tenant_id,
-                ':method'    => $p['method'],
-                ':amount'    => $toGrosze($p['amount'] ?? '0.00'),
-                ':tendered'  => $toGrosze($p['tendered'] ?? $p['amount'] ?? '0.00'),
-                ':txn_id'    => $p['transaction_id'] ?? null,
-            ]);
+        if (!$result['success']) {
+            $pdo->rollBack();
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => $result['message']]);
+            exit;
         }
 
-        // — 5b. Update order header ———————————————————————————————————————
-        $psMap = ['cash' => 'cash', 'card' => 'card', 'online' => 'online_paid'];
-        $newPayStatus = $psMap[$paymentMethod] ?? $paymentMethod;
-        $sql = "UPDATE sh_orders
-                SET payment_status = '{$newPayStatus}',
-                    payment_method = :pay_method,
-                    tip_amount     = :tip"
-             . ($canAutoComplete ? ", status = 'completed'" : "")
-             . " WHERE id = :oid AND tenant_id = :tid";
+        if (empty($result['idempotent'])) {
+            require_once __DIR__ . '/../../core/OrderEventPublisher.php';
+            $now = date('Y-m-d H:i:s');
+            $ctx = [
+                'split_tender'             => false,
+                'payment_method_aggregate' => $result['payment_method'],
+                'payment_lines'            => $payments,
+                'tip_grosze'               => $tipAmountGrosze,
+                'change_due_grosze'        => $result['change_due_grosze'] ?? 0,
+                'settled_at'               => $now,
+                'settled_via'              => 'payments_settle',
+            ];
 
-        $stmtUpdate = $pdo->prepare($sql);
-        $stmtUpdate->execute([
-            ':pay_method' => $paymentMethod,
-            ':tip'        => $tipAmountGrosze,
-            ':oid'        => $orderId,
-            ':tid'        => $tenant_id,
-        ]);
-
-        // — 5c. Audit trail (only on status transition) ——————————————————
-        if ($canAutoComplete) {
-            $stmtAudit = $pdo->prepare(
-                "INSERT INTO sh_order_audit
-                    (order_id, user_id, old_status, new_status, timestamp)
-                 VALUES
-                    (:oid, :uid, :old_status, :new_status, :now)"
-            );
-            $stmtAudit->execute([
-                ':oid'        => $orderId,
-                ':uid'        => $user_id,
-                ':old_status' => $oldStatus,
-                ':new_status' => 'completed',
-                ':now'        => $now,
-            ]);
-        }
-
-        // — 5d. Transactional outbox (same txn as payments + order header) —
-        $publisherPath = __DIR__ . '/../../core/OrderEventPublisher.php';
-        if (file_exists($publisherPath)) {
-            require_once $publisherPath;
-            if (class_exists('OrderEventPublisher')) {
-                $paymentLines = [];
-                foreach ($payments as $p) {
-                    $paymentLines[] = [
-                        'method'         => $p['method'],
-                        'amount'         => $p['amount'] ?? null,
-                        'tendered'       => $p['tendered'] ?? $p['amount'] ?? null,
-                        'transaction_id' => $p['transaction_id'] ?? null,
-                    ];
-                }
-                $splitCtx = [
-                    'split_tender'               => count($payments) > 1,
-                    'payment_method_aggregate'   => $paymentMethod,
-                    'payment_lines'              => $paymentLines,
-                    'tip_grosze'                 => $tipAmountGrosze,
-                    'change_due_grosze'          => $changeDueGrosze,
-                    'settled_at'                 => $now,
-                    'settled_via'                => 'payments_settle',
-                ];
-
-                if ($canAutoComplete) {
-                    OrderEventPublisher::publishOrderLifecycle(
-                        $pdo,
-                        $tenant_id,
-                        'order.completed',
-                        $orderId,
-                        array_merge($splitCtx, [
-                            'from_status' => $oldStatus,
-                            'to_status'   => 'completed',
-                        ]),
-                        [
-                            'source'    => 'payments',
-                            'actorType' => 'staff',
-                            'actorId'   => (string)$user_id,
-                        ]
-                    );
-                } else {
-                    OrderEventPublisher::publishOrderLifecycle(
-                        $pdo,
-                        $tenant_id,
-                        'payment.settled',
-                        $orderId,
-                        array_merge($splitCtx, [
-                            'order_status' => $oldStatus,
-                        ]),
-                        [
-                            'source'         => 'payments',
-                            'actorType'      => 'staff',
-                            'actorId'        => (string)$user_id,
-                            'idempotencyKey' => $orderId . ':payment.settled',
-                        ]
-                    );
-                }
+            if ($canAutoComplete) {
+                OrderEventPublisher::publishOrderLifecycle(
+                    $pdo,
+                    $tenant_id,
+                    'order.completed',
+                    (string)$orderId,
+                    array_merge($ctx, [
+                        'from_status' => $result['old_status'],
+                        'to_status'   => 'completed',
+                    ]),
+                    [
+                        'source'    => 'payments',
+                        'actorType' => 'staff',
+                        'actorId'   => (string)$user_id,
+                    ]
+                );
+            } else {
+                OrderEventPublisher::publishOrderLifecycle(
+                    $pdo,
+                    $tenant_id,
+                    'payment.settled',
+                    (string)$orderId,
+                    array_merge($ctx, [
+                        'order_status' => $result['old_status'],
+                    ]),
+                    [
+                        'source'         => 'payments',
+                        'actorType'      => 'staff',
+                        'actorId'        => (string)$user_id,
+                        'idempotencyKey' => $orderId . ':payment.settled',
+                    ]
+                );
             }
         }
 
-        // — 5e. COMMIT ————————————————————————————————————————————————————
         $pdo->commit();
-
     } catch (Throwable $txErr) {
         $pdo->rollBack();
         throw $txErr;
     }
 
-    // =========================================================================
-    // 6. SUCCESS RESPONSE
-    // =========================================================================
     $fmtMoney = fn(int $g): string => number_format($g / 100, 2, '.', '');
 
     echo json_encode([
         'success' => true,
         'data'    => [
-            'payment_status'  => 'paid',
-            'change_due'      => $fmtMoney($changeDueGrosze),
-            'receipt_printed' => $receiptPrinted,
+            'payment_status'  => $result['payment_status'],
+            'change_due'      => $fmtMoney((int)($result['change_due_grosze'] ?? 0)),
+            'receipt_printed' => (bool)($result['receipt_printed'] ?? false),
+            'idempotent'      => !empty($result['idempotent']),
         ],
     ]);
 
