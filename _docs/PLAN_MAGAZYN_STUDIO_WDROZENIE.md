@@ -30,11 +30,11 @@
 - [x] `clone_recipe` — `is_subrecipe`, `subrecipe_yield`, `display_order`
 - [x] Modyfikatory — round-trip `linkedWastePercent` (API + UI grupy)
 
-### Etap 2 — API client + UX (następny)
+### Etap 2 — API client + UX ✅ (2026-07-07)
 
-- [ ] `studio_api.js` — wszystkie wywołania przez `apiStudio()`
-- [ ] Margin Guardian — koszt półproduktów (rekurencja lub flat expand)
-- [ ] `save_recipe` — warn/block na nieistniejący `warehouseSku`
+- [x] `studio_api.js` — wszystkie wywołania przez `apiStudio()`
+- [x] Margin Guardian — koszt półproduktów (`ensureRecipeCosts` + rekurencja)
+- [x] `save_recipe` — skip na nieistniejący `warehouseSku` (surowiec)
 - [ ] `@planned` lub wire: visual layers, half-pricing w Studio
 
 ### Etap 3 — UI docelowe

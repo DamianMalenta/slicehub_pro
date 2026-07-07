@@ -2278,7 +2278,10 @@ try {
                 }
 
                 // Lookup helpers — walidacja przed INSERT.
-                $chkSysItem = $pdo->prepare("SELECT 1 FROM sys_items WHERE sku = ? AND tenant_id = ? LIMIT 1");
+                $chkSysItem = $pdo->prepare(
+                    "SELECT 1 FROM sys_items WHERE sku = ? AND tenant_id = ? AND is_active = 1 AND is_deleted = 0 LIMIT 1"
+                );
+                $chkSysItemLegacy = $pdo->prepare("SELECT 1 FROM sys_items WHERE sku = ? AND tenant_id = ? LIMIT 1");
                 $chkMenuItem = $pdo->prepare("SELECT 1 FROM sh_menu_items WHERE ascii_key = ? AND tenant_id = ? AND is_deleted = 0 LIMIT 1");
                 $skipped = [];
                 $ord = 0;
@@ -2304,8 +2307,17 @@ try {
                             continue;
                         }
                     } else {
-                        $chkSysItem->execute([$sku, $tenant_id]);
-                        if (!$chkSysItem->fetch()) { /* not blocking */ }
+                        try {
+                            $chkSysItem->execute([$sku, $tenant_id]);
+                            $exists = (bool)$chkSysItem->fetch();
+                        } catch (\PDOException $e) {
+                            $chkSysItemLegacy->execute([$sku, $tenant_id]);
+                            $exists = (bool)$chkSysItemLegacy->fetch();
+                        }
+                        if (!$exists) {
+                            $skipped[] = "{$sku} (surowiec nie istnieje w magazynie)";
+                            continue;
+                        }
                     }
 
                     if ($hasSubrecipeCols && $hasDisplayOrderSave) {

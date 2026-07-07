@@ -911,7 +911,7 @@ window.ItemEditor = {
         if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> ZAPISYWANIE...'; }
 
         try {
-            const result = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', payload);
+            const result = await window.StudioApi.postPayload(payload);
             if (result.success === true) {
                 if (btn) { btn.innerHTML = '<i class="fa-solid fa-check mr-2"></i> ZAPISANO!'; btn.classList.replace('from-blue-600', 'from-green-600'); btn.classList.replace('to-blue-500', 'to-green-500'); }
                 setTimeout(() => {
@@ -1074,8 +1074,7 @@ window.ItemEditor = {
 
     async linkItemHero(itemSku, assetId, onDone) {
         try {
-            const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
-                action: 'set_item_hero',
+            const r = await window.apiStudio('set_item_hero', {
                 itemSku: itemSku,
                 assetId: assetId,
             });
@@ -1101,8 +1100,7 @@ window.ItemEditor = {
         if (!asciiKey) return;
         if (!confirm('Odłączyć hero od tego dania? (Asset pozostanie w bibliotece.)')) return;
         try {
-            const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
-                action: 'unlink_item_hero',
+            const r = await window.apiStudio('unlink_item_hero', {
                 itemSku: asciiKey,
             });
             if (r && r.success) {
@@ -1156,7 +1154,7 @@ window.ItemEditor = {
         try {
             const payload = { action: 'autogenerate_scene', itemSku: asciiKey };
             if (force) payload.force = true;
-            const result = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', payload);
+            const result = await window.StudioApi.postPayload(payload);
 
             if (result.success === true) {
                 const d = result.data || {};
@@ -1233,7 +1231,7 @@ window.ItemEditor = {
         if (!sel) return;
         sel.innerHTML = '<option value="">— Brak (zwykła pozycja standalone) —</option>';
         try {
-            const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'list_variant_scales' });
+            const r = await window.apiStudio('list_variant_scales');
             const scales = (r && r.success && r.data && r.data.scales) ? r.data.scales : [];
             scales.forEach(s => {
                 const optsCount = Array.isArray(s.options) ? s.options.length : 0;
@@ -1289,8 +1287,7 @@ window.ItemEditor = {
             // Najpierw zapisz parent (żeby variant_scale_id było w bazie).
             await this.saveItem();
             // Następnie wygeneruj rodzinę.
-            const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
-                action: 'create_variant_family',
+            const r = await window.apiStudio('create_variant_family', {
                 parent_item_id: itemId
             });
             if (r && r.success) {
@@ -1321,7 +1318,7 @@ window.ItemEditor = {
         // Pobierz potrzebne dane.
         const [categoriesData, scalesRes] = await Promise.all([
             Promise.resolve(window.StudioState?.categories || []),
-            window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'list_variant_scales' }),
+            window.apiStudio('list_variant_scales'),
         ]);
         const scales = scalesRes?.data?.scales || [];
 
@@ -1513,7 +1510,7 @@ window.ItemEditor = {
         if (!listEl) return;
         listEl.innerHTML = '<p class="text-slate-500 text-[10px] italic text-center py-4">⏳ Ładowanie grup...</p>';
         try {
-            const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'get_modifiers_full' });
+            const r = await window.apiStudio('get_modifiers_full');
             const groups = (r?.data?.groups || r?.data?.modifierGroups || []);
             if (!groups.length) {
                 listEl.innerHTML = '<p class="text-slate-500 text-[10px] italic text-center py-4">Brak grup modyfikatorów w tenancie. Możesz pominąć krok 4 i dodać je później ręcznie.</p>';
@@ -1607,7 +1604,7 @@ window.ItemEditor = {
                 variantScaleId: d.scaleId || null,
                 isVariantParent: d.scaleId ? 1 : 0,
             };
-            const r1 = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', parentPayload);
+            const r1 = await window.StudioApi.postPayload(parentPayload);
             if (!r1 || !r1.success) throw new Error('Save parent: ' + (r1?.message || 'unknown'));
 
             // 2. Jeśli scale → create_variant_family.
@@ -1622,8 +1619,7 @@ window.ItemEditor = {
                 }));
                 if (!parentId) throw new Error('Parent zapisany, ale nie znaleziony w drzewie. Odśwież ręcznie.');
 
-                const r2 = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
-                    action: 'create_variant_family',
+                const r2 = await window.apiStudio('create_variant_family', {
                     parent_item_id: parentId,
                 });
                 if (!r2 || !r2.success) throw new Error('Generate family: ' + (r2?.message || 'unknown'));
@@ -1649,10 +1645,9 @@ window.ItemEditor = {
                     fresh.forEach(cat => (cat.items || []).forEach(it => { if (it.asciiKey === childKey) cid = parseInt(it.id, 10); }));
                     if (!cid) return;
                     // Pobierz pełne dane dziecka (żeby zachować pola).
-                    const detRes = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'get_item_details', itemId: cid });
+                    const detRes = await window.apiStudio('get_item_details', { itemId: cid });
                     const det = detRes?.data || {};
-                    await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
-                        action: 'update_item_full',
+                    await window.apiStudio('update_item_full', {
                         itemId: cid,
                         name: det.name,
                         asciiKey: det.asciiKey,
@@ -1681,10 +1676,9 @@ window.ItemEditor = {
                         const fresh2 = window.StudioState?.menuTree || [];
                         fresh2.forEach(cat => (cat.items || []).forEach(it => { if (it.asciiKey === c.ascii_key) cid = parseInt(it.id, 10); }));
                         if (!cid) continue;
-                        const detRes = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'get_item_details', itemId: cid });
+                        const detRes = await window.apiStudio('get_item_details', { itemId: cid });
                         const det = detRes?.data || {};
-                        await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
-                            action: 'update_item_full',
+                        await window.apiStudio('update_item_full', {
                             itemId: cid,
                             name: det.name, asciiKey: det.asciiKey, categoryId: det.categoryId,
                             type: det.type || 'standard', publicationStatus: 'Live',
@@ -1701,10 +1695,9 @@ window.ItemEditor = {
                 fresh.forEach(cat => (cat.items || []).forEach(it => { if (it.asciiKey === d.ascii) parentId = parseInt(it.id, 10); }));
                 const price = d.prices._standalone;
                 if (parentId && price) {
-                    const detRes = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'get_item_details', itemId: parentId });
+                    const detRes = await window.apiStudio('get_item_details', { itemId: parentId });
                     const det = detRes?.data || {};
-                    await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
-                        action: 'update_item_full',
+                    await window.apiStudio('update_item_full', {
                         itemId: parentId,
                         name: det.name, asciiKey: det.asciiKey, categoryId: det.categoryId,
                         type: 'standard', publicationStatus: 'Live',
@@ -1732,7 +1725,7 @@ window.ItemEditor = {
 
     async openVariantScaleManager() {
         // Lekki modal: lista skal + edycja inline.
-        let r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'list_variant_scales' });
+        let r = await window.apiStudio('list_variant_scales');
         const scales = (r && r.success && r.data && r.data.scales) ? r.data.scales : [];
 
         const modal = document.createElement('div');
@@ -1900,8 +1893,7 @@ window.ItemEditor = {
         };
         window.ItemEditor._vsSave = async (i) => {
             const s = scales[i];
-            const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
-                action: 'save_variant_scale',
+            const r = await window.apiStudio('save_variant_scale', {
                 id: s.id || 0,
                 name: s.name,
                 key_ascii: s.key_ascii,
@@ -1921,9 +1913,7 @@ window.ItemEditor = {
             if (!confirm('Usunąć tę skalę?')) return;
             const s = scales[i];
             if (s.id) {
-                const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
-                    action: 'delete_variant_scale', id: s.id
-                });
+                const r = await window.apiStudio('delete_variant_scale', { id: s.id });
                 if (!r || !r.success) { alert('❌ ' + (r?.message || 'unknown')); return; }
             }
             scales.splice(i, 1);

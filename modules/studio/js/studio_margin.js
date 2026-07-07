@@ -17,9 +17,12 @@ window.MarginGuardian = (() => {
     // Stan wewnętrzny
     // -------------------------------------------------------------------------
     const _state = {
-        avcoDict:    {},   // { "SKU": avco_price (float) }
-        initialized: false
+        avcoDict:       {},   // { "SKU": avco_price (float) }
+        batchCostCache: {},   // { menuItemSku: batch AVCO cost }
+        initialized:    false,
     };
+
+    const _MAX_SUBRECIPE_DEPTH = 8;
 
     // -------------------------------------------------------------------------
     // Formatters
@@ -51,7 +54,103 @@ window.MarginGuardian = (() => {
         );
 
         _state.initialized = true;
+        _state.batchCostCache = {};
         return true;
+    }
+
+    // -------------------------------------------------------------------------
+    // 1b. ENSURE RECIPE COSTS — preload batch costs for subrecipe lines (F2)
+    // -------------------------------------------------------------------------
+    async function ensureRecipeCosts(ingredients, rootSku = null) {
+        if (!Array.isArray(ingredients)) return;
+        _state.batchCostCache = {};
+
+        const visit = new Set();
+
+        async function batchCost(menuSku, depth) {
+            if (!menuSku || depth > _MAX_SUBRECIPE_DEPTH) return 0;
+            if (_state.batchCostCache[menuSku] !== undefined) {
+                return _state.batchCostCache[menuSku];
+            }
+            if (visit.has(menuSku)) return 0;
+            visit.add(menuSku);
+
+            let lines = [];
+            if (typeof window.apiStudio === 'function') {
+                const res = await window.apiStudio('get_item_recipe', { menuItemSku: menuSku });
+                if (res?.success && res.data?.ingredients) {
+                    lines = res.data.ingredients;
+                }
+            }
+
+            let total = 0;
+            for (const line of lines) {
+                if (line.isSubrecipe && line.warehouseSku) {
+                    const subBatch = await batchCost(line.warehouseSku, depth + 1);
+                    const yieldAmt = Math.max(0.0001, parseFloat(line.subrecipeYield) || 1);
+                    const rawQty   = parseFloat(line.quantityBase) || 0;
+                    const wastePct = parseFloat(line.wastePercent) || 0;
+                    total += (subBatch / yieldAmt) * rawQty * (1 + wastePct / 100);
+                } else {
+                    total += _rawMaterialCost(line);
+                }
+            }
+
+            visit.delete(menuSku);
+            _state.batchCostCache[menuSku] = total;
+            return total;
+        }
+
+        const subKeys = new Set();
+        for (const ing of ingredients) {
+            if (ing.isSubrecipe && ing.warehouseSku) {
+                subKeys.add(ing.warehouseSku);
+            }
+        }
+        for (const key of subKeys) {
+            await batchCost(key, 0);
+        }
+        if (rootSku) {
+            await batchCost(rootSku, 0);
+        }
+    }
+
+    function _lineCostSync(ing) {
+        if (ing.isSubrecipe) {
+            const batch = _state.batchCostCache[ing.warehouseSku];
+            if (batch === undefined) return 0;
+            const yieldAmt = Math.max(0.0001, parseFloat(ing.subrecipeYield) || 1);
+            const rawQty   = parseFloat(ing.quantityBase) || 0;
+            const wastePct = parseFloat(ing.wastePercent) || 0;
+            const unitCost = batch / yieldAmt;
+            return unitCost * rawQty * (1 + wastePct / 100);
+        }
+        return _rawMaterialCost(ing);
+    }
+
+    function _rawMaterialCost(ing) {
+        const unitAvco  = _state.avcoDict[ing.warehouseSku] ?? 0;
+        const rawQty    = parseFloat(ing.quantityBase) || 0;
+        const wastePct  = parseFloat(ing.wastePercent) || 0;
+
+        const targetBaseUnit = ing.baseUnit || 'kg';
+        const usageUnit      = ing.unit || targetBaseUnit;
+        const conversion     = (typeof window.SliceValidator !== 'undefined')
+            ? window.SliceValidator.convert(rawQty, usageUnit, targetBaseUnit)
+            : { success: true, value: rawQty };
+
+        let actualQtyInBaseUnits = 0;
+        if (conversion.success) {
+            actualQtyInBaseUnits = conversion.value;
+        } else {
+            console.warn(
+                `[MarginGuardian] Unit mismatch for ${ing.warehouseSku}:`,
+                conversion.msg || conversion.error
+            );
+        }
+
+        const qtyWithWaste = actualQtyInBaseUnits * (1 + wastePct / 100);
+        return qtyWithWaste * unitAvco;
     }
 
     // -------------------------------------------------------------------------
@@ -74,32 +173,7 @@ window.MarginGuardian = (() => {
         // --- Koszt surowców z korektą odpadu i konwersją jednostek ---
         // Użytkownik może podać ilość w jednostce użytkowej (np. g), podczas gdy AVCO
         // magazynowe jest wyrażone w jednostce bazowej (np. kg). Konwersja jest obowiązkowa.
-        const totalCost = ingredients.reduce((sum, ing) => {
-            const unitAvco  = _state.avcoDict[ing.warehouseSku] ?? 0;
-            const rawQty    = parseFloat(ing.quantityBase) || 0;
-            const wastePct  = parseFloat(ing.wastePercent) || 0;
-
-            const targetBaseUnit = ing.baseUnit || 'kg';
-            const usageUnit      = ing.unit || targetBaseUnit;
-            const conversion     = (typeof window.SliceValidator !== 'undefined')
-                ? window.SliceValidator.convert(rawQty, usageUnit, targetBaseUnit)
-                : { success: true, value: rawQty };
-
-            let actualQtyInBaseUnits = 0;
-            if (conversion.success) {
-                actualQtyInBaseUnits = conversion.value;
-            } else {
-                console.warn(
-                    `[SliceHub Math] Unit mismatch or error for ${ing.warehouseSku}:`,
-                    conversion.msg || conversion.error
-                );
-                // Fallback to 0 — prevents catastrophic Food Cost inflation
-                // (e.g. 250 liters-of-cheese multiplying raw AVCO/kg price).
-            }
-
-            const qtyWithWaste = actualQtyInBaseUnits * (1 + wastePct / 100);
-            return sum + (qtyWithWaste * unitAvco);
-        }, 0);
+        const totalCost = ingredients.reduce((sum, ing) => sum + _lineCostSync(ing), 0);
 
         // --- Obliczenia per-kanał z normalizacją VAT ---
         // Ceny w priceTiers są BRUTTO. Marża i FC% muszą być liczone na cenach NETTO.
@@ -325,6 +399,7 @@ window.MarginGuardian = (() => {
         get initialized() { return _state.initialized; },
 
         init,
+        ensureRecipeCosts,
         calculate,
         render,
         bindReactivity,

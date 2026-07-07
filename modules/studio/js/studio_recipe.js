@@ -8,11 +8,7 @@ window.RecipeMapper = {
     },
 
     async fetchApi(action, payload = {}) {
-        payload.action = action;
-        const ep = (window.SliceHub && window.SliceHub.apiUrl)
-            ? window.SliceHub.apiUrl('/backoffice/api_menu_studio.php')
-            : '../../api/backoffice/api_menu_studio.php';
-        return await window.ApiClient.post(ep, payload);
+        return window.apiStudio(action, payload);
     },
 
     async init() {
@@ -621,7 +617,7 @@ window.RecipeMapper = {
         this.renderRecipeList();
     },
 
-    _triggerMarginUpdate() {
+    async _triggerMarginUpdate() {
         if (!window.MarginGuardian || !window.MarginGuardian.initialized) return;
         const vatDineIn   = parseFloat(document.getElementById('item-vat-dine-in')?.value)   || 0;
         const vatTakeaway = parseFloat(document.getElementById('item-vat-takeaway')?.value)  || 0;
@@ -630,6 +626,10 @@ window.RecipeMapper = {
             { channel: 'Takeaway', price: parseFloat(document.getElementById('item-price-takeaway')?.value) || 0, vatRate: vatTakeaway },
             { channel: 'Delivery', price: parseFloat(document.getElementById('item-price-delivery')?.value) || 0, vatRate: vatTakeaway },
         ];
+        await window.MarginGuardian.ensureRecipeCosts(
+            this.state.currentRecipe,
+            this.state.currentMenuItemSku
+        );
         const results = window.MarginGuardian.calculate(priceTiers, this.state.currentRecipe);
         window.MarginGuardian.render('margin-container', results);
     },
@@ -658,8 +658,7 @@ window.RecipeMapper = {
         if (!row.isSubrecipe) {
             // Otwórz picker półproduktu — lista kandydatów z list_subrecipe_candidates.
             try {
-                const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
-                    action: 'list_subrecipe_candidates',
+                const r = await window.apiStudio('list_subrecipe_candidates', {
                     exclude_sku: this.state.currentMenuItemSku || ''
                 });
                 const candidates = r?.data?.candidates || [];
@@ -1053,8 +1052,7 @@ window.RecipeMapper = {
     async confirmCloneRecipe(srcKey, dstKey) {
         if (!confirm(`Skopiować recepturę z "${srcKey}" do "${dstKey}"?\n\nIstniejąca receptura ${dstKey} zostanie ZASTĄPIONA.`)) return;
         try {
-            const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
-                action: 'clone_recipe',
+            const r = await window.apiStudio('clone_recipe', {
                 source_ascii_key: srcKey,
                 target_ascii_key: dstKey,
             });

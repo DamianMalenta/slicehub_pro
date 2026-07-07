@@ -34,7 +34,8 @@
 | Plik | Rola |
 |------|------|
 | `index.html` | Szkielet i interfejs Studio |
-| `js/studio_core.js` | Core + współdzielona logika (woła `api/backoffice/api_menu_studio.php`) |
+| `js/studio_api.js` | **Etap 2 · 2026-07-07** — kanoniczny klient API (`apiStudio` / `StudioApi.post`) |
+| `js/studio_core.js` | Stan globalny, `loadMenuTree`, `StudioState` |
 | `js/studio_ui.js` | Drzewo menu, kategorie, zaznaczanie masowe |
 | `js/studio_item.js` | Edytor dania + Macierz Cenowa (Omnichannel) |
 | `js/studio_modifiers.js` | Bliźniak Cyfrowy, zużycie surowców, akcje ADD/REMOVE |

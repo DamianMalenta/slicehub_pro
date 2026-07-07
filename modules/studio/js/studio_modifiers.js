@@ -16,7 +16,7 @@ window.ModifierInspector = {
 
     async loadCompactAssets() {
         if (window.StudioState.compactAssets !== null) return window.StudioState.compactAssets;
-        const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'list_assets_compact' });
+        const r = await window.apiStudio('list_assets_compact');
         if (r.success && r.data && Array.isArray(r.data.assets)) {
             window.StudioState.compactAssets = r.data.assets;
         } else {
@@ -358,7 +358,7 @@ window.ModifierInspector = {
 
     async init() {
         if (window.StudioState.products.length === 0) {
-            const result = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'get_recipes_init' });
+            const result = await window.apiStudio('get_recipes_init');
             if (result.success && result.data) {
                 window.StudioState.products = result.data.products || [];
             } else {
@@ -378,7 +378,7 @@ window.ModifierInspector = {
     },
 
     async loadModifiersFromDB() {
-        const result = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'get_modifiers_full' });
+        const result = await window.apiStudio('get_modifiers_full');
         if (result.success === true && result.data) {
             window.StudioState.modifierGroups = result.data;
         } else {
@@ -1096,7 +1096,7 @@ window.ModifierInspector = {
         }
 
         try {
-            const result = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', payload);
+            const result = await window.StudioApi.postPayload(payload);
 
             if (!result.success) {
                 throw new Error(result.message || 'Błąd API.');
@@ -1247,7 +1247,7 @@ window.ModifierInspector = {
         };
 
         try {
-            const result = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', payload);
+            const result = await window.StudioApi.postPayload(payload);
 
             if (result.success === true) {
                 btn.innerHTML = '<i class="fa-solid fa-check mr-2"></i> ZAPISANO!';
@@ -1321,8 +1321,8 @@ window.ModifierInspector = {
         let scalesRes, pricingRes;
         try {
             [scalesRes, pricingRes] = await Promise.all([
-                window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'list_variant_scales' }),
-                window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'get_modifier_pricing', modifier_id: modifierId })
+                window.apiStudio('list_variant_scales'),
+                window.apiStudio('get_modifier_pricing', { modifier_id: modifierId })
             ]);
         } catch (e) {
             alert('Błąd pobierania danych: ' + e.message);
@@ -1409,8 +1409,7 @@ window.ModifierInspector = {
         const btn = document.getElementById('fs21-save-btn');
         if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Zapisywanie...'; }
         try {
-            const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
-                action: 'save_modifier_pricing',
+            const r = await window.apiStudio('save_modifier_pricing', {
                 modifier_id: modifierId,
                 pricing
             });

@@ -48,7 +48,7 @@ window.BulkEditor = {
         };
         
         try {
-            const result = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', payload);
+            const result = await window.StudioApi.postPayload(payload);
             
             if (result.success === true) {
                 alert("SUKCES: " + result.message);

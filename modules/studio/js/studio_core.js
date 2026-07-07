@@ -1,13 +1,5 @@
 window.StudioState = { items: [], categories: [], menuTree: [], bulkSelectedItems: [], sceneTemplates: null };
 
-window.apiStudio = async function(action, payload = {}) {
-    payload.action = action;
-    const ep = (window.SliceHub && window.SliceHub.apiUrl)
-        ? window.SliceHub.apiUrl('/backoffice/api_menu_studio.php')
-        : '../../api/backoffice/api_menu_studio.php';
-    return await window.ApiClient.post(ep, payload);
-};
-
 window.loadMenuTree = async function() {
     const res = await window.apiStudio('get_menu_tree');
     if (res.success === true && res.data) {

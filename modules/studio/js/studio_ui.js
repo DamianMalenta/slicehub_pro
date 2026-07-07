@@ -156,7 +156,7 @@ window.Core = {
 
         // 2. Uderzenie do bazy po PEŁNE dane księgowe (Cena, VAT, Drukarka)
         try {
-            const result = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', { action: 'get_item_details', itemId: itemId });
+            const result = await window.apiStudio('get_item_details', { itemId: itemId });
 
             if (result.success === true && window.ItemEditor) {
                 // Wstrzykujemy twarde dane z bazy do formularza po lewej stronie

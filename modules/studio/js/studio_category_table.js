@@ -27,10 +27,7 @@
     window.CategoryTableEditor = {
         async open(categoryId) {
             try {
-                const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
-                    action: 'get_category_scene_editor',
-                    categoryId,
-                });
+                const r = await window.apiStudio('get_category_scene_editor', { categoryId });
                 if (!r.success) {
                     alert(r.message || 'Błąd pobierania sceny kategorii.');
                     return;
@@ -212,8 +209,7 @@
                     });
                 });
                 try {
-                    const r = await window.ApiClient.post('../../api/backoffice/api_menu_studio.php', {
-                        action: 'save_category_scene_layout',
+                    const r = await window.apiStudio('save_category_scene_layout', {
                         categoryId,
                         templateKey: tplSel.value || templateKey,
                         placements,
