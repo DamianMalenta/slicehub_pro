@@ -271,7 +271,7 @@ Shared CSS dla wszystkich modułów: safe-area-inset, viewport-fit, mobilne nawi
 #### Payments, Staff, Reports, Dashboard — FAZA 3 (większość PLANNED)
 | Ścieżka | Status |
 |---------|--------|
-| `payments/settle.php` | 🟡 ORPHAN (brak UI) — split-tender + `sh_order_payments`; **outbox:** `order.completed` lub `payment.settled` w tej samej transakcji co zapis (`OrderEventPublisher`). POS zwykle używa `pos/engine.php#settle_and_close`. |
+| `payments/settle.php` | ✅ **WRAPPER (F1–F2)** — HTTP adapter nad `core/SettlementEngine.php`; split-tender (F2). Outbox: `order.completed` lub `payment.settled`. Produkcja POS: `pos/engine.php#settle_and_close`. |
 | `backoffice/hr/engine.php` | ✅ **LIVE** — action router HR. **Zmiana (clock):** `clock_in` / `clock_out` / `clock_status` (Faza 3A, m041–m044). **Backoffice (NEW · 2026-05-04, wymaga `hrRequireManager`):** `employees_list`, `employee_get`, `employee_upsert` (z opcjonalnym `create_login` — tworzy konto `sh_users`), `employee_pin_set` (bcrypt do `sh_employees.auth_pin_hash` + sync `sh_users.pin_code` żeby ten sam PIN działał w POS i w Kiosk), `employee_rate_set` (zamyka poprzednią linię w `sh_employee_rates`, otwiera nową), `hr_users_unlinked` (lista `sh_users` bez profilu HR — do podpięcia istniejącego konta przy upsercie). Konsument: `modules/backoffice/hr/index.html`. Kanoniczny endpoint silosu HR. |
 | `staff/payroll.php` | 🟡 PLANNED — payroll single user (PayrollEngine). *TODO Faza 4:* docelowo akcja `payroll_user` w `api/backoffice/hr/engine.php` — po rewrite `PayrollEngine` IN-PLACE na ledger. Do czasu gotowego UI HR trzymamy HTTP 410 Gone (patrz `_docs/18_BACKOFFICE_HR_LOGIC.md §13`). |
 | `dashboard/team_payroll.php` | 🟡 PLANNED — team payroll (TeamPayrollEngine). *TODO Faza 4:* akcja `payroll_team` w `api/backoffice/hr/engine.php` — analogicznie jak wyżej. |
@@ -321,6 +321,7 @@ Wszystkie orphan/planned endpointy mają w nagłówku komentarz `// STATUS: …`
 | Plik | Rola |
 |------|------|
 | `OrderStateMachine.php` | Transitions: `new → accepted → preparing → ready → in_delivery → completed / cancelled` |
+| `SettlementEngine.php` | **F1–F4 · 2026-07-07** — canonical payment settlement. Split-tender close (F2), `applyPartialPayments()` stoły (F3), `collectDriverPayment()` kierowca (F4). |
 | `OrderEventPublisher.php` | Transactional outbox dla event bus (m026) |
 | `WebhookDispatcher.php` | Asynchroniczna dostawa webhooków (m026–m027) |
 | `PromisedTimeEngine.php` | Obliczanie promised_time (kuchnia + dojazd + bufor) |

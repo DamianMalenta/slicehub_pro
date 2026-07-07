@@ -323,18 +323,63 @@ const PosUI = (() => {
     function showPaymentModal(order, mode, callbacks) {
         const modal = $('#payment-modal'); if (!modal) return;
         const num = order.order_number?.split('/').pop() || order.order_number;
-        let method = null, doPrint = false;
+        const totalGrosze = parseInt(order.grand_total, 10) || 0;
+        const totalPln = (totalGrosze / 100).toFixed(2);
+        let method = null, doPrint = false, splitMode = false;
 
         const isSettleMode = mode === 'settle';
         const title = isSettleMode ? 'ROZLICZ I ZAMKNIJ' : 'DRUKUJ PARAGON';
 
-        modal.innerHTML = `<div class="dc-backdrop" data-close-pm="1"></div><div class="pm-card"><h3 class="pm-title">${title}</h3><p class="pm-sub">#${num}</p>
+        modal.innerHTML = `<div class="dc-backdrop" data-close-pm="1"></div><div class="pm-card"><h3 class="pm-title">${title}</h3><p class="pm-sub">#${num} · ${totalPln} zł</p>
+        <div id="pm-single">
         <div class="pm-methods"><button class="pm-btn" data-m="card">💳 Karta</button><button class="pm-btn" data-m="cash">💵 Gotówka</button></div>
+        </div>
+        <div id="pm-split" class="hidden">
+        <div class="pm-split-row"><label>💵 Gotówka</label><input type="number" id="pm-split-cash" min="0" step="0.01" placeholder="0.00" class="pm-split-input"></div>
+        <div class="pm-split-row"><label>💳 Karta</label><input type="number" id="pm-split-card" min="0" step="0.01" placeholder="0.00" class="pm-split-input"></div>
+        <p class="pm-split-sum" id="pm-split-sum">Suma: 0.00 / ${totalPln} zł</p>
+        </div>
+        ${isSettleMode ? `<button type="button" class="pm-split-toggle" id="pm-toggle-split">Podziel płatność</button>` : ''}
         <label class="ck-check pm-check"><input type="checkbox" id="pm-print" ${mode === 'print' ? 'checked disabled' : ''}> Drukuj Paragon <span class="ck-req hidden" id="pm-req">(wymagane)</span></label>
         ${isSettleMode ? `<button class="ck-submit-btn" id="pm-settle">Zakończ i zamknij</button>` : `<button class="ck-submit-btn" id="pm-print-only" style="background:var(--accent-blue)">Tylko Drukuj</button>`}
         <button class="pm-cancel" data-close-pm="1">Anuluj</button></div>`;
 
         modal.classList.add('active');
+
+        const singleEl = modal.querySelector('#pm-single');
+        const splitEl = modal.querySelector('#pm-split');
+        const toggleBtn = modal.querySelector('#pm-toggle-split');
+        const cashIn = modal.querySelector('#pm-split-cash');
+        const cardIn = modal.querySelector('#pm-split-card');
+        const sumEl = modal.querySelector('#pm-split-sum');
+
+        function updateSplitSum() {
+            const cash = parseFloat(cashIn?.value || '0') || 0;
+            const card = parseFloat(cardIn?.value || '0') || 0;
+            const sum = cash + card;
+            const ok = Math.abs(sum - parseFloat(totalPln)) < 0.02;
+            if (sumEl) {
+                sumEl.textContent = `Suma: ${sum.toFixed(2)} / ${totalPln} zł`;
+                sumEl.classList.toggle('pm-split-ok', ok);
+                sumEl.classList.toggle('pm-split-bad', !ok && sum > 0);
+            }
+            const chk = modal.querySelector('#pm-print'), req = modal.querySelector('#pm-req');
+            if (card > 0) { if (chk) { chk.checked = true; chk.disabled = true; } req?.classList.remove('hidden'); }
+            else if (splitMode) { if (chk) chk.disabled = false; req?.classList.add('hidden'); }
+        }
+
+        toggleBtn?.addEventListener('click', () => {
+            splitMode = !splitMode;
+            singleEl?.classList.toggle('hidden', splitMode);
+            splitEl?.classList.toggle('hidden', !splitMode);
+            toggleBtn.textContent = splitMode ? 'Pojedyncza płatność' : 'Podziel płatność';
+            method = null;
+            modal.querySelectorAll('.pm-btn').forEach(b => b.classList.remove('active'));
+            if (splitMode) updateSplitSum();
+        });
+
+        cashIn?.addEventListener('input', updateSplitSum);
+        cardIn?.addEventListener('input', updateSplitSum);
 
         modal.querySelectorAll('.pm-btn').forEach(btn => btn.addEventListener('click', () => {
             modal.querySelectorAll('.pm-btn').forEach(b => b.classList.remove('active'));
@@ -348,8 +393,24 @@ const PosUI = (() => {
         modal.querySelectorAll('[data-close-pm]').forEach(el => el.addEventListener('click', e => { if (e.target === el || e.currentTarget === el) modal.classList.remove('active'); }));
 
         modal.querySelector('#pm-settle')?.addEventListener('click', () => {
-            if (!method) { toast('Zaznacz metodę płatności!', 'error'); return; }
             doPrint = modal.querySelector('#pm-print')?.checked || false;
+
+            if (splitMode) {
+                const cash = parseFloat(cashIn?.value || '0') || 0;
+                const card = parseFloat(cardIn?.value || '0') || 0;
+                const sum = cash + card;
+                if (cash <= 0 && card <= 0) { toast('Podaj kwoty gotówki i/lub karty', 'error'); return; }
+                if (Math.abs(sum - parseFloat(totalPln)) > 0.02) { toast('Suma musi równać się kwocie zamówienia', 'error'); return; }
+                if (card > 0 && !doPrint) { toast('Paragon obowiązkowy przy karcie!', 'error'); return; }
+                const payments = [];
+                if (cash > 0) payments.push({ method: 'cash', amount: cash, tendered: cash });
+                if (card > 0) payments.push({ method: 'card', amount: card, tendered: card });
+                modal.classList.remove('active');
+                callbacks.onSettle(payments, doPrint);
+                return;
+            }
+
+            if (!method) { toast('Zaznacz metodę płatności!', 'error'); return; }
             if ((method === 'card' || method === 'online') && !doPrint) { toast('Paragon obowiązkowy!', 'error'); return; }
             modal.classList.remove('active');
             callbacks.onSettle(method, doPrint);

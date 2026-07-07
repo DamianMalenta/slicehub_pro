@@ -31,6 +31,7 @@ try {
     require_once __DIR__ . '/../../core/db_config.php';
     require_once __DIR__ . '/../../core/auth_guard.php';
     require_once __DIR__ . '/../../core/OrderStateMachine.php';
+    require_once __DIR__ . '/../../core/SettlementEngine.php';
     require_once __DIR__ . '/../../core/AssetResolver.php';
     require_once __DIR__ . '/../../core/StaffFleetPresence.php';
 
@@ -1270,18 +1271,54 @@ try {
     // =========================================================================
     if ($action === 'settle_and_close') {
         $oid    = inputStr($input, 'order_id');
-        $method = inputStr($input, 'payment_method');
         $print  = (int)($input['print_receipt'] ?? 0);
+        $rawPayments = $input['payments'] ?? null;
 
-        if ($oid === '' || $method === '') {
-            posResponse(false, null, 'order_id and payment_method are required.');
+        if ($oid === '') {
+            posResponse(false, null, 'order_id is required.');
+        }
+
+        $payments = [];
+        if (is_array($rawPayments) && count($rawPayments) > 0) {
+            foreach ($rawPayments as $p) {
+                if (!is_array($p)) {
+                    posResponse(false, null, 'Invalid payments entry.');
+                }
+                $payments[] = [
+                    'method'         => trim((string)($p['method'] ?? $p['payment_method'] ?? '')),
+                    'amount'         => $p['amount'] ?? null,
+                    'tendered'       => $p['tendered'] ?? null,
+                    'transaction_id' => $p['transaction_id'] ?? null,
+                ];
+            }
+        } else {
+            $method = inputStr($input, 'payment_method');
+            if ($method === '') {
+                posResponse(false, null, 'payment_method or payments[] is required.');
+            }
+            $stmtGt = $pdo->prepare(
+                "SELECT grand_total FROM sh_orders WHERE id = :oid AND tenant_id = :tid"
+            );
+            $stmtGt->execute([':oid' => $oid, ':tid' => $tenant_id]);
+            $grandTotalGrosze = (int)$stmtGt->fetchColumn();
+            $stmtGt->closeCursor();
+
+            $payments = [[
+                'method' => $method,
+                'amount' => $grandTotalGrosze / 100,
+            ]];
         }
 
         $pdo->beginTransaction();
         try {
-            $result = OrderStateMachine::fastComplete(
-                $pdo, $oid, $tenant_id, $user_id, $method, $tenantFlags,
-                ['print_receipt' => ($print === 1)]
+            $result = SettlementEngine::settleAndClose(
+                $pdo,
+                $oid,
+                $tenant_id,
+                $user_id,
+                $payments,
+                ['print_receipt' => ($print === 1), 'settled_via' => 'pos'],
+                $tenantFlags
             );
 
             if (!$result['success']) {
@@ -1289,23 +1326,32 @@ try {
                 posResponse(false, null, $result['message']);
             }
 
-            require_once __DIR__ . '/../../core/OrderEventPublisher.php';
-            OrderEventPublisher::publishOrderLifecycle(
-                $pdo, $tenant_id, 'order.completed', $oid,
-                [
-                    'from_status'    => $result['old_status'],
-                    'payment_method' => $method,
-                    'completed_at'   => date('Y-m-d H:i:s'),
-                ],
-                [
-                    'source'    => 'pos',
-                    'actorType' => 'staff',
-                    'actorId'   => (string)$user_id,
-                ]
-            );
+            if (empty($result['idempotent'])) {
+                require_once __DIR__ . '/../../core/OrderEventPublisher.php';
+                OrderEventPublisher::publishOrderLifecycle(
+                    $pdo, $tenant_id, 'order.completed', $oid,
+                    [
+                        'from_status'    => $result['old_status'],
+                        'payment_method' => $result['payment_method'] ?? 'cash',
+                        'split_tender'   => !empty($result['split_tender']),
+                        'completed_at'   => date('Y-m-d H:i:s'),
+                        'settled_via'    => 'pos',
+                    ],
+                    [
+                        'source'    => 'pos',
+                        'actorType' => 'staff',
+                        'actorId'   => (string)$user_id,
+                    ]
+                );
+            }
 
             $pdo->commit();
-            posResponse(true, ['old_status' => $result['old_status']]);
+            posResponse(true, [
+                'old_status'     => $result['old_status'],
+                'idempotent'     => !empty($result['idempotent']),
+                'split_tender'   => !empty($result['split_tender']),
+                'change_due'     => number_format(((int)($result['change_due_grosze'] ?? 0)) / 100, 2, '.', ''),
+            ]);
         } catch (\Throwable $e) {
             $pdo->rollBack();
             error_log('[POS Engine] settle_and_close: ' . $e->getMessage());

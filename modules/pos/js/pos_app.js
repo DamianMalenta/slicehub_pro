@@ -1142,11 +1142,14 @@ const PosApp = (() => {
         _settleOrderId = orderId;
 
         PosUI.showPaymentModal(o, mode, {
-            onSettle: async (method, printReceipt) => {
-                if (printReceipt) PosUI.printOrderTemplate(o, false, { waiterName: _user?.name || 'POS' });
-                const r = await PosAPI.settleAndClose(orderId, method, printReceipt);
-                if (r.success) { PosUI.toast('Zamknięto pomyślnie!', 'success'); _fetchOrders(); }
-                else PosUI.toast(r.message || 'Błąd', 'error');
+            onSettle: async (methodOrPayments, printReceipt) => {
+                const r = await PosAPI.settleAndClose(orderId, methodOrPayments, printReceipt);
+                if (r.success) {
+                    if (printReceipt) PosUI.printOrderTemplate(o, false, { waiterName: _user?.name || 'POS' });
+                    const msg = r.data?.split_tender ? 'Zamknięto (split)!' : 'Zamknięto pomyślnie!';
+                    PosUI.toast(msg, 'success');
+                    _fetchOrders();
+                } else PosUI.toast(r.message || 'Błąd', 'error');
             },
             onPrintOnly: async (method) => {
                 PosUI.printOrderTemplate(o, false, { waiterName: _user?.name || 'POS' });
