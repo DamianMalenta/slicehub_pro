@@ -7,6 +7,7 @@
 
 - **F2:** split-tender w POS (gotówka + karta) + silnik wielowierszowy
 - **F3:** `tables/split_payment` → `SettlementEngine::applyPartialPayments`
+- **F4:** `courses/collect_payment` → `SettlementEngine::collectDriverPayment`
 
 ## Pliki dotknięte
 
@@ -37,4 +38,4 @@ php scripts/test_settlement_engine.php  # 6/6 PASS
 
 ## Otwarte pytania
 
-- **F4:** unify driver `collect_payment` (`user_id` = kierowca)
+- **F4:** unify driver `collect_payment` (`user_id` = kierowca) — **DONE** (`collectDriverPayment`)

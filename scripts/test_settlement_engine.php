@@ -204,5 +204,21 @@ $pdo->rollBack();
 assertTrue('T6 rejects empty', $r6['success'] === false);
 cleanupOrder($pdo, $oid6, $tenantId);
 
+// --- Test 7: driver collect payment ---
+$oid7 = createReadyOrder($pdo, $tenantId, 4500, 'to_pay');
+$pdo->prepare("UPDATE sh_orders SET order_type = 'delivery', driver_id = 5 WHERE id = ?")->execute([$oid7]);
+$pdo->beginTransaction();
+$r7 = SettlementEngine::collectDriverPayment($pdo, $oid7, $tenantId, 5, 5, 'cash');
+$pdo->commit();
+assertTrue('T7 driver collect', $r7['success'] === true);
+assertEq('T7 driver row', paymentRowCount($pdo, $oid7, $tenantId), 1);
+$stmtD = $pdo->prepare("SELECT user_id, method FROM sh_order_payments WHERE order_id = ?");
+$stmtD->execute([$oid7]);
+$row7 = $stmtD->fetch(PDO::FETCH_ASSOC);
+assertEq('T7 driver user_id', (int)$row7['user_id'], 5);
+assertEq('T7 driver method', $row7['method'], 'cash');
+$stmtD->closeCursor();
+cleanupOrder($pdo, $oid7, $tenantId);
+
 echo $fail === 0 ? "\nALL SETTLEMENT ENGINE TESTS PASSED\n" : "\n{$fail} TEST(S) FAILED\n";
 exit($fail === 0 ? 0 : 1);

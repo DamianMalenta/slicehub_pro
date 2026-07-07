@@ -153,6 +153,78 @@ final class SettlementEngine
     }
 
     /**
+     * Driver collection at doorstep — full order amount, user_id = driver (wallet math).
+     */
+    public static function collectDriverPayment(
+        \PDO $pdo,
+        string $orderId,
+        int $tenantId,
+        int $actorUserId,
+        int $collectorUserId,
+        string $method
+    ): array {
+        if (!in_array($method, ['cash', 'card'], true)) {
+            return self::fail('collection_type must be cash or card.');
+        }
+
+        $stmt = $pdo->prepare(
+            "SELECT id, grand_total, payment_status, status, driver_id
+             FROM sh_orders WHERE id = :oid AND tenant_id = :tid FOR UPDATE"
+        );
+        $stmt->execute([':oid' => $orderId, ':tid' => $tenantId]);
+        $order = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $stmt->closeCursor();
+
+        if (!$order) {
+            return self::fail('Order not found.');
+        }
+
+        if (OrderStateMachine::isPaid((string)$order['payment_status'])) {
+            return self::fail('Zamówienie jest już opłacone.');
+        }
+
+        $paidGrosze = self::sumPaymentRows($pdo, $orderId, $tenantId);
+        if ($paidGrosze > 0) {
+            return self::fail('Payment records already exist for this order.');
+        }
+
+        $grandTotal = (int)$order['grand_total'];
+        $now        = date('Y-m-d H:i:s');
+        $collector  = $collectorUserId > 0 ? $collectorUserId : $actorUserId;
+
+        self::insertPaymentRow(
+            $pdo, $orderId, $tenantId, $collector,
+            $method, $grandTotal, $grandTotal, null
+        );
+
+        $pdo->prepare(
+            "UPDATE sh_orders SET payment_status = :ps, payment_method = :pm, updated_at = :now
+             WHERE id = :oid AND tenant_id = :tid"
+        )->execute([
+            ':ps' => $method, ':pm' => $method, ':now' => $now,
+            ':oid' => $orderId, ':tid' => $tenantId,
+        ]);
+
+        $pdo->prepare(
+            "INSERT INTO sh_order_audit (order_id, user_id, old_status, new_status, timestamp)
+             VALUES (:oid, :uid, :os, :ns, :now)"
+        )->execute([
+            ':oid' => $orderId,
+            ':uid' => $actorUserId,
+            ':os'  => $order['payment_status'],
+            ':ns'  => "payment_{$method}",
+            ':now' => $now,
+        ]);
+
+        return [
+            'success'        => true,
+            'order_id'       => $orderId,
+            'payment_status' => $method,
+            'message'        => null,
+        ];
+    }
+
+    /**
      * Core settlement — single or split tender on close.
      */
     public static function settle(

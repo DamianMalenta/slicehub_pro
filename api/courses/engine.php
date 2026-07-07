@@ -45,6 +45,7 @@ try {
     require_once __DIR__ . '/../../core/db_config.php';
     require_once __DIR__ . '/../../core/auth_guard.php';
     require_once __DIR__ . '/../../core/OrderStateMachine.php';
+    require_once __DIR__ . '/../../core/SettlementEngine.php';
     require_once __DIR__ . '/../../core/DriverFleetHelper.php';
     require_once __DIR__ . '/../../core/StaffFleetPresence.php';
 
@@ -1245,38 +1246,25 @@ try {
             http_response_code(404);
             coursesResponse(false, null, 'Order not found.');
         }
-        if (isPaid($order['payment_status'])) {
-            coursesResponse(false, null, 'Zamówienie jest już opłacone.');
-        }
 
-        $now = date('Y-m-d H:i:s');
-        $driverIdForPayment = (string)($order['driver_id'] ?: $user_id);
+        $driverIdForPayment = (int)($order['driver_id'] ?: $user_id);
 
         $pdo->beginTransaction();
         try {
-            $pdo->prepare(
-                "UPDATE sh_orders SET payment_status = :ps, payment_method = :pm, updated_at = :now
-                 WHERE id = :oid AND tenant_id = :tid"
-            )->execute([':ps' => $collectionType, ':pm' => $collectionType, ':now' => $now, ':oid' => $orderId, ':tid' => $tenant_id]);
+            $result = SettlementEngine::collectDriverPayment(
+                $pdo,
+                $orderId,
+                $tenant_id,
+                $user_id,
+                $driverIdForPayment,
+                $collectionType
+            );
 
-            $pdo->prepare(
-                "INSERT INTO sh_order_payments (id, order_id, tenant_id, user_id, method, amount_grosze, tendered_grosze, created_at)
-                 VALUES (:id, :oid, :tid, :uid, :method, :amount, :amount2, :now)"
-            )->execute([
-                ':id'      => $uuid4(),
-                ':oid'     => $orderId,
-                ':tid'     => $tenant_id,
-                ':uid'     => $driverIdForPayment,
-                ':method'  => $collectionType,
-                ':amount'  => (int)$order['grand_total'],
-                ':amount2' => (int)$order['grand_total'],
-                ':now'     => $now,
-            ]);
-
-            $pdo->prepare(
-                "INSERT INTO sh_order_audit (order_id, user_id, old_status, new_status, timestamp)
-                 VALUES (:oid, :uid, :os, :ns, :now)"
-            )->execute([':oid' => $orderId, ':uid' => $user_id, ':os' => $order['payment_status'], ':ns' => "payment_{$collectionType}", ':now' => $now]);
+            if (!$result['success']) {
+                $pdo->rollBack();
+                http_response_code(400);
+                coursesResponse(false, null, $result['message']);
+            }
 
             $pdo->commit();
         } catch (\Throwable $e) {
