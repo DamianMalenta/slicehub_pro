@@ -62,6 +62,7 @@ try {
     require_once __DIR__ . '/../../core/db_config.php';
     require_once __DIR__ . '/../../core/auth_guard.php';
     require_once __DIR__ . '/../../core/OrderStateMachine.php';
+    require_once __DIR__ . '/../../core/SettlementEngine.php';
     require_once __DIR__ . '/../../core/StaffFleetPresence.php';
 
     $raw    = file_get_contents('php://input');
@@ -374,139 +375,30 @@ try {
             tableResponse(false, null, 'order_id and payments[] array required.');
         }
 
-        $validMethods = ['cash', 'card', 'online', 'voucher'];
-
         $pdo->beginTransaction();
         try {
-            $stmtOrder = $pdo->prepare(
-                "SELECT id, grand_total, status, order_type
-                 FROM sh_orders WHERE id = :oid AND tenant_id = :tid FOR UPDATE"
-            );
-            $stmtOrder->execute([':oid' => $orderId, ':tid' => $tenant_id]);
-            $order = $stmtOrder->fetch(\PDO::FETCH_ASSOC);
-            $stmtOrder->closeCursor();
-
-            if (!$order) {
-                $pdo->rollBack();
-                tableResponse(false, null, 'Order not found.');
-            }
-
-            if (in_array($order['status'], ['completed', 'cancelled'], true)) {
-                $pdo->rollBack();
-                tableResponse(false, null, "Order is already {$order['status']}.");
-            }
-
-            $stmtInsert = $pdo->prepare(
-                "INSERT INTO sh_order_payments
-                    (id, order_id, tenant_id, method, amount_grosze, tendered_grosze, transaction_id, created_at)
-                 VALUES (:id, :oid, :tid, :mth, :amt, :tend, :txn, NOW())"
+            $result = SettlementEngine::applyPartialPayments(
+                $pdo,
+                $orderId,
+                $tenant_id,
+                $user_id,
+                $payments
             );
 
-            $insertedPayments = [];
-            foreach ($payments as $p) {
-                $method = trim((string)($p['payment_method'] ?? ''));
-                if (!in_array($method, $validMethods, true)) {
-                    $pdo->rollBack();
-                    tableResponse(false, null, "Invalid payment_method: {$method}");
-                }
-
-                $amountGrosze   = (int)round(((float)($p['amount'] ?? 0)) * 100);
-                $tenderedGrosze = (int)round(((float)($p['tendered'] ?? $p['amount'] ?? 0)) * 100);
-                $txnId          = isset($p['transaction_id']) ? trim((string)$p['transaction_id']) : null;
-                $paymentId      = generateUuid();
-
-                if ($amountGrosze <= 0) {
-                    $pdo->rollBack();
-                    tableResponse(false, null, 'Each payment amount must be > 0.');
-                }
-
-                $stmtInsert->execute([
-                    ':id'   => $paymentId,
-                    ':oid'  => $orderId,
-                    ':tid'  => $tenant_id,
-                    ':mth'  => $method,
-                    ':amt'  => $amountGrosze,
-                    ':tend' => $tenderedGrosze,
-                    ':txn'  => $txnId,
-                ]);
-
-                $insertedPayments[] = [
-                    'id'             => $paymentId,
-                    'method'         => $method,
-                    'amount_grosze'  => $amountGrosze,
-                    'transaction_id' => $txnId,
-                ];
-            }
-
-            // FIX-5: Post-insert overpayment guard.
-            // SUM includes the just-inserted rows (same TX), so no double-counting.
-            $stmtCumulative = $pdo->prepare(
-                "SELECT COALESCE(SUM(amount_grosze), 0) FROM sh_order_payments
-                 WHERE order_id = :oid AND tenant_id = :tid"
-            );
-            $stmtCumulative->execute([':oid' => $orderId, ':tid' => $tenant_id]);
-            $cumulativePaid = (int)$stmtCumulative->fetchColumn();
-            $stmtCumulative->closeCursor();
-
-            $orderTotal = (int)$order['grand_total'];
-
-            if ($cumulativePaid > $orderTotal) {
-                $over = $cumulativePaid - $orderTotal;
+            if (!$result['success']) {
                 $pdo->rollBack();
-                tableResponse(false, null,
-                    "Overpayment blocked: cumulative payments exceed the order total by "
-                    . number_format($over / 100, 2) . " PLN. Adjust amounts or record a tip separately."
-                );
-            }
-
-            OrderStateMachine::writeLog($pdo, $orderId, $tenant_id, $user_id, 'split_payment', [
-                'payment_count' => count($insertedPayments),
-                'payments'      => $insertedPayments,
-            ]);
-
-            $payCheck = OrderStateMachine::isFullyPaid($pdo, $orderId, $tenant_id);
-
-            if ($payCheck['fully_paid']) {
-                // Derive payment_status from dominant method (by amount)
-                $stmtDominant = $pdo->prepare(
-                    "SELECT method, SUM(amount_grosze) AS total
-                     FROM sh_order_payments
-                     WHERE order_id = :oid AND tenant_id = :tid
-                     GROUP BY method ORDER BY total DESC LIMIT 1"
-                );
-                $stmtDominant->execute([':oid' => $orderId, ':tid' => $tenant_id]);
-                $dominant = $stmtDominant->fetch(\PDO::FETCH_ASSOC);
-                $stmtDominant->closeCursor();
-
-                $payStatusMap = ['cash' => 'cash', 'card' => 'card', 'online' => 'online_paid', 'voucher' => 'cash'];
-                $derivedStatus = $payStatusMap[$dominant['method'] ?? 'cash'] ?? 'cash';
-
-                $pdo->prepare(
-                    "UPDATE sh_orders SET payment_status = :ps, payment_method = :pm,
-                            split_type = 'custom', updated_at = NOW()
-                     WHERE id = :oid AND tenant_id = :tid"
-                )->execute([
-                    ':ps' => $derivedStatus,
-                    ':pm' => $dominant['method'] ?? 'cash',
-                    ':oid' => $orderId,
-                    ':tid' => $tenant_id,
-                ]);
-            } else {
-                $pdo->prepare(
-                    "UPDATE sh_orders SET split_type = 'custom', updated_at = NOW()
-                     WHERE id = :oid AND tenant_id = :tid"
-                )->execute([':oid' => $orderId, ':tid' => $tenant_id]);
+                tableResponse(false, null, $result['message']);
             }
 
             $pdo->commit();
 
             tableResponse(true, [
                 'order_id'         => $orderId,
-                'payments_created' => count($insertedPayments),
-                'fully_paid'       => $payCheck['fully_paid'],
-                'total_grosze'     => $payCheck['total_grosze'],
-                'paid_grosze'      => $payCheck['paid_grosze'],
-                'remaining_grosze' => $payCheck['remaining_grosze'],
+                'payments_created' => $result['payments_created'],
+                'fully_paid'       => $result['fully_paid'],
+                'total_grosze'     => $result['total_grosze'],
+                'paid_grosze'      => $result['paid_grosze'],
+                'remaining_grosze' => $result['remaining_grosze'],
             ]);
         } catch (\Throwable $e) {
             $pdo->rollBack();

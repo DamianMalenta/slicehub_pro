@@ -440,6 +440,12 @@ html, body { height:100%; width:100%; font-family:var(--font); background:var(--
 .pm-check { margin-bottom:14px; justify-content:center; }
 .pm-cancel { display:block; width:100%; margin-top:8px; padding:8px; border:none; background:transparent; color:var(--text-muted); font-size:9px; font-weight:800; text-transform:uppercase; cursor:pointer; transition:color 0.15s; }
 .pm-cancel:hover { color:var(--text-primary); }
+.pm-split-toggle { display:block; width:100%; margin-bottom:10px; padding:8px; border:1px dashed var(--border); border-radius:var(--radius-sm); background:transparent; color:var(--accent-blue); font-size:9px; font-weight:800; text-transform:uppercase; cursor:pointer; }
+.pm-split-row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; font-size:10px; font-weight:700; color:var(--text-muted); }
+.pm-split-input { flex:1; padding:8px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--bg-elevated); color:var(--text-primary); font-size:12px; font-weight:700; text-align:right; }
+.pm-split-sum { font-size:10px; font-weight:800; margin-bottom:10px; color:var(--text-muted); }
+.pm-split-sum.pm-split-ok { color:var(--accent-green); }
+.pm-split-sum.pm-split-bad { color:#ef4444; font-weight:900; }
 
 /* Cancel Modal */
 .cn-card { position:relative; z-index:1; width:90%; max-width:340px; background:var(--bg-surface); border-radius:var(--radius-xl); border:1px solid rgba(239,68,68,0.3); padding:24px; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.6); }

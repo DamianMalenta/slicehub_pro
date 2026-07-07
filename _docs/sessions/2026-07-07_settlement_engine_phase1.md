@@ -30,8 +30,8 @@ Domknięcie driftu warstwy rozliczeń: jeden silnik `core/SettlementEngine.php` 
 
 ## Otwarte pytania
 
-- **F2:** split-tender UI + wiele wierszy `payments[]`.
-- **F3:** stoły (`tables/split_payment`) przez ten sam silnik.
+- ~~**F2:** split-tender UI + wiele wierszy `payments[]`.~~ → **DONE** (sesja phase2)
+- ~~**F3:** stoły (`tables/split_payment`) przez ten sam silnik.~~ → **DONE** (sesja phase2)
 - **F4:** unify driver `collect_payment` z SettlementEngine (osobna semantyka `user_id` = kierowca).
 
 ## Test (E2E)

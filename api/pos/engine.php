@@ -1271,15 +1271,31 @@ try {
     // =========================================================================
     if ($action === 'settle_and_close') {
         $oid    = inputStr($input, 'order_id');
-        $method = inputStr($input, 'payment_method');
         $print  = (int)($input['print_receipt'] ?? 0);
+        $rawPayments = $input['payments'] ?? null;
 
-        if ($oid === '' || $method === '') {
-            posResponse(false, null, 'order_id and payment_method are required.');
+        if ($oid === '') {
+            posResponse(false, null, 'order_id is required.');
         }
 
-        $pdo->beginTransaction();
-        try {
+        $payments = [];
+        if (is_array($rawPayments) && count($rawPayments) > 0) {
+            foreach ($rawPayments as $p) {
+                if (!is_array($p)) {
+                    posResponse(false, null, 'Invalid payments entry.');
+                }
+                $payments[] = [
+                    'method'         => trim((string)($p['method'] ?? $p['payment_method'] ?? '')),
+                    'amount'         => $p['amount'] ?? null,
+                    'tendered'       => $p['tendered'] ?? null,
+                    'transaction_id' => $p['transaction_id'] ?? null,
+                ];
+            }
+        } else {
+            $method = inputStr($input, 'payment_method');
+            if ($method === '') {
+                posResponse(false, null, 'payment_method or payments[] is required.');
+            }
             $stmtGt = $pdo->prepare(
                 "SELECT grand_total FROM sh_orders WHERE id = :oid AND tenant_id = :tid"
             );
@@ -1291,7 +1307,10 @@ try {
                 'method' => $method,
                 'amount' => $grandTotalGrosze / 100,
             ]];
+        }
 
+        $pdo->beginTransaction();
+        try {
             $result = SettlementEngine::settleAndClose(
                 $pdo,
                 $oid,
@@ -1313,7 +1332,8 @@ try {
                     $pdo, $tenant_id, 'order.completed', $oid,
                     [
                         'from_status'    => $result['old_status'],
-                        'payment_method' => $method,
+                        'payment_method' => $result['payment_method'] ?? 'cash',
+                        'split_tender'   => !empty($result['split_tender']),
                         'completed_at'   => date('Y-m-d H:i:s'),
                         'settled_via'    => 'pos',
                     ],
@@ -1327,8 +1347,10 @@ try {
 
             $pdo->commit();
             posResponse(true, [
-                'old_status' => $result['old_status'],
-                'idempotent' => !empty($result['idempotent']),
+                'old_status'     => $result['old_status'],
+                'idempotent'     => !empty($result['idempotent']),
+                'split_tender'   => !empty($result['split_tender']),
+                'change_due'     => number_format(((int)($result['change_due_grosze'] ?? 0)) / 100, 2, '.', ''),
             ]);
         } catch (\Throwable $e) {
             $pdo->rollBack();

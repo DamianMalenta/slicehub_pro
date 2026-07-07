@@ -153,24 +153,56 @@ $stmtUid->closeCursor();
 
 cleanupOrder($pdo, $oid3, $tenantId);
 
-// --- Test 4: reject split (Phase 1) ---
-$oid4 = createReadyOrder($pdo, $tenantId, 1000, 'to_pay');
+// --- Test 4: split tender (30 cash + 20 card = 50) ---
+$oid4 = createReadyOrder($pdo, $tenantId, 5000, 'to_pay');
 $pdo->beginTransaction();
-$r4 = SettlementEngine::settle(
+$r4 = SettlementEngine::settleAndClose(
     $pdo,
     $oid4,
     $tenantId,
     $cashierId,
     [
-        ['method' => 'cash', 'amount' => 5.00],
-        ['method' => 'card', 'amount' => 5.00],
+        ['method' => 'cash', 'amount' => 30.00, 'tendered' => 30.00],
+        ['method' => 'card', 'amount' => 20.00, 'tendered' => 20.00],
     ],
-    ['complete_order' => true]
+    ['print_receipt' => true]
 );
-$pdo->rollBack();
+$pdo->commit();
 
-assertTrue('T4 rejects split', $r4['success'] === false);
+assertTrue('T4 split success', $r4['success'] === true);
+assertEq('T4 split rows', paymentRowCount($pdo, $oid4, $tenantId), 2);
+assertTrue('T4 split_tender flag', !empty($r4['split_tender']));
+$stmtM = $pdo->prepare("SELECT payment_method FROM sh_orders WHERE id = ?");
+$stmtM->execute([$oid4]);
+assertEq('T4 header mixed', $stmtM->fetchColumn(), 'mixed');
+$stmtM->closeCursor();
 cleanupOrder($pdo, $oid4, $tenantId);
+
+// --- Test 5: partial payments (tables path) ---
+$oid5 = createReadyOrder($pdo, $tenantId, 4000, 'to_pay');
+$pdo->beginTransaction();
+$r5 = SettlementEngine::applyPartialPayments(
+    $pdo,
+    $oid5,
+    $tenantId,
+    $cashierId,
+    [['payment_method' => 'cash', 'amount' => 15.00]]
+);
+$pdo->commit();
+
+assertTrue('T5 partial success', $r5['success'] === true);
+assertEq('T5 partial rows', paymentRowCount($pdo, $oid5, $tenantId), 1);
+assertTrue('T5 not fully paid', $r5['fully_paid'] === false);
+assertEq('T5 remaining', $r5['remaining_grosze'], 2500);
+cleanupOrder($pdo, $oid5, $tenantId);
+
+// --- Test 6: reject empty payments ---
+$oid6 = createReadyOrder($pdo, $tenantId, 1000, 'to_pay');
+$pdo->beginTransaction();
+$r6 = SettlementEngine::settle($pdo, $oid6, $tenantId, $cashierId, [], ['complete_order' => true]);
+$pdo->rollBack();
+assertTrue('T6 rejects empty', $r6['success'] === false);
+cleanupOrder($pdo, $oid6, $tenantId);
 
 echo $fail === 0 ? "\nALL SETTLEMENT ENGINE TESTS PASSED\n" : "\n{$fail} TEST(S) FAILED\n";
 exit($fail === 0 ? 0 : 1);

@@ -4,7 +4,7 @@
 // POST /api/payments/settle.php
 //
 // Thin HTTP adapter over core/SettlementEngine.php (canonical settlement brain).
-// Phase 1: exactly one payment line — split-tender UI is Phase 2.
+// Phase 2: split-tender supported (multiple payments summing to order total).
 //
 // @see core/SettlementEngine.php
 // @see _docs/sessions/2026-07-07_settlement_engine_phase1.md
@@ -55,9 +55,9 @@ try {
     }
 
     $payments = $input['payments'] ?? null;
-    if (!is_array($payments) || count($payments) !== 1) {
+    if (!is_array($payments) || count($payments) < 1) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Phase 1 requires exactly one payment entry.']);
+        echo json_encode(['success' => false, 'message' => 'Missing or empty payments array.']);
         exit;
     }
 
@@ -116,7 +116,7 @@ try {
             require_once __DIR__ . '/../../core/OrderEventPublisher.php';
             $now = date('Y-m-d H:i:s');
             $ctx = [
-                'split_tender'             => false,
+                'split_tender'             => count($payments) > 1,
                 'payment_method_aggregate' => $result['payment_method'],
                 'payment_lines'            => $payments,
                 'tip_grosze'               => $tipAmountGrosze,

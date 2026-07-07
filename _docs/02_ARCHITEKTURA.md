@@ -321,7 +321,7 @@ Wszystkie orphan/planned endpointy mają w nagłówku komentarz `// STATUS: …`
 | Plik | Rola |
 |------|------|
 | `OrderStateMachine.php` | Transitions: `new → accepted → preparing → ready → in_delivery → completed / cancelled` |
-| `SettlementEngine.php` | **F1 · 2026-07-07** — canonical payment settlement (`sh_order_payments` + optional `fastComplete`). POS `settle_and_close` + `payments/settle.php` wrapper. Phase 1: single tender per call. |
+| `SettlementEngine.php` | **F1 · 2026-07-07** — canonical payment settlement. **F2:** split-tender close. **F3:** `applyPartialPayments()` dla stołów. POS + `payments/settle.php` + `tables/split_payment`. |
 | `OrderEventPublisher.php` | Transactional outbox dla event bus (m026) |
 | `WebhookDispatcher.php` | Asynchroniczna dostawa webhooków (m026–m027) |
 | `PromisedTimeEngine.php` | Obliczanie promised_time (kuchnia + dojazd + bufor) |

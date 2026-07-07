@@ -68,7 +68,15 @@ const PosAPI = (() => {
         updateStatus:   (orderId, status) => engine('update_status', { order_id: orderId, status }),
         printKitchen:   (orderId) => engine('print_kitchen', { order_id: orderId }),
         printReceipt:   (orderId, paymentMethod) => engine('print_receipt', { order_id: orderId, payment_method: paymentMethod }),
-        settleAndClose: (orderId, paymentMethod, printReceipt) => engine('settle_and_close', { order_id: orderId, payment_method: paymentMethod, print_receipt: printReceipt ? 1 : 0 }),
+        settleAndClose: (orderId, paymentMethodOrPayments, printReceipt) => {
+            const payload = { order_id: orderId, print_receipt: printReceipt ? 1 : 0 };
+            if (Array.isArray(paymentMethodOrPayments)) {
+                payload.payments = paymentMethodOrPayments;
+            } else {
+                payload.payment_method = paymentMethodOrPayments;
+            }
+            return engine('settle_and_close', payload);
+        },
         cancelOrder:    (orderId, returnStock) => engine('cancel_order', { order_id: orderId, return_stock: returnStock ? 1 : 0 }),
         panicMode:      () => engine('panic_mode'),
         assignRoute:            (driverId, orderIds) => _post('/courses/engine.php', { action: 'dispatch', driver_id: driverId, order_ids: orderIds }),
