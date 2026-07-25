@@ -63,6 +63,7 @@ Spine czytania: [`2026-05-11_STUDIO_RELEASE_INDEX.md`](2026-05-11_STUDIO_RELEASE
 - [`2026-05-22_seed_refresh.md`](2026-05-22_seed_refresh.md) — `seed_demo_all.php` po m046–059; aliasy, KSeF demo, Studio visuals.
 
 - [`2026-07-07_docs_start_tutaj_verification.md`](2026-07-07_docs_start_tutaj_verification.md) — START_TUTAJ.md, weryfikacja 62/62, fix Deno CI workflow_dispatch.
+- [`2026-07-22_audyt_produkcyjny.md`](2026-07-22_audyt_produkcyjny.md) — pełny audyt gotowości produkcyjnej; inwentarz stanu plików (A–I), realne bugi (ChannelRegistry, DirectorApp), martwy/zdublowany kod, białe plamy.
 
 ### SPARK (materiały wniosku — bez zmian runtime)
 
