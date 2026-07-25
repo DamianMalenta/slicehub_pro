@@ -33,33 +33,79 @@
 </div>
 <div id="hr-error-banner" class="hr-banner hr-banner--error hidden"></div>
 
-<section class="hr-toolbar">
-    <button type="button" class="hr-btn hr-btn--primary" id="hr-btn-add"><i class="fa-solid fa-user-plus"></i> Dodaj pracownika</button>
-    <label style="display:flex;align-items:center;gap:0.35rem;font-size:0.8rem;color:#a8a29e;">
-        <input type="checkbox" id="hr-inc-del"> Pokaż usuniętych (soft)
-    </label>
-</section>
+<nav class="hr-tabs" role="tablist">
+    <button type="button" class="hr-tab active" data-tab="employees" role="tab"><i class="fa-solid fa-users"></i> Pracownicy</button>
+    <button type="button" class="hr-tab" data-tab="payroll" role="tab"><i class="fa-solid fa-money-check-dollar"></i> Wypłaty</button>
+</nav>
 
-<main class="hr-main">
-    <div class="hr-table-wrap">
-        <table class="hr-table">
-            <thead>
-                <tr>
-                    <th>Kod</th>
-                    <th>Nazwa</th>
-                    <th>Rola</th>
-                    <th>Status</th>
-                    <th>Konto</th>
-                    <th>PIN kiosk</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody id="hr-tbody">
-                <tr><td colspan="7" style="color:#78716c;padding:1.5rem;">Ładowanie…</td></tr>
-            </tbody>
-        </table>
-    </div>
-</main>
+<div id="hr-view-employees">
+    <section class="hr-toolbar">
+        <button type="button" class="hr-btn hr-btn--primary" id="hr-btn-add"><i class="fa-solid fa-user-plus"></i> Dodaj pracownika</button>
+        <label style="display:flex;align-items:center;gap:0.35rem;font-size:0.8rem;color:#a8a29e;">
+            <input type="checkbox" id="hr-inc-del"> Pokaż usuniętych (soft)
+        </label>
+    </section>
+
+    <main class="hr-main">
+        <div class="hr-table-wrap">
+            <table class="hr-table">
+                <thead>
+                    <tr>
+                        <th>Kod</th>
+                        <th>Nazwa</th>
+                        <th>Rola</th>
+                        <th>Status</th>
+                        <th>Konto</th>
+                        <th>PIN kiosk</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="hr-tbody">
+                    <tr><td colspan="7" style="color:#78716c;padding:1.5rem;">Ładowanie…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+</div>
+
+<div id="hr-view-payroll" class="hidden">
+    <section class="hr-toolbar">
+        <div class="hr-seg" id="hr-pr-period-type">
+            <button type="button" data-period="month" class="active">Miesiąc</button>
+            <button type="button" data-period="week">Tydzień</button>
+            <button type="button" data-period="year">Rok</button>
+        </div>
+        <div class="hr-seg">
+            <button type="button" id="hr-pr-prev" title="Poprzedni okres"><i class="fa-solid fa-chevron-left"></i></button>
+            <button type="button" id="hr-pr-next" title="Następny okres"><i class="fa-solid fa-chevron-right"></i></button>
+        </div>
+        <span class="hr-period-label" id="hr-pr-period-label">—</span>
+        <button type="button" class="hr-btn" id="hr-pr-refresh"><i class="fa-solid fa-rotate"></i> Odśwież</button>
+    </section>
+
+    <main class="hr-main">
+        <div class="hr-table-wrap">
+            <table class="hr-table hr-table--num">
+                <thead>
+                    <tr>
+                        <th>Pracownik</th>
+                        <th class="num">Godziny</th>
+                        <th class="num">Stawka</th>
+                        <th class="num">Brutto</th>
+                        <th class="num">Posiłki / Potrącenia</th>
+                        <th class="num">Spłacona zaliczka</th>
+                        <th class="num">Do wypłaty (netto)</th>
+                    </tr>
+                </thead>
+                <tbody id="hr-pr-tbody">
+                    <tr><td colspan="7" style="color:#78716c;padding:1.5rem;">Ładowanie…</td></tr>
+                </tbody>
+                <tfoot id="hr-pr-tfoot"></tfoot>
+            </table>
+        </div>
+        <p class="hr-hint">Wszystkie kwoty liczy backend (akcja <code>payroll_report</code>) — frontend niczego nie przelicza.</p>
+    </main>
+</div>
 
 <!-- Modal: employee -->
 <div class="hr-modal-overlay" id="hr-modal-employee" aria-hidden="true">
