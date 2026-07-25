@@ -16,6 +16,8 @@
     const PRIMARY_ROLES = ['cook', 'waiter', 'driver', 'manager', 'cashier', 'cleaner', 'runner', 'shift_lead', 'owner', 'team'];
 
     let _employees = [];
+    let _payrollPeriodType = 'month';
+    let _payrollPeriodOffset = 0;
 
     function getToken() {
         return localStorage.getItem('sh_token') || '';
@@ -168,6 +170,79 @@
             showErrorBanner(e.message || 'Błąd listy');
             _employees = [];
             renderTable();
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // Wypłaty (payroll_report) — wszystkie kwoty przychodzą gotowe z backendu.
+
+    function switchTab(tab) {
+        document.querySelectorAll('.hr-tab').forEach((b) => {
+            b.classList.toggle('active', b.getAttribute('data-tab') === tab);
+        });
+        document.getElementById('hr-view-employees')?.classList.toggle('hidden', tab !== 'employees');
+        document.getElementById('hr-view-payroll')?.classList.toggle('hidden', tab !== 'payroll');
+        if (tab === 'payroll') refreshPayroll();
+    }
+
+    function renderPayroll(report) {
+        const tb = document.getElementById('hr-pr-tbody');
+        const tf = document.getElementById('hr-pr-tfoot');
+        const label = document.getElementById('hr-pr-period-label');
+        if (!tb || !tf) return;
+
+        if (label) {
+            const suffix = _payrollPeriodOffset === 0 ? ' (bieżący)' : '';
+            label.textContent = (report?.period || '—') + suffix;
+        }
+
+        const rows = report?.employees || [];
+        if (!rows.length) {
+            tb.innerHTML = '<tr><td colspan="7" style="color:#78716c;padding:1.5rem;">Brak danych wypłat w tym okresie.</td></tr>';
+            tf.innerHTML = '';
+            return;
+        }
+
+        tb.innerHTML = rows.map((e) => `<tr>
+            <td>${esc(e.name)}</td>
+            <td class="num">${esc(e.hours)}</td>
+            <td class="num">${esc(e.rate)}</td>
+            <td class="num">${esc(e.gross)}</td>
+            <td class="num">${esc(e.meals)} / ${esc(e.deductions)}</td>
+            <td class="num">${esc(e.advances_repaid)}</td>
+            <td class="num">${esc(e.payout)}</td>
+        </tr>`).join('');
+
+        const t = report.totals || {};
+        tf.innerHTML = `<tr>
+            <td>Razem (${rows.length})</td>
+            <td class="num">${esc(t.total_hours)}</td>
+            <td class="num">—</td>
+            <td class="num">${esc(t.total_labor_cost)}</td>
+            <td class="num">${esc(t.total_deductions)}</td>
+            <td class="num">${esc(t.total_advances_repaid)}</td>
+            <td class="num">${esc(t.total_payout)}</td>
+        </tr>`;
+    }
+
+    async function refreshPayroll() {
+        showErrorBanner('');
+        const tb = document.getElementById('hr-pr-tbody');
+        if (tb) tb.innerHTML = '<tr><td colspan="7" style="color:#78716c;padding:1.5rem;">Ładowanie…</td></tr>';
+
+        const nextBtn = document.getElementById('hr-pr-next');
+        if (nextBtn) nextBtn.disabled = _payrollPeriodOffset === 0;
+
+        try {
+            const data = await callHr('payroll_report', {
+                period_type: _payrollPeriodType,
+                period_offset: _payrollPeriodOffset,
+            });
+            renderPayroll(data.payroll_report || {});
+        } catch (e) {
+            if (e.httpCode === 401 || e.httpCode === 403) showAuthBanner(true);
+            showErrorBanner(e.message || 'Błąd raportu wypłat');
+            renderPayroll({ employees: [] });
         }
     }
 
@@ -349,9 +424,35 @@
         fillRoleSelects();
         showAuthBanner(!getToken());
 
-        document.getElementById('hr-btn-refresh')?.addEventListener('click', refreshList);
+        document.getElementById('hr-btn-refresh')?.addEventListener('click', () => {
+            const payrollActive = !document.getElementById('hr-view-payroll')?.classList.contains('hidden');
+            return payrollActive ? refreshPayroll() : refreshList();
+        });
         document.getElementById('hr-btn-add')?.addEventListener('click', () => openEmployeeModal(null));
         document.getElementById('hr-inc-del')?.addEventListener('change', refreshList);
+
+        document.querySelectorAll('.hr-tab').forEach((b) => {
+            b.addEventListener('click', () => switchTab(b.getAttribute('data-tab')));
+        });
+        document.querySelectorAll('#hr-pr-period-type button').forEach((b) => {
+            b.addEventListener('click', () => {
+                _payrollPeriodType = b.getAttribute('data-period');
+                _payrollPeriodOffset = 0;
+                document.querySelectorAll('#hr-pr-period-type button')
+                    .forEach((x) => x.classList.toggle('active', x === b));
+                refreshPayroll();
+            });
+        });
+        document.getElementById('hr-pr-prev')?.addEventListener('click', () => {
+            _payrollPeriodOffset += 1;
+            refreshPayroll();
+        });
+        document.getElementById('hr-pr-next')?.addEventListener('click', () => {
+            if (_payrollPeriodOffset === 0) return;
+            _payrollPeriodOffset -= 1;
+            refreshPayroll();
+        });
+        document.getElementById('hr-pr-refresh')?.addEventListener('click', refreshPayroll);
 
         document.getElementById('hr-form-employee')?.addEventListener('submit', submitEmployee);
         document.getElementById('hr-form-cancel')?.addEventListener('click', () => openModal('hr-modal-employee', false));
