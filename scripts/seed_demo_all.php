@@ -876,6 +876,56 @@ seed('Work Sessions', function ($pdo, $T) use ($uuid4) {
 });
 
 // =============================================================================
+// 14. HR — profile pracowników + stawki temporalne
+// (migracja 041 backfilluje tylko userów istniejących w momencie migracji;
+//  seed tworzy userów później, więc profile HR domykamy tutaj — bez nich
+//  payroll po Fazie 4 nie ma z czego liczyć)
+// =============================================================================
+seed('HR employees + rates', function ($pdo, $T) {
+    $tables = $pdo->query("SHOW TABLES LIKE 'sh_employees'")->fetchAll();
+    if ($tables === []) {
+        return 'skipped (migracja 041 nieprzyjęta)';
+    }
+
+    $pdo->prepare("
+        INSERT INTO sh_employees
+            (tenant_id, user_id, employee_code, display_name, first_name, last_name,
+             hire_date, primary_role, status, default_currency)
+        SELECT u.tenant_id, u.id, CONCAT('EMP-', LPAD(u.id, 5, '0')),
+               COALESCE(NULLIF(u.name, ''), u.username),
+               COALESCE(NULLIF(u.first_name, ''), u.username),
+               COALESCE(NULLIF(u.last_name, ''), '-'),
+               DATE(u.created_at), u.role, 'active', 'PLN'
+        FROM sh_users u
+        WHERE u.tenant_id = ? AND u.is_deleted = 0
+          AND NOT EXISTS (
+              SELECT 1 FROM sh_employees e
+              WHERE e.tenant_id = u.tenant_id AND e.user_id = u.id
+          )
+    ")->execute([$T]);
+
+    $pdo->prepare("
+        INSERT INTO sh_employee_rates
+            (tenant_id, employee_id, rate_type, amount_minor, currency,
+             effective_from, effective_to, reason, note)
+        SELECT e.tenant_id, e.id, 'hourly', CAST(ROUND(u.hourly_rate * 100) AS UNSIGNED), 'PLN',
+               TIMESTAMP(e.hire_date, '00:00:00'), NULL, 'hiring', 'Seed demo'
+        FROM sh_employees e
+        INNER JOIN sh_users u ON u.id = e.user_id AND u.tenant_id = e.tenant_id
+        WHERE e.tenant_id = ? AND e.is_deleted = 0 AND u.hourly_rate > 0
+          AND NOT EXISTS (
+              SELECT 1 FROM sh_employee_rates r
+              WHERE r.tenant_id = e.tenant_id AND r.employee_id = e.id AND r.rate_type = 'hourly'
+          )
+    ")->execute([$T]);
+
+    $cnt = $pdo->prepare('SELECT COUNT(*) FROM sh_employees WHERE tenant_id = ? AND is_deleted = 0');
+    $cnt->execute([$T]);
+
+    return $cnt->fetchColumn() . ' profili HR ze stawkami';
+});
+
+// =============================================================================
 // OUTPUT
 // =============================================================================
 $isCli = php_sapi_name() === 'cli';

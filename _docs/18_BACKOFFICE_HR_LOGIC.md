@@ -936,7 +936,7 @@ Test #9 smoke przez `ReflectionClass` weryfikuje brak metod `unlock*` / `openPer
 ## 13. DECYZJA ARCHITEKTONICZNA: `PayrollEngine` rewrite w miejscu (Faza 4)
 
 **Data:** 2026-04-23
-**Status:** PRZYJĘTE
+**Status:** PRZYJĘTE → **WYKONANE (2026-07-25)**, patrz §13.8
 **Zasięg:** `core/PayrollEngine.php`, `core/TeamPayrollEngine.php`, `api/staff/payroll.php` (PLANNED), `api/dashboard/team_payroll.php` (PLANNED)
 
 ### 13.1. Kontekst
@@ -993,6 +993,23 @@ Po ukończeniu Fazy 4 następujące elementy stają się bezużyteczne i podlega
 - `sh_users.hourly_rate` — DROP COLUMN (patrz §6.3, krok 4).
 - Wszelkie czytniki `sh_deductions` w kodzie HR — grep `FROM sh_deductions` powinien dać zero wyników w `core/` i `scripts/` po rewrite.
 - Checkboxy "migration in progress" z panelu admin (jeśli zostały dodane w Fazie 3B dla migracji deductions).
+
+
+### 13.8. Stan wykonania (2026-07-25)
+
+| Krok §13.5 | Stan |
+|---|---|
+| 1. Deprecation headers | ⛔ zbędne — rewrite wykonany od razu, `api/staff/payroll.php` i `api/dashboard/team_payroll.php` czytają już przepisany silnik |
+| 2. Test harness parity | ✅ `tests/payroll_engine_rewrite_parity.php` (legacy inline vs ledger, próg 0 gr) |
+| 3. Rewrite `calculate()` | ✅ ledger + `sh_employee_rates` (temporal); godziny trwającej zmiany dalej z `sh_work_sessions` (accrual powstaje przy clock-out) |
+| 4. Rewrite `buildComparison()` | ✅ poprzedni okres z ledgera, capping day-of-month bez zmian |
+| 5. Rewrite `TeamPayrollEngine` | ✅ lista z `sh_employees`, live shift burn rate ze stawek temporalnych |
+| 6. DROP legacy reads | ✅ `grep "FROM sh_deductions\|hourly_rate FROM sh_users"` w `core/` = 0 trafień |
+| 7. Migracja DROP COLUMN | ⏳ dopiero po 2 zamknięciach miesiąca (§6.3 krok 4) |
+
+**Migracja danych (§13.4 pkt 3):** `scripts/migrate_deductions_to_ledger.php` — `sh_deductions` → `adjustment`, `sh_meals` → `meal_deduction`, plus backfill `work_earnings` dla sesji zamkniętych przed uruchomieniem `worker_payroll_accrual`. Idempotentny (deterministyczny `entry_uuid`), `--dry-run`, `--tenant=N`.
+
+**Zmiana kontraktu (dodatek, nie breaking):** `payroll.advances = {paid_out, repaid}` w `PayrollEngine::calculate()` oraz `employees[].advances_repaid` / `totals.total_advances_repaid` w `TeamPayrollEngine`. Zaliczki są poza gross/net — `payout = max(0, net − advances_repaid)` liczy silnik, nie router ani UI.
 
 ---
 
