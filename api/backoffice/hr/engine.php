@@ -32,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
  *   - employee_pin_set     — ustawia bcrypt PIN kioskowy (sh_employees.auth_pin_hash)
  *   - employee_rate_set    — nowa stawka godzinowa (zamyka poprzednią linię w sh_employee_rates)
  *   - hr_users_unlinked    — sh_users w tenancie bez aktywnego powiązania do sh_employees (wybór konta)
+ *   - payroll_report       — raport wypłat całego zespołu za okres (per pracownik + sumy)
  *
  * AUTH (wymagane dla każdej akcji):
  *   Endpoint jest za auth_guard.php → ma $tenant_id i $user_id z sesji/JWT.
@@ -74,6 +75,7 @@ try {
     require_once __DIR__ . '/../../../core/db_config.php';
     require_once __DIR__ . '/../../../core/auth_guard.php';
     require_once __DIR__ . '/../../../core/HrClockEngine.php';
+    require_once __DIR__ . '/../../../core/TeamPayrollEngine.php';
 
     /** @var PDO $pdo */
     /** @var int $tenant_id */
@@ -400,6 +402,114 @@ try {
             break;
         }
 
+        // -----------------------------------------------------------------
+        // MVP raportu wypłat: bazuje na działającym silniku TeamPayrollEngine
+        // → PayrollEngine::calculate, który czyta stawkę z DEPRECATED
+        // sh_users.hourly_rate. Pełny rewrite readerów na sh_payroll_ledger
+        // (stawki z sh_employee_rates) to osobne zadanie Fazy 4.
+        case 'payroll_report': {
+            hrRequireManager($pdo, $tenant_id, $user_id);
+
+            $periodType = strtolower(trim((string)($input['period_type'] ?? 'month')));
+            if (!in_array($periodType, ['week', 'month', 'year'], true)) {
+                hrFail(400, 'INVALID_PERIOD', 'period_type must be week, month, or year.');
+            }
+            $rawOffset = $input['period_offset'] ?? 0;
+            if (!is_numeric($rawOffset) || (int)$rawOffset < 0) {
+                hrFail(400, 'INVALID_PERIOD', 'period_offset must be an integer >= 0.');
+            }
+            $periodOffset = (int)$rawOffset;
+
+            try {
+                $aggregate = TeamPayrollEngine::getAggregate($pdo, $tenant_id, $periodType, $periodOffset);
+            } catch (\InvalidArgumentException $e) {
+                hrFail(400, 'INVALID_PERIOD', $e->getMessage());
+            }
+
+            $result = $aggregate['team_payroll'];
+            $employees = $result['employees'] ?? [];
+
+            // user_id → employee_id (sh_employees), potrzebne dla ledgera zaliczek.
+            $userIds = [];
+            foreach ($employees as $emp) {
+                $userIds[] = (int)$emp['user_id'];
+            }
+
+            $repaidByUser = [];
+            if ($userIds !== []) {
+                $ph = implode(',', array_fill(0, count($userIds), '?'));
+                $st = $pdo->prepare(
+                    "SELECT id, user_id FROM sh_employees
+                     WHERE tenant_id = ? AND is_deleted = 0 AND user_id IN ({$ph})"
+                );
+                $st->execute(array_merge([$tenant_id], $userIds));
+
+                $userIdByEmployeeId = [];
+                foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                    $userIdByEmployeeId[(int)$row['id']] = (int)$row['user_id'];
+                }
+
+                if ($userIdByEmployeeId !== []) {
+                    // Ledger jest kluczowany po (period_year, period_month) — okno
+                    // okresu mapujemy na listę miesięcy, które ono obejmuje.
+                    $months = hrPeriodMonths($periodType, $periodOffset);
+                    $empIds = array_keys($userIdByEmployeeId);
+
+                    $empPh   = implode(',', array_fill(0, count($empIds), '?'));
+                    $monthPh = implode(',', array_fill(0, count($months), '(?, ?)'));
+                    $params  = array_merge([$tenant_id], $empIds);
+                    foreach ($months as $ym) {
+                        $params[] = $ym[0];
+                        $params[] = $ym[1];
+                    }
+
+                    $st = $pdo->prepare(
+                        "SELECT employee_id, COALESCE(SUM(ABS(amount_minor)), 0) AS repaid_minor
+                         FROM sh_payroll_ledger
+                         WHERE tenant_id = ?
+                           AND entry_type = 'advance_repayment'
+                           AND employee_id IN ({$empPh})
+                           AND (period_year, period_month) IN ({$monthPh})
+                         GROUP BY employee_id"
+                    );
+                    $st->execute($params);
+
+                    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                        $uid = $userIdByEmployeeId[(int)$row['employee_id']] ?? null;
+                        if ($uid === null) {
+                            continue;
+                        }
+                        $repaidByUser[$uid] = ($repaidByUser[$uid] ?? 0.0)
+                            + ((int)$row['repaid_minor'] / 100.0);
+                    }
+                }
+            }
+
+            $totalRepaid = 0.0;
+            $totalPayout = 0.0;
+            foreach ($employees as $i => $emp) {
+                $uid    = (int)$emp['user_id'];
+                $repaid = (float)($repaidByUser[$uid] ?? 0.0);
+                $net    = (float)$emp['net'];
+                $payout = max(0.0, $net - $repaid);
+
+                $employees[$i]['advances_repaid'] = number_format($repaid, 2, '.', '');
+                $employees[$i]['payout']          = number_format($payout, 2, '.', '');
+
+                $totalRepaid += $repaid;
+                $totalPayout += $payout;
+            }
+
+            $result['employees'] = $employees;
+            $result['totals']['total_advances_repaid'] = number_format($totalRepaid, 2, '.', '');
+            $result['totals']['total_payout']          = number_format($totalPayout, 2, '.', '');
+            $result['period_type']   = $periodType;
+            $result['period_offset'] = $periodOffset;
+
+            hrResponse(true, ['payroll_report' => $result], 'OK');
+            break;
+        }
+
         default:
             hrFail(400, 'UNKNOWN_ACTION', "Unknown action: {$action}");
     }
@@ -441,6 +551,44 @@ function hrPrimaryRoles(): array
 function hrAccountRoles(): array
 {
     return ['cook', 'waiter', 'driver', 'manager', 'cashier', 'cleaner', 'runner', 'shift_lead', 'team', 'admin', 'owner'];
+}
+
+/**
+ * Lista par [rok, miesiąc] objętych oknem okresu (ledger jest miesięczny).
+ * Mirroruje granice okresu z TeamPayrollEngine::resolvePeriodBounds.
+ *
+ * @return list<array{0:int,1:int}>
+ */
+function hrPeriodMonths(string $periodType, int $periodOffset): array
+{
+    $now = new \DateTimeImmutable('now');
+
+    if ($periodType === 'month') {
+        $anchor = $now->modify('first day of this month')->setTime(0, 0, 0)
+            ->modify("-{$periodOffset} months");
+        return [[(int)$anchor->format('Y'), (int)$anchor->format('n')]];
+    }
+
+    if ($periodType === 'week') {
+        $dow   = (int)$now->format('N');
+        $start = $now->modify('-' . ($dow - 1) . ' days')->setTime(0, 0, 0)
+            ->modify('-' . (7 * $periodOffset) . ' days');
+        $end   = $periodOffset === 0 ? $now : $start->modify('+6 days');
+        $months = [[(int)$start->format('Y'), (int)$start->format('n')]];
+        if ($end->format('Y-n') !== $start->format('Y-n')) {
+            $months[] = [(int)$end->format('Y'), (int)$end->format('n')];
+        }
+        return $months;
+    }
+
+    $year   = (int)$now->format('Y') - $periodOffset;
+    $last   = $periodOffset === 0 ? (int)$now->format('n') : 12;
+    $months = [];
+    for ($m = 1; $m <= $last; $m++) {
+        $months[] = [$year, $m];
+    }
+
+    return $months;
 }
 
 function hrRequireManager(PDO $pdo, int $tenantId, int $actorUserId): void
