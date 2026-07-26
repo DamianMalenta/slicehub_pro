@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="sh-tenant-id" content="1">
+  <script src="../../../tenant_config.php"></script>
+  <script src="../../../core/js/sh_api_base.js"></script>
+  <title>Wachlarz — druk A5</title>
+  <link rel="stylesheet" href="css/deck.css">
+  <style>
+    .toolbar {
+      position: sticky; top: 0; z-index: 20;
+      display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+      padding: 12px 16px; background: #0f172a; color: #f8fafc;
+      font-family: system-ui, sans-serif; font-size: 13px;
+    }
+    .toolbar button, .toolbar a {
+      background: #f97316; color: #fff; border: 0; border-radius: 8px;
+      padding: 8px 14px; font-weight: 600; cursor: pointer; text-decoration: none;
+    }
+    .toolbar a.ghost { background: #334155; }
+    .toolbar .meta { opacity: .75; margin-left: auto; }
+  </style>
+</head>
+<body>
+  <div class="toolbar no-print">
+    <button type="button" id="btn-print">Drukuj / PDF</button>
+    <a class="ghost" href="index.html" id="link-back">← Panel</a>
+    <span class="meta" id="meta">Ładowanie…</span>
+  </div>
+  <div class="deck-print-root" id="root"></div>
+  <script src="js/deck-renderer.js"></script>
+  <script>
+  (async () => {
+    const params = new URLSearchParams(location.search);
+    const deckId = parseInt(params.get('deck_id') || '0', 10);
+    function apiUrl(path) {
+      if (window.SliceHub && window.SliceHub.apiUrl) return window.SliceHub.apiUrl(path);
+      return '../../../api' + (String(path || '').startsWith('/') ? path : '/' + path);
+    }
+    function token() {
+      return localStorage.getItem('sh_token') || sessionStorage.getItem('sh_token') || '';
+    }
+    async function api(body) {
+      const res = await fetch(apiUrl('/marketing/deck_engine.php'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token() ? { Authorization: 'Bearer ' + token() } : {}),
+        },
+        body: JSON.stringify(body),
+      });
+      return res.json();
+    }
+    document.getElementById('btn-print').onclick = () => window.print();
+    if (!deckId) {
+      document.getElementById('meta').textContent = 'Brak deck_id w URL';
+      return;
+    }
+    const j = await api({ action: 'deck_get', deck_id: deckId });
+    if (!j.success) {
+      document.getElementById('meta').textContent = j.message || 'Błąd';
+      return;
+    }
+    document.getElementById('meta').textContent =
+      (j.data.deck.name || '') + ' · ' + (j.data.cards || []).length + ' kart';
+    FornoDeck.renderDeck(j.data.cards, document.getElementById('root'));
+  })();
+  </script>
+</body>
+</html>

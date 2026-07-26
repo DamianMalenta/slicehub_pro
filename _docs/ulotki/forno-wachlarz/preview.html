@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Forno Wachlarz — podgląd offline (seed JSON)</title>
+  <link rel="stylesheet" href="../../../modules/marketing/deck/css/deck.css">
+  <style>
+    body { margin: 0; background: #1e293b; }
+    .bar { padding: 12px 16px; color: #e2e8f0; font-family: system-ui; font-size: 13px; }
+    .bar a { color: #fdba74; }
+  </style>
+</head>
+<body>
+  <div class="bar no-print">
+    Podgląd ze seeda <code>content.json</code> —
+    <a href="../../../modules/marketing/deck/index.html">Panel (wymaga logowania + migracji 060)</a>
+    · <button onclick="print()">Drukuj</button>
+  </div>
+  <div class="deck-print-root" id="root"></div>
+  <script src="../../../modules/marketing/deck/js/deck-renderer.js"></script>
+  <script>
+    fetch('content.json').then(r => r.json()).then(data => {
+      FornoDeck.renderDeck(data.cards || [], document.getElementById('root'));
+    });
+  </script>
+</body>
+</html>

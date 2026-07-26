@@ -52,6 +52,8 @@
 | `sh_price_tiers` | `id` AI | Ceny omnichannel; UNIQUE `(target_type, target_sku, channel, tenant_id)` |
 | `sh_recipes` | `id` AI | Receptury — zużycie surowca per pozycja menu |
 | `sh_promo_codes` | `id` AI | Kody rabatowe |
+| `sh_print_decks` | `id` AI | Wachlarze A5 (marketing); UNIQUE `(tenant_id, ascii_key)` — migracja 060 |
+| `sh_print_deck_cards` | `id` AI | Karty decku; `payload_json` (+ opcjonalny `ascii_key` w JSON) |
 
 **sh_price_tiers:**
 - `target_type` → `ITEM` / `MODIFIER`
@@ -61,6 +63,8 @@
 **Widok `sh_item_prices`** — filtruje `sh_price_tiers` WHERE `target_type = 'ITEM'`
 
 **sh_modifiers.linked_warehouse_sku** — opcjonalny link do surowca magazynowego (np. "Podwójny ser" → `SER_MOZZ` × 0.1 kg)
+
+**sh_print_decks / sh_print_deck_cards:** kuratorowana oferta do druku (nie POS). Soft-delete. Status: `draft` \| `ready` \| `archived`.
 
 ---
 

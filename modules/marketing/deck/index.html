@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="sh-tenant-id" content="1">
+  <script src="../../../tenant_config.php"></script>
+  <script src="../../../core/js/sh_api_base.js"></script>
+  <title>SliceHub — Wachlarz A5</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="../../ui_shell/sh_mobile_shell.css">
+  <link rel="stylesheet" href="css/deck.css">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Inter, system-ui, sans-serif; background: #0b1220; color: #e2e8f0; min-height: 100vh; }
+    .topbar {
+      display: flex; align-items: center; gap: 12px; padding: 12px 18px;
+      background: #0f172a; border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .topbar h1 { font-size: 16px; font-weight: 700; margin: 0; }
+    .topbar a { color: #94a3b8; text-decoration: none; font-size: 13px; }
+    .topbar a:hover { color: #fff; }
+    .tabs { display: flex; gap: 4px; margin-left: 12px; }
+    .tabs a {
+      padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
+      color: #94a3b8; text-decoration: none;
+    }
+    .tabs a.active { background: rgba(249,115,22,.2); color: #fdba74; }
+    .layout {
+      display: grid;
+      grid-template-columns: 240px minmax(280px, 1fr) minmax(280px, 360px);
+      gap: 14px; padding: 14px; max-width: 1400px; margin: 0 auto;
+      min-height: calc(100vh - 56px);
+    }
+    @media (max-width: 1100px) {
+      .layout { grid-template-columns: 1fr; }
+      .preview-pane { order: -1; max-height: 420px; overflow: auto; }
+    }
+    .pane {
+      background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+      border-radius: 14px; padding: 14px; backdrop-filter: blur(8px);
+    }
+    .pane h2 { font-size: 13px; font-weight: 700; margin: 0 0 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: .06em; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 9px;
+      padding: 8px 12px; font-size: 13px; font-weight: 600; cursor: pointer; color: #fff;
+      background: #ea580c;
+    }
+    .btn:hover { opacity: .9; }
+    .btn--ghost { background: rgba(255,255,255,.08); color: #cbd5e1; }
+    .btn--danger { background: #b91c1c; }
+    .btn--sm { padding: 5px 9px; font-size: 12px; }
+    .btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .deck-pick { width: 100%; margin-bottom: 10px; }
+    select, input, textarea {
+      width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.35); color: #f1f5f9; font: inherit; font-size: 13px;
+    }
+    textarea { min-height: 64px; resize: vertical; }
+    label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #94a3b8; margin-bottom: 10px; }
+    .card-list { display: flex; flex-direction: column; gap: 6px; max-height: calc(100vh - 220px); overflow: auto; }
+    .card-item {
+      display: flex; align-items: center; gap: 8px; padding: 10px; border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.08); background: rgba(0,0,0,.2); cursor: pointer;
+    }
+    .card-item.active { border-color: #f97316; background: rgba(249,115,22,.12); }
+    .card-item__body { flex: 1; min-width: 0; }
+    .card-item__title { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card-item__meta { font-size: 11px; color: #64748b; }
+    .hint { font-size: 12px; color: #64748b; line-height: 1.4; }
+    .preview-pane { display: flex; flex-direction: column; align-items: center; overflow: auto; }
+    .preview-wrap {
+      transform: scale(0.72); transform-origin: top center;
+      margin-bottom: -50px;
+    }
+    .toast-root { position: fixed; bottom: 20px; right: 20px; z-index: 99; display: flex; flex-direction: column; gap: 8px; }
+    .toast { padding: 10px 14px; border-radius: 10px; font-size: 13px; font-weight: 600; }
+    .toast--ok { background: #166534; color: #dcfce7; }
+    .toast--err { background: #991b1b; color: #fee2e2; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .section-box {
+      border: 1px dashed rgba(255,255,255,.12); border-radius: 10px; padding: 10px; margin-bottom: 10px;
+    }
+    .section-box h3 { margin: 0 0 8px; font-size: 12px; color: #fdba74; }
+  </style>
+</head>
+<body>
+<header class="topbar">
+  <i class="fa-solid fa-layer-group" style="color:#f97316"></i>
+  <h1>Wachlarz A5</h1>
+  <nav class="tabs">
+    <a href="../index.html">SMS</a>
+    <a class="active" href="index.html">Wachlarz</a>
+  </nav>
+  <span style="flex:1"></span>
+  <a href="../../hub/index.html">Hub</a>
+</header>
+
+<div class="layout">
+  <!-- Lista -->
+  <aside class="pane">
+    <h2>Deck</h2>
+    <select id="deck-select" class="deck-pick"></select>
+    <div class="btn-row" style="margin-top:0">
+      <button class="btn btn--sm" id="btn-seed" title="Wgraj seed Forno"><i class="fa-solid fa-seedling"></i> Seed Forno</button>
+      <button class="btn btn--ghost btn--sm" id="btn-new-deck"><i class="fa-solid fa-plus"></i></button>
+    </div>
+    <p class="hint" style="margin:10px 0">Kolejność = stos na śrubie. Strzałki ↑↓.</p>
+    <h2>Karty</h2>
+    <div class="card-list" id="card-list"></div>
+    <div class="btn-row">
+      <button class="btn btn--sm" id="btn-add-card"><i class="fa-solid fa-plus"></i> Karta</button>
+      <a class="btn btn--ghost btn--sm" id="btn-print" href="#" target="_blank"><i class="fa-solid fa-print"></i> Druk</a>
+    </div>
+  </aside>
+
+  <!-- Edycja -->
+  <section class="pane" id="editor-pane">
+    <h2>Edycja karty</h2>
+    <p class="hint" id="editor-empty">Wybierz kartę z listy albo dodaj nową.</p>
+    <form id="editor-form" style="display:none">
+      <div class="grid2">
+        <label class="f">Typ
+          <select id="f-type">
+            <option value="cover">cover — okładka</option>
+            <option value="hero_duo">hero_duo — 2 warianty</option>
+            <option value="hero_sizes">hero_sizes — 30/37</option>
+            <option value="hero_list">hero_list — lista</option>
+            <option value="cta">cta — kontakt</option>
+          </select>
+        </label>
+        <label class="f">Accent
+          <select id="f-accent">
+            <option value="orange">orange</option>
+            <option value="yellow">yellow</option>
+            <option value="teal">teal</option>
+          </select>
+        </label>
+      </div>
+      <div class="grid2">
+        <label class="f">Tytuł <input id="f-title" maxlength="28"></label>
+        <label class="f">Tab (wachlarz) <input id="f-tab" maxlength="14"></label>
+      </div>
+      <div class="grid2">
+        <label class="f">Cena <input id="f-price" placeholder="27"></label>
+        <label class="f">Nota ceny <input id="f-price-note" placeholder="od"></label>
+      </div>
+      <label class="f">URL zdjęcia (opcjonalnie) <input id="f-hero" placeholder="https://… /assets/…"></label>
+      <label class="f">ascii_key (most do menu) <input id="f-ascii" placeholder="MARGHERITA"></label>
+
+      <div class="section-box" id="box-cover">
+        <h3>Okładka</h3>
+        <label class="f">Tagline <input id="f-tagline"></label>
+        <label class="f">CTA <input id="f-cta-line"></label>
+      </div>
+
+      <div class="section-box" id="box-duo">
+        <h3>Warianty L / P</h3>
+        <div class="grid2">
+          <div>
+            <label class="f">Lewy — nazwa <input id="f-left-name"></label>
+            <label class="f">Bullets (1 na linię) <textarea id="f-left-bullets"></textarea></label>
+          </div>
+          <div>
+            <label class="f">Prawy — nazwa <input id="f-right-name"></label>
+            <label class="f">Bullets (1 na linię) <textarea id="f-right-bullets"></textarea></label>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-box" id="box-sizes">
+        <h3>Rozmiary</h3>
+        <label class="f">Opis <input id="f-desc"></label>
+        <div class="grid2">
+          <label class="f">Lewy label <input id="f-sl-label" value="30 cm"></label>
+          <label class="f">Lewy cena <input id="f-sl-price"></label>
+          <label class="f">Prawy label <input id="f-sr-label" value="37 cm"></label>
+          <label class="f">Prawy cena <input id="f-sr-price"></label>
+        </div>
+      </div>
+
+      <div class="section-box" id="box-list">
+        <h3>Lista (nazwa | cena | nota)</h3>
+        <label class="f"><textarea id="f-items" placeholder="Gyros Forno | 29 |&#10;Coca-Cola | 8 | 0,33 l"></textarea></label>
+      </div>
+
+      <div class="section-box" id="box-cta">
+        <h3>Kontakt</h3>
+        <label class="f">Telefon <input id="f-phone"></label>
+        <label class="f">Adres <input id="f-address"></label>
+        <label class="f">Godziny <input id="f-hours"></label>
+        <label class="f">CTA <input id="f-cta2"></label>
+      </div>
+
+      <div class="btn-row">
+        <button type="submit" class="btn"><i class="fa-solid fa-floppy-disk"></i> Zapisz kartę</button>
+        <button type="button" class="btn btn--danger btn--sm" id="btn-del-card"><i class="fa-solid fa-trash"></i></button>
+      </div>
+    </form>
+  </section>
+
+  <!-- Podgląd -->
+  <aside class="pane preview-pane">
+    <h2>Podgląd A5</h2>
+    <div class="preview-wrap" id="preview"></div>
+  </aside>
+</div>
+
+<div class="toast-root" id="toast-root"></div>
+<script src="js/deck-renderer.js"></script>
+<script src="js/deck-panel.js"></script>
+</body>
+</html>

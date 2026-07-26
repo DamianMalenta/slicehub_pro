@@ -1,0 +1,130 @@
+{
+  "deck": {
+    "ascii_key": "FORNO_WACHLARZ_V1",
+    "name": "Forno Wachlarz v1",
+    "brand": "FORNO PIZZA",
+    "status": "draft"
+  },
+  "cards": [
+    {
+      "card_key": "cover",
+      "card_type": "cover",
+      "sort_order": 0,
+      "payload": {
+        "title": "FORNO PIZZA",
+        "tagline": "Rzemieślnicze ciasto · ostry wybór",
+        "tab_label": "START",
+        "accent": "orange",
+        "cta_line": "Zamów / zapytaj kelnera",
+        "hero_image": ""
+      }
+    },
+    {
+      "card_key": "kebab-killer",
+      "card_type": "hero_duo",
+      "sort_order": 1,
+      "payload": {
+        "title": "KEBAB KILLER",
+        "tab_label": "NOWOSCI",
+        "price": "32",
+        "price_note": "od",
+        "accent": "yellow",
+        "hero_image": "",
+        "ascii_key": "",
+        "left": {
+          "name": "Fryto Killer",
+          "bullets": ["kebab drobiowy", "frytki", "sos czosnkowy", "sałata"]
+        },
+        "right": {
+          "name": "Grillo Killer",
+          "bullets": ["kebab drobiowy", "grillowane warzywa", "sos", "pita"]
+        }
+      }
+    },
+    {
+      "card_key": "margherita",
+      "card_type": "hero_sizes",
+      "sort_order": 2,
+      "payload": {
+        "title": "MARGHERITA",
+        "tab_label": "PIZZE",
+        "price": "27",
+        "price_note": "od",
+        "accent": "teal",
+        "hero_image": "",
+        "ascii_key": "MARGHERITA",
+        "description": "sos · ser",
+        "size_left": { "label": "30 cm", "price": "27", "ascii_key": "MARGHERITA_30CM" },
+        "size_right": { "label": "37 cm", "price": "37", "ascii_key": "MARGHERITA_37CM" }
+      }
+    },
+    {
+      "card_key": "di-parma",
+      "card_type": "hero_sizes",
+      "sort_order": 3,
+      "payload": {
+        "title": "DI PARMA",
+        "tab_label": "HITY",
+        "price": "36",
+        "price_note": "od",
+        "accent": "orange",
+        "hero_image": "",
+        "ascii_key": "DI_PARMA",
+        "description": "szynka parmeńska · rukola · parmezan",
+        "size_left": { "label": "30 cm", "price": "36", "ascii_key": "DI_PARMA_30CM" },
+        "size_right": { "label": "37 cm", "price": "48", "ascii_key": "DI_PARMA_37CM" }
+      }
+    },
+    {
+      "card_key": "gyros",
+      "card_type": "hero_list",
+      "sort_order": 4,
+      "payload": {
+        "title": "GYROSY",
+        "tab_label": "GYROS",
+        "price": "26",
+        "price_note": "od",
+        "accent": "yellow",
+        "hero_image": "",
+        "items": [
+          { "name": "Gyros Rollo XXL", "price": "26", "ascii_key": "GYROS_ROLLO_XXL" },
+          { "name": "Gyros na talerzu", "price": "26", "ascii_key": "GYROS_NA_TALERZU" },
+          { "name": "Gyros Forno", "price": "29", "ascii_key": "GYROS_FORNO" }
+        ]
+      }
+    },
+    {
+      "card_key": "napoje",
+      "card_type": "hero_list",
+      "sort_order": 5,
+      "payload": {
+        "title": "NAPOJE",
+        "tab_label": "NAPOJE",
+        "price": "8",
+        "price_note": "od",
+        "accent": "teal",
+        "hero_image": "",
+        "items": [
+          { "name": "Coca-Cola", "price": "8", "note": "0,33 l" },
+          { "name": "Sprite", "price": "8", "note": "0,33 l" },
+          { "name": "Woda niegazowana", "price": "6" },
+          { "name": "Woda gazowana", "price": "6" }
+        ]
+      }
+    },
+    {
+      "card_key": "kontakt",
+      "card_type": "cta",
+      "sort_order": 6,
+      "payload": {
+        "title": "ZAMÓW",
+        "tab_label": "KONTAKT",
+        "accent": "orange",
+        "phone": "",
+        "hours": "Codziennie — zapytaj w lokalu",
+        "address": "Pizza Forno",
+        "cta_line": "Kelner domknie zamówienie w 30 sekund"
+      }
+    }
+  ]
+}

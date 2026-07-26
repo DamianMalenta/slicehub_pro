@@ -1,0 +1,388 @@
+/* FORNO Wachlarz — A5 print + preview (shared by panel & print.html) */
+
+@import url('https://fonts.googleapis.com/css2?family=Bangers&family=Permanent+Marker&family=IBM+Plex+Mono:wght@400;600&family=Oswald:wght@500;700&display=swap');
+
+:root {
+  --deck-cream: #e8e4d9;
+  --deck-cream-dark: #d4cfc0;
+  --deck-ink: #1a1a1a;
+  --deck-muted: #3d3d3d;
+  --deck-teal: #0d9488;
+  --deck-orange: #ea580c;
+  --deck-yellow: #facc15;
+  --deck-screw-zone: 18mm;
+  --deck-w: 148mm;
+  --deck-h: 210mm;
+}
+
+.deck-card {
+  position: relative;
+  width: var(--deck-w);
+  height: var(--deck-h);
+  box-sizing: border-box;
+  overflow: hidden;
+  color: var(--deck-ink);
+  background-color: var(--deck-cream);
+  /* butcher / parchment feel */
+  background-image:
+    radial-gradient(ellipse at 20% 10%, rgba(255,255,255,.35) 0%, transparent 45%),
+    radial-gradient(ellipse at 80% 90%, rgba(0,0,0,.06) 0%, transparent 40%),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(90, 80, 60, 0.03) 2px,
+      rgba(90, 80, 60, 0.03) 3px
+    ),
+    linear-gradient(145deg, var(--deck-cream) 0%, var(--deck-cream-dark) 100%);
+  border: 1px solid rgba(0,0,0,.12);
+  page-break-after: always;
+  break-after: page;
+  display: flex;
+  flex-direction: column;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+.deck-card:last-child {
+  page-break-after: auto;
+  break-after: auto;
+}
+
+/* Martwa strefa śruby — lewy górny */
+.deck-card__screw {
+  position: absolute;
+  top: 6mm;
+  left: 6mm;
+  width: 10mm;
+  height: 10mm;
+  border-radius: 50%;
+  border: 1.5px dashed rgba(0,0,0,.35);
+  background: rgba(255,255,255,.25);
+  z-index: 5;
+  pointer-events: none;
+}
+
+.deck-card__screw::after {
+  content: '';
+  position: absolute;
+  inset: 2.5mm;
+  border-radius: 50%;
+  background: rgba(0,0,0,.15);
+}
+
+.deck-card__tab {
+  position: absolute;
+  right: 0;
+  top: 28mm;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-family: 'Oswald', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 6px 4px;
+  background: var(--deck-ink);
+  color: var(--deck-cream);
+  max-height: 48mm;
+  overflow: hidden;
+  z-index: 4;
+}
+
+.deck-card--accent-yellow .deck-card__tab { background: #854d0e; }
+.deck-card--accent-orange .deck-card__tab { background: #9a3412; }
+.deck-card--accent-teal .deck-card__tab { background: #115e59; }
+
+/* —— Hero 60% —— */
+.deck-card__hero {
+  flex: 0 0 58%;
+  padding: 14mm 10mm 4mm calc(var(--deck-screw-zone) + 4mm);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  min-height: 0;
+}
+
+.deck-card__title {
+  font-family: 'Bangers', 'Permanent Marker', cursive;
+  font-size: 42px;
+  line-height: 0.95;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin: 0 0 4mm;
+  text-shadow: 2px 2px 0 rgba(13, 148, 136, 0.35), 4px 4px 0 rgba(234, 88, 12, 0.2);
+  max-width: 92%;
+  word-break: break-word;
+}
+
+.deck-card--accent-orange .deck-card__title {
+  text-shadow: 2px 2px 0 rgba(234, 88, 12, 0.45), 4px 4px 0 rgba(0,0,0,0.12);
+}
+.deck-card--accent-yellow .deck-card__title {
+  text-shadow: 2px 2px 0 rgba(250, 204, 21, 0.55), 3px 3px 0 rgba(0,0,0,0.15);
+}
+.deck-card--accent-teal .deck-card__title {
+  text-shadow: 2px 2px 0 rgba(13, 148, 136, 0.5), 3px 3px 0 rgba(0,0,0,0.12);
+}
+
+.deck-card__price-wrap {
+  position: absolute;
+  top: 14mm;
+  right: 8mm;
+  z-index: 3;
+}
+
+.deck-card__price {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  font-size: 28px;
+  line-height: 1;
+  display: inline-block;
+  padding: 3px 8px 4px;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    var(--deck-yellow) 8%,
+    var(--deck-yellow) 92%,
+    transparent 100%
+  );
+  box-shadow: inset 0 -2px 0 rgba(0,0,0,.12);
+  transform: rotate(-2deg);
+}
+
+.deck-card__price-note {
+  display: block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 2px;
+  opacity: 0.7;
+  transform: none;
+}
+
+.deck-card__photo {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  margin-top: 2mm;
+}
+
+.deck-card__photo img {
+  max-width: 95%;
+  max-height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 16px rgba(0,0,0,.28));
+}
+
+.deck-card__photo-placeholder {
+  width: 72%;
+  aspect-ratio: 1;
+  max-height: 95%;
+  border-radius: 50% 45% 50% 48%;
+  background:
+    radial-gradient(circle at 35% 30%, #fff7ed 0%, transparent 40%),
+    radial-gradient(circle at 60% 70%, #fb923c 0%, #c2410c 55%, #7c2d12 100%);
+  box-shadow: 0 10px 24px rgba(0,0,0,.25);
+  position: relative;
+}
+
+.deck-card__photo-placeholder::after {
+  content: attr(data-label);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Oswald', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,.85);
+  text-transform: uppercase;
+  text-align: center;
+  padding: 12px;
+}
+
+/* Marker divider */
+.deck-card__divider {
+  flex: 0 0 auto;
+  height: 0;
+  margin: 0 8mm;
+  border: none;
+  border-top: 2.5px dashed var(--deck-teal);
+  opacity: 0.85;
+}
+
+.deck-card--accent-orange .deck-card__divider { border-top-color: var(--deck-orange); }
+.deck-card--accent-yellow .deck-card__divider { border-top-color: #ca8a04; }
+
+/* —— Bottom 40% —— */
+.deck-card__body {
+  flex: 1;
+  padding: 5mm 10mm 8mm calc(var(--deck-screw-zone) + 2mm);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.deck-card__cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6mm;
+  flex: 1;
+}
+
+.deck-card__col-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 2mm;
+  color: var(--deck-orange);
+}
+
+.deck-card--accent-teal .deck-card__col-title { color: var(--deck-teal); }
+
+.deck-card__bullets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.deck-card__bullets li {
+  font-size: 10px;
+  line-height: 1.35;
+  margin-bottom: 1.5mm;
+  padding-left: 3mm;
+  position: relative;
+  color: var(--deck-muted);
+}
+
+.deck-card__bullets li::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: var(--deck-ink);
+}
+
+.deck-card__desc {
+  font-size: 10px;
+  color: var(--deck-muted);
+  margin: 0 0 3mm;
+  line-height: 1.4;
+}
+
+.deck-card__size-price {
+  font-family: 'Oswald', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.deck-card__list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3mm 5mm;
+  flex: 1;
+}
+
+.deck-card__list-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-bottom: 2mm;
+  border-bottom: 1px dotted rgba(0,0,0,.2);
+}
+
+.deck-card__list-name {
+  font-family: 'Oswald', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.deck-card__list-meta {
+  font-size: 9px;
+  color: var(--deck-muted);
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.deck-card__tagline {
+  font-size: 12px;
+  margin: 2mm 0 0;
+  color: var(--deck-muted);
+  max-width: 85%;
+}
+
+.deck-card__cta-line {
+  margin-top: auto;
+  font-family: 'Oswald', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.deck-card__cta-block {
+  display: flex;
+  flex-direction: column;
+  gap: 3mm;
+  margin-top: 2mm;
+}
+
+.deck-card__cta-block p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.deck-card__phone {
+  font-family: 'Oswald', sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+/* Screen preview scale */
+.deck-preview-scale {
+  transform-origin: top left;
+}
+
+@media screen {
+  .deck-print-root {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    align-items: flex-start;
+    padding: 24px;
+    background: #1e293b;
+  }
+}
+
+@media print {
+  @page {
+    size: A5 portrait;
+    margin: 0;
+  }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+  }
+  .deck-print-root {
+    padding: 0;
+    gap: 0;
+    background: #fff;
+  }
+  .deck-card {
+    border: none;
+    box-shadow: none;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .no-print { display: none !important; }
+}

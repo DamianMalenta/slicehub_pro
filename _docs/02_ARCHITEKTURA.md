@@ -198,8 +198,10 @@ Realizuje plan z `_docs/18_BACKOFFICE_HR_LOGIC.md` (Faza 4 — UI Kadry). Wymaga
 | Plik | Rola |
 |------|------|
 | `index.html` | Wizard kampanii SMS (3 kroki) — konsumuje Notification Director (m033) |
+| `deck/` | **Wachlarz A5** (2026-07-20) — panel edycji kart + druk; API `api/marketing/deck_engine.php`; tabele `sh_print_decks` / `sh_print_deck_cards` (migracja 060) |
 
-> Status: MVP — szczegóły kontraktu z Notification Director w `_docs/13_SETTINGS_PANEL.md`.
+> Status: MVP — szczegóły kontraktu z Notification Director w `_docs/13_SETTINGS_PANEL.md`.  
+> Wachlarz: brief `_docs/ulotki/forno-wachlarz/BRIEF.md`.
 
 ### P. UI SHELL — Wspólny Mobile Shell (NEW · 2026-05-04)
 `/modules/ui_shell/sh_mobile_shell.css`

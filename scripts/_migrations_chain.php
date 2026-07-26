@@ -71,4 +71,5 @@ return [
     '057_ksef_line_opex_expense_categories.sql',
     '058_ksef_line_qty_normalization.sql',
     '059_product_mapping_unique_supplier.sql',
+    '060_print_decks.sql',
 ];
