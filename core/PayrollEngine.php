@@ -193,6 +193,11 @@ class PayrollEngine
      * dacie zdarzenia: `sh_work_sessions.start_time` dla accrualu godzin,
      * `created_at` dla pozostałych wpisów.
      *
+     * `reversal` dziedziczy semantykę wpisu, który odwraca (`reverses_entry_id`) —
+     * inaczej odwrócenie voidowanej zaliczki (kwota ujemna) trafiłoby do potrąceń
+     * i zaniżyło netto. Grupowanie po typie efektywnym powoduje, że reversal
+     * po prostu nettuje się z oryginałem w tym samym koszyku.
+     *
      * @return array{
      *   hours: float, earnings_minor: int, deductions_minor: int,
      *   deductions_by_type: array<string,int>, advance_paid_minor: int,
@@ -231,7 +236,7 @@ class PayrollEngine
         $params[] = $end->format('Y-m-d H:i:s');
 
         $stmt = $pdo->prepare("
-            SELECT l.entry_type,
+            SELECT COALESCE(orig.entry_type, l.entry_type) AS entry_type,
                    SUM(l.amount_minor)             AS amount_minor,
                    SUM(COALESCE(l.hours_qty, 0))   AS hours_qty,
                    MAX(l.rate_applied_minor)       AS rate_applied_minor
@@ -239,11 +244,14 @@ class PayrollEngine
             LEFT JOIN sh_work_sessions ws
                    ON ws.id = l.ref_work_session_id
                   AND ws.tenant_id = l.tenant_id
+            LEFT JOIN sh_payroll_ledger orig
+                   ON orig.id = l.reverses_entry_id
+                  AND orig.tenant_id = l.tenant_id
             WHERE l.tenant_id = ?
               AND l.employee_id = ?
               AND (l.period_year, l.period_month) IN ({$monthPh})
               AND COALESCE(ws.start_time, l.created_at) BETWEEN ? AND ?
-            GROUP BY l.entry_type
+            GROUP BY COALESCE(orig.entry_type, l.entry_type)
         ");
         $stmt->execute($params);
 
