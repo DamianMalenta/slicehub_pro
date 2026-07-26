@@ -6,6 +6,11 @@ require_once __DIR__ . '/PayrollEngine.php';
 
 /**
  * Boss Dashboard — team aggregate payroll (server-side aggregation via PayrollEngine).
+ *
+ * Faza 4 (_docs/18_BACKOFFICE_HR_LOGIC.md §13): lista pracowników pochodzi z
+ * `sh_employees` (profil HR = warunek rozliczania), kwoty z ledgera przez
+ * {@see PayrollEngine}, a stawki z temporalnej `sh_employee_rates`. Silnik nie
+ * czyta już `sh_users.hourly_rate`.
  */
 class TeamPayrollEngine
 {
@@ -35,6 +40,7 @@ class TeamPayrollEngine
         $endSql      = $periodEnd->format('Y-m-d H:i:s');
 
         $employeesRows = self::fetchRelevantEmployees($pdo, $tenantId, $startSql, $endSql);
+        $advancesRepaid = 0.0;
 
         $totalHours        = 0.0;
         $totalLaborCost    = 0.0;
@@ -70,8 +76,10 @@ class TeamPayrollEngine
                 }
             }
 
-            $payout        = max(0.0, $net);
-            $carryForward  = min(0.0, $net);
+            $repaid        = (float)($payroll['advances']['repaid'] ?? 0.0);
+            $payout        = max(0.0, $net - $repaid);
+            $carryForward  = min(0.0, $net - $repaid);
+            $advancesRepaid += $repaid;
 
             $employees[] = [
                 'user_id'       => (string)$uid,
@@ -81,7 +89,8 @@ class TeamPayrollEngine
                 'gross'         => number_format($gross, 2, '.', ''),
                 'deductions'    => number_format($nonMealDeduct, 2, '.', ''),
                 'meals'         => number_format($mealTotal, 2, '.', ''),
-                'net'           => number_format($net, 2, '.', ''),
+                'net'             => number_format($net, 2, '.', ''),
+                'advances_repaid' => number_format($repaid, 2, '.', ''),
                 'payout'        => number_format($payout, 2, '.', ''),
                 'carry_forward' => number_format($carryForward, 2, '.', ''),
             ];
@@ -103,6 +112,7 @@ class TeamPayrollEngine
                     'total_labor_cost'   => number_format($totalLaborCost, 2, '.', ''),
                     'total_deductions'   => number_format($totalDeductions, 2, '.', ''),
                     'total_payout'       => number_format($totalPayout, 2, '.', ''),
+                    'total_advances_repaid' => number_format($advancesRepaid, 2, '.', ''),
                 ],
                 'live_shift' => $live,
             ],
@@ -120,11 +130,15 @@ class TeamPayrollEngine
     ): array {
         $sql = "
             SELECT DISTINCT u.id, u.first_name, u.last_name, u.username
-            FROM sh_users u
-            WHERE u.tenant_id = :tid
-              AND u.is_deleted = 0
+            FROM sh_employees e
+            INNER JOIN sh_users u
+                ON u.id = e.user_id
+               AND u.tenant_id = e.tenant_id
+               AND u.is_deleted = 0
+            WHERE e.tenant_id = :tid
+              AND e.is_deleted = 0
               AND (
-                u.is_active = 1
+                e.status = 'active'
                 OR EXISTS (
                     SELECT 1
                     FROM sh_work_sessions s
@@ -153,14 +167,25 @@ class TeamPayrollEngine
      */
     private static function computeLiveShiftMetrics(PDO $pdo, int $tenantId): array
     {
+        // Stawka temporalna obowiązująca w momencie rozpoczęcia trwającej zmiany.
         $sql = "
-            SELECT u.hourly_rate,
+            SELECT COALESCE((
+                       SELECT r.amount_minor
+                       FROM sh_employee_rates r
+                       WHERE r.tenant_id = e.tenant_id
+                         AND r.employee_id = e.id
+                         AND r.rate_type = 'hourly'
+                         AND r.effective_from <= ws.start_time
+                         AND (r.effective_to IS NULL OR r.effective_to > ws.start_time)
+                       ORDER BY r.effective_from DESC
+                       LIMIT 1
+                   ), 0) AS rate_minor,
                    TIMESTAMPDIFF(SECOND, ws.start_time, NOW()) AS elapsed_seconds
             FROM sh_work_sessions ws
-            INNER JOIN sh_users u
-                ON u.id = ws.user_id
-               AND u.tenant_id = ws.tenant_id
-               AND u.is_deleted = 0
+            INNER JOIN sh_employees e
+                ON e.user_id = ws.user_id
+               AND e.tenant_id = ws.tenant_id
+               AND e.is_deleted = 0
             WHERE ws.tenant_id = :tid
               AND ws.end_time IS NULL
         ";
@@ -172,7 +197,7 @@ class TeamPayrollEngine
         $count           = 0;
 
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $rate = (float)($row['hourly_rate'] ?? 0.0);
+            $rate = ((int)($row['rate_minor'] ?? 0)) / 100.0;
             $sec  = (int)($row['elapsed_seconds'] ?? 0);
             if ($sec < 0) {
                 $sec = 0;
