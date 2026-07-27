@@ -19,8 +19,15 @@
 -- Konstytucja v5 § Prawo II — Bliźniak Cyfrowy (real dependencies).
 -- =============================================================================
 
-ALTER TABLE sh_recipes
-    ADD COLUMN is_subrecipe       TINYINT(1) NOT NULL DEFAULT 0
-        COMMENT '1 = warehouse_sku wskazuje na ascii_key innej pozycji (półprodukt)',
-    ADD COLUMN subrecipe_yield    DECIMAL(10,4) NOT NULL DEFAULT 1.0000
-        COMMENT 'Liczba porcji z 1 batch półproduktu (np. 20 porcji sosu z 1 garnka)';
+SET @dbname = DATABASE();
+
+SELECT COUNT(*) INTO @col_exists FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'sh_recipes' AND COLUMN_NAME = 'is_subrecipe';
+SET @sql = IF(@col_exists = 0,
+  'ALTER TABLE sh_recipes
+     ADD COLUMN is_subrecipe       TINYINT(1) NOT NULL DEFAULT 0
+         COMMENT ''1 = warehouse_sku wskazuje na ascii_key innej pozycji (półprodukt)'',
+     ADD COLUMN subrecipe_yield    DECIMAL(10,4) NOT NULL DEFAULT 1.0000
+         COMMENT ''Liczba porcji z 1 batch półproduktu (np. 20 porcji sosu z 1 garnka)''',
+  'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;

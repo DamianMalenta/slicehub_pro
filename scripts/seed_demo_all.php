@@ -19,6 +19,7 @@ declare(strict_types=1);
 // =============================================================================
 
 require_once __DIR__ . '/../core/db_config.php';
+require_once __DIR__ . '/../core/Uuid.php';
 require_once __DIR__ . '/lib/seed_search_aliases.php';
 require_once __DIR__ . '/lib/seed_dish_visuals.php';
 
@@ -43,12 +44,9 @@ function seed(string $label, callable $fn): void {
     }
 }
 
-$uuid4 = function (): string {
-    $d = random_bytes(16);
-    $d[6] = chr((ord($d[6]) & 0x0f) | 0x40);
-    $d[8] = chr((ord($d[8]) & 0x3f) | 0x80);
-    return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($d), 4));
-};
+// Alias na SSOT — zachowany, bo skrypt przekazuje go przez `use ($uuid4)`
+// do kilkunastu closure'ów seedowych.
+$uuid4 = static fn(): string => Uuid::v4();
 
 // Known bcrypt hash of "password" — used for ALL test accounts
 $PW = '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi';
@@ -108,25 +106,37 @@ seed('Tenant + Settings', function ($pdo, $T) {
 // =============================================================================
 // 2. USERS — unique PINs, consistent roles
 // =============================================================================
+// Stawki godzinowe (int grosze) — Faza 4: źródłem prawdy jest sh_employee_rates,
+// NIE sh_users.hourly_rate (kolumna zdropowana w migracji 061).
+$HR_RATES_MINOR = [
+    'manager' => 2800,
+    'waiter1' => 2200,
+    'waiter2' => 2200,
+    'cook1'   => 2500,
+    'driver1' => 2000,
+    'driver2' => 2000,
+    'team1'   => 1950,
+];
+
 seed('Users (8 accounts)', function ($pdo, $T) use ($PW) {
     $users = [
-        [1, 'admin',   null,   'Administrator',   'Jan',    'Kowalski',  'owner',   0.00],
-        [2, 'manager', '0000', 'Kierownik Anna',  'Anna',   'Nowak',     'manager', 28.00],
-        [3, 'waiter1', '1111', 'Kelner Marek',    'Marek',  'Zieliński', 'waiter',  22.00],
-        [4, 'waiter2', '2222', 'Kelnerka Ola',    'Ola',    'Wójcik',    'waiter',  22.00],
-        [5, 'cook1',   '3333', 'Kucharz Piotr',   'Piotr',  'Mazur',     'cook',    25.00],
-        [6, 'driver1', '4444', 'Kierowca Tomek',  'Tomek',  'Kaczmarek', 'driver',  20.00],
-        [7, 'driver2', '5555', 'Kierowca Ania',   'Ania',   'Kowalczyk', 'driver',  20.00],
-        [8, 'team1',   '6666', 'Pracownik Asia',  'Asia',   'Dąbrowska', 'team',    19.50],
+        [1, 'admin',   null,   'Administrator',   'Jan',    'Kowalski',  'owner'],
+        [2, 'manager', '0000', 'Kierownik Anna',  'Anna',   'Nowak',     'manager'],
+        [3, 'waiter1', '1111', 'Kelner Marek',    'Marek',  'Zieliński', 'waiter'],
+        [4, 'waiter2', '2222', 'Kelnerka Ola',    'Ola',    'Wójcik',    'waiter'],
+        [5, 'cook1',   '3333', 'Kucharz Piotr',   'Piotr',  'Mazur',     'cook'],
+        [6, 'driver1', '4444', 'Kierowca Tomek',  'Tomek',  'Kaczmarek', 'driver'],
+        [7, 'driver2', '5555', 'Kierowca Ania',   'Ania',   'Kowalczyk', 'driver'],
+        [8, 'team1',   '6666', 'Pracownik Asia',  'Asia',   'Dąbrowska', 'team'],
     ];
     $stmt = $pdo->prepare(
-        "INSERT INTO sh_users (id, tenant_id, username, password_hash, pin_code, name, first_name, last_name, role, status, hourly_rate, is_active)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, 1)
+        "INSERT INTO sh_users (id, tenant_id, username, password_hash, pin_code, name, first_name, last_name, role, status, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', 1)
          ON DUPLICATE KEY UPDATE pin_code=VALUES(pin_code), name=VALUES(name), first_name=VALUES(first_name),
-           last_name=VALUES(last_name), role=VALUES(role), status='active', hourly_rate=VALUES(hourly_rate), is_active=1"
+           last_name=VALUES(last_name), role=VALUES(role), status='active', is_active=1"
     );
     foreach ($users as $u) {
-        $stmt->execute([$u[0], $T, $u[1], $PW, $u[2], $u[3], $u[4], $u[5], $u[6], $u[7]]);
+        $stmt->execute([$u[0], $T, $u[1], $PW, $u[2], $u[3], $u[4], $u[5], $u[6]]);
     }
     return count($users) . ' users upserted';
 });
@@ -234,52 +244,49 @@ seed('Price Tiers (items)', function ($pdo, $T) {
 // =============================================================================
 // 6. MODIFIER GROUPS + MODIFIERS + LINKS
 // =============================================================================
-seed('Modifiers (4 groups, 13 mods)', function ($pdo, $T) {
+seed('Modifiers (2 groups, 7 mods)', function ($pdo, $T) {
+    // Rozmiar pizzy i burgera obsługiwany przez warianty (variant_scale_options),
+    // nie jako modyfikatory. Grupy 1 i 4 usunięte — zostają Dodatki i Sosy.
     $pdo->exec("INSERT INTO sh_modifier_groups (id,tenant_id,name,ascii_key,min_selection,max_selection,free_limit) VALUES
-        (1,{$T},'Rozmiar pizzy','SIZE_PIZZA',1,1,0),
         (2,{$T},'Dodatki do pizzy','EXTRA_PIZZA',0,5,0),
-        (3,{$T},'Sosy','SAUCES',0,3,1),
-        (4,{$T},'Rozmiar burgera','SIZE_BURGER',1,1,0)
+        (3,{$T},'Sosy','SAUCES',0,3,1)
         ON DUPLICATE KEY UPDATE name=VALUES(name)");
 
+    // Usuń stare grupy rozmiarów jeśli istnieją (id 1 i 4)
+    $pdo->exec("DELETE FROM sh_modifier_groups WHERE tenant_id={$T} AND id IN (1,4)");
+    $pdo->exec("DELETE FROM sh_modifiers WHERE group_id IN (1,4)");
+    $pdo->exec("DELETE FROM sh_item_modifiers WHERE group_id IN (1,4)");
+    $pdo->exec("DELETE FROM sh_price_tiers WHERE tenant_id={$T} AND target_type='MODIFIER' AND target_sku IN ('SIZE_S','SIZE_M','SIZE_L','SIZE_XL','BURG_STD','BURG_DBL')");
+
     $pdo->exec("INSERT INTO sh_modifiers (id,group_id,name,ascii_key,action_type,price,is_default) VALUES
-        (1,1,'Mała (25cm)','SIZE_S','ADD',0.00,0),
-        (2,1,'Średnia (32cm)','SIZE_M','ADD',0.00,1),
-        (3,1,'Duża (40cm)','SIZE_L','ADD',6.00,0),
-        (4,1,'Rodzinna (50cm)','SIZE_XL','ADD',14.00,0),
         (5,2,'Podwójny ser','EXTRA_CHEESE','ADD',4.00,0),
         (6,2,'Jalapeno','EXTRA_JALAP','ADD',3.00,0),
         (7,2,'Oliwki','EXTRA_OLIVES','ADD',3.00,0),
         (8,2,'Szynka','EXTRA_HAM','ADD',5.00,0),
         (9,3,'Czosnkowy','SAUCE_GARLIC','ADD',2.00,0),
         (10,3,'BBQ','SAUCE_BBQ','ADD',2.00,0),
-        (11,3,'Ostry','SAUCE_HOT','ADD',2.00,0),
-        (12,4,'Standard','BURG_STD','ADD',0.00,1),
-        (13,4,'Double','BURG_DBL','ADD',8.00,0)
+        (11,3,'Ostry','SAUCE_HOT','ADD',2.00,0)
         ON DUPLICATE KEY UPDATE name=VALUES(name), price=VALUES(price)");
 
-    // Pizza items → size + extras, burger items → sauces + size
+    // Pizza items → dodatki, burger items → sosy
     $pdo->exec("INSERT IGNORE INTO sh_item_modifiers (item_id,group_id) VALUES
-        (1,1),(1,2),(2,1),(2,2),(3,1),(3,2),(4,1),(4,2),(5,1),(5,2),(6,1),(6,2),(7,1),(7,2),(8,1),(8,2),(9,1),(9,2),(10,1),(10,2),
-        (11,3),(11,4),(12,3),(12,4),(13,3),(13,4),(14,3),(14,4),(15,3),(15,4)");
+        (1,2),(2,2),(3,2),(4,2),(5,2),(6,2),(7,2),(8,2),(9,2),(10,2),
+        (11,3),(12,3),(13,3),(14,3),(15,3)");
 
     $pdo->exec("INSERT INTO sh_price_tiers (tenant_id,target_type,target_sku,channel,price) VALUES
-        ({$T},'MODIFIER','SIZE_S','POS',-4.00),({$T},'MODIFIER','SIZE_M','POS',0.00),
-        ({$T},'MODIFIER','SIZE_L','POS',6.00),({$T},'MODIFIER','SIZE_XL','POS',14.00),
         ({$T},'MODIFIER','EXTRA_CHEESE','POS',4.00),({$T},'MODIFIER','EXTRA_JALAP','POS',3.00),
         ({$T},'MODIFIER','EXTRA_OLIVES','POS',3.00),({$T},'MODIFIER','EXTRA_HAM','POS',5.00),
         ({$T},'MODIFIER','SAUCE_GARLIC','POS',2.00),({$T},'MODIFIER','SAUCE_BBQ','POS',2.00),
-        ({$T},'MODIFIER','SAUCE_HOT','POS',2.00),({$T},'MODIFIER','BURG_STD','POS',0.00),
-        ({$T},'MODIFIER','BURG_DBL','POS',8.00)
+        ({$T},'MODIFIER','SAUCE_HOT','POS',2.00)
         ON DUPLICATE KEY UPDATE price=VALUES(price)");
 
-    return '4 groups, 13 modifiers, 30 links';
+    return '2 groups (Dodatki + Sosy), 7 modifiers, 15 links';
 });
 
 // =============================================================================
 // 7. WAREHOUSE — sys_items + wh_stock
 // =============================================================================
-seed('Warehouse (43 items + stock)', function ($pdo, $T) {
+seed('Warehouse (47 items + stock)', function ($pdo, $T) {
     $items = [
         ['MKA_TIPO00','Mąka Caputo Tipo 00','kg',50.0,3.85],
         ['SER_MOZZ','Ser Mozzarella Fior di Latte','kg',18.5,28.50],
@@ -322,6 +329,10 @@ seed('Warehouse (43 items + stock)', function ($pdo, $T) {
         ['SMIETANKA_30','Śmietanka 30%','l',6.0,8.00],
         ['CUKIER','Cukier biały','kg',5.0,4.00],
         ['BAZYLIA_SW','Bazylia świeża (doniczka)','szt',10.0,4.50],
+        ['PAPRYKA','Papryka świeża (czerwona/zielona)','kg',4.0,12.00],
+        ['JAJKO','Jajka kurze (karton 30szt)','szt',60.0,0.40],
+        ['BOCZEK','Boczek surowy wędzony','kg',3.0,24.00],
+        ['KOTLET_WEG','Kotlet warzywny (sojowy)','szt',40.0,3.50],
         ['OPAK_PIZZA','Opakowanie karton pizza 32cm','szt',200.0,1.20],
         ['OPAK_BURGER','Opakowanie styro burger','szt',150.0,0.80],
     ];
@@ -360,7 +371,10 @@ seed('Recipes (menu → warehouse)', function ($pdo, $T) {
     // Usuń stare linie demo — unikaj FK na nieistniejące ascii_key po zmianie menu
     $demoMenuSkus = [
         'PIZZA_MARGHERITA','PIZZA_PEPPERONI','PIZZA_CAPRICCIOSA','PIZZA_HAWAJSKA','PIZZA_4FORMAGGI',
-        'BURGER_CLASSIC','PASTA_BOLOGNESE','SALAD_CAESAR','SIDE_FRIES',
+        'PIZZA_DIAVOLA','PIZZA_VEGETARIANA','PIZZA_BBQ_CHICKEN','PIZZA_PROSC_FUNGHI','PIZZA_CALZONE',
+        'BURGER_CLASSIC','BURGER_CHEESE','BURGER_BBQ','BURGER_CHICKEN','BURGER_VEGGIE',
+        'PASTA_BOLOGNESE','PASTA_CARBONARA','PASTA_LASAGNE',
+        'SALAD_CAESAR','SALAD_GREEK','SIDE_FRIES',
     ];
     $ph = implode(',', array_fill(0, count($demoMenuSkus), '?'));
     $del = $pdo->prepare(
@@ -374,9 +388,21 @@ seed('Recipes (menu → warehouse)', function ($pdo, $T) {
         ['PIZZA_CAPRICCIOSA','MKA_TIPO00',0.25,2],['PIZZA_CAPRICCIOSA','SER_MOZZ',0.18,0],['PIZZA_CAPRICCIOSA','SOS_POM',0.10,0],['PIZZA_CAPRICCIOSA','SZYNKA_PARM',0.06,0],['PIZZA_CAPRICCIOSA','PIECZARKI',0.05,0],['PIZZA_CAPRICCIOSA','OPAK_PIZZA',1.0,0,1],
         ['PIZZA_HAWAJSKA','MKA_TIPO00',0.25,2],['PIZZA_HAWAJSKA','SER_MOZZ',0.18,0],['PIZZA_HAWAJSKA','SOS_POM',0.10,0],['PIZZA_HAWAJSKA','SZYNKA_PARM',0.06,0],['PIZZA_HAWAJSKA','ANANAS',0.06,0],['PIZZA_HAWAJSKA','OPAK_PIZZA',1.0,0,1],
         ['PIZZA_4FORMAGGI','MKA_TIPO00',0.25,2],['PIZZA_4FORMAGGI','SER_MOZZ',0.12,0],['PIZZA_4FORMAGGI','SER_GORG',0.05,0],['PIZZA_4FORMAGGI','SER_PARM',0.04,0],['PIZZA_4FORMAGGI','SER_CHEDDAR',0.04,0],['PIZZA_4FORMAGGI','OPAK_PIZZA',1.0,0,1],
+        ['PIZZA_DIAVOLA','MKA_TIPO00',0.25,2],['PIZZA_DIAVOLA','SER_MOZZ',0.18,0],['PIZZA_DIAVOLA','SOS_POM',0.10,0],['PIZZA_DIAVOLA','PEPP_SALAMI',0.08,0],['PIZZA_DIAVOLA','SOS_OSTRY',0.03,0],['PIZZA_DIAVOLA','OPAK_PIZZA',1.0,0,1],
+        ['PIZZA_VEGETARIANA','MKA_TIPO00',0.25,2],['PIZZA_VEGETARIANA','SER_MOZZ',0.18,0],['PIZZA_VEGETARIANA','SOS_POM',0.10,0],['PIZZA_VEGETARIANA','PIECZARKI',0.05,0],['PIZZA_VEGETARIANA','PAPRYKA',0.04,0],['PIZZA_VEGETARIANA','CEBULA',0.03,0],['PIZZA_VEGETARIANA','OPAK_PIZZA',1.0,0,1],
+        ['PIZZA_BBQ_CHICKEN','MKA_TIPO00',0.25,2],['PIZZA_BBQ_CHICKEN','SER_MOZZ',0.18,0],['PIZZA_BBQ_CHICKEN','SOS_BBQ',0.08,0],['PIZZA_BBQ_CHICKEN','KURCZAK',0.08,0],['PIZZA_BBQ_CHICKEN','CEBULA',0.03,0],['PIZZA_BBQ_CHICKEN','OPAK_PIZZA',1.0,0,1],
+        ['PIZZA_PROSC_FUNGHI','MKA_TIPO00',0.25,2],['PIZZA_PROSC_FUNGHI','SER_MOZZ',0.18,0],['PIZZA_PROSC_FUNGHI','SOS_POM',0.10,0],['PIZZA_PROSC_FUNGHI','SZYNKA_PARM',0.06,0],['PIZZA_PROSC_FUNGHI','PIECZARKI',0.05,0],['PIZZA_PROSC_FUNGHI','OPAK_PIZZA',1.0,0,1],
+        ['PIZZA_CALZONE','MKA_TIPO00',0.25,2],['PIZZA_CALZONE','SER_MOZZ',0.18,0],['PIZZA_CALZONE','SOS_POM',0.10,0],['PIZZA_CALZONE','SZYNKA_PARM',0.06,0],['PIZZA_CALZONE','PIECZARKI',0.05,0],['PIZZA_CALZONE','JAJKO',0.02,0],['PIZZA_CALZONE','OPAK_PIZZA',1.0,0,1],
         ['BURGER_CLASSIC','WOLOWINA_M',0.18,3],['BURGER_CLASSIC','BULKA_BURG',1.0,0],['BURGER_CLASSIC','SALATA_RZY',0.03,0],['BURGER_CLASSIC','POMIDOR',0.04,0],['BURGER_CLASSIC','CEBULA',0.02,0],['BURGER_CLASSIC','OPAK_BURGER',1.0,0,1],
+        ['BURGER_CHEESE','WOLOWINA_M',0.18,3],['BURGER_CHEESE','BULKA_BURG',1.0,0],['BURGER_CHEESE','SER_CHEDDAR',0.05,0],['BURGER_CHEESE','SALATA_RZY',0.03,0],['BURGER_CHEESE','POMIDOR',0.04,0],['BURGER_CHEESE','OPAK_BURGER',1.0,0,1],
+        ['BURGER_BBQ','WOLOWINA_M',0.18,3],['BURGER_BBQ','BULKA_BURG',1.0,0],['BURGER_BBQ','SOS_BBQ',0.04,0],['BURGER_BBQ','CEBULA',0.03,0],['BURGER_BBQ','KURCZAK',0.08,0],['BURGER_BBQ','OPAK_BURGER',1.0,0,1],
+        ['BURGER_CHICKEN','KURCZAK',0.15,3],['BURGER_CHICKEN','BULKA_BURG',1.0,0],['BURGER_CHICKEN','SALATA_RZY',0.03,0],['BURGER_CHICKEN','POMIDOR',0.04,0],['BURGER_CHICKEN','SOS_CZOSN',0.03,0],['BURGER_CHICKEN','OPAK_BURGER',1.0,0,1],
+        ['BURGER_VEGGIE','KOTLET_WEG',0.15,3],['BURGER_VEGGIE','BULKA_BURG',1.0,0],['BURGER_VEGGIE','SALATA_RZY',0.03,0],['BURGER_VEGGIE','POMIDOR',0.04,0],['BURGER_VEGGIE','CEBULA',0.02,0],['BURGER_VEGGIE','OPAK_BURGER',1.0,0,1],
         ['PASTA_BOLOGNESE','MAKARON_SPAG',0.15,0],['PASTA_BOLOGNESE','WOLOWINA_M',0.12,3],['PASTA_BOLOGNESE','SOS_POM',0.12,0],['PASTA_BOLOGNESE','CEBULA',0.03,0],
+        ['PASTA_CARBONARA','MAKARON_PENN',0.15,0],['PASTA_CARBONARA','BOCZEK',0.08,0],['PASTA_CARBONARA','SER_PARM',0.04,0],['PASTA_CARBONARA','JAJKO',0.04,0],
+        ['PASTA_LASAGNE','MAKARON_LAS',0.10,0],['PASTA_LASAGNE','WOLOWINA_M',0.12,3],['PASTA_LASAGNE','SOS_POM',0.10,0],['PASTA_LASAGNE','SER_MOZZ',0.10,0],['PASTA_LASAGNE','SER_PARM',0.03,0],
         ['SALAD_CAESAR','SALATA_RZY',0.15,5],['SALAD_CAESAR','KURCZAK',0.10,0],['SALAD_CAESAR','SER_PARM',0.03,0],['SALAD_CAESAR','OLJ_OLIWA',0.02,0],
+        ['SALAD_GREEK','FETA',0.08,0],['SALAD_GREEK','POMIDOR',0.08,0],['SALAD_GREEK','OGOREK_KIS',0.06,0],['SALAD_GREEK','CEBULA',0.03,0],['SALAD_GREEK','OLJ_OLIWA',0.02,0],
         ['SIDE_FRIES','FRYTKI_MRZ',0.25,5],
     ];
     $chk = $pdo->prepare(
@@ -881,7 +907,7 @@ seed('Work Sessions', function ($pdo, $T) use ($uuid4) {
 //  seed tworzy userów później, więc profile HR domykamy tutaj — bez nich
 //  payroll po Fazie 4 nie ma z czego liczyć)
 // =============================================================================
-seed('HR employees + rates', function ($pdo, $T) {
+seed('HR employees + rates', function ($pdo, $T) use ($HR_RATES_MINOR) {
     $tables = $pdo->query("SHOW TABLES LIKE 'sh_employees'")->fetchAll();
     if ($tables === []) {
         return 'skipped (migracja 041 nieprzyjęta)';
@@ -904,25 +930,298 @@ seed('HR employees + rates', function ($pdo, $T) {
           )
     ")->execute([$T]);
 
-    $pdo->prepare("
+    // Stawki z mapy PHP (username → grosze) — bez odczytu z sh_users (kolumna
+    // hourly_rate zdropowana w migracji 061; sh_employee_rates = SSOT stawek).
+    $rateStmt = $pdo->prepare("
         INSERT INTO sh_employee_rates
             (tenant_id, employee_id, rate_type, amount_minor, currency,
              effective_from, effective_to, reason, note)
-        SELECT e.tenant_id, e.id, 'hourly', CAST(ROUND(u.hourly_rate * 100) AS UNSIGNED), 'PLN',
+        SELECT e.tenant_id, e.id, 'hourly', ?, 'PLN',
                TIMESTAMP(e.hire_date, '00:00:00'), NULL, 'hiring', 'Seed demo'
         FROM sh_employees e
         INNER JOIN sh_users u ON u.id = e.user_id AND u.tenant_id = e.tenant_id
-        WHERE e.tenant_id = ? AND e.is_deleted = 0 AND u.hourly_rate > 0
+        WHERE e.tenant_id = ? AND e.is_deleted = 0 AND u.username = ?
           AND NOT EXISTS (
               SELECT 1 FROM sh_employee_rates r
               WHERE r.tenant_id = e.tenant_id AND r.employee_id = e.id AND r.rate_type = 'hourly'
           )
-    ")->execute([$T]);
+    ");
+    foreach ($HR_RATES_MINOR as $username => $amountMinor) {
+        if ($amountMinor > 0) {
+            $rateStmt->execute([$amountMinor, $T, $username]);
+        }
+    }
 
     $cnt = $pdo->prepare('SELECT COUNT(*) FROM sh_employees WHERE tenant_id = ? AND is_deleted = 0');
     $cnt->execute([$T]);
 
     return $cnt->fetchColumn() . ' profili HR ze stawkami';
+});
+
+// =============================================================================
+// 14b. RESTAURANT ZONES + TABLES (POS floor-plan)
+// =============================================================================
+seed('Restaurant zones + tables (10)', function ($pdo, $T) {
+    try {
+        $pdo->query('SELECT 1 FROM sh_zones LIMIT 0');
+    } catch (Throwable $e) {
+        return 'Pominięto — uruchom apply_migrations_chain.php (037+)';
+    }
+
+    $pdo->exec("INSERT INTO sh_zones (id, tenant_id, name, display_order, is_active) VALUES
+        (1, {$T}, 'Sala Główna', 1, 1),
+        (2, {$T}, 'Taras', 2, 1),
+        (3, {$T}, 'Loft', 3, 1)
+        ON DUPLICATE KEY UPDATE name=VALUES(name), display_order=VALUES(display_order), is_active=1");
+
+    $tables = [
+        [1,  1, '1',  4, 'square',    120,  80],
+        [2,  1, '2',  4, 'square',    220,  80],
+        [3,  1, '3',  6, 'rectangle', 120, 180],
+        [4,  1, '4',  2, 'round',     220, 180],
+        [5,  1, '5',  4, 'square',    120, 280],
+        [6,  1, '6',  8, 'rectangle', 220, 280],
+        [7,  2, 'T1', 4, 'square',     400,  80],
+        [8,  2, 'T2', 4, 'square',     500,  80],
+        [9,  3, 'L1', 2, 'round',      400, 280],
+        [10, 3, 'L2', 6, 'rectangle',  500, 280],
+    ];
+    $stmt = $pdo->prepare(
+        "INSERT INTO sh_tables (id, tenant_id, zone_id, table_number, seats, shape, pos_x, pos_y, physical_status, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'free', 1)
+         ON DUPLICATE KEY UPDATE zone_id=VALUES(zone_id), seats=VALUES(seats), shape=VALUES(shape),
+           pos_x=VALUES(pos_x), pos_y=VALUES(pos_y), is_active=1"
+    );
+    foreach ($tables as $t) {
+        $stmt->execute([$t[0], $T, $t[1], $t[2], $t[3], $t[4], $t[5], $t[6]]);
+    }
+    return '3 strefy, 10 stołów';
+});
+
+// =============================================================================
+// 14c. DELIVERY ZONES (poligon Poznań)
+// =============================================================================
+seed('Delivery zones (3)', function ($pdo, $T) {
+    try {
+        $pdo->query('SELECT 1 FROM sh_delivery_zones LIMIT 0');
+    } catch (Throwable $e) {
+        return 'Pominięto — brak tabeli sh_delivery_zones';
+    }
+
+    // POLYGON — przybliżone obszary dostawy w Poznaniu (SRID 4326)
+    $zones = [
+        [1, 'Centrum (2km)',   'POLYGON((16.9100 52.4200, 16.9600 52.4200, 16.9600 52.3900, 16.9100 52.3900, 16.9100 52.4200))'],
+        [2, 'Winogrady (4km)', 'POLYGON((16.9200 52.4500, 16.9700 52.4500, 16.9700 52.4200, 16.9200 52.4200, 16.9200 52.4500))'],
+        [3, 'Grunwald (5km)',  'POLYGON((16.8800 52.4000, 16.9300 52.4000, 16.9300 52.3700, 16.8800 52.3700, 16.8800 52.4000))'],
+    ];
+    foreach ($zones as $z) {
+        try {
+            $pdo->prepare(
+                "INSERT INTO sh_delivery_zones (id, tenant_id, name, zone_polygon)
+                 VALUES (?, ?, ?, ST_GeomFromText(?))
+                 ON DUPLICATE KEY UPDATE name=VALUES(name), zone_polygon=ST_GeomFromText(VALUES(zone_polygon))"
+            )->execute([$z[0], $T, $z[1], $z[2]]);
+        } catch (Throwable $e) {
+            // MariaDB 10.4 — fallback: UPDATE tylko name, pomiń poligon
+            $pdo->prepare(
+                "INSERT INTO sh_delivery_zones (id, tenant_id, name, zone_polygon)
+                 VALUES (?, ?, ?, ST_GeomFromText(?))
+                 ON DUPLICATE KEY UPDATE name=VALUES(name)"
+            )->execute([$z[0], $T, $z[1], $z[2]]);
+        }
+    }
+    return '3 strefy dostawy (Centrum, Winogrady, Grunwald)';
+});
+
+// =============================================================================
+// 14d. VARIANT SCALES (rozmiary pizzy + burgera)
+// =============================================================================
+seed('Variant scales (2 scales, 7 options)', function ($pdo, $T) {
+    try {
+        $pdo->query('SELECT 1 FROM sh_variant_scales LIMIT 0');
+    } catch (Throwable $e) {
+        return 'Pominięto — uruchom apply_migrations_chain.php (048)';
+    }
+
+    $pdo->exec("INSERT INTO sh_variant_scales (id, tenant_id, name, key_ascii, description, is_active) VALUES
+        (1, {$T}, 'Rozmiary Pizzy', 'SCALE_PIZZA', 'Mała / Średnia / Duża / Rodzinna', 1),
+        (2, {$T}, 'Rozmiar Burgera', 'SCALE_BURGER', 'Standard / Double', 1)
+        ON DUPLICATE KEY UPDATE name=VALUES(name), description=VALUES(description), is_active=1");
+
+    $options = [
+        // scale_id, tenant_id, name, key_ascii, display_order, diameter_cm, multiplier, is_default
+        [1, $T, 'Mała (25cm)',    'S',  1, 25, 0.700, 0],
+        [1, $T, 'Średnia (32cm)', 'M',  2, 32, 1.000, 1],
+        [1, $T, 'Duża (40cm)',    'L',  3, 40, 1.300, 0],
+        [1, $T, 'Rodzinna (50cm)','XL', 4, 50, 1.800, 0],
+        [2, $T, 'Standard',      'STD',1, null, 1.000, 1],
+        [2, $T, 'Double',        'DBL',2, null, 1.600, 0],
+    ];
+    $stmt = $pdo->prepare(
+        "INSERT INTO sh_variant_scale_options (scale_id, tenant_id, name, key_ascii, display_order, diameter_cm, multiplier, is_default)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE name=VALUES(name), display_order=VALUES(display_order),
+           diameter_cm=VALUES(diameter_cm), multiplier=VALUES(multiplier), is_default=VALUES(is_default)"
+    );
+    foreach ($options as $o) {
+        $stmt->execute([$o[0], $o[1], $o[2], $o[3], $o[4], $o[5], $o[6], $o[7]]);
+    }
+
+    // Powiąż pizzę ze skalą — jako variant parent (ukryte z POS, is_variant_parent=1)
+    $hasVariantCols = false;
+    try {
+        $pdo->query('SELECT variant_scale_id FROM sh_menu_items LIMIT 0');
+        $hasVariantCols = true;
+    } catch (Throwable $e) {}
+
+    if ($hasVariantCols) {
+        $pdo->exec("UPDATE sh_menu_items SET variant_scale_id = 1, is_variant_parent = 1
+                     WHERE tenant_id = {$T} AND ascii_key = 'PIZZA_MARGHERITA'");
+        $pdo->exec("UPDATE sh_menu_items SET variant_scale_id = 1, is_variant_parent = 1
+                     WHERE tenant_id = {$T} AND ascii_key = 'PIZZA_PEPPERONI'");
+        $pdo->exec("UPDATE sh_menu_items SET variant_scale_id = 2, is_variant_parent = 1
+                     WHERE tenant_id = {$T} AND ascii_key = 'BURGER_CLASSIC'");
+
+        // Stwórz child itemy per rozmiar — one są widoczne w POS (is_variant_parent=0).
+        // Frontend grupuje po parentAsciiKey → pokazuje 1 kafelek →
+        // klik → dish card z przełącznikiem rozmiarów.
+        // Pizza: 4 rozmiary (S/M/L/XL), Burger: 2 rozmiary (STD/DBL).
+        $pizzaParents = [
+            ['PIZZA_MARGHERITA', 1, 24, 'PIZZA'],  // ascii_key, parent_menu_id, base_pos_price, kds_station
+            ['PIZZA_PEPPERONI',  2, 28, 'PIZZA'],
+        ];
+        $pizzaSizes = [
+            ['S',  1, 0.700],   // option_key, option_id, multiplier
+            ['M',  2, 1.000],
+            ['L',  3, 1.300],
+            ['XL', 4, 1.800],
+        ];
+        $burgerParents = [
+            ['BURGER_CLASSIC', 11, 22, 'GRILL'],
+        ];
+        $burgerSizes = [
+            ['STD', 5, 1.000],
+            ['DBL', 6, 1.600],
+        ];
+
+        $stmtChild = $pdo->prepare(
+            "INSERT INTO sh_menu_items (id, tenant_id, category_id, name, ascii_key, `type`, is_active,
+                display_order, publication_status, vat_rate_dine_in, vat_rate_takeaway, kds_station_id,
+                variant_scale_id, is_variant_parent, parent_item_id, variant_option_id)
+             VALUES (?,?,1,?,?, 'standard', 1, ?, 'Live', 8.00, 5.00, ?,
+                ?, 0, ?, ?)
+             ON DUPLICATE KEY UPDATE
+                name=VALUES(name), parent_item_id=VALUES(parent_item_id),
+                variant_option_id=VALUES(variant_option_id), is_variant_parent=0,
+                is_active=1, publication_status='Live'"
+        );
+        $stmtPrice = $pdo->prepare(
+            "INSERT INTO sh_price_tiers (tenant_id, target_type, target_sku, channel, price)
+             VALUES (?, 'ITEM', ?, 'POS', ?)
+             ON DUPLICATE KEY UPDATE price=VALUES(price)"
+        );
+
+        $childCount = 0;
+        $childId = 100;
+
+        // Pizza children (IDs 100-107)
+        foreach ($pizzaParents as $p) {
+            foreach ($pizzaSizes as $sz) {
+                $childSku = $p[0] . '_' . $sz[0];
+                $childName = str_replace('PIZZA_', '', $p[0]) . ' ' . $sz[0];
+                $childPrice = round($p[2] * $sz[2], 2);
+                $stmtChild->execute([$childId, $T, $childName, $childSku, $childId, $p[3], 1, $p[1], $sz[1]]);
+                $stmtPrice->execute([$T, $childSku, $childPrice]);
+                $childId++;
+                $childCount++;
+            }
+        }
+
+        // Burger children (IDs 108-109)
+        foreach ($burgerParents as $p) {
+            foreach ($burgerSizes as $sz) {
+                $childSku = $p[0] . '_' . $sz[0];
+                $childName = str_replace('BURGER_', '', $p[0]) . ' ' . $sz[0];
+                $childPrice = round($p[2] * $sz[2], 2);
+                $stmtChild->execute([$childId, $T, $childName, $childSku, $childId, $p[3], 2, $p[1], $sz[1]]);
+                $stmtPrice->execute([$T, $childSku, $childPrice]);
+                $childId++;
+                $childCount++;
+            }
+        }
+
+        // Skopiuj linki modifierów z parenta na dzieci — dish card filtruje
+        // po item.id w sh_item_modifiers, więc bez tego dzieci nie mają dodatków.
+        $parentModLinks = $pdo->prepare(
+            "SELECT group_id FROM sh_item_modifiers WHERE item_id = ?"
+        );
+        $insModLink = $pdo->prepare(
+            "INSERT IGNORE INTO sh_item_modifiers (item_id, group_id) VALUES (?, ?)"
+        );
+
+        // Pizza children: linki z parenta (grupa 2 = Dodatki)
+        $childId = 100;
+        foreach ($pizzaParents as $p) {
+            $parentModLinks->execute([$p[1]]);
+            $groupIds = $parentModLinks->fetchAll(PDO::FETCH_COLUMN);
+            foreach ($pizzaSizes as $sz) {
+                foreach ($groupIds as $gid) {
+                    $insModLink->execute([$childId, $gid]);
+                }
+                $childId++;
+            }
+        }
+
+        // Burger children: linki z parenta (grupa 3 = Sosy)
+        foreach ($burgerParents as $p) {
+            $parentModLinks->execute([$p[1]]);
+            $groupIds = $parentModLinks->fetchAll(PDO::FETCH_COLUMN);
+            foreach ($burgerSizes as $sz) {
+                foreach ($groupIds as $gid) {
+                    $insModLink->execute([$childId, $gid]);
+                }
+                $childId++;
+            }
+        }
+
+        return "2 skale, 3 parents (2 pizza + 1 burger) + {$childCount} children z cenami + modifierami";
+    }
+
+    return '2 skale (bez children — brak kolumn variant w sh_menu_items)';
+});
+
+// =============================================================================
+// 14e. PRINT DECKS (Wachlarz A5 — demo dla tenant 1)
+// =============================================================================
+seed('Print decks (1 demo deck)', function ($pdo, $T) {
+    try {
+        $pdo->query('SELECT 1 FROM sh_print_decks LIMIT 0');
+    } catch (Throwable $e) {
+        return 'Pominięto — uruchom apply_migrations_chain.php (060)';
+    }
+
+    $pdo->exec("INSERT INTO sh_print_decks (id, tenant_id, ascii_key, name, status, brand, notes) VALUES
+        (1, {$T}, 'DEMO_WACHLARZ_V1', 'Wachlarz Demo A5', 'ready', 'SliceHub Demo',
+         'Kuratorowana karta drukowana A5 — demo dla tenant 1')
+        ON DUPLICATE KEY UPDATE name=VALUES(name), status=VALUES(status), brand=VALUES(brand)");
+
+    $cards = [
+        [1, $T, 1, 'cover',       0, '{"title":"SliceHub Pizzeria","subtitle":"Najlepsza pizza w mieście","bg_color":"#1a1a2e"}'],
+        [2, $T, 1, 'hero_duo',    1, '{"title":"Polecamy","item_1":"PIZZA_MARGHERITA","price_1":"24 zł","item_2":"PIZZA_PEPPERONI","price_2":"28 zł"}'],
+        [3, $T, 1, 'hero_sizes',  2, '{"title":"Rozmiary pizzy","sizes":["Mała 25cm","Średnia 32cm","Duża 40cm","Rodzinna 50cm"],"ascii_key":"SCALE_PIZZA"}'],
+        [4, $T, 1, 'hero_list',   3, '{"title":"Menu","items":[{"name":"Margherita","price":"24 zł"},{"name":"Pepperoni","price":"28 zł"},{"name":"Capricciosa","price":"30 zł"},{"name":"BBQ Chicken","price":"32 zł"}]}'],
+        [5, $T, 1, 'cta',         4, '{"title":"Zamów teraz","phone":"500-100-200","website":"slicehub.pl"}'],
+    ];
+    $stmt = $pdo->prepare(
+        "INSERT INTO sh_print_deck_cards (id, tenant_id, deck_id, card_key, card_type, sort_order, payload_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE card_type=VALUES(card_type), sort_order=VALUES(sort_order), payload_json=VALUES(payload_json)"
+    );
+    $cardKeys = ['cover', 'hero_duo_pizzas', 'hero_sizes_pizza', 'hero_list_menu', 'cta_order'];
+    foreach ($cards as $i => $c) {
+        $stmt->execute([$c[0], $c[1], $c[2], $cardKeys[$i], $c[3], $c[4], $c[5]]);
+    }
+    return '1 deck (5 kart: cover, hero_duo, hero_sizes, hero_list, cta)';
 });
 
 // =============================================================================

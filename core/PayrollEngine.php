@@ -193,6 +193,14 @@ class PayrollEngine
      * dacie zdarzenia: `sh_work_sessions.start_time` dla accrualu godzin,
      * `created_at` dla pozostałych wpisów.
      *
+     * WYJĄTEK (wpisy księgowane wstecz): rata zaliczki spłacana przy zamknięciu
+     * miesiąca ma `period = M`, ale `created_at` już w M+1 (zamknąć można tylko
+     * miesiąc zakończony). Filtr po dacie wycinałby ją z raportu M, a klucz
+     * miesięczny z raportu M+1 — czyli znikałaby zupełnie i zawyżała `payout`.
+     * Dlatego wpisy, których `period` != miesiąc `created_at`, kwalifikuje sam
+     * klucz okresu (dla okna tygodniowego trafiają do każdego tygodnia tego
+     * miesiąca — nie mają dnia zdarzenia, więc precyzyjniej się nie da).
+     *
      * `reversal` dziedziczy semantykę wpisu, który odwraca (`reverses_entry_id`) —
      * inaczej odwrócenie voidowanej zaliczki (kwota ujemna) trafiłoby do potrąceń
      * i zaniżyło netto. Grupowanie po typie efektywnym powoduje, że reversal
@@ -250,7 +258,11 @@ class PayrollEngine
             WHERE l.tenant_id = ?
               AND l.employee_id = ?
               AND (l.period_year, l.period_month) IN ({$monthPh})
-              AND COALESCE(ws.start_time, l.created_at) BETWEEN ? AND ?
+              AND (
+                    COALESCE(ws.start_time, l.created_at) BETWEEN ? AND ?
+                 OR l.period_year  <> YEAR(l.created_at)
+                 OR l.period_month <> MONTH(l.created_at)
+              )
             GROUP BY COALESCE(orig.entry_type, l.entry_type)
         ");
         $stmt->execute($params);

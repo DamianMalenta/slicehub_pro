@@ -21,10 +21,26 @@ declare(strict_types=1);
  *   3. Brak → event delivered jako no-op (pracownik może nie być rozliczany godzinowo,
  *      np. owner, B2B kontraktor — to NIE jest błąd).
  *
+ * HR-6 — ALOKACJA MIĘDZYOKRESOWA (2026-07-27, w pełni automatyczna):
+ *   - Sesja przecinająca koniec miesiąca (np. 31.07 22:00 → 01.08 06:00) jest cięta przez
+ *     `PayrollAllocator::splitByPeriod()` na segmenty per okres rozliczeniowy.
+ *   - Zarobek dzielony proporcjonalnie do SEKUND metodą największych reszt — suma
+ *     segmentów jest DOKŁADNIE równa kwocie całkowitej (zero groszowego wycieku).
+ *   - Manager nie robi nic: worker zapisuje dwa wpisy `work_earnings` sam.
+ *   - Sesja w obrębie jednego miesiąca (przypadek dominujący) → jeden wpis, wynik
+ *     bit w bit taki jak przed wprowadzeniem alokacji.
+ *
+ * OKRES ZAMKNIĘTY:
+ *   - Jeśli segment trafia w okres z `is_locked=1`, wpis jest przesuwany do najbliższego
+ *     OTWARTEGO okresu (standard księgowy — patrz §12.4), z jawną adnotacją w `description`
+ *     mówiącą, jakiego okresu praca dotyczy. Pieniądze nigdy nie giną po cichu.
+ *
  * IDEMPOTENCY:
- *   - `entry_uuid` ledgera = `session_uuid` sesji. Retry eventu → ledger zwraca istniejące id.
- *   - Okres rozliczeniowy wpisu: `start_time.year/month` (HR-6 midnight-crossing allocation —
- *     TODO Faza 4: `fn_allocate_hours` dla rozbicia sesji na 2 okresy).
+ *   - Segment #0: `entry_uuid` = `session_uuid` (zgodność wsteczna z wpisami sprzed HR-6).
+ *   - Segment #N>0: `Uuid::deterministic('ws-split-{session_uuid}-{N}')`.
+ *   - Retry eventu → ledger zwraca istniejące id per segment, bez duplikatu.
+ *   - UUID nie zależy od okresu docelowego, więc przesunięcie z tytułu locka nie łamie
+ *     idempotencji.
  *
  * CROSS-SILO: worker czyta outbox (shared infra) + `sh_work_sessions` + `sh_employee_rates`
  * (tego samego silosu) + pisze do `sh_payroll_ledger` (tego samego silosu). Zero naruszenia §9.
@@ -34,6 +50,8 @@ declare(strict_types=1);
  */
 
 require_once dirname(__DIR__) . '/core/db_config.php';
+require_once dirname(__DIR__) . '/core/Uuid.php';
+require_once dirname(__DIR__) . '/core/PayrollAllocator.php';
 require_once dirname(__DIR__) . '/core/PayrollLedger.php';
 /** @var PDO $pdo */
 
@@ -56,6 +74,8 @@ $HALF_UP_OFFSET         = (int)($HOURS_SCALE / 2);
 $stats = [
     'processed'     => 0,
     'accrued'       => 0,
+    'split_sessions' => 0,   // HR-6: sesje rozbite na >1 okres
+    'deferred_entries' => 0, // segmenty przesunięte z zamkniętego okresu
     'skipped_zero_hours' => 0,
     'skipped_no_rate'    => 0,
     'failed'        => 0,
@@ -158,6 +178,35 @@ function decimalToScaledInt(string $dec, int $decimals): int
     $scaled = ltrim($intPart . $fracPart, '0');
     $scaled = $scaled === '' ? '0' : $scaled;
     return $sign * (int)$scaled;
+}
+
+/**
+ * Zwraca najbliższy OTWARTY okres rozliczeniowy, zaczynając od (year, month).
+ *
+ * Okres zamknięty (`is_locked=1`) nie przyjmuje nowych wpisów — `PayrollLedger::record()`
+ * rzuciłoby `ERR_PERIOD_LOCKED`. Zamiast gubić zarobek albo zrzucać robotę na managera,
+ * przesuwamy wpis do przodu (standard księgowy — §12.4 dokumentacji HR).
+ *
+ * @return array{0:int, 1:int, 2:bool} [year, month, czyPrzesunięty]
+ * @throws \RuntimeException gdy wszystkie okresy w horyzoncie są zamknięte
+ */
+function resolveOpenPeriod(PDO $pdo, int $tenantId, int $year, int $month): array
+{
+    $y = $year;
+    $m = $month;
+
+    for ($i = 0; $i < 24; $i++) {
+        if (!PayrollLedger::isPeriodLocked($pdo, $tenantId, $y, $m)) {
+            return [$y, $m, $i > 0];
+        }
+        $m++;
+        if ($m > 12) { $m = 1; $y++; }
+    }
+
+    // Nie wyciszamy — event pójdzie w retry, a potem 'dead' z czytelną przyczyną.
+    throw new \RuntimeException(
+        'ALL_PERIODS_LOCKED (from ' . sprintf('%04d-%02d', $year, $month) . ')'
+    );
 }
 
 function markEventOutcome(PDO $pdo, int $eventId, string $finalStatus, ?string $error, int $attempts): void
@@ -270,33 +319,76 @@ foreach ($events as $ev) {
             continue;
         }
 
-        // Okres = start_time miesiąc (HR-6 allocation TODO Faza 4)
-        $startTs = strtotime((string)$session['start_time']);
-        $pYear   = (int)date('Y', $startTs);
-        $pMonth  = (int)date('n', $startTs);
+        // ---- HR-6: rozbicie sesji na okresy rozliczeniowe ----------------
+        // Segmenty liczone z realnego przedziału [start, end), nie z miesiąca startu.
+        $segments = PayrollAllocator::splitByPeriod(
+            (string)$session['start_time'],
+            (string)$session['end_time']
+        );
+        if (!$segments) {
+            // end <= start — total_hours skłamał; nie zgadujemy.
+            throw new \RuntimeException('SESSION_INVALID_RANGE');
+        }
 
-        // Deterministyczny UUID: session_uuid (36 chars, już unikalny)
-        $entryUuid = $sessionUuid;
+        $weights = array_map(static fn(array $s): int => $s['seconds'], $segments);
 
-        // total_hours → float dla ledgera (DECIMAL(10,4) → PHP float jest OK bo ledger przechowuje DECIMAL)
-        // Tu nie liczymy pieniędzy — tylko zapisujemy obserwację ile h.
-        $hoursFloat = (float)$session['total_hours'];
+        // Kwota całkowita dzielona proporcjonalnie — suma segmentów == $earningsMinor.
+        $amounts = PayrollAllocator::allocate($earningsMinor, $weights);
+        // Godziny dzielone tym samym kluczem — suma == total_hours co do 0.0001 h.
+        $hoursParts = PayrollAllocator::allocate($hoursMilli, $weights);
 
-        $ledgerId = PayrollLedger::record($pdo, $tenantId, [
-            'entry_uuid'          => $entryUuid,
-            'employee_id'         => $employeeId,
-            'period_year'         => $pYear,
-            'period_month'        => $pMonth,
-            'entry_type'          => PayrollLedger::TYPE_WORK_EARNINGS,
-            'amount_minor'        => $earningsMinor,
-            'currency'            => $rate['currency'],
-            'hours_qty'           => $hoursFloat,
-            'rate_applied_minor'  => $rate['amount_minor'],
-            'ref_work_session_id' => (int)$session['id'],
-            'description'         => 'Accrual for session #' . $session['id'] . ' (rate: ' . $rate['source'] . ')',
-        ]);
+        $isSplit    = count($segments) > 1;
+        $ledgerIds  = [];
 
-        markEventOutcome($pdo, $eventId, 'delivered', 'accrued ledger #' . $ledgerId, $attempts);
+        $pdo->beginTransaction();
+        try {
+            foreach ($segments as $idx => $seg) {
+                $segAmount = $amounts[$idx];
+                if ($segAmount === 0) {
+                    continue; // segment krótszy niż pół grosza — kwota poszła do sąsiada
+                }
+
+                [$pYear, $pMonth, $deferred] = resolveOpenPeriod($pdo, $tenantId, $seg['year'], $seg['month']);
+
+                // Segment #0 zachowuje session_uuid — zgodność wsteczna z wpisami sprzed HR-6.
+                $entryUuid = $idx === 0
+                    ? $sessionUuid
+                    : Uuid::deterministic('ws-split-' . $sessionUuid . '-' . $idx);
+
+                $desc = 'Accrual for session #' . $session['id'] . ' (rate: ' . $rate['source'] . ')';
+                if ($isSplit) {
+                    $desc .= sprintf(' [część %d/%d — praca %04d-%02d]', $idx + 1, count($segments), $seg['year'], $seg['month']);
+                }
+                if ($deferred) {
+                    $desc .= sprintf(' [okres %04d-%02d zamknięty — zaksięgowano w %04d-%02d]', $seg['year'], $seg['month'], $pYear, $pMonth);
+                    $stats['deferred_entries']++;
+                }
+
+                $ledgerIds[] = PayrollLedger::record($pdo, $tenantId, [
+                    'entry_uuid'          => $entryUuid,
+                    'employee_id'         => $employeeId,
+                    'period_year'         => $pYear,
+                    'period_month'        => $pMonth,
+                    'entry_type'          => PayrollLedger::TYPE_WORK_EARNINGS,
+                    'amount_minor'        => $segAmount,
+                    'currency'            => $rate['currency'],
+                    'hours_qty'           => $hoursParts[$idx] / 10000,
+                    'rate_applied_minor'  => $rate['amount_minor'],
+                    'ref_work_session_id' => (int)$session['id'],
+                    'description'         => $desc,
+                ]);
+            }
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
+
+        if ($isSplit) {
+            $stats['split_sessions']++;
+        }
+
+        markEventOutcome($pdo, $eventId, 'delivered', 'accrued ledger #' . implode(',#', $ledgerIds), $attempts);
         $stats['accrued']++;
 
     } catch (\Throwable $e) {

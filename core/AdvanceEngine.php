@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/Money.php';
+require_once __DIR__ . '/Uuid.php';
 require_once __DIR__ . '/PayrollLedger.php';
 
 /**
@@ -62,7 +64,8 @@ final class AdvanceEngine
     public const ERR_PAYMENT_LEDGER_MISSING= 'PAYMENT_LEDGER_MISSING';
 
     private const MAX_INSTALLMENTS = 24; // 2 lata — sanity cap
-    private const MAX_AMOUNT_MINOR = 100_000_000; // 1 000 000.00 PLN — sanity cap (zapobiega error-inputs)
+    /** Alias wspólnego capu — SSOT w {@see Money::MAX_MINOR}, egzekwowany też w PayrollLedger::record(). */
+    private const MAX_AMOUNT_MINOR = Money::MAX_MINOR;
 
     // =========================================================================
     // 1) REQUEST — tworzy wniosek (status='requested')
@@ -141,8 +144,8 @@ final class AdvanceEngine
 
         $uuid = trim((string)($payload['advance_uuid'] ?? ''));
         if ($uuid === '') {
-            $uuid = self::uuidV4();
-        } elseif (!self::isValidUuid($uuid)) {
+            $uuid = Uuid::v4();
+        } elseif (!Uuid::isValid($uuid)) {
             throw new \InvalidArgumentException('advance_uuid must be a valid UUID.');
         } else {
             $exists = self::findByUuid($pdo, $tenantId, $uuid);
@@ -301,7 +304,7 @@ final class AdvanceEngine
             // Wpis w ledgerze: advance_payment = +amount (earning dla pracownika)
             $ledgerUuid = 'adv-pay-' . self::deterministicTail($adv['advance_uuid']);
             $ledgerId = PayrollLedger::record($pdo, $tenantId, [
-                'entry_uuid'         => self::synthUuid($ledgerUuid),
+                'entry_uuid'         => Uuid::deterministic($ledgerUuid),
                 'employee_id'        => $employeeId,
                 'period_year'        => $payYear,
                 'period_month'       => $payMonth,
@@ -389,7 +392,7 @@ final class AdvanceEngine
         try {
             $ledgerUuid = 'adv-rep-' . self::deterministicTail($adv['advance_uuid']) . '-' . $installmentId;
             $ledgerId = PayrollLedger::record($pdo, $tenantId, [
-                'entry_uuid'         => self::synthUuid($ledgerUuid),
+                'entry_uuid'         => Uuid::deterministic($ledgerUuid),
                 'employee_id'        => (int)$adv['employee_id'],
                 'period_year'        => (int)$inst['scheduled_period_year'],
                 'period_month'       => (int)$inst['scheduled_period_month'],
@@ -729,38 +732,4 @@ final class AdvanceEngine
         return strtolower(substr($h, -8));
     }
 
-    /**
-     * Generuje deterministyczny UUID v5-like na bazie tekstowego seed.
-     * Używane do idempotency ledger entries (ten sam seed → ten sam UUID).
-     */
-    private static function synthUuid(string $seed): string
-    {
-        $hash = sha1($seed);
-        $b = str_split(substr($hash, 0, 32), 2);
-        $bytes = '';
-        foreach ($b as $hex) $bytes .= chr(hexdec($hex));
-        // Force version 5 (custom) + variant
-        $bytes[6] = chr((ord($bytes[6]) & 0x0f) | 0x50);
-        $bytes[8] = chr((ord($bytes[8]) & 0x3f) | 0x80);
-        $h = bin2hex($bytes);
-        return sprintf('%s-%s-%s-%s-%s',
-            substr($h, 0, 8), substr($h, 8, 4), substr($h, 12, 4),
-            substr($h, 16, 4), substr($h, 20, 12));
-    }
-
-    private static function uuidV4(): string
-    {
-        $b = random_bytes(16);
-        $b[6] = chr((ord($b[6]) & 0x0f) | 0x40);
-        $b[8] = chr((ord($b[8]) & 0x3f) | 0x80);
-        $h = bin2hex($b);
-        return sprintf('%s-%s-%s-%s-%s',
-            substr($h, 0, 8), substr($h, 8, 4), substr($h, 12, 4),
-            substr($h, 16, 4), substr($h, 20, 12));
-    }
-
-    private static function isValidUuid(string $uuid): bool
-    {
-        return (bool)preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $uuid);
-    }
 }

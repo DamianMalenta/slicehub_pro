@@ -28,8 +28,8 @@ Dokument opisuje:
 - `core/HrClockEngine.php` — **jedyny kanoniczny silnik** clock in/out (UUID v4, second-precision, terminal binding, PIN bcrypt, geo, event outbox, snapshot stawki). Stary `core/ClockEngine.php` został usunięty.
 - `core/PayrollLedger.php` — **append-only writer** dla `sh_payroll_ledger` (świętość pieniądza: STRICT `int` grosze, whitelist `entry_type`, sign-per-type, cross-tenant ref guard, idempotency po `entry_uuid`, `reverse()` zamiast `update`/`delete`). **Od Fazy 3C:** `lockPeriod()` + `isPeriodLocked()` + enforcement `ERR_PERIOD_LOCKED` w `record()`/`reverse()` — zamknięcie ksiąg jest jednokierunkowe (brak `unlockPeriod`). **31/31 smoke test PASS (18 append-only + 13 period locks).**
 - `core/AdvanceEngine.php` — cykl życia zaliczki (`requested → approved → paid → settled` + `rejected`), rozbicie rat z resztą do ostatniej raty, auto-settlement po pełnej spłacie. **Od Fazy 3C:** metoda `voidAdvance()` — wycofanie błędnie wypłaconej zaliczki (reverse payment + void pending installments; blokada po jakiejkolwiek spłaconej racie — `ERR_PARTIAL_REPAYMENT`). Każdy wpis pieniężny → przez `PayrollLedger::record`. **34/34 smoke test PASS (20 lifecycle + 14 void).**
-- `core/PayrollEngine.php` — okresowe przeliczanie (WTD / MTD / YTD + comparison). *TODO Faza 4:* przepisanie readerów na `sh_payroll_ledger::sumForPeriod`.
-- `core/TeamPayrollEngine.php` — agregat dla „Szefa". *TODO Faza 4:* ten sam refactor.
+- `core/PayrollEngine.php` — okresowe przeliczanie (WTD / MTD / YTD + comparison). ✅ **Faza 4 DONE (2026-07-25)** — readery przepisane na `PayrollLedger::sumForPeriod` + stawki temporalne. Patrz §13.8.
+- `core/TeamPayrollEngine.php` — agregat dla „Szefa". ✅ **Faza 4 DONE (2026-07-25)** — konsument przepisanego `PayrollEngine`.
 - `scripts/worker_driver_fanout.php` — **konsument eventów** `employee.clocked_in/out` (aggregate_type=`shift`) → `sh_drivers.status`. Pod **feature flag per-tenant** `HR_USE_EVENT_DRIVER_FANOUT` (w `sh_tenant_settings`; default OFF). Polityka: kierowca w trasie (`status='busy'`) NIGDY nie jest ruszany przez clock_out. **9/9 smoke test PASS.**
 - `scripts/worker_payroll_accrual.php` (Faza 3C) — **konsument** `employee.clocked_out` → wpis `work_earnings` do `sh_payroll_ledger`. Resolver stawki: (1) snapshot z payloadu eventu, (2) fallback do `sh_employee_rates` z temporalną selekcją po `start_time` sesji. Obliczenia **int-safe z HALF_UP**: `earnings_minor = intdiv(rate × hours_milli + 5000, 10000)`. Idempotency przez `entry_uuid = session_uuid`. **14/14 smoke test PASS.**
 - Tabele: `sh_employees`, `sh_employee_rates`, `sh_work_sessions` (rozszerzone m042), `sh_payroll_ledger`, `sh_advances`, `sh_advance_installments`, `sh_meals`. `sh_users.hourly_rate` oznaczona `DEPRECATED_HR_M041`.
@@ -603,14 +603,22 @@ Body analogiczne + `session_uuid` opcjonalne (gdy nie podane — silnik wybiera 
 | `employee_pin_set` | Backoffice HR UI | bcrypt PIN do `sh_employees.auth_pin_hash` + sync `sh_users.pin_code` (ten sam PIN w POS i Kiosk) | ✅ **LIVE od 2026-05-04** |
 | `employee_rate_set` | Backoffice HR UI / Settings | zamyka poprzednią linię w `sh_employee_rates`, otwiera nową | ✅ **LIVE od 2026-05-04** |
 | `hr_users_unlinked` | Backoffice HR UI | sh_users w tenancie bez aktywnego powiązania do sh_employees (do podpięcia istniejącego konta przy upsercie) | ✅ **LIVE od 2026-05-04** |
-| `my_sessions` | Ekipa (self) | lista zmian pracownika w okresie | ⏳ Faza 5 |
-| `advance_request` | Ekipa (self) | wniosek o zaliczkę (`AdvanceEngine`) | ⏳ Faza 5 (silnik gotowy, brak UI) |
-| `advance_decision` | Szefa | approve / reject (`AdvanceEngine::approve`/`reject`) | ⏳ Faza 5 (silnik gotowy, brak UI) |
-| `advance_pay` | Szefa + kasa | `AdvanceEngine::markPaid` — emituje `advance_payment` do ledgera | ⏳ Faza 5 (silnik gotowy, brak UI) |
-| `payroll_period` | Szefa + Ekipa | wynik `PayrollEngine::calculate()` (po rewrite IN-PLACE z `sh_payroll_ledger`) | ⏳ Faza 4 |
-| `payroll_team` | Szefa | `TeamPayrollEngine` agregat | ⏳ Faza 4 |
+| `meal_record` | Kiosk / HR UI | posiłek pracowniczy → `sh_meals` + `meal_deduction` w ledgerze (jedna transakcja). **Idempotentny** przez `idempotency_key` (2026-07-27) | ✅ **LIVE** |
+| `payroll_report` | Szefa | wynik `TeamPayrollEngine` / `PayrollEngine::calculate()` z ledgera | ✅ **LIVE od 2026-07-25** |
+| `payroll_period_status` | Szefa | czy okres zamknięty + liczba wpisów w ledgerze | ✅ **LIVE** |
+| `payroll_close_period` | Szefa | `PayrollLedger::lockPeriod()` — atomowo, guard na bieżący/przyszły miesiąc | ✅ **LIVE** |
+| `advances_list` | Szefa | lista zaliczek z filtrami | ✅ **LIVE** |
+| `advance_request` | Szefa (w imieniu pracownika) | wniosek o zaliczkę (`AdvanceEngine`) | ✅ **LIVE** |
+| `advance_approve` / `advance_reject` | Szefa | decyzja (`AdvanceEngine::approve`/`reject`) | ✅ **LIVE** |
+| `advance_mark_paid` | Szefa + kasa | `AdvanceEngine::markPaid` — emituje `advance_payment` do ledgera | ✅ **LIVE** |
+| `advance_void` | Szefa | `AdvanceEngine::voidAdvance` — wycofanie błędnej wypłaty | ✅ **LIVE** |
+| `bonus_add` / `adjustment_add` | Szefa | wpisy ledgera; opcjonalny `period_year`/`period_month` (2026-07-27) | ✅ **LIVE** |
+| `my_sessions` | Ekipa (self) | lista zmian pracownika w okresie | ⏳ Faza 5 (`modules/ekipa/`) |
+| `advance_request` (tryb self) | Ekipa (self) | wniosek składany przez pracownika, auth PIN zamiast sesji managera | ⏳ Faza 5 |
 
-**Stan na 2026-05-04:** zaimplementowane akcje clock + 6 akcji backoffice HR (CRUD pracowników, PIN, stawki). Reszta (self-service ekipy + UI zaliczek + UI payroll) — kolejne fazy zgodnie z roadmapą §13.
+**Stan na 2026-07-27:** clock + CRUD kadr + pełny payroll (raport, zamknięcie okresu) +
+pełny lifecycle zaliczek + premie/korekty — wszystko LIVE z UI w `modules/backoffice/hr/`.
+Pozostało **wyłącznie self-service ekipy** (Faza 5, osobny moduł `modules/ekipa/`).
 
 ### 5.4. Integracja z POS (frontend)
 
@@ -658,7 +666,7 @@ FX-conversion w raportach to osobna warstwa **poza** zakresem rewrite z Fazy 4 (
 1. Migracja 041: tworzy `sh_employees` + `sh_employee_rates`, backfilluje z `sh_users.hourly_rate`. ✅ (wykonane)
 2. Rewrite `PayrollEngine` w miejscu (Faza 4, §13) — silnik zaczyna czytać stawki z `sh_employee_rates` (temporalnie) i kwoty z `sh_payroll_ledger`.
 3. Weryfikacja przez 2 zamknięcia miesiąca.
-4. Migracja 04X: `DROP COLUMN sh_users.hourly_rate` — po uzyskaniu zgody (zgodnie z Konstytucją §6 Prawo Snajpera).
+4. ✅ **WYKONANE (2026-07-27)** — Migracja `061_drop_users_hourly_rate.sql`: `DROP COLUMN sh_users.hourly_rate`. `seed_demo_all.php` i `tests/payroll_engine_rewrite_parity.php` przestawione na `sh_employee_rates`. Migracja 041 ma dynamic-SQL-guards na re-run po 061.
 
 ### 6.4. Jak postępujemy z auto-rejestracją kierowcy (HR-4)?
 
@@ -819,7 +827,10 @@ requested  ─ approve ────► approved ─ markPaid ───► paid �
 - Retry z backoff (`attempts * 60s`) do `MAX_ATTEMPTS=5`; po tym status eventu = `dead`.
 - Worker po stronie Logistyki (touchuje `sh_drivers`), nie `require_once` HR Engine-a. Zgodne z regułami §9.
 
-### 11.5. Co pozostaje (Faza 4 / dalej)
+### 11.5. Co pozostaje (Faza 4 / dalej) — ⚠ SEKCJA HISTORYCZNA
+
+> **NIEAKTUALNE (2026-07-25).** Plan poniżej został **wykonany**. Zapis zachowany dla
+> kontekstu decyzyjnego. **Kanoniczny stan: §13.8.** Nie planuj prac na podstawie tej listy.
 
 - **`PayrollEngine` — rewrite IN-PLACE (Faza 4, szczegóły §13):** przepisanie `calculate()` / `buildComparison()` w tym samym pliku `core/PayrollEngine.php` na readery z `PayrollLedger::sumForPeriod` / `listForPeriod`. Obecny silnik wylicza z `sh_work_sessions + sh_deductions + sh_meals + sh_users.hourly_rate` — po rewrite te źródła znikają z code-path, ledger staje się SSOT. **Absolutny zakaz tworzenia osobnego pliku równoległego (sufiksowanego duplikatu, nowej klasy obok starej) — jeden kanoniczny `core/PayrollEngine.php`.**
 - **HR-6 midnight-crossing:** funkcja SQL `fn_allocate_hours(start, end, window_start, window_end)` do rozbicia sesji przecinającej północ/koniec miesiąca na osobne wpisy.
@@ -869,7 +880,9 @@ $earningsMinor = intdiv($rateMinor * $hoursMilli + 5000, 10000);
 
 **Idempotency:** `entry_uuid = session_uuid` (36 znaków, unikalny per sesja). Retry workera → `PayrollLedger::record` widzi istniejący UUID → zwraca id bez duplikatu. Test #2 i #7 potwierdzają.
 
-**Okres rozliczeniowy:** `period_year/month = start_time.year/month`. Sesja przecinająca miesiąc → cały earning w miesiącu startu. **HR-6 allocation do Fazy 4** (funkcja SQL `fn_allocate_hours`).
+**Okres rozliczeniowy:** `period_year/month = start_time.year/month`. ~~Sesja przecinająca miesiąc → cały earning w miesiącu startu. **HR-6 allocation do Fazy 4** (funkcja SQL `fn_allocate_hours`).~~
+
+> **ZAMKNIĘTE (2026-07-27):** `core/PayrollAllocator.php` rozbija sesję na segmenty miesięczne i dzieli kwotę proporcjonalnie (metoda największych reszt, zero groszowego wycieku). `worker_payroll_accrual.php` przepisany na segmenty. Patrz §15.
 
 ### 12.3. AdvanceEngine::voidAdvance — polityka
 
@@ -925,7 +938,10 @@ Test #9 smoke przez `ReflectionClass` weryfikuje brak metod `unlock*` / `openPer
 
 **Od Fazy 3C łańcuch jest kompletny:** czas pracy → zarobki → rozliczenie zaliczek → zamknięcie okresu. Brakuje tylko readera agregującego (`PayrollEngine` po rewrite w miejscu — Faza 4, §13), który przeczyta księgę dla UI/raportów.
 
-### 12.6. Co NIE weszło do Fazy 3C (osobne sesje)
+### 12.6. Co NIE weszło do Fazy 3C (osobne sesje) — ⚠ SEKCJA HISTORYCZNA
+
+> **NIEAKTUALNE (2026-07-25).** Rewrite `PayrollEngine` i UI HR są **gotowe**.
+> Otwarte pozostaje wyłącznie **HR-6** (`fn_allocate_hours`). **Kanoniczny stan: §13.8.**
 
 - **`PayrollEngine` — rewrite IN-PLACE (Faza 4, §13)** — przepisanie `calculate()` / `buildComparison()` w tym samym pliku `core/PayrollEngine.php` na readery z `PayrollLedger`. **Jeden kanoniczny plik — zakaz osobnych wariantów równoległych** (SSOT + §7 Zasada Snajpera). Decyzja: §13.
 - **UI `modules/backoffice/hr/`** — Kiosk PIN pad + Timesheet viewer. To pełnoprawny frontend (SPA), osobna sesja. **Dopiero ten UI definiuje shape response'u** rewritten `PayrollEngine` — dlatego rewrite jest dopiero **po** nim.
@@ -1005,11 +1021,161 @@ Po ukończeniu Fazy 4 następujące elementy stają się bezużyteczne i podlega
 | 4. Rewrite `buildComparison()` | ✅ poprzedni okres z ledgera, capping day-of-month bez zmian |
 | 5. Rewrite `TeamPayrollEngine` | ✅ lista z `sh_employees`, live shift burn rate ze stawek temporalnych |
 | 6. DROP legacy reads | ✅ `grep "FROM sh_deductions\|hourly_rate FROM sh_users"` w `core/` = 0 trafień |
-| 7. Migracja DROP COLUMN | ⏳ dopiero po 2 zamknięciach miesiąca (§6.3 krok 4) |
+| 7. Migracja DROP COLUMN | ✅ **WYKONANE (2026-07-27)** — migracja `061_drop_users_hourly_rate.sql`; seed i parity test przestawione na `sh_employee_rates` |
 
 **Migracja danych (§13.4 pkt 3):** `scripts/migrate_deductions_to_ledger.php` — `sh_deductions` → `adjustment`, `sh_meals` → `meal_deduction`, plus backfill `work_earnings` dla sesji zamkniętych przed uruchomieniem `worker_payroll_accrual`. Idempotentny (deterministyczny `entry_uuid`), `--dry-run`, `--tenant=N`.
 
 **Zmiana kontraktu (dodatek, nie breaking):** `payroll.advances = {paid_out, repaid}` w `PayrollEngine::calculate()` oraz `employees[].advances_repaid` / `totals.total_advances_repaid` w `TeamPayrollEngine`. Zaliczki są poza gross/net — `payout = max(0, net − advances_repaid)` liczy silnik, nie router ani UI.
+
+---
+
+## 14. HARDENING SILOSU (2026-07-27) — STAN KANONICZNY
+
+**Sesja:** `_docs/sessions/2026-07-27_hr_hardening_uuid_money.md`
+
+### 14.1. Prymitywy SSOT wprowadzone w tej sesji
+
+| Plik | Rola | Kto adoptował |
+|---|---|---|
+| `core/Money.php` | PLN → grosze (HALF_UP), formatowanie, sanity cap. Zero `float` w ścieżce zapisu. | `PayrollLedger`, `AdvanceEngine`, `MealEngine`, router HR |
+| `core/Uuid.php` | `v4()` (CSPRNG), `isValid()`, warianty deterministyczne | cały `core/`, `api/`, `scripts/` |
+| `core/DomainError.php` | Rozbicie wyjątku na `code` (ASCII) + `message` (UTF-8) | router HR przez `hrFailFromDomain()` |
+| `core/HrRoles.php` | Kanoniczna lista ról managerskich | `hrRequireManager()` |
+
+**Uwaga do Prawa VI:** te pliki to **infrastruktura**, nie silniki domenowe. Zakaz z §9.1
+dotyczy `require_once` **cudzego Engine-a** (logiki biznesowej innego bounded contextu).
+Współdzielenie prymitywu technicznego jest w tej samej klasie co `db_config.php` —
+zależność biegnie zawsze silos → `core/`, nigdy silos → silos. Dlatego sweep UUID objął
+**wszystkie** silosy, łącznie z `SettlementEngine` i `KdsAcceptRouting`.
+
+### 14.2. Poprawki bezpieczeństwa i poprawności
+
+| Obszar | Zmiana |
+|---|---|
+| `meal_record` | **Idempotencja** przez `idempotency_key` z UI → deterministyczny `entry_uuid`. Wcześniej double-click = podwójne potrącenie. |
+| `bonus_add` / `adjustment_add` | Opcjonalny `period_year` / `period_month` — korekta trafia do wskazanego otwartego okresu, nie zawsze do bieżącego. |
+| `payroll_close_period` | Zamknięcie atomowe w transakcji + guard na bieżący/przyszły miesiąc (accrual wciąż do niego pisze). |
+| `api/staff/payroll.php`, `api/dashboard/team_payroll.php` | Usunięty wildcard CORS (`Access-Control-Allow-Origin: *`) z endpointów płacowych. |
+| `api/tables/engine.php` | `order_id` generowany był przez `mt_rand()` (nie-CSPRNG) → `Uuid::v4()`. |
+| Migracja `048` | Guard rozbity per obiekt (kolumna / indeks / FK) — wcześniej częściowo zastosowana migracja blokowała resztę. |
+| `scripts/nuclear_reset.php` | Ostrzeżenie o braku profili HR / pustym payrollu po resecie. |
+
+### 14.3. Co realnie pozostało w HR
+
+| # | Temat | Status |
+|---|---|---|
+| 1 | **HR-6** — `PayrollAllocator` — sesja przecinająca koniec miesiąca | ✅ **DONE (2026-07-27)** — `core/PayrollAllocator.php` dzieli sesję na segmenty miesięczne, alokuje kwoty proporcjonalnie (Largest Remainder Method, zero groszowego wycieku). `worker_payroll_accrual.php` księguje każdy segment osobno z deterministycznym UUID. Okresy zablokowane są odkładane do następnego otwartego. Patrz §14.4. |
+| 2 | ~~**Migracja `061`** — `DROP COLUMN sh_users.hourly_rate`~~ | ✅ **DONE (2026-07-27, sesja 2)** — migracja wykonana; seed/parity przestawione na `sh_employee_rates`; migracja 041 ma dynamic-SQL-guards |
+| 3 | **Faza 5** — self-service ekipy (`modules/ekipa/`), `my_sessions` + `advance_request` w trybie pracownika | ⏳ nierozpoczęte |
+| 4 | **HR-13 / HR-14** — `sh_employment_contracts`, `sh_employee_absences` | ⏳ zaprojektowane (§3.6), bez migracji |
+
+Wszystko poza tą listą jest LIVE. **Nie planuj prac na podstawie §11.5 ani §12.6** —
+to sekcje historyczne.
+
+---
+
+## 14.4. HR-6 + UI hardening (2026-07-27, sesja popołudniowa)
+
+**Sesja:** `_docs/sessions/2026-07-27_hr_hardening_uuid_money.md` (kontynuacja)
+
+### HR-6: PayrollAllocator — proporcjonalny podział sesji na granicy miesiąca
+
+**Problem:** sesja rozpoczęta 30 lipca 22:00, zakończona 1 sierpnia 06:00 — cały
+zarobek lądował w lipcu (miesiąc `start_time`). To zniekształcało raporty płacowe
+i księgowość okresową.
+
+**Rozwiązanie:**
+
+- `core/PayrollAllocator.php` — czysta logika, bez zależności DB:
+  - `splitByPeriod($start, $end)` — dzieli sesję na segmenty `[year, month, seconds]`.
+  - `allocate($totalMinor, $weights)` — rozdziela kwotę proporcjonalnie do wag
+    (sekund) metodą Largest Remainder (penny-perfect, suma dokładnie = total).
+- `scripts/worker_payroll_accrual.php` — przepisany na segmenty:
+  - Każdy segment sesji → osobny wpis w `sh_payroll_ledger` z deterministycznym UUID
+    (`session-{id}-segment-{i}`).
+  - Okres zablokowany → auto-defer do następnego otwartego miesiąca.
+  - Idempotencja: powtórzone uruchomienie pominie istniejące wpisy (UUID match).
+- `scripts/test_hr_payroll_ledger.php` — 26 testów regresji (pure, bez DB):
+  podział 1/2/3 miesiące, przełom roku, fuzz 500× (zero groszowego wycieku),
+  E2E 60/180 PLN split.
+
+**Wynik testu:** 58 PASS / 0 FAIL.
+
+### UI hardening — naprawione błędy
+
+| Plik | Błąd | Naprawa |
+|---|---|---|
+| `modules/ui_shell/sh_mobile_shell.css:258` | Reguła `main table { display: block }` łamała układ kolumnowy tabel HR na ekranach < 900px — tabele w `.hr-table-wrap` traciły wyrównanie. | Zmieniono na `main > table` (direct child) — tabele w wrapperach są wykluczone. |
+| `modules/backoffice/hr/js/hr_app.js:803` | `wire()` nie wywoływał `switchTab('employees')` — stan zakładek zależał wyłącznie od klasy `active` w HTML, co mogło się rozjechać przy asynchronicznym ładowaniu. | Dodano jawne `switchTab('employees')` na końcu `wire()`. |
+| `scripts/test_hr_payroll_ledger.php:275` | `global $pdo` deklarowane po `require_once db_config.php` — `db_config` tworzył lokalny `$pdo`, a `global` nadpisywał go nullem. | Przeniesiono `global $pdo` przed `require_once` (poprawka scope'u). |
+
+### Weryfikacja API (tenant 2, dane demo)
+
+Wszystkie endpointy HR przetestowane przez HTTP:
+
+| Akcja | HTTP | Wynik |
+|---|---|---|
+| `login` (kiosk, t=2, pin=0000) | 200 | Token JWT OK |
+| `employees_list` | 200 | 4 pracowników, wszyscy z PIN |
+| `payroll_report` (2026-07) | 200 | 4 pracowników, 63.23h, 1379.94 PLN brutto |
+| `payroll_report` (2026-06) | 200 | Pusty okres, struktura OK |
+| `advances_list` | 200 | 3 zaliczki |
+| `payroll_period_status` (2026-07) | 200 | 6 wpisów, okres otwarty |
+| `hr_users_unlinked` | 200 | 0 (wszyscy powiązani) |
+| `clock_status` | 200 | 2 otwarte sesje |
+
+Assets (JS/CSS) serwowane 200, zawartość zgodna z plikiem na dysku (brak stale cache).
+
+### 14.5. Domknięcie Expand-Contract + idempotentność migracji (2026-07-27, sesja 2)
+
+**Sesja:** `_docs/sessions/2026-07-27_hr_hardening_uuid_money.md` (ciąg dalszy)
+
+#### Migracja 061 — DROP `sh_users.hourly_rate`
+
+`database/migrations/061_drop_users_hourly_rate.sql` — idempotentny DROP COLUMN. Faza Contract
+wzorca Expand-Contract domknięta. Konsekwencje:
+
+- `seed_demo_all.php` — stawki z mapy PHP `$HR_RATES_MINOR` → `sh_employee_rates` (nie z `sh_users.hourly_rate`); INSERT bez kolumny `hourly_rate`.
+- `tests/payroll_engine_rewrite_parity.php` — `legacyCalculate` czyta z `sh_employee_rates`.
+- `nuclear_reset.php` — weryfikacja profili HR i stawek po resecie.
+- Migracja `041` — backfill sekcje (3 i 4) opakowane w dynamic-SQL-guards (re-run po 061 = no-op).
+
+#### MealEngine — posiłki pracownicze z idempotencją
+
+`core/MealEngine.php` — nowy silnik:
+- Rejestruje posiłek w `sh_meals` + potrącenie `meal_deduction` w ledgerze (jedna transakcja).
+- **Idempotentny** przez `idempotency_key` — retry nie dubluje ani posiłku, ani potrącenia.
+- Waliduje `employee_id`, `price_minor` (`Money::isWithinCap`), `idempotency_key`.
+- Używa `Money::fromPln()` i `Uuid::deterministic()`.
+
+#### PayrollEngine fix #2 — wpisy wsteczne
+
+Wpisy księgowane wstecz (gdzie `period_year/month` ≠ miesiąc `created_at`) były niewidoczne
+w raporcie okresu. Fix: klauzula OR w SQL `loadEntriesForPeriod` — wpis trafia do raportu
+okresu jeśli `created_at` w zakresie LUB `period_year/month` wskazuje na ten okres.
+
+#### Idempotentność migracji — sweep
+
+Migracje **010, 041, 047, 053, 054, 055** przepisane na wzorzec `information_schema`
+guard per-obiekt (kolumna / indeks / FK osobno). Wcześniej pojedynczy guard na całą
+migrację — przerwanie w połowie zostawiało schema w stanie częściowym, a re-run milczał.
+
+#### Autoryzacja — domknięcie dostępu do danych płacowych
+
+| Endpoint | Zmiana |
+|---|---|
+| `api/dashboard/team_payroll.php` | Gate `HrRoles::isManager()` — agregat płac tylko dla owner/manager/admin. |
+| `api/staff/payroll.php` | Gate `HrRoles::isManager()` dla dostępu do cudzych danych płacowych. |
+
+#### Silniki — refaktory
+
+- `core/PayrollLedger.php` — sanity cap przez `Money::isWithinCap()` zamiast `PHP_INT_MIN/MAX`.
+- `core/AdvanceEngine.php` — `MAX_AMOUNT_MINOR` aliasuje `Money::MAX_MINOR`; `synthUuid()` → `Uuid::deterministic()`.
+- `scripts/migrate_deductions_to_ledger.php` — `Uuid::deterministic()` zamiast lokalnego `legacyLedgerUuid()`.
+
+#### Testy regresyjne — 58/58 PASS
+
+`scripts/test_hr_payroll_ledger.php` (sekcja A, bez bazy): A1 Uuid golden vectory (16), A2 Money (14), A3 DomainError (5), A4 PayrollAllocator (26, w tym fuzz 500×).
 
 ---
 

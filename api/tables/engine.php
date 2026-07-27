@@ -48,19 +48,10 @@ function inputStr(array $input, string $key, string $default = ''): string
     return trim((string)$v);
 }
 
-function generateUuid(): string
-{
-    return sprintf(
-        '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
-        mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff),
-        mt_rand(0, 0x0fff) | 0x4000, mt_rand(0, 0x3fff) | 0x8000,
-        mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
-    );
-}
-
 try {
     require_once __DIR__ . '/../../core/db_config.php';
     require_once __DIR__ . '/../../core/auth_guard.php';
+    require_once __DIR__ . '/../../core/Uuid.php';
     require_once __DIR__ . '/../../core/OrderStateMachine.php';
     require_once __DIR__ . '/../../core/SettlementEngine.php';
     require_once __DIR__ . '/../../core/StaffFleetPresence.php';
@@ -697,7 +688,7 @@ try {
                 tableResponse(false, null, "Table {$table['table_number']} is not free (current: {$table['physical_status']}).");
             }
 
-            $orderId = generateUuid();
+            $orderId = Uuid::v4();
 
             // Atomic order-number sequence (same pattern as POS/checkout)
             $stmtSeq = $pdo->prepare(

@@ -173,14 +173,16 @@ step('Resetuj sekwencje kursów (COURSE)', function () use ($pdo, $T) {
 // Bcrypt "password" — używany dla kont systemowych
 $PW = '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi';
 
+// Stawki godzinowe żyją w sh_employee_rates (Faza 4) — nuclear_reset nie tworzy
+// profili HR; pełny seed ze stawkami to scripts/seed_demo_all.php.
 $roster = [
-    // id, username,    pin,    display_name,           first_name, last_name,    role,      rate
-    [1, 'manager',  '0000', 'Kierownik Anna',         'Anna',     'Nowak',      'manager', 28.00],
-    [2, 'waiter1',  '1111', 'Kelner Marek',            'Marek',    'Zieliński',  'waiter',  22.00],
-    [3, 'waiter2',  '2222', 'Kelnerka Ola',            'Ola',      'Wójcik',     'waiter',  22.00],
-    [4, 'cook1',    '3333', 'Kucharz Piotr',           'Piotr',    'Mazur',      'cook',    25.00],
-    [5, 'driver1',  '4444', 'Kierowca Tomek',          'Tomek',    'Kaczmarek',  'driver',  20.00],
-    [6, 'driver2',  '5555', 'Kierowca Kasia',          'Kasia',    'Wiśniewska', 'driver',  20.00],
+    // id, username,    pin,    display_name,           first_name, last_name,    role
+    [1, 'manager',  '0000', 'Kierownik Anna',         'Anna',     'Nowak',      'manager'],
+    [2, 'waiter1',  '1111', 'Kelner Marek',            'Marek',    'Zieliński',  'waiter'],
+    [3, 'waiter2',  '2222', 'Kelnerka Ola',            'Ola',      'Wójcik',     'waiter'],
+    [4, 'cook1',    '3333', 'Kucharz Piotr',           'Piotr',    'Mazur',      'cook'],
+    [5, 'driver1',  '4444', 'Kierowca Tomek',          'Tomek',    'Kaczmarek',  'driver'],
+    [6, 'driver2',  '5555', 'Kierowca Kasia',          'Kasia',    'Wiśniewska', 'driver'],
 ];
 
 $seededUsers = [];
@@ -188,11 +190,11 @@ $seededUsers = [];
 step('Utwórz konta testowe (' . count($roster) . ' użytkowników)', function () use ($pdo, $T, $PW, $roster, &$seededUsers) {
     $stmt = $pdo->prepare(
         "INSERT INTO sh_users
-            (id, tenant_id, username, password_hash, pin_code, name, first_name, last_name, role, status, hourly_rate, is_active, is_deleted, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, 1, 0, NOW())"
+            (id, tenant_id, username, password_hash, pin_code, name, first_name, last_name, role, status, is_active, is_deleted, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', 1, 0, NOW())"
     );
     foreach ($roster as $u) {
-        $stmt->execute([$u[0], $T, $u[1], $PW, $u[2], $u[3], $u[4], $u[5], $u[6], $u[7]]);
+        $stmt->execute([$u[0], $T, $u[1], $PW, $u[2], $u[3], $u[4], $u[5], $u[6]]);
         $seededUsers[] = ['id' => $u[0], 'name' => $u[3], 'role' => $u[6], 'pin' => $u[2]];
     }
     return count($roster) . ' kont';
@@ -282,6 +284,23 @@ step('Weryfikuj: ceny (sh_price_tiers)', function () use ($pdo, $T) {
     $n = $pdo->query("SELECT COUNT(*) FROM sh_price_tiers WHERE tenant_id = $T")->fetchColumn();
     if ((int)$n === 0) throw new \RuntimeException('Brak cen! Uruchom seed_demo_all.php najpierw.');
     return "$n rekordów cen";
+});
+
+// Nuclear reset celowo NIE tworzy profili HR ani stawek — bez nich payroll
+// (sh_payroll_ledger + sh_employee_rates) nie ma z czego liczyć. Zamiast chować
+// to w komentarzu, mówimy o tym wprost w raporcie.
+step('Weryfikuj: profile HR (sh_employees)', function () use ($pdo, $T) {
+    try {
+        $n = (int)$pdo->query("SELECT COUNT(*) FROM sh_employees WHERE tenant_id = $T AND is_deleted = 0")->fetchColumn();
+    } catch (\Throwable $e) {
+        return 'tabela sh_employees niedostępna (migracja 041 nieprzyjęta) — payroll wyłączony';
+    }
+    if ($n === 0) {
+        return 'BRAK profili HR — payroll będzie pusty; uruchom scripts/seed_demo_all.php';
+    }
+    $rates = (int)$pdo->query("SELECT COUNT(*) FROM sh_employee_rates WHERE tenant_id = $T AND effective_to IS NULL")->fetchColumn();
+
+    return "$n profili HR, $rates aktywnych stawek";
 });
 
 // ──────────────────────────────────────────────────────────────

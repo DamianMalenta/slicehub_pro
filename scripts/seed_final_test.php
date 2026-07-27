@@ -14,6 +14,7 @@ declare(strict_types=1);
  */
 
 require_once __DIR__ . '/../core/db_config.php';
+require_once __DIR__ . '/../core/Uuid.php';
 
 $tenantId = 1;
 $now = date('Y-m-d H:i:s');
@@ -37,12 +38,9 @@ try {
     echo "[MIGRATE] Added cancellation_reason column.\n";
 }
 
-// UUID helper
+// UUID helper — alias na SSOT (`core/Uuid.php`)
 function uuid(): string {
-    $d = random_bytes(16);
-    $d[6] = chr((ord($d[6]) & 0x0f) | 0x40);
-    $d[8] = chr((ord($d[8]) & 0x3f) | 0x80);
-    return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($d), 4));
+    return Uuid::v4();
 }
 
 $pdo->beginTransaction();

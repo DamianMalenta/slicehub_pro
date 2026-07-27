@@ -32,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 try {
     require_once __DIR__ . '/../../core/db_config.php';
     require_once __DIR__ . '/../../core/auth_guard.php';
+    require_once __DIR__ . '/../../core/Uuid.php';
 
     if (!isset($pdo)) {
         throw new RuntimeException('Database connection unavailable.');
@@ -133,15 +134,6 @@ try {
         $addressMap[$fo['id']] = $fo['delivery_address'];
     }
 
-    // =========================================================================
-    // 3. HELPERS
-    // =========================================================================
-    $generateUuidV4 = function (): string {
-        $data    = random_bytes(16);
-        $data[6] = chr((ord($data[6]) & 0x0f) | 0x40);
-        $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
-        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
-    };
 
     // =========================================================================
     // 4. ATOMIC TRANSACTION
@@ -246,7 +238,7 @@ try {
                 (:id, :tid, :cid, :did, :orders_json, :uid, NOW())"
         );
         $stmtDispatch->execute([
-            ':id'          => $generateUuidV4(),
+            ':id'          => Uuid::v4(),
             ':tid'         => $tenant_id,
             ':cid'         => $courseId,
             ':did'         => $driverId,

@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/Uuid.php';
+
 /**
  * SettlementEngine — canonical payment settlement for SliceHub.
  *
@@ -753,7 +755,7 @@ final class SettlementEngine
         $cols   = 'id, order_id, tenant_id, user_id, method, amount_grosze, tendered_grosze';
         $vals   = ':id, :oid, :tid, :uid, :method, :amount, :tendered';
         $params = [
-            ':id' => self::uuidV4(), ':oid' => $orderId, ':tid' => $tenantId, ':uid' => $userId,
+            ':id' => Uuid::v4(), ':oid' => $orderId, ':tid' => $tenantId, ':uid' => $userId,
             ':method' => $method, ':amount' => $amountGrosze, ':tendered' => $tenderedGrosze,
         ];
 
@@ -782,15 +784,6 @@ final class SettlementEngine
             'online_paid' => 'online',
             default       => null,
         };
-    }
-
-    private static function uuidV4(): string
-    {
-        $data    = random_bytes(16);
-        $data[6] = chr((ord($data[6]) & 0x0f) | 0x40);
-        $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
-
-        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 
     /** @return array{success: false, message: string, old_status: string} */

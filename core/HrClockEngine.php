@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/Uuid.php';
+
 /**
  * HR Clock Engine — Faza 3A (POS + Kiosk)
  *
@@ -108,7 +110,7 @@ final class HrClockEngine
                 throw new \RuntimeException(self::ERR_ALREADY_CLOCKED_IN);
             }
 
-            $sessionUuid = self::uuidV4();
+            $sessionUuid = Uuid::v4();
 
             $stmtIns = $pdo->prepare("
                 INSERT INTO sh_work_sessions
@@ -645,17 +647,6 @@ final class HrClockEngine
         $stmt->execute([':sid' => $sessionUuid]);
         $start = (string)$stmt->fetchColumn();
         return self::formatUtcIso($start);
-    }
-
-    private static function uuidV4(): string
-    {
-        $b = random_bytes(16);
-        $b[6] = chr((ord($b[6]) & 0x0f) | 0x40);
-        $b[8] = chr((ord($b[8]) & 0x3f) | 0x80);
-        $h = bin2hex($b);
-        return sprintf('%s-%s-%s-%s-%s',
-            substr($h, 0, 8), substr($h, 8, 4), substr($h, 12, 4),
-            substr($h, 16, 4), substr($h, 20, 12));
     }
 
     private static function formatUtcIso(string $mysqlDatetime): string

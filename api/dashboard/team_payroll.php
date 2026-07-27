@@ -1,8 +1,8 @@
 <?php
 // =============================================================================
-// STATUS: PLANNED (audit 2026-04-19) — not yet wired.
-// Consumer: owner/boss dashboard (Faza 3). Aggregate payroll across whole team.
-// Backed by TeamPayrollEngine. Keep.
+// STATUS: WRAPPER (Prawo VIII domknięte 2026-07-27) — thin alias for external
+// integrations that prefer GET over POST. Delegates to TeamPayrollEngine::getAggregate,
+// the same engine used by api/backoffice/hr/engine.php?action=payroll_report.
 // =============================================================================
 // SliceHub Enterprise — Boss dashboard: team aggregate payroll (GET)
 // /api/dashboard/team_payroll.php?period_type=month&period_offset=0
@@ -13,9 +13,9 @@
 declare(strict_types=1);
 
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
+// Brak `Access-Control-Allow-Origin: *` — agregat płac całego zespołu nie ma
+// prawa być czytelny cross-origin. Konsument jest same-origin.
 header('Access-Control-Allow-Methods: GET, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
@@ -32,9 +32,22 @@ try {
     require_once __DIR__ . '/../../core/db_config.php';
     require_once __DIR__ . '/../../core/auth_guard.php';
     require_once __DIR__ . '/../../core/TeamPayrollEngine.php';
+    require_once __DIR__ . '/../../core/HrRoles.php';
 
     if (!isset($pdo)) {
         throw new RuntimeException('Database connection unavailable.');
+    }
+
+    // AUTORYZACJA: auth_guard robi tylko uwierzytelnienie. Agregat płac całego
+    // zespołu = dane wrażliwe → wyłącznie owner/manager/admin (ten sam gate co
+    // hrRequireManager w api/backoffice/hr/engine.php#payroll_report).
+    if (!HrRoles::isManager($pdo, $tenant_id, $user_id)) {
+        http_response_code(403);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Forbidden: only owner/manager/admin can read team payroll.',
+        ]);
+        exit;
     }
 
     $periodType   = strtolower(trim($_GET['period_type'] ?? 'month'));

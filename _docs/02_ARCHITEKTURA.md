@@ -3,7 +3,7 @@
 > Oficjalna mapa drogowa projektu **SliceHub Enterprise** dla Agentów AI.
 > Nie zgaduj — sprawdzaj strukturę tutaj.
 >
-> **Ostatnia synchronizacja:** 2026-05-11 (RELEASE BUNDLE COMPLETE — gotowe do testów na uti.pl):
+> **Ostatnia synchronizacja:** 2026-07-27 (HR hardening sesja 2 — HR-6 domknięte, migracja 061, MealEngine, idempotentność migracji):
 > - F5 POS Integrity Pass (cart revalid + reverse stock + modifiers SKU)
 > - F6 Geocoder Nominatim (delivery_lat/lng + dispatcher map)
 > - F-S1 Variant Scales (pizza Mała/Średnia/Duża + multiplier)
@@ -186,11 +186,11 @@ Panel ustawień tenanta, konfiguracja integracji, webhooków, stawek VAT, zmiano
 
 | Plik | Rola |
 |------|------|
-| `index.html` | Tabela pracowników, modale (dodaj/edytuj profil, ustaw PIN, ustaw stawkę godzinową) |
-| `js/hr_app.js` | CRUD przez `/api/backoffice/hr/engine.php` (akcje `employees_list`, `employee_upsert`, `employee_pin_set`, `employee_rate_set`) |
+| `index.html` | Tabela pracowników, modale (dodaj/edytuj profil, ustaw PIN, ustaw stawkę godzinową, zaliczki, wpisy ledgera: premia/korekta/posiłek), zakładki (Pracownicy / Zaliczki / Payroll), close period |
+| `js/hr_app.js` | CRUD przez `/api/backoffice/hr/engine.php` (akcje `employees_list`, `employee_upsert`, `employee_pin_set`, `employee_rate_set`, `advances_list`, `advance_request`/`approve`/`reject`/`mark_paid`/`void`, `bonus_add`, `adjustment_add`, `meal_record`, `payroll_report`, `payroll_period_status`, `payroll_close_period`). Tab switching, `newIdempotencyKey()`, filtry statusu zaliczek |
 | `css/hr.css` | Backoffice glass theme |
 
-Realizuje plan z `_docs/18_BACKOFFICE_HR_LOGIC.md` (Faza 4 — UI Kadry). Wymaga roli owner/manager/admin (auth_guard + `hrRequireManager`).
+Realizuje plan z `_docs/18_BACKOFFICE_HR_LOGIC.md` (Faza 4 — UI Kadry + hardening 2026-07-27). Wymaga roli owner/manager/admin (auth_guard + `HrRoles::isManager`).
 
 ### O. MARKETING — Wizard SMS / Promocji (NEW · 2026-05-04)
 `/modules/marketing/`
@@ -271,13 +271,13 @@ Shared CSS dla wszystkich modułów: safe-area-inset, viewport-fit, mobilne nawi
 | `delivery/dispatch.php` | Standalone dispatch endpoint |
 | `delivery/reconcile.php` | Standalone rozliczenie |
 
-#### Payments, Staff, Reports, Dashboard — FAZA 3 (większość PLANNED)
+#### Payments, Staff, Reports, Dashboard
 | Ścieżka | Status |
 |---------|--------|
 | `payments/settle.php` | ✅ **WRAPPER (F1–F2)** — HTTP adapter nad `core/SettlementEngine.php`; split-tender (F2). Outbox: `order.completed` lub `payment.settled`. Produkcja POS: `pos/engine.php#settle_and_close`. |
-| `backoffice/hr/engine.php` | ✅ **LIVE** — action router HR. **Zmiana (clock):** `clock_in` / `clock_out` / `clock_status` (Faza 3A, m041–m044). **Backoffice (NEW · 2026-05-04, wymaga `hrRequireManager`):** `employees_list`, `employee_get`, `employee_upsert` (z opcjonalnym `create_login` — tworzy konto `sh_users`), `employee_pin_set` (bcrypt do `sh_employees.auth_pin_hash` + sync `sh_users.pin_code` żeby ten sam PIN działał w POS i w Kiosk), `employee_rate_set` (zamyka poprzednią linię w `sh_employee_rates`, otwiera nową), `hr_users_unlinked` (lista `sh_users` bez profilu HR — do podpięcia istniejącego konta przy upsercie). Konsument: `modules/backoffice/hr/index.html`. Kanoniczny endpoint silosu HR. |
-| `staff/payroll.php` | 🟡 PLANNED — payroll single user (PayrollEngine). *TODO Faza 4:* docelowo akcja `payroll_user` w `api/backoffice/hr/engine.php` — po rewrite `PayrollEngine` IN-PLACE na ledger. Do czasu gotowego UI HR trzymamy HTTP 410 Gone (patrz `_docs/18_BACKOFFICE_HR_LOGIC.md §13`). |
-| `dashboard/team_payroll.php` | 🟡 PLANNED — team payroll (TeamPayrollEngine). *TODO Faza 4:* akcja `payroll_team` w `api/backoffice/hr/engine.php` — analogicznie jak wyżej. |
+| `backoffice/hr/engine.php` | ✅ **LIVE** — action router HR. **Zmiana (clock):** `clock_in` / `clock_out` / `clock_status` (Faza 3A, m041–m044). **Backoffice (NEW · 2026-05-04, wymaga `hrRequireManager`):** `employees_list`, `employee_get`, `employee_upsert` (z opcjonalnym `create_login` — tworzy konto `sh_users`), `employee_pin_set` (bcrypt do `sh_employees.auth_pin_hash` + sync `sh_users.pin_code` żeby ten sam PIN działał w POS i w Kiosk), `employee_rate_set` (zamyka poprzednią linię w `sh_employee_rates`, otwiera nową), `hr_users_unlinked` (lista `sh_users` bez profilu HR — do podpięcia istniejącego konta przy upsercie). **Faza 4 (2026-07-27):** `payroll_report`, `payroll_period_status`, `payroll_close_period` (auto-spłata rat zaliczek + lockPeriod), `advances_list`, `advance_request`/`approve`/`reject`/`mark_paid`/`void`, `bonus_add`, `adjustment_add`, `meal_record`. Konsument: `modules/backoffice/hr/index.html`. Kanoniczny endpoint silosu HR. |
+| `staff/payroll.php` | ✅ **WRAPPER (Prawo VIII domknięte 2026-07-27)** — GET alias, deleguje do `PayrollEngine::calculate` (ten sam silnik co `hr/engine.php#payroll_report`). Dla integracji zewnętrznych preferujących GET. |
+| `dashboard/team_payroll.php` | ✅ **WRAPPER (Prawo VIII domknięte 2026-07-27)** — GET alias, deleguje do `TeamPayrollEngine::getAggregate` (ten sam silnik co `hr/engine.php#payroll_report`). Dla integracji zewnętrznych preferujących GET. |
 | `reports/food_cost.php` | 🟡 PLANNED — food cost + margin (FoodCostEngine) |
 
 #### Gateway / Integrations (m026–m029)
@@ -320,6 +320,17 @@ Wszystkie orphan/planned endpointy mają w nagłówku komentarz `// STATUS: …`
 | `StaffFleetPresence.php` (NEW · 2026-05-04) | Heartbeat `last_seen` dla zalogowanych w aplikacjach mobilnych. `slicehubTouchStaffPresence` (login + każdy poll mobilny), `slicehubClearStaffPresence` (logout). TTL = `slicehubFleetPresenceTtlSeconds()` = **120 s**. Gwarancja: kierowca / kelner pojawia się na liście POS tylko gdy **realnie pracuje w aplikacji**. Wyjątek: kierowca w trasie (`sh_drivers.status='busy'`) — zawsze widoczny niezależnie od TTL. |
 | `DriverFleetHelper.php` (NEW · 2026-05-04) | Idempotentne dopinanie wiersza `sh_drivers` dla kont z rolą `driver` powstałych w Kadrach. `slicehubEnsureDriverFleetRow` (per-call) + `slicehubSyncMissingDriverFleetRows` (bulk sync per tenant). |
 
+#### Prymitywy współdzielone (NEW · 2026-07-27)
+
+> Infrastruktura, nie logika domenowa — dostępne dla **wszystkich** silosów na tych samych prawach co `db_config.php` / `auth_guard.php`. Zależność zawsze w kierunku silos → `core/`, nigdy silos → silos (Prawo VI).
+
+| Plik | Rola |
+|------|------|
+| `Uuid.php` | **SSOT generowania UUID.** `v4()` (CSPRNG `random_bytes`), `isValid()`, warianty deterministyczne. Zlikwidował **19 kopii** algorytmu rozsypanych po `core/`, `api/` i `scripts/`. Weryfikacja braku regresji: `grep "0x0f) | 0x40"` → dokładnie 1 trafienie (ten plik). |
+| `Money.php` | **SSOT arytmetyki pieniądza.** PLN → grosze z HALF_UP, formatowanie, sanity cap. Zero `float` w ścieżce zapisu finansowego. |
+| `DomainError.php` | Rozbicie wyjątku domenowego na `code` (ASCII, kontrakt dla klienta) + `message` (UTF-8, dla człowieka). |
+| `HrRoles.php` | Kanoniczna lista ról managerskich (`hrRequireManager`) — zastępuje powielaną inline listę w routerze HR. |
+
 #### Business engines
 | Plik | Rola |
 |------|------|
@@ -353,8 +364,10 @@ Wszystkie orphan/planned endpointy mają w nagłówku komentarz `// STATUS: …`
 | `HrClockEngine.php` | ✅ **Jedyny kanon** clock-in/out. `employee_id`-first, PIN bcrypt, terminal/source/geo, event outbox, snapshot stawki. Konsolidacja 2026-04-23 (stary `ClockEngine.php` **usunięty**; `api/staff/clock.php` **usunięty**). |
 | `PayrollLedger.php` | ✅ **Faza 3B + 3C DONE** — append-only writer do `sh_payroll_ledger`. `record()` / `reverse()` + readery (`sumForPeriod`, `listForPeriod`) + `lockPeriod()` / `isPeriodLocked()` (jednokierunkowe zamknięcie księgi, `ERR_PERIOD_LOCKED` w `record`/`reverse`). STRICT int grosze, sign-per-type, cross-tenant ref guard, idempotency po `entry_uuid`. **31/31 smoke PASS**. |
 | `AdvanceEngine.php` | ✅ **Faza 3B + 3C DONE** — cykl życia zaliczki (`requested → approved → paid → settled` + `rejected` + `void`). `markPaid()` rozbija raty + emituje `advance_payment` do ledgera; `recordRepayment()` auto-settluje; `voidAdvance()` (3C) wycofuje błędnie wypłaconą zaliczkę (reverse payment + void pending rat; blokada `ERR_PARTIAL_REPAYMENT`). **34/34 smoke PASS**. |
-| `PayrollEngine.php` | ⏳ Legacy reader (`sh_work_sessions` + `sh_deductions` + `sh_meals` + `sh_users.hourly_rate`). **Faza 4:** rewrite IN-PLACE na readery z `sh_payroll_ledger` — **absolutny zakaz plików równoległych / sufiksowanych duplikatów** (SSOT — patrz `_docs/18_BACKOFFICE_HR_LOGIC.md §13`). |
-| `TeamPayrollEngine.php` | ⏳ Legacy konsument `PayrollEngine`. **Faza 4:** auto-migruje po rewrite `PayrollEngine` (ten sam plik — bez plików równoległych). |
+| `PayrollEngine.php` | ✅ **Faza 4 DONE (2026-07-25)** — rewrite IN-PLACE wykonany. `calculate()` / `buildComparison()` czytają z `sh_payroll_ledger` (SSOT) + stawki temporalne z `sh_employee_rates`. Zero czytników `sh_deductions` / `sh_users.hourly_rate`. **Fix #2 (2026-07-27):** wpisy księgowane wstecz (period ≠ created_at month) widoczne w raporcie okresu (klauzula OR w SQL). Parity 0 gr: `tests/payroll_engine_rewrite_parity.php`. Szczegóły: `_docs/18_BACKOFFICE_HR_LOGIC.md §13.8`. |
+| `TeamPayrollEngine.php` | ✅ **Faza 4 DONE (2026-07-25)** — konsument przepisanego `PayrollEngine`; lista z `sh_employees`, burn rate ze stawek temporalnych. |
+| `PayrollAllocator.php` (NEW · 2026-07-27) | ✅ **HR-6 ZAMKNIĘTE** — czysta logika podziału sesji na segmenty miesięczne (`splitByPeriod`) + proporcjonalny podział kwoty (`allocate`) metodą największych reszt. Zero groszowego wycieku (fuzz 500×). Konsument: `worker_payroll_accrual.php`. Szczegóły: `_docs/18_BACKOFFICE_HR_LOGIC.md §14.4`. |
+| `MealEngine.php` (NEW · 2026-07-27) | ✅ Posiłki pracownicze z atomowym potrąceniem w ledgerze. Idempotentny przez `idempotency_key`. Używa `Money` + `Uuid`. |
 
 #### Visual & assets
 | Plik | Rola |
@@ -400,7 +413,7 @@ Wszystkie orphan/planned endpointy mają w nagłówku komentarz `// STATUS: …`
 | 007 | `007_pos_engine_columns.sql` | sh_orders: druk paragonu, cart_json, NIP |
 | 008 | `008_delivery_ecosystem.sql` | `sh_driver_locations` (GPS) |
 | 009 | `009_delivery_state_machine.sql` | Stany delivery |
-| 010 | `010_driver_action_type.sql` | Akcje kierowcy (pack_cold, check_id…) |
+| 010 | `010_driver_action_type.sql` | Akcje kierowcy (pack_cold, check_id…) — **idempotent (2026-07-27)**: guard per-kolumna |
 | 011 | `011_integration_logs.sql` | Logi integracji 3rd-party |
 | 012 | `012_visual_layers.sql` | Warstwy wizualne (pierwsza iteracja) |
 | 013 | `013_board_companions.sql` | Companions |
@@ -428,6 +441,9 @@ Wszystkie orphan/planned endpointy mają w nagłówku komentarz `// STATUS: …`
 | 036 | `036_asset_display_name.sql` | Backfill polskich etykiet w `sh_assets.display_name` (wcześniej 032_asset_display_name, przenumerowane po rozwiązaniu kolizji) |
 | 037 | `037_pos_foundation.sql` | **Dine-In Foundation** — `sh_zones`, `sh_tables`, `sh_order_logs`; rozszerzenia `sh_orders` (table_id, waiter_id, guest_count, split_type, qr_session_token) + anti-ghosting; rozszerzenia `sh_order_payments` i `sh_order_lines`. Wcześniej w `scripts/setup_enterprise_tables.php` (legacy helper). |
 | 038 | `038_drop_legacy_inventory_docs.sql` | **Cleanup** — DROP `wh_inventory_docs` + `wh_inventory_doc_items` (martwe legacy od m001, 0 wierszy, 0 użyć w kodzie). Kanon: `wh_documents` (type=INW). |
+| 041 | `041_hr_employees_foundation.sql` | **HR Foundation** — `sh_employees` + `sh_employee_rates` + backfill z `sh_users`. **(2026-07-27)** Dynamic-SQL-guards na `hourly_rate` — re-run po migracji 061 = no-op. |
+| 048 | `048_variant_scales.sql` | **Variant Scales** — `sh_variant_scales` + `sh_menu_items.variant_scale_id` + ceny per-skala. **(2026-07-27)** Guard rozbity per obiekt (kolumna / indeks / FK osobno). |
+| 061 | `061_drop_users_hourly_rate.sql` (NEW · 2026-07-27) | **Expand-Contract domknięte** — DROP `sh_users.hourly_rate`. Stawki czytane wyłącznie z `sh_employee_rates` (SSOT). |
 
 > Luki 002/003/005/018 — dawne seedy/eksperymenty przeniesione do `seed_demo_all.php` lub `_archive_*.sql`.
 > Szczegóły schematu → [`_docs/04_BAZA_DANYCH.md`](04_BAZA_DANYCH.md)
@@ -437,7 +453,7 @@ Wszystkie orphan/planned endpointy mają w nagłówku komentarz `// STATUS: …`
 | Plik | Co robi | Uruchomienie |
 |------|---------|--------------|
 | `setup_database.php` | Migracje 006/007/008 (bez danych, idempotentny) | Przeglądarka |
-| `seed_demo_all.php` | Unified Demo Seed — kompletne dane testowe dla CAŁEGO systemu | Przeglądarka / CLI |
+| `seed_demo_all.php` | Unified Demo Seed — kompletne dane testowe dla CAŁEGO systemu. **(2026-07-27)** Stawki z mapy PHP `$HR_RATES_MINOR` → `sh_employee_rates` (nie z `sh_users.hourly_rate` — kolumna zdropowana w migracji 061). | Przeglądarka / CLI |
 | `seed_ultimate_delivery.php` | Delivery Ecosystem Seed — kierowcy, zamówienia delivery (paid/unpaid), GPS | Przeglądarka |
 
 ### Procedura czystej instalacji
@@ -445,7 +461,7 @@ Wszystkie orphan/planned endpointy mają w nagłówku komentarz `// STATUS: …`
 ```
 1. phpMyAdmin → CREATE DATABASE slicehub_pro_v2 (utf8mb4_unicode_ci)
 2. phpMyAdmin → Import → database/migrations/001_init_slicehub_pro_v2.sql
-3. Kolejno importuj migracje 004 → 032 (zgodnie z numeracją)
+3. `php scripts/apply_migrations_chain.php` (kolejno migracje 004 → 061, idempotentne)
 4. Przeglądarka → http://localhost/slicehub/scripts/seed_demo_all.php
 ```
 

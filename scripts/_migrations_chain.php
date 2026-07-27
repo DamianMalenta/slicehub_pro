@@ -72,4 +72,5 @@ return [
     '058_ksef_line_qty_normalization.sql',
     '059_product_mapping_unique_supplier.sql',
     '060_print_decks.sql',
+    '061_drop_users_hourly_rate.sql',
 ];

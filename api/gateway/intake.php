@@ -110,6 +110,7 @@ function gw_orderNumberPrefix(string $source): string
 // =============================================================================
 try {
     require_once __DIR__ . '/../../core/db_config.php';
+    require_once __DIR__ . '/../../core/Uuid.php';
     require_once __DIR__ . '/../../core/GatewayAuth.php';
     require_once __DIR__ . '/../cart/CartEngine.php';
 
@@ -409,12 +410,6 @@ try {
     // -------------------------------------------------------------------------
     // 12. ATOMIC PERSIST + EVENT PUBLISH
     // -------------------------------------------------------------------------
-    $generateUuidV4 = function (): string {
-        $d = random_bytes(16);
-        $d[6] = chr((ord($d[6]) & 0x0f) | 0x40);
-        $d[8] = chr((ord($d[8]) & 0x3f) | 0x80);
-        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($d), 4));
-    };
 
     $nowDb = $now->format('Y-m-d H:i:s');
     $requestHash = hash('sha256', (string)$raw);
@@ -441,7 +436,7 @@ try {
 
         $orderPrefix = gw_orderNumberPrefix($source);
         $orderNumber = sprintf('%s/%s/%04d', $orderPrefix, $now->format('Ymd'), $seq);
-        $orderId     = $generateUuidV4();
+        $orderId     = Uuid::v4();
 
         // INSERT sh_orders — z / bez kolumn gateway_*
         if ($hasGatewayColumns) {
@@ -534,7 +529,7 @@ try {
 
         foreach ($calc['lines_raw'] as $lr) {
             $stmtLine->execute([
-                ':id'       => $generateUuidV4(),
+                ':id'       => Uuid::v4(),
                 ':oid'      => $orderId,
                 ':sku'      => $lr['item_sku'],
                 ':name'     => $lr['snapshot_name'],

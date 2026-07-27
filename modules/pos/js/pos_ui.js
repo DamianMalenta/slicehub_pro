@@ -122,21 +122,45 @@ const PosUI = (() => {
     }
 
     // === DISH CARD MODAL ===
-    function showDishCard(item, ingredients, modifierGroups, onSave, onClose) {
+    function showDishCard(item, ingredients, modifierGroups, onSave, onClose, variants) {
         const modal = $('#dish-card-modal'); if (!modal) return;
-        const price = (item.priceGrosze / 100).toFixed(2);
         const hasImg = item.image_url && item.image_url.trim();
 
-        let ingHtml = ingredients.length ? `<div class="dc-section"><h4 class="dc-section-title">Składniki <span class="dc-hint">(kliknij aby usunąć)</span></h4><div class="dc-ingredients">${ingredients.map(i => `<button class="dc-ing" data-sku="${_e(i.sku)}" data-name="${_e(i.name)}">${_e(i.name)}</button>`).join('')}</div></div>` : '';
+        // F-S1: variant switcher — przełącznik rozmiarów w dish card.
+        // Wybrany rozmiar z okienka jest zaznaczony; zmiana zachowuje modyfikatory.
+        let currentVariantIdx = -1;
+        if (variants && variants.length > 0) {
+            currentVariantIdx = variants.findIndex(v => v.id === item.id);
+            if (currentVariantIdx < 0) currentVariantIdx = 0;
+        }
+        let currentVariant = (variants && currentVariantIdx >= 0) ? variants[currentVariantIdx] : null;
+        let baseGrosze = currentVariant ? currentVariant.priceGrosze : item.priceGrosze;
 
-        let modHtml = (modifierGroups || []).map(grp => `<div class="dc-section"><h4 class="dc-section-title">${_e(grp.name)} ${grp.min_selection > 0 ? '<span class="dc-required">wymagane</span>' : ''}</h4><div class="dc-modifiers">${(grp.modifiers || []).map(m => { const mp = (m.priceGrosze / 100).toFixed(2); return `<label class="dc-mod"><input type="checkbox" value="${_e(m.ascii_key)}" data-name="${_e(m.name)}" data-price="${m.priceGrosze}"><span class="dc-mod-label">${_e(m.name)}</span>${m.priceGrosze > 0 ? `<span class="dc-mod-price">+${mp} zł</span>` : ''}</label>`; }).join('')}</div></div>`).join('');
+        let qty = 1, removedSet = new Set(), addedMods = [], savedComment = '';
 
-        const heroUrl = hasImg ? encodeURI(item.image_url).replace(/'/g, '%27') : '';
-        modal.innerHTML = `<div class="dc-backdrop" data-close="1"></div><div class="dc-card">${hasImg ? `<div class="dc-hero" style="background-image:url('${heroUrl}')"></div>` : ''}<div class="dc-body"><div class="dc-header"><div><h3 class="dc-name">${_e(item.name)}</h3><span class="dc-price" id="dc-live-price">${price} zł</span></div><button class="dc-close" data-close="1">✕</button></div>${ingHtml}${modHtml}<div class="dc-section"><h4 class="dc-section-title">Komentarz</h4><textarea class="dc-comment" id="dc-comment" placeholder="Np. dobrze wypieczony..." rows="2"></textarea></div><div class="dc-footer"><div class="dc-qty-control"><button class="dc-qty-btn" id="dc-qty-minus">−</button><span class="dc-qty-val" id="dc-qty">1</span><button class="dc-qty-btn" id="dc-qty-plus">+</button></div><button class="dc-add-btn" id="dc-save">Dodaj do koszyka <span id="dc-total-price">${price} zł</span></button></div></div></div>`;
-        modal.classList.add('active');
+        function variantHtml() {
+            if (!variants || variants.length === 0) return '';
+            return `<div class="dc-section dc-variant-section"><h4 class="dc-section-title">Rozmiar</h4><div class="dc-variant-switcher">${variants.map((v, i) => { const vp = (v.priceGrosze / 100).toFixed(2); const active = i === currentVariantIdx ? ' active' : ''; return `<button class="dc-variant-btn${active}" data-variant-idx="${i}"><span class="dc-variant-name">${_e(v.name)}</span><span class="dc-variant-price">${vp} zł</span></button>`; }).join('')}</div></div>`;
+        }
 
-        let qty = 1, removedSet = new Set(), addedMods = [];
-        const baseGrosze = item.priceGrosze;
+        function ingHtml() {
+            if (!ingredients.length) return '';
+            return `<div class="dc-section"><h4 class="dc-section-title">Składniki <span class="dc-hint">(kliknij aby usunąć)</span></h4><div class="dc-ingredients">${ingredients.map(i => `<button class="dc-ing${removedSet.has(i.sku) ? ' removed' : ''}" data-sku="${_e(i.sku)}" data-name="${_e(i.name)}">${_e(i.name)}</button>`).join('')}</div></div>`;
+        }
+
+        function modHtml() {
+            return (modifierGroups || []).map(grp => `<div class="dc-section"><h4 class="dc-section-title">${_e(grp.name)} ${grp.min_selection > 0 ? '<span class="dc-required">wymagane</span>' : ''}</h4><div class="dc-modifiers">${(grp.modifiers || []).map(m => { const mp = (m.priceGrosze / 100).toFixed(2); const checked = addedMods.some(am => am.ascii_key === m.ascii_key) ? 'checked' : ''; return `<label class="dc-mod"><input type="checkbox" value="${_e(m.ascii_key)}" data-name="${_e(m.name)}" data-price="${m.priceGrosze}" ${checked}><span class="dc-mod-label">${_e(m.name)}</span>${m.priceGrosze > 0 ? `<span class="dc-mod-price">+${mp} zł</span>` : ''}</label>`; }).join('')}</div></div>`).join('');
+        }
+
+        function renderModal() {
+            const price = (baseGrosze / 100).toFixed(2);
+            const heroUrl = hasImg ? encodeURI(item.image_url).replace(/'/g, '%27') : '';
+            const displayName = currentVariant ? (item.parentName || item.name || '') : item.name;
+            const totalGrosze = (baseGrosze + addedMods.reduce((s, m) => s + m.priceGrosze, 0)) * qty;
+            modal.innerHTML = `<div class="dc-backdrop" data-close="1"></div><div class="dc-card">${hasImg ? `<div class="dc-hero" style="background-image:url('${heroUrl}')"></div>` : ''}<div class="dc-body"><div class="dc-header"><div><h3 class="dc-name">${_e(displayName)}</h3><span class="dc-price" id="dc-live-price">${price} zł</span></div><button class="dc-close" data-close="1">✕</button></div>${variantHtml()}${ingHtml()}${modHtml()}<div class="dc-section"><h4 class="dc-section-title">Komentarz</h4><textarea class="dc-comment" id="dc-comment" placeholder="Np. dobrze wypieczony..." rows="2">${_e(savedComment)}</textarea></div><div class="dc-footer"><div class="dc-qty-control"><button class="dc-qty-btn" id="dc-qty-minus">−</button><span class="dc-qty-val" id="dc-qty">${qty}</span><button class="dc-qty-btn" id="dc-qty-plus">+</button></div><button class="dc-add-btn" id="dc-save">Dodaj do koszyka <span id="dc-total-price">${(totalGrosze / 100).toFixed(2)} zł</span></button></div></div></div>`;
+            modal.classList.add('active');
+            bindEvents();
+        }
 
         function updatePrice() {
             const modT = addedMods.reduce((s, m) => s + m.priceGrosze, 0);
@@ -147,17 +171,32 @@ const PosUI = (() => {
             if (qe) qe.textContent = qty;
         }
 
-        modal.querySelector('#dc-qty-minus')?.addEventListener('click', () => { qty = Math.max(1, qty - 1); updatePrice(); });
-        modal.querySelector('#dc-qty-plus')?.addEventListener('click', () => { qty++; updatePrice(); });
-        modal.querySelectorAll('.dc-ing').forEach(b => b.addEventListener('click', () => { const s = b.dataset.sku; if (removedSet.has(s)) { removedSet.delete(s); b.classList.remove('removed'); } else { removedSet.add(s); b.classList.add('removed'); } }));
-        modal.querySelectorAll('.dc-mod input').forEach(cb => cb.addEventListener('change', () => { if (cb.checked) addedMods.push({ ascii_key: cb.value, name: cb.dataset.name, priceGrosze: parseInt(cb.dataset.price) || 0 }); else addedMods = addedMods.filter(m => m.ascii_key !== cb.value); updatePrice(); }));
-        modal.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', e => { if (e.target === el || e.currentTarget === el) { modal.classList.remove('active'); if (onClose) onClose(); } }));
-        modal.querySelector('#dc-save')?.addEventListener('click', () => {
-            const comment = modal.querySelector('#dc-comment')?.value?.trim() || '';
-            const removed = [...removedSet].map(sku => { const ing = ingredients.find(i => i.sku === sku); return { sku, name: ing ? ing.name : sku }; });
-            onSave({ quantity: qty, addedModifiers: addedMods, removedIngredients: removed, comment });
-            modal.classList.remove('active');
-        });
+        function bindEvents() {
+            modal.querySelector('#dc-qty-minus')?.addEventListener('click', () => { qty = Math.max(1, qty - 1); updatePrice(); });
+            modal.querySelector('#dc-qty-plus')?.addEventListener('click', () => { qty++; updatePrice(); });
+            modal.querySelectorAll('.dc-ing').forEach(b => b.addEventListener('click', () => { const s = b.dataset.sku; if (removedSet.has(s)) { removedSet.delete(s); b.classList.remove('removed'); } else { removedSet.add(s); b.classList.add('removed'); } }));
+            modal.querySelectorAll('.dc-mod input').forEach(cb => cb.addEventListener('change', () => { if (cb.checked) addedMods.push({ ascii_key: cb.value, name: cb.dataset.name, priceGrosze: parseInt(cb.dataset.price) || 0 }); else addedMods = addedMods.filter(m => m.ascii_key !== cb.value); updatePrice(); }));
+            modal.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', e => { if (e.target === el || e.currentTarget === el) { modal.classList.remove('active'); if (onClose) onClose(); } }));
+
+            // Zmiana rozmiaru — zachowuje modyfikatory, składniki, komentarz.
+            modal.querySelectorAll('.dc-variant-btn').forEach(btn => btn.addEventListener('click', () => {
+                savedComment = modal.querySelector('#dc-comment')?.value || '';
+                currentVariantIdx = parseInt(btn.dataset.variantIdx, 10);
+                currentVariant = variants[currentVariantIdx];
+                baseGrosze = currentVariant.priceGrosze;
+                renderModal();
+            }));
+
+            modal.querySelector('#dc-save')?.addEventListener('click', () => {
+                const comment = modal.querySelector('#dc-comment')?.value?.trim() || '';
+                const removed = [...removedSet].map(sku => { const ing = ingredients.find(i => i.sku === sku); return { sku, name: ing ? ing.name : sku }; });
+                const selectedVariant = currentVariant ? { ...item, id: currentVariant.id, ascii_key: currentVariant.asciiKey, name: currentVariant.name, priceGrosze: currentVariant.priceGrosze } : null;
+                onSave({ quantity: qty, addedModifiers: addedMods, removedIngredients: removed, comment, selectedVariant });
+                modal.classList.remove('active');
+            });
+        }
+
+        renderModal();
     }
 
     // === DISH CARD EDIT (pre-filled for cart line editing) ===

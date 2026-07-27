@@ -89,6 +89,8 @@ W systemie znajdują się foldery ze starym kodem (np. poprzednie wersje POS, Ma
 
 **Aktualna lista znanych `@planned` funkcji** (do zlikwidowania w kolejnych sesjach):
 - ~~`core/WzEngine.php::consumeForOrder`~~ — **DOMKNIĘTE w sesji F1 · 2026-05-11.** Wpięte w `core/WarehouseConsumeHook` → `api/pos/engine.php#accept_order` + `api/orders/accept.php`. Test E2E w `_docs/sessions/2026-05-11_phase_f1_consume_loop.md`.
+- ~~`api/staff/payroll.php`~~ — **DOMKNIĘTE 2026-07-27.** Przekonwertowane z ORPHAN → WRAPPER (deleguje do `PayrollEngine::calculate`, ten sam silnik co `api/backoffice/hr/engine.php#payroll_report`).
+- ~~`api/dashboard/team_payroll.php`~~ — **DOMKNIĘTE 2026-07-27.** Przekonwertowane z ORPHAN → WRAPPER (deleguje do `TeamPayrollEngine::getAggregate`, ten sam silnik co `api/backoffice/hr/engine.php#payroll_report`).
 - `api/payments/settle.php` — kompletny endpoint split-tender, ORPHAN bez UI. Plan: integracja z `pos/engine.php` lub świadome usunięcie po decyzji o canonical settlement.
 - `api/orders/edit.php`, `api/orders/estimate.php`, `api/orders/sla_monitor.php` — placeholder-y oznaczone jako `🟡 PLANNED` w `02_ARCHITEKTURA.md`.
 

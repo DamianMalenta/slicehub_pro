@@ -36,6 +36,7 @@ declare(strict_types=1);
  */
 
 require_once dirname(__DIR__) . '/core/db_config.php';
+require_once dirname(__DIR__) . '/core/Uuid.php';
 require_once dirname(__DIR__) . '/core/PayrollLedger.php';
 /** @var PDO $pdo */
 
@@ -62,25 +63,6 @@ $stats = [
     'skipped_zero'        => 0,
     'failed'              => 0,
 ];
-
-/**
- * Deterministyczny UUID v5-like z tekstowego seeda (idempotency ledger entries).
- */
-function legacyLedgerUuid(string $seed): string
-{
-    $hash  = sha1($seed);
-    $bytes = '';
-    foreach (str_split(substr($hash, 0, 32), 2) as $hex) {
-        $bytes .= chr((int)hexdec($hex));
-    }
-    $bytes[6] = chr((ord($bytes[6]) & 0x0f) | 0x50);
-    $bytes[8] = chr((ord($bytes[8]) & 0x3f) | 0x80);
-    $h = bin2hex($bytes);
-
-    return sprintf('%s-%s-%s-%s-%s',
-        substr($h, 0, 8), substr($h, 8, 4), substr($h, 12, 4),
-        substr($h, 16, 4), substr($h, 20, 12));
-}
 
 /**
  * user_id → employee_id w obrębie tenanta (cache per proces).
@@ -162,7 +144,7 @@ function migrateRows(PDO $pdo, array $rows, string $kind, bool $dryRun, array &$
         }
 
         $payload = [
-            'entry_uuid'   => legacyLedgerUuid(($isMeal ? 'legacy-meal-' : 'legacy-ded-') . $legacyId),
+            'entry_uuid'   => Uuid::deterministic(($isMeal ? 'legacy-meal-' : 'legacy-ded-') . $legacyId),
             'employee_id'  => $employeeId,
             'period_year'  => $year,
             'period_month' => $month,

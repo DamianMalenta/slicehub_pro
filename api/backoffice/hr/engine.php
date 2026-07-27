@@ -24,6 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
  *   - clock_in        — rozpoczęcie zmiany
  *   - clock_out       — zakończenie zmiany
  *   - clock_status    — lista aktualnie otwartych sesji w tenancie
+ *   - meal_record     — posiłek pracowniczy → sh_meals + meal_deduction w ledgerze (atomowo)
  *
  * Backoffice (owner/manager/admin — hrRequireManager):
  *   - employees_list       — lista profili HR (+ opcjonalnie join do konta)
@@ -33,6 +34,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
  *   - employee_rate_set    — nowa stawka godzinowa (zamyka poprzednią linię w sh_employee_rates)
  *   - hr_users_unlinked    — sh_users w tenancie bez aktywnego powiązania do sh_employees (wybór konta)
  *   - payroll_report       — raport wypłat całego zespołu za okres (per pracownik + sumy)
+ *   - payroll_period_status — stan okresu (is_locked + liczba wpisów ledgera)
+ *   - payroll_close_period  — JEDNOKIERUNKOWE zamknięcie miesiąca (PayrollLedger::lockPeriod)
+ *   - advances_list        — zaliczki tenanta (opcjonalnie filtr employee_id / status)
+ *   - advance_request      — nowy wniosek o zaliczkę (AdvanceEngine::request)
+ *   - advance_approve      — requested → approved
+ *   - advance_reject       — requested → rejected (wymagany reason)
+ *   - advance_mark_paid    — approved → paid (+ ledger advance_payment + harmonogram rat)
+ *   - advance_void         — paid → void (reverse w ledgerze; blokada przy spłaconych ratach)
+ *   - bonus_add            — premia → ledger entry_type='bonus' (kwota > 0)
+ *   - adjustment_add       — korekta → ledger entry_type='adjustment' (kwota SIGNED, wymagany opis)
  *
  * AUTH (wymagane dla każdej akcji):
  *   Endpoint jest za auth_guard.php → ma $tenant_id i $user_id z sesji/JWT.
@@ -71,11 +82,30 @@ function hrFail(int $httpCode, string $code, ?string $msg = null): void
     hrResponse(false, null, $msg ?? $code, $code);
 }
 
+require_once __DIR__ . '/../../../core/DomainError.php';
+
+/**
+ * Adapter domena → HTTP.
+ *
+ * Rozbicie `ERR_CODE (detal)` na `code` + `message` robi {@see DomainError}
+ * (czysta, testowalna) — tutaj zostaje tylko wysłanie odpowiedzi.
+ */
+function hrFailFromDomain(int $httpCode, \Throwable $e): void
+{
+    [$code, $detail] = DomainError::split($e->getMessage());
+    hrFail($httpCode, $code, $detail);
+}
+
 try {
     require_once __DIR__ . '/../../../core/db_config.php';
     require_once __DIR__ . '/../../../core/auth_guard.php';
     require_once __DIR__ . '/../../../core/HrClockEngine.php';
     require_once __DIR__ . '/../../../core/TeamPayrollEngine.php';
+    require_once __DIR__ . '/../../../core/MealEngine.php';
+    require_once __DIR__ . '/../../../core/HrRoles.php';
+    require_once __DIR__ . '/../../../core/Money.php';
+    require_once __DIR__ . '/../../../core/PayrollLedger.php';
+    require_once __DIR__ . '/../../../core/AdvanceEngine.php';
 
     /** @var PDO $pdo */
     /** @var int $tenant_id */
@@ -126,9 +156,9 @@ try {
         // Tryb MANAGER_OVERRIDE — wprost employee_id (wymaga managera/ownera)
         if (isset($auth['employee_id'])) {
             $actor = hrLoadActorRole($pdo, $tenant_id, $user_id);
-            if (!in_array($actor, ['owner', 'manager'], true)) {
+            if (!in_array($actor, HrRoles::MANAGER_ROLES, true)) {
                 hrFail(403, 'FORBIDDEN_OVERRIDE',
-                    'Only owner/manager can clock another employee.');
+                    'Only owner/manager/admin can act for another employee.');
             }
             return [(int)$auth['employee_id'], 'manager_override'];
         }
@@ -159,9 +189,9 @@ try {
                     'user_id'     => $user_id,
                 ]);
             } catch (\InvalidArgumentException $e) {
-                hrFail(400, $e->getMessage());
+                hrFailFromDomain(400, $e);
             } catch (\RuntimeException $e) {
-                hrFail(409, $e->getMessage());
+                hrFailFromDomain(409, $e);
             }
 
             hrResponse(true, $result, 'Clock-in OK.');
@@ -175,9 +205,9 @@ try {
             $allowLong = (bool)($input['manager_override'] ?? false);
             if ($allowLong) {
                 $actor = hrLoadActorRole($pdo, $tenant_id, $user_id);
-                if (!in_array($actor, ['owner', 'manager'], true)) {
+                if (!in_array($actor, HrRoles::MANAGER_ROLES, true)) {
                     hrFail(403, 'FORBIDDEN_OVERRIDE',
-                        'Only owner/manager can force clock-out with manager_override.');
+                        'Only owner/manager/admin can force clock-out with manager_override.');
                 }
             }
 
@@ -190,9 +220,9 @@ try {
                     'allow_long_session' => $allowLong,
                 ]);
             } catch (\InvalidArgumentException $e) {
-                hrFail(400, $e->getMessage());
+                hrFailFromDomain(400, $e);
             } catch (\RuntimeException $e) {
-                hrFail(409, $e->getMessage());
+                hrFailFromDomain(409, $e);
             }
 
             hrResponse(true, $result, 'Clock-out OK.');
@@ -226,6 +256,48 @@ try {
                 $result['employee_snapshot'] = $empSnapshot;
             }
             hrResponse(true, $result, 'Status OK.');
+            break;
+        }
+
+        // -----------------------------------------------------------------
+        // Posiłek pracowniczy — Faza 4 (§6.1): zapis sh_meals + wpis
+        // 'meal_deduction' w sh_payroll_ledger w JEDNEJ transakcji.
+        // Identyfikacja jak przy clock_in: auth.self / auth.pin / auth.employee_id.
+        case 'meal_record': {
+            [$employeeId] = $resolveEmployeeId($input);
+
+            $priceMinor = hrMoneyMinor($input, [
+                'keys'       => ['price_minor', 'price_pln'],
+                'allow_zero' => false,
+                'error_code' => MealEngine::ERR_INVALID_PRICE,
+            ]);
+
+            $description = isset($input['description']) ? trim((string)$input['description']) : null;
+
+            try {
+                $result = MealEngine::record($pdo, $tenant_id, [
+                    'employee_id'        => $employeeId,
+                    'price_minor'        => $priceMinor,
+                    'description'        => $description !== '' ? $description : null,
+                    'created_by_user_id' => $user_id,
+                    'idempotency_key'    => isset($input['idempotency_key'])
+                        ? (string)$input['idempotency_key']
+                        : null,
+                ]);
+            } catch (\InvalidArgumentException $e) {
+                hrFailFromDomain(400, $e);
+            } catch (\RuntimeException $e) {
+                // m.in. PERIOD_LOCKED, EMPLOYEE_NOT_FOUND, EMPLOYEE_NO_ACCOUNT
+                hrFailFromDomain(409, $e);
+            }
+
+            hrResponse(
+                true,
+                $result,
+                !empty($result['duplicate'])
+                    ? 'Meal already recorded (idempotent replay).'
+                    : 'Meal recorded (ledger meal_deduction).'
+            );
             break;
         }
 
@@ -324,7 +396,7 @@ try {
             if (hrFetchEmployeeRow($pdo, $tenant_id, $eid) === null) {
                 hrFail(404, 'NOT_FOUND', 'Employee not found.');
             }
-            $amountMinor = hrResolveAmountMinor($input);
+            $amountMinor = hrMoneyMinor($input, ['keys' => ['amount_minor', 'hourly_amount_pln']]);
             $currency = strtoupper(substr(trim((string)($input['currency'] ?? 'PLN')), 0, 3));
             if (strlen($currency) !== 3) {
                 hrFail(400, 'INVALID_CURRENCY', 'currency must be ISO 4217 (3 chars).');
@@ -433,6 +505,284 @@ try {
             break;
         }
 
+        // -----------------------------------------------------------------
+        // Stan okresu rozliczeniowego — czy zamknięty + ile wpisów w ledgerze.
+        case 'payroll_period_status': {
+            hrRequireManager($pdo, $tenant_id, $user_id);
+            [$pYear, $pMonth] = hrResolvePeriodYearMonth($input);
+
+            $st = $pdo->prepare('
+                SELECT COUNT(*) AS cnt, COALESCE(SUM(is_locked = 0), 0) AS open_cnt
+                FROM sh_payroll_ledger
+                WHERE tenant_id = :tid AND period_year = :py AND period_month = :pm
+            ');
+            $st->execute([':tid' => $tenant_id, ':py' => $pYear, ':pm' => $pMonth]);
+            $row = $st->fetch(PDO::FETCH_ASSOC) ?: ['cnt' => 0, 'open_cnt' => 0];
+
+            hrResponse(true, [
+                'period_year'    => $pYear,
+                'period_month'   => $pMonth,
+                'is_locked'      => PayrollLedger::isPeriodLocked($pdo, $tenant_id, $pYear, $pMonth),
+                'entries_total'  => (int)$row['cnt'],
+                'entries_open'   => (int)$row['open_cnt'],
+            ], 'OK');
+            break;
+        }
+
+        // -----------------------------------------------------------------
+        // Zamknięcie miesiąca — JEDNOKIERUNKOWE (standard księgowy: brak unlock,
+        // korekty idą jako 'adjustment' do następnego otwartego okresu).
+        // Guard: nie można zamknąć bieżącego ani przyszłego miesiąca — accrual
+        // (worker_payroll_accrual) i meal_record wciąż do niego piszą.
+        case 'payroll_close_period': {
+            hrRequireManager($pdo, $tenant_id, $user_id);
+            [$pYear, $pMonth] = hrResolvePeriodYearMonth($input);
+
+            $nowIndex    = (int)date('Y') * 12 + (int)date('n');
+            $periodIndex = $pYear * 12 + $pMonth;
+            if ($periodIndex >= $nowIndex) {
+                hrFail(409, 'PERIOD_NOT_ENDED',
+                    'Można zamknąć tylko zakończony miesiąc (nie bieżący/przyszły).');
+            }
+
+            if (PayrollLedger::isPeriodLocked($pdo, $tenant_id, $pYear, $pMonth)) {
+                hrFail(409, 'PERIOD_ALREADY_LOCKED',
+                    sprintf('Okres %04d-%02d jest już zamknięty.', $pYear, $pMonth));
+            }
+
+            // --- Auto-spłata rat zaliczek zaplanowanych na ten okres ---
+            // §413 18_BACKOFFICE_HR_LOGIC.md: "W momencie zamknięcia okresu:
+            //   każda rata applied → wpis ledger advance_repayment (ujemny)".
+            // Musi być PRZED lockPeriod — PayrollLedger::record rzuca
+            // ERR_PERIOD_LOCKED gdy okres jest już zamknięty.
+            //
+            // ATOMOWO: raty + lock w JEDNEJ transakcji. Lock jest nieodwracalny
+            // (brak unlockPeriod), więc rata, która nie przeszła, zostaje na zawsze
+            // 'pending' w zamkniętym okresie — PayrollLedger::record rzuci
+            // ERR_PERIOD_LOCKED przy każdej późniejszej próbie. Dlatego JAKAKOLWIEK
+            // awaria spinaczy = rollback całego zamknięcia.
+            $repaidIds = [];
+            $locked    = 0;
+            $failCode  = null;
+            $failMsg   = null;
+
+            $pdo->beginTransaction();
+            try {
+                // FOR UPDATE — dwa równoległe zamknięcia tego samego okresu
+                // nie mogą spłacić tej samej raty dwa razy.
+                $installmentsStmt = $pdo->prepare("
+                    SELECT i.id
+                    FROM sh_advance_installments i
+                    INNER JOIN sh_advances a ON a.id = i.advance_id AND a.tenant_id = i.tenant_id
+                    WHERE i.tenant_id = :tid
+                      AND i.scheduled_period_year = :py
+                      AND i.scheduled_period_month = :pm
+                      AND i.status = 'pending'
+                      AND a.status = 'paid'
+                    FOR UPDATE
+                ");
+                $installmentsStmt->execute([
+                    ':tid' => $tenant_id,
+                    ':py'  => $pYear,
+                    ':pm'  => $pMonth,
+                ]);
+
+                foreach ($installmentsStmt->fetchAll(PDO::FETCH_COLUMN) as $instId) {
+                    // recordRepayment dołącza do naszej transakcji (ownTx=false).
+                    AdvanceEngine::recordRepayment($pdo, $tenant_id, (int)$instId, $user_id);
+                    $repaidIds[] = (int)$instId;
+                }
+
+                $locked = PayrollLedger::lockPeriod($pdo, $tenant_id, $pYear, $pMonth);
+                if ($locked === 0) {
+                    $failCode = 'PERIOD_EMPTY';
+                    $failMsg  = sprintf('Brak wpisów ledgera w %04d-%02d — nie ma czego zamykać.', $pYear, $pMonth);
+                    throw new \RuntimeException($failCode);
+                }
+
+                $pdo->commit();
+            } catch (\Throwable $e) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                if ($failCode !== null) {
+                    hrFail(409, $failCode, $failMsg);
+                }
+                error_log("[HR] close_period {$pYear}-{$pMonth} rolled back: " . $e->getMessage());
+                hrFail(409, 'CLOSE_PERIOD_FAILED', $e->getMessage());
+            }
+
+            hrResponse(true, [
+                'period_year'       => $pYear,
+                'period_month'      => $pMonth,
+                'locked_entries'    => $locked,
+                'is_locked'         => true,
+                'installments_repaid' => $repaidIds,
+            ], sprintf(
+                'Okres %04d-%02d zamknięty (%d wpisów, %d rat zaliczek spłaconych).',
+                $pYear, $pMonth, $locked, count($repaidIds)
+            ));
+            break;
+        }
+
+        // -----------------------------------------------------------------
+        // Zaliczki — lifecycle sh_advances (AdvanceEngine). Kwoty w ledgerze.
+        case 'advances_list': {
+            hrRequireManager($pdo, $tenant_id, $user_id);
+            $where  = 'a.tenant_id = :tid';
+            $params = [':tid' => $tenant_id];
+            if (!empty($input['employee_id'])) {
+                $where .= ' AND a.employee_id = :eid';
+                $params[':eid'] = (int)$input['employee_id'];
+            }
+            if (!empty($input['status'])) {
+                $where .= ' AND a.status = :st';
+                $params[':st'] = (string)$input['status'];
+            }
+            $st = $pdo->prepare("
+                SELECT a.id, a.employee_id, e.display_name AS employee_name,
+                       a.amount_minor, a.currency, a.status,
+                       a.repayment_plan, a.installments_count, a.reason,
+                       a.requested_at, a.approved_at, a.paid_at, a.paid_method,
+                       a.settled_at, a.rejected_at, a.rejection_reason,
+                       (SELECT COUNT(*) FROM sh_advance_installments i
+                         WHERE i.advance_id = a.id AND i.tenant_id = a.tenant_id AND i.status = 'paid') AS installments_paid
+                FROM sh_advances a
+                INNER JOIN sh_employees e ON e.id = a.employee_id AND e.tenant_id = a.tenant_id
+                WHERE {$where}
+                ORDER BY a.id DESC
+                LIMIT 200
+            ");
+            $st->execute($params);
+            $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($rows as &$r) {
+                $r['id'] = (int)$r['id'];
+                $r['employee_id'] = (int)$r['employee_id'];
+                $r['amount_minor'] = (int)$r['amount_minor'];
+                $r['installments_count'] = (int)$r['installments_count'];
+                $r['installments_paid'] = (int)$r['installments_paid'];
+            }
+            unset($r);
+            hrResponse(true, ['advances' => $rows], 'OK');
+            break;
+        }
+
+        case 'advance_request': {
+            hrRequireManager($pdo, $tenant_id, $user_id);
+            $plan = trim((string)($input['repayment_plan'] ?? 'single'));
+            try {
+                $advanceId = AdvanceEngine::request($pdo, $tenant_id, [
+                    'employee_id'          => (int)($input['employee_id'] ?? 0),
+                    'amount_minor'         => hrMoneyMinor($input, ['allow_zero' => false]),
+                    'repayment_plan'       => $plan,
+                    'installments_count'   => (int)($input['installments_count'] ?? 0),
+                    'reason'               => isset($input['reason']) ? (string)$input['reason'] : null,
+                    'requested_by_user_id' => $user_id,
+                ]);
+            } catch (\InvalidArgumentException $e) {
+                hrFailFromDomain(400, $e);
+            } catch (\RuntimeException $e) {
+                hrFailFromDomain(409, $e);
+            }
+            hrResponse(true, ['advance_id' => $advanceId], 'Advance requested.');
+            break;
+        }
+
+        case 'advance_approve':
+        case 'advance_reject':
+        case 'advance_mark_paid':
+        case 'advance_void': {
+            hrRequireManager($pdo, $tenant_id, $user_id);
+            $advanceId = (int)($input['advance_id'] ?? 0);
+            if ($advanceId <= 0) {
+                hrFail(400, 'ADVANCE_ID_REQUIRED', 'advance_id is required.');
+            }
+            try {
+                switch ($action) {
+                    case 'advance_approve':
+                        AdvanceEngine::approve($pdo, $tenant_id, $advanceId, $user_id);
+                        hrResponse(true, ['advance_id' => $advanceId], 'Advance approved.');
+                        break;
+                    case 'advance_reject':
+                        AdvanceEngine::reject($pdo, $tenant_id, $advanceId, $user_id, (string)($input['reason'] ?? ''));
+                        hrResponse(true, ['advance_id' => $advanceId], 'Advance rejected.');
+                        break;
+                    case 'advance_mark_paid':
+                        $out = AdvanceEngine::markPaid($pdo, $tenant_id, $advanceId, $user_id, (string)($input['method'] ?? 'cash'));
+                        hrResponse(true, ['advance_id' => $advanceId] + $out, 'Advance marked paid (ledger + installments).');
+                        break;
+                    case 'advance_void':
+                        $reversalId = AdvanceEngine::voidAdvance($pdo, $tenant_id, $advanceId, $user_id, (string)($input['reason'] ?? ''));
+                        hrResponse(true, ['advance_id' => $advanceId, 'reversal_entry_id' => $reversalId], 'Advance voided (reversal in ledger).');
+                        break;
+                }
+            } catch (\InvalidArgumentException $e) {
+                hrFailFromDomain(400, $e);
+            } catch (\RuntimeException $e) {
+                hrFailFromDomain(409, $e);
+            }
+            break;
+        }
+
+        // -----------------------------------------------------------------
+        // Premia (bonus, > 0) i korekta (adjustment, SIGNED) — wpisy ledgera.
+        case 'bonus_add':
+        case 'adjustment_add': {
+            hrRequireManager($pdo, $tenant_id, $user_id);
+            $employeeId = (int)($input['employee_id'] ?? 0);
+            if ($employeeId <= 0) {
+                hrFail(400, 'EMPLOYEE_ID_REQUIRED', 'employee_id is required.');
+            }
+            if (hrFetchEmployeeRow($pdo, $tenant_id, $employeeId) === null) {
+                hrFail(404, 'NOT_FOUND', 'Employee not found.');
+            }
+
+            $isBonus = $action === 'bonus_add';
+            $amountMinor = hrMoneyMinor($input, [
+                'allow_negative' => !$isBonus,
+                'allow_zero'     => false,
+            ]);
+
+            $description = trim((string)($input['description'] ?? ''));
+            if (!$isBonus && $description === '') {
+                hrFail(400, 'DESCRIPTION_REQUIRED', 'Adjustment requires description (audit trail).');
+            }
+
+            // Okres księgowania: domyślnie bieżący miesiąc, opcjonalnie wskazany
+            // wprost. Zamknięty okres odrzuci PayrollLedger::record (PERIOD_LOCKED)
+            // — korekta idzie wtedy do następnego otwartego okresu.
+            [$pYear, $pMonth] = hrResolvePeriodYearMonth($input, true);
+
+            try {
+                $ledgerId = PayrollLedger::record($pdo, $tenant_id, [
+                    'employee_id'        => $employeeId,
+                    'period_year'        => $pYear,
+                    'period_month'       => $pMonth,
+                    'entry_type'         => $isBonus ? PayrollLedger::TYPE_BONUS : PayrollLedger::TYPE_ADJUSTMENT,
+                    'amount_minor'       => $amountMinor,
+                    'currency'           => 'PLN',
+                    'description'        => $description !== '' ? $description : null,
+                    'created_by_user_id' => $user_id,
+                ]);
+            } catch (\InvalidArgumentException $e) {
+                hrFailFromDomain(400, $e);
+            } catch (\RuntimeException $e) {
+                hrFailFromDomain(409, $e);
+            }
+            hrResponse(true, [
+                'ledger_entry_id' => $ledgerId,
+                'amount_minor'    => $amountMinor,
+                'period_year'     => $pYear,
+                'period_month'    => $pMonth,
+            ], sprintf(
+                '%s zaksięgowano w okresie %04d-%02d.',
+                $isBonus ? 'Premię' : 'Korektę',
+                $pYear,
+                $pMonth
+            ));
+            break;
+        }
+
         default:
             hrFail(400, 'UNKNOWN_ACTION', "Unknown action: {$action}");
     }
@@ -451,13 +801,7 @@ try {
  */
 function hrLoadActorRole(PDO $pdo, int $tenantId, int $userId): string
 {
-    $stmt = $pdo->prepare("
-        SELECT role FROM sh_users
-        WHERE id = :uid AND tenant_id = :tid
-        LIMIT 1
-    ");
-    $stmt->execute([':uid' => $userId, ':tid' => $tenantId]);
-    return (string)$stmt->fetchColumn();
+    return HrRoles::actorRole($pdo, $tenantId, $userId);
 }
 
 /**
@@ -479,7 +823,7 @@ function hrAccountRoles(): array
 function hrRequireManager(PDO $pdo, int $tenantId, int $actorUserId): void
 {
     $role = hrLoadActorRole($pdo, $tenantId, $actorUserId);
-    if (!in_array($role, ['owner', 'manager', 'admin'], true)) {
+    if (!in_array($role, HrRoles::MANAGER_ROLES, true)) {
         hrFail(403, 'FORBIDDEN', 'Only owner, manager, or admin can manage HR.');
     }
 }
@@ -568,20 +912,85 @@ function hrApplyKioskPin(PDO $pdo, int $tenantId, int $employeeId, string $pin):
     }
 }
 
-function hrResolveAmountMinor(array $input): int
+/**
+ * Waliduje i zwraca [period_year, period_month] z inputu.
+ *
+ * @param bool $defaultToCurrent gdy true i brak obu pól → bieżący miesiąc
+ *                               (używane przez bonus_add / adjustment_add).
+ *
+ * @return array{0:int,1:int}
+ */
+function hrResolvePeriodYearMonth(array $input, bool $defaultToCurrent = false): array
 {
-    if (isset($input['amount_minor'])) {
-        return max(0, (int)$input['amount_minor']);
-    }
-    if (isset($input['hourly_amount_pln'])) {
-        $pln = (float)$input['hourly_amount_pln'];
-        if ($pln < 0) {
-            throw new InvalidArgumentException('hourly_amount_pln must be >= 0.');
-        }
+    $hasYear  = isset($input['period_year']);
+    $hasMonth = isset($input['period_month']);
 
-        return (int)round($pln * 100);
+    if ($defaultToCurrent && !$hasYear && !$hasMonth) {
+        return [(int)date('Y'), (int)date('n')];
     }
-    throw new InvalidArgumentException('Provide amount_minor (grosze) or hourly_amount_pln.');
+
+    $year  = (int)($input['period_year'] ?? 0);
+    $month = (int)($input['period_month'] ?? 0);
+    if ($year < 2000 || $year > 2099 || $month < 1 || $month > 12) {
+        hrFail(400, 'INVALID_PERIOD', 'Provide period_year (2000–2099) and period_month (1–12).');
+    }
+    return [$year, $month];
+}
+
+/**
+ * JEDYNY parser kwot w tym routerze (zastępuje dawne hrResolveMoneyMinor /
+ * hrResolveAmountMinor / inline'y `price_pln`).
+ *
+ * Warstwa transportowa: konwersję robi {@see Money}, a błędy kończą request
+ * przez `hrFail` — domena dostaje już tylko czysty `int` grosze.
+ *
+ * @param array{
+ *   keys?: array{0:string,1:string},  // [klucz_minor, klucz_pln]; default amount_minor/amount_pln
+ *   required?: bool,                  // default true; false → brak kluczy zwraca null
+ *   allow_negative?: bool,            // default false
+ *   allow_zero?: bool,                // default true
+ *   error_code?: string               // kod błędu walidacji; default INVALID_AMOUNT
+ * } $opts
+ */
+function hrMoneyMinor(array $input, array $opts = []): ?int
+{
+    [$minorKey, $plnKey] = $opts['keys'] ?? ['amount_minor', 'amount_pln'];
+    $required      = $opts['required']       ?? true;
+    $allowNegative = $opts['allow_negative'] ?? false;
+    $allowZero     = $opts['allow_zero']     ?? true;
+    $errCode       = $opts['error_code']     ?? 'INVALID_AMOUNT';
+
+    $minor = null;
+    if (isset($input[$minorKey])) {
+        if (!is_int($input[$minorKey])) {
+            hrFail(400, $errCode, $minorKey . ' must be a strict int (grosze).');
+        }
+        $minor = (int)$input[$minorKey];
+    } elseif (isset($input[$plnKey])) {
+        try {
+            $minor = Money::fromPln($input[$plnKey]);
+        } catch (\InvalidArgumentException $e) {
+            hrFail(400, $errCode, $plnKey . ': ' . $e->getMessage());
+        }
+    }
+
+    if ($minor === null) {
+        if (!$required) {
+            return null;
+        }
+        hrFail(400, 'AMOUNT_REQUIRED', sprintf('Provide %s (int grosze) or %s.', $minorKey, $plnKey));
+    }
+    if (!$allowNegative && $minor < 0) {
+        hrFail(400, $errCode, 'Amount must be >= 0.');
+    }
+    if (!$allowZero && $minor === 0) {
+        hrFail(400, $errCode, 'Amount must not be 0.');
+    }
+    if (!Money::isWithinCap($minor)) {
+        hrFail(400, $errCode, 'Amount exceeds cap of ' . Money::MAX_MINOR . ' minor units.');
+    }
+
+    return $minor;
 }
 
 /**
@@ -827,6 +1236,13 @@ function hrUpsertEmployee(PDO $pdo, int $tenantId, int $actorUserId, array $p): 
     $employeeCodeIn = trim((string)($p['employee_code'] ?? ''));
     $tmpCode = $employeeCodeIn !== '' ? $employeeCodeIn : ('EMP-NEW-' . bin2hex(random_bytes(4)));
 
+    // Stawka startowa — walidacja PRZED transakcją: hrMoneyMinor kończy request
+    // przez hrFail, więc nie może wypaść w środku otwartego BEGIN.
+    $initialRate = hrMoneyMinor($p, [
+        'keys'     => ['amount_minor', 'hourly_amount_pln'],
+        'required' => false,
+    ]);
+
     $pdo->beginTransaction();
     try {
         $ins = $pdo->prepare('
@@ -869,12 +1285,6 @@ function hrUpsertEmployee(PDO $pdo, int $tenantId, int $actorUserId, array $p): 
                 ->execute([':c' => $finalCode, ':id' => $newId, ':tid' => $tenantId]);
         }
 
-        $initialRate = null;
-        try {
-            $initialRate = hrResolveAmountMinor($p);
-        } catch (\InvalidArgumentException $ignore) {
-            $initialRate = null;
-        }
         if ($initialRate !== null && $initialRate > 0) {
             $pdo->prepare('
                 INSERT INTO sh_employee_rates

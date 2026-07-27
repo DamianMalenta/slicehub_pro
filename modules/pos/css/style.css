@@ -369,6 +369,14 @@ html, body { height:100%; width:100%; font-family:var(--font); background:var(--
 .dc-ing { padding:7px 12px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--bg-card); color:var(--text-secondary); font-size:10px; font-weight:700; cursor:pointer; transition:all 0.15s; }
 .dc-ing:hover { color:var(--text-primary); background:var(--bg-card-hover); }
 .dc-ing.removed { opacity:0.4; text-decoration:line-through; color:var(--accent-red); border-color:rgba(239,68,68,0.3); }
+.dc-variant-switcher { display:flex; flex-wrap:wrap; gap:6px; }
+.dc-variant-btn { display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 14px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--bg-card); cursor:pointer; transition:all 0.15s; min-width:72px; }
+.dc-variant-btn:hover { background:var(--bg-card-hover); border-color:var(--border-focus); }
+.dc-variant-btn.active { border-color:var(--accent-red); background:rgba(239,68,68,0.08); box-shadow:0 0 0 1px var(--accent-red) inset; }
+.dc-variant-name { font-size:11px; font-weight:800; color:var(--text-primary); }
+.dc-variant-btn.active .dc-variant-name { color:var(--accent-red); }
+.dc-variant-price { font-size:9px; font-weight:700; color:var(--text-muted); }
+.dc-variant-btn.active .dc-variant-price { color:var(--accent-green); }
 .dc-modifiers { display:flex; flex-direction:column; gap:5px; }
 .dc-mod { display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--bg-card); cursor:pointer; transition:all 0.15s; }
 .dc-mod:hover { background:var(--bg-card-hover); }

@@ -1,8 +1,8 @@
 <?php
 // =============================================================================
-// STATUS: PLANNED (audit 2026-04-19) — not yet wired.
-// Consumer: staff payroll panel (Faza 3) — per-user week/month/year view.
-// Backed by PayrollEngine. Keep.
+// STATUS: WRAPPER (Prawo VIII domknięte 2026-07-27) — thin alias for external
+// integrations that prefer GET over POST. Delegates to PayrollEngine::calculate,
+// the same engine used by api/backoffice/hr/engine.php?action=payroll_report.
 // =============================================================================
 // SliceHub Enterprise — Payroll calculation (read-only)
 // GET /api/staff/payroll.php?user_id=&period_type=month&period_offset=0
@@ -17,9 +17,10 @@
 declare(strict_types=1);
 
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
+// Brak `Access-Control-Allow-Origin: *` — to dane płacowe, a konsument jest
+// same-origin. Jeśli kiedyś stanie tu integracja zewnętrzna, wpisz konkretny
+// origin z allowlisty, nigdy gwiazdkę.
 header('Access-Control-Allow-Methods: GET, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
@@ -36,6 +37,7 @@ try {
     require_once __DIR__ . '/../../core/db_config.php';
     require_once __DIR__ . '/../../core/auth_guard.php';
     require_once __DIR__ . '/../../core/PayrollEngine.php';
+    require_once __DIR__ . '/../../core/HrRoles.php';
 
     if (!isset($pdo)) {
         throw new RuntimeException('Database connection unavailable.');
@@ -44,6 +46,18 @@ try {
     $targetUser = trim($_GET['user_id'] ?? '');
     if ($targetUser === '') {
         $targetUser = (string)$user_id;
+    }
+
+    // AUTORYZACJA: auth_guard robi tylko uwierzytelnienie. Cudze wypłaty widzi
+    // wyłącznie owner/manager/admin (ten sam gate co hrRequireManager w
+    // api/backoffice/hr/engine.php). Własne dane — każdy zalogowany.
+    if ((int)$targetUser !== $user_id && !HrRoles::isManager($pdo, $tenant_id, $user_id)) {
+        http_response_code(403);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Forbidden: only owner/manager/admin can read another user payroll.',
+        ]);
+        exit;
     }
 
     $periodType   = strtolower(trim($_GET['period_type'] ?? 'month'));

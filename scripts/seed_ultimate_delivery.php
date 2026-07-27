@@ -14,14 +14,13 @@ echo '<html><body style="background:#0a0f1c;color:#f1f5f9;font-family:Inter,sans
 echo '<h1 style="color:#f97316">🚚 SliceHub — Ultimate Delivery Seed</h1>';
 
 require_once __DIR__ . '/../core/db_config.php';
+require_once __DIR__ . '/../core/Uuid.php';
 
 $tenantId = 1;
 
+// Alias na SSOT (`core/Uuid.php`)
 function uuid4(): string {
-    $d = random_bytes(16);
-    $d[6] = chr((ord($d[6]) & 0x0f) | 0x40);
-    $d[8] = chr((ord($d[8]) & 0x3f) | 0x80);
-    return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($d), 4));
+    return Uuid::v4();
 }
 
 function seedLog(string $msg): void {

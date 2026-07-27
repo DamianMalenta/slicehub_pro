@@ -36,6 +36,7 @@
 <nav class="hr-tabs" role="tablist">
     <button type="button" class="hr-tab active" data-tab="employees" role="tab"><i class="fa-solid fa-users"></i> Pracownicy</button>
     <button type="button" class="hr-tab" data-tab="payroll" role="tab"><i class="fa-solid fa-money-check-dollar"></i> Wypłaty</button>
+    <button type="button" class="hr-tab" data-tab="advances" role="tab"><i class="fa-solid fa-hand-holding-dollar"></i> Zaliczki</button>
 </nav>
 
 <div id="hr-view-employees">
@@ -80,7 +81,12 @@
             <button type="button" id="hr-pr-next" title="Następny okres"><i class="fa-solid fa-chevron-right"></i></button>
         </div>
         <span class="hr-period-label" id="hr-pr-period-label">—</span>
+        <span class="hr-tag hidden" id="hr-pr-lock-badge"></span>
         <button type="button" class="hr-btn" id="hr-pr-refresh"><i class="fa-solid fa-rotate"></i> Odśwież</button>
+        <button type="button" class="hr-btn hr-btn--danger hidden" id="hr-pr-close-period"
+                title="Jednokierunkowe — po zamknięciu korekty tylko jako 'adjustment' w kolejnym okresie">
+            <i class="fa-solid fa-lock"></i> Zamknij miesiąc
+        </button>
     </section>
 
     <main class="hr-main">
@@ -105,6 +111,103 @@
         </div>
         <p class="hr-hint">Wszystkie kwoty liczy backend (akcja <code>payroll_report</code>) — frontend niczego nie przelicza.</p>
     </main>
+</div>
+
+<div id="hr-view-advances" class="hidden">
+    <section class="hr-toolbar">
+        <button type="button" class="hr-btn hr-btn--primary" id="hr-adv-add"><i class="fa-solid fa-plus"></i> Nowa zaliczka</button>
+        <div class="hr-seg" id="hr-adv-status-filter">
+            <button type="button" data-status="" class="active">Wszystkie</button>
+            <button type="button" data-status="requested">Wnioski</button>
+            <button type="button" data-status="paid">Wypłacone</button>
+        </div>
+        <button type="button" class="hr-btn" id="hr-adv-refresh"><i class="fa-solid fa-rotate"></i> Odśwież</button>
+    </section>
+
+    <main class="hr-main">
+        <div class="hr-table-wrap">
+            <table class="hr-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Pracownik</th>
+                        <th class="num">Kwota</th>
+                        <th>Status</th>
+                        <th>Plan / raty</th>
+                        <th>Powód</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="hr-adv-tbody">
+                    <tr><td colspan="7" style="color:#78716c;padding:1.5rem;">Ładowanie…</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="hr-hint">Lifecycle: wniosek → zatwierdzenie → wypłata (wpis w ledgerze + harmonogram rat) → spłata z wypłat. Void tylko przed pierwszą spłaconą ratą.</p>
+    </main>
+</div>
+
+<!-- Modal: nowa zaliczka -->
+<div class="hr-modal-overlay" id="hr-modal-advance" aria-hidden="true">
+    <div class="hr-modal">
+        <h2>Nowa zaliczka</h2>
+        <div class="hr-field">
+            <label for="hr-adv-employee">Pracownik</label>
+            <select id="hr-adv-employee"></select>
+        </div>
+        <div class="hr-field">
+            <label for="hr-adv-amount">Kwota (PLN)</label>
+            <input id="hr-adv-amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="np. 500.00">
+        </div>
+        <div class="hr-field">
+            <label for="hr-adv-plan">Plan spłaty</label>
+            <select id="hr-adv-plan">
+                <option value="single">Jednorazowo (z najbliższej wypłaty)</option>
+                <option value="installments">Raty miesięczne</option>
+            </select>
+        </div>
+        <div class="hr-field hidden" id="hr-adv-inst-wrap">
+            <label for="hr-adv-installments">Liczba rat (2–24)</label>
+            <input id="hr-adv-installments" type="number" min="2" max="24" step="1" value="2">
+        </div>
+        <div class="hr-field">
+            <label for="hr-adv-reason">Powód (opcjonalnie)</label>
+            <input id="hr-adv-reason" type="text" maxlength="255">
+        </div>
+        <div class="hr-modal-actions">
+            <button type="button" class="hr-btn" id="hr-adv-cancel">Anuluj</button>
+            <button type="button" class="hr-btn hr-btn--primary" id="hr-adv-save">Złóż wniosek</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: zdarzenie płacowe (premia / korekta / posiłek) -->
+<div class="hr-modal-overlay" id="hr-modal-ledger" aria-hidden="true">
+    <div class="hr-modal">
+        <h2 id="hr-led-title">Zdarzenie płacowe</h2>
+        <p id="hr-led-employee-name" style="font-size:0.85rem;color:#a8a29e;margin-top:-0.5rem;"></p>
+        <input type="hidden" id="hr-led-employee-id">
+        <div class="hr-field">
+            <label for="hr-led-type">Typ</label>
+            <select id="hr-led-type">
+                <option value="bonus">Premia (+)</option>
+                <option value="adjustment">Korekta (±, wymagany opis)</option>
+                <option value="meal">Posiłek pracowniczy (potrącenie)</option>
+            </select>
+        </div>
+        <div class="hr-field">
+            <label for="hr-led-amount">Kwota (PLN) <span id="hr-led-amount-hint" style="color:#78716c;font-weight:400;"></span></label>
+            <input id="hr-led-amount" type="number" step="0.01" inputmode="decimal" placeholder="np. 150.00">
+        </div>
+        <div class="hr-field">
+            <label for="hr-led-desc">Opis</label>
+            <input id="hr-led-desc" type="text" maxlength="255" placeholder="np. premia za wyniki / korekta godzin / Margherita">
+        </div>
+        <div class="hr-modal-actions">
+            <button type="button" class="hr-btn" id="hr-led-cancel">Anuluj</button>
+            <button type="button" class="hr-btn hr-btn--primary" id="hr-led-save">Zapisz</button>
+        </div>
+    </div>
 </div>
 
 <!-- Modal: employee -->

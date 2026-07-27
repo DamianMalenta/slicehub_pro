@@ -11,9 +11,10 @@
 --                              LUB rolami operacyjnymi) na sh_employees + wpis w
 --                              sh_employee_rates (reason='hiring').
 --
--- Expand-Contract: kolumna sh_users.hourly_rate POZOSTAJE (deprecated), żeby
--- stary PayrollEngine działał do czasu przejścia na v2. Usunięcie — osobna
--- migracja po 2× zamknięciu miesiąca.
+-- Expand-Contract: kolumna sh_users.hourly_rate POZOSTAJE tu (deprecated), żeby
+-- stary PayrollEngine działał do czasu przejścia na v2. Kontrakt (DROP COLUMN)
+-- realizuje migracja 061 — wszystkie odwołania do kolumny w tym pliku są
+-- dynamic-SQL-guarded, żeby re-run łańcucha po 061 był no-opem.
 --
 -- Konwencje (§2.4 spec):
 --   - Klucze techniczne / statusy / waluty → CHARACTER SET ascii COLLATE ascii_general_ci
@@ -185,10 +186,33 @@ FROM sh_users u
 LEFT JOIN sh_employees e
   ON e.user_id = u.id AND e.tenant_id = u.tenant_id
 WHERE e.id IS NULL
-  AND (
-    u.role IN ('cook','waiter','driver','manager','cashier','cleaner','team','runner','shift_lead','owner','admin')
-    OR u.hourly_rate > 0
-  );
+  AND u.role IN ('cook','waiter','driver','manager','cashier','cleaner','team','runner','shift_lead','owner','admin');
+
+-- Uzupełnienie legacy: userzy spoza ról operacyjnych, ale z hourly_rate > 0.
+-- Dynamic SQL, bo kolumna sh_users.hourly_rate jest DROPOWANA w migracji 061
+-- (chain re-runuje wszystkie migracje — statyczne odwołanie by wybuchało).
+SELECT COUNT(*) INTO @col_exists FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'sh_users' AND COLUMN_NAME = 'hourly_rate';
+SET @sql = IF(@col_exists = 1,
+  "INSERT INTO sh_employees (
+     tenant_id, user_id, employee_code, display_name, first_name, last_name,
+     hire_date, primary_role, status, default_currency, created_at, updated_at, is_deleted)
+   SELECT
+     u.tenant_id, u.id, CONCAT('EMP-', LPAD(u.id, 5, '0')),
+     COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), ''), NULLIF(u.name, ''), u.username),
+     COALESCE(NULLIF(u.first_name, ''), NULLIF(u.name, ''), u.username),
+     COALESCE(NULLIF(u.last_name,  ''), '-'),
+     DATE(u.created_at),
+     'cashier',
+     CASE WHEN u.is_active = 0 OR u.is_deleted = 1 THEN 'terminated'
+          WHEN u.status IN ('active','suspended','on_leave','terminated') THEN u.status
+          ELSE 'active' END,
+     'PLN', u.created_at, u.created_at, u.is_deleted
+   FROM sh_users u
+   LEFT JOIN sh_employees e ON e.user_id = u.id AND e.tenant_id = u.tenant_id
+   WHERE e.id IS NULL AND u.hourly_rate > 0",
+  'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- =============================================================================
 -- 4. BACKFILL — sh_employees → sh_employee_rates
@@ -201,42 +225,43 @@ WHERE e.id IS NULL
 --
 -- Pracownicy z hourly_rate = 0 dostaną stawkę ręcznie przez UI Szefa
 -- (unikamy wpisu "0" który zakłamałby payroll — lepszy brak niż kłamstwo).
+--
+-- Dynamic SQL: kolumna sh_users.hourly_rate jest DROPOWANA w migracji 061 —
+-- na bazach po 061 ten backfill jest no-opem (dane już przeniesione).
 -- =============================================================================
-INSERT INTO sh_employee_rates (
-  tenant_id, employee_id,
-  rate_type, amount_minor, currency,
-  effective_from, effective_to,
-  reason, note,
-  created_by_user_id, created_at
-)
-SELECT
-  e.tenant_id,
-  e.id,
-  'hourly',
-  CAST(ROUND(u.hourly_rate * 100) AS UNSIGNED) AS amount_minor,
-  'PLN',
-  TIMESTAMP(e.hire_date, '00:00:00') AS effective_from,
-  NULL AS effective_to,
-  'hiring',
-  'Auto-backfill z sh_users.hourly_rate (migracja 041)',
-  NULL,
-  CURRENT_TIMESTAMP
-FROM sh_employees e
-JOIN sh_users u
-  ON u.id = e.user_id AND u.tenant_id = e.tenant_id
-LEFT JOIN sh_employee_rates r
-  ON r.employee_id = e.id
-     AND r.tenant_id = e.tenant_id
-     AND r.rate_type = 'hourly'
-WHERE r.id IS NULL
-  AND u.hourly_rate > 0;
+SELECT COUNT(*) INTO @col_exists FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'sh_users' AND COLUMN_NAME = 'hourly_rate';
+SET @sql = IF(@col_exists = 1,
+  "INSERT INTO sh_employee_rates (
+     tenant_id, employee_id,
+     rate_type, amount_minor, currency,
+     effective_from, effective_to,
+     reason, note,
+     created_by_user_id, created_at)
+   SELECT
+     e.tenant_id, e.id, 'hourly',
+     CAST(ROUND(u.hourly_rate * 100) AS UNSIGNED), 'PLN',
+     TIMESTAMP(e.hire_date, '00:00:00'), NULL,
+     'hiring', 'Auto-backfill z sh_users.hourly_rate (migracja 041)',
+     NULL, CURRENT_TIMESTAMP
+   FROM sh_employees e
+   JOIN sh_users u
+     ON u.id = e.user_id AND u.tenant_id = e.tenant_id
+   LEFT JOIN sh_employee_rates r
+     ON r.employee_id = e.id
+        AND r.tenant_id = e.tenant_id
+        AND r.rate_type = 'hourly'
+   WHERE r.id IS NULL
+     AND u.hourly_rate > 0",
+  'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- =============================================================================
 -- 5. Deprecation marker — sh_users.hourly_rate
 -- -----------------------------------------------------------------------------
--- NIE dropujemy kolumny (Expand-Contract). Zmieniamy tylko COMMENT, żeby każdy
--- deweloper widział, że jest to DEPRECATED i payroll nowej generacji czyta z
--- sh_employee_rates.
+-- NIE dropujemy kolumny tutaj (Expand-Contract; DROP — migracja 061).
+-- Zmieniamy tylko COMMENT, żeby każdy deweloper widział, że jest to DEPRECATED
+-- i payroll nowej generacji czyta z sh_employee_rates.
 -- =============================================================================
 SELECT COUNT(*) INTO @col_exists FROM information_schema.COLUMNS
   WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'sh_users' AND COLUMN_NAME = 'hourly_rate';

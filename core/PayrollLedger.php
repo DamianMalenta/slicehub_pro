@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/Money.php';
+require_once __DIR__ . '/Uuid.php';
+
 /**
  * PayrollLedger — append-only writer dla `sh_payroll_ledger`.
  *
@@ -10,6 +13,9 @@ declare(strict_types=1);
  *      Korekta błędnego wpisu = nowy wpis kompensujący przez `reverse()`.
  *   2. **Wszystkie kwoty to `int` grosze.** `float` są odrzucane (`INVALID_AMOUNT`).
  *      To eliminuje ryzyko utraty precyzji IEEE 754 (klasyczny bug „0.1 + 0.2 != 0.3").
+ *      Każda kwota przechodzi też sanity cap `Money::MAX_MINOR` — tu, bo `record()`
+ *      jest JEDYNĄ bramą zapisu (API, workery, skrypty), więc limit pilnowany
+ *      w parserach HTTP miałby dziury.
  *   3. **tenant_id w każdym zapytaniu** — SELECT i INSERT zawsze skalowane do tenantu
  *      z pierwszego argumentu. Zero zaufania do danych z `$payload`.
  *   4. **Sign-per-type** — `entry_type` narzuca znak kwoty:
@@ -145,8 +151,10 @@ final class PayrollLedger
                 self::ERR_INVALID_AMOUNT . ' (must be int, got ' . gettype($amount) . ')'
             );
         }
-        if ($amount < PHP_INT_MIN || $amount > PHP_INT_MAX) {
-            throw new \RuntimeException(self::ERR_INVALID_AMOUNT . ' (out of range)');
+        if (!Money::isWithinCap($amount)) {
+            throw new \RuntimeException(
+                self::ERR_INVALID_AMOUNT . ' (exceeds cap ' . Money::MAX_MINOR . ' minor units, got ' . $amount . ')'
+            );
         }
 
         // --- 5. sign per entry_type -------------------------------------
@@ -203,8 +211,8 @@ final class PayrollLedger
         // --- 10. entry_uuid: idempotency key ------------------------------
         $entryUuid = trim((string)($payload['entry_uuid'] ?? ''));
         if ($entryUuid === '') {
-            $entryUuid = self::uuidV4();
-        } elseif (!self::isValidUuid($entryUuid)) {
+            $entryUuid = Uuid::v4();
+        } elseif (!Uuid::isValid($entryUuid)) {
             throw new \InvalidArgumentException('entry_uuid must be a valid UUID.');
         }
 
@@ -603,19 +611,4 @@ final class PayrollLedger
         return $v;
     }
 
-    private static function uuidV4(): string
-    {
-        $b = random_bytes(16);
-        $b[6] = chr((ord($b[6]) & 0x0f) | 0x40);
-        $b[8] = chr((ord($b[8]) & 0x3f) | 0x80);
-        $h = bin2hex($b);
-        return sprintf('%s-%s-%s-%s-%s',
-            substr($h, 0, 8), substr($h, 8, 4), substr($h, 12, 4),
-            substr($h, 16, 4), substr($h, 20, 12));
-    }
-
-    private static function isValidUuid(string $uuid): bool
-    {
-        return (bool)preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $uuid);
-    }
 }

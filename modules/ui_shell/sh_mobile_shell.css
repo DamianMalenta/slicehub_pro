@@ -253,11 +253,11 @@ button, a, input, select, textarea, [role="button"], [tabindex] {
     }
 
     /* ---- (g) BACKOFFICE/HR — tabela pracowników w pudełku --------------
-       Zakładamy że jeśli moduł używa <table> bez wrappera, dodajemy
-       overflow-x na rodzicu. */
-    main table,
-    section table,
-    .container table {
+       Tabele BEZ wrappera dostają scroll. Tabele wewnątrz .hr-table-wrap
+       lub innych kontenerów overflow są wykluczone (direct child tylko). */
+    main > table,
+    section > table,
+    .container > table {
         display: block;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;

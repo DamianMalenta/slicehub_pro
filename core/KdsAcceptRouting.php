@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/Uuid.php';
+
 /**
  * Tworzy bilety KDS per stacja przy przejściu zamówienia → accepted.
  * Współdzielone przez api/pos/engine.php (accept_order) i api/orders/accept.php.
@@ -57,7 +59,7 @@ final class KdsAcceptRouting
         $ticketsCreated = [];
 
         foreach ($stationGroups as $stationId => $stationLines) {
-            $ticketId = self::uuidV4();
+            $ticketId = Uuid::v4();
 
             $stmtInsertTicket->execute([
                 ':id'      => $ticketId,
@@ -96,13 +98,5 @@ final class KdsAcceptRouting
         }
 
         return $ticketsCreated;
-    }
-
-    private static function uuidV4(): string
-    {
-        $data    = random_bytes(16);
-        $data[6] = chr((ord($data[6]) & 0x0f) | 0x40);
-        $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
-        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 }

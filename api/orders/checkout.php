@@ -26,6 +26,7 @@ $respond = static function (bool $ok, $data = null, ?string $message = null, int
 try {
     require_once __DIR__ . '/../../core/db_config.php';
     require_once __DIR__ . '/../../core/auth_guard.php';
+    require_once __DIR__ . '/../../core/Uuid.php';
     require_once __DIR__ . '/../cart/CartEngine.php';
     require_once __DIR__ . '/../../core/WzEngine.php';
 
@@ -53,13 +54,6 @@ try {
     try { $pdo->query('SELECT tracking_token FROM sh_orders LIMIT 0'); $hasOrdersTracking = true; } catch (Throwable $e) {}
 
     $calc = CartEngine::calculate($pdo, $tenant_id, $input);
-
-    $generateUuidV4 = static function (): string {
-        $data = random_bytes(16);
-        $data[6] = chr((ord($data[6]) & 0x0f) | 0x40);
-        $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
-        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
-    };
 
     $fmtMoney = static fn(int $g): string => number_format($g / 100, 2, '.', '');
     $prefixMap = [
@@ -138,7 +132,7 @@ try {
         $seq = (int)$pdo->lastInsertId();
 
         $orderNumber = sprintf('%s/%s/%04d', $prefix, date('Ymd'), $seq);
-        $orderId = $generateUuidV4();
+        $orderId = Uuid::v4();
         $now = date('Y-m-d H:i:s');
 
         if ($calc['applied_promo_code'] !== null) {
@@ -199,7 +193,7 @@ try {
         );
         foreach ($calc['lines_raw'] as $lr) {
             $stmtLine->execute([
-                ':id'       => $generateUuidV4(),
+                ':id'       => Uuid::v4(),
                 ':oid'      => $orderId,
                 ':sku'      => $lr['item_sku'],
                 ':name'     => $lr['snapshot_name'],

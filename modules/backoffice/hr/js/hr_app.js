@@ -18,6 +18,8 @@
     let _employees = [];
     let _payrollPeriodType = 'month';
     let _payrollPeriodOffset = 0;
+    let _advStatusFilter = '';
+    let _activeTab = 'employees';
 
     function getToken() {
         return localStorage.getItem('sh_token') || '';
@@ -137,6 +139,7 @@
                     <button type="button" data-act="edit">Edytuj</button>
                     <button type="button" data-act="pin">PIN</button>
                     <button type="button" data-act="rate">Stawka</button>
+                    <button type="button" data-act="ledger">Płace</button>
                 </td>
             </tr>`;
         }).join('');
@@ -151,6 +154,7 @@
                     if (act === 'edit') openEmployeeModal(emp);
                     if (act === 'pin') openPinModal(id);
                     if (act === 'rate') openRateModal(id);
+                    if (act === 'ledger') openLedgerModal(emp);
                 });
             });
         });
@@ -182,7 +186,23 @@
         });
         document.getElementById('hr-view-employees')?.classList.toggle('hidden', tab !== 'employees');
         document.getElementById('hr-view-payroll')?.classList.toggle('hidden', tab !== 'payroll');
+        document.getElementById('hr-view-advances')?.classList.toggle('hidden', tab !== 'advances');
+        _activeTab = tab;
         if (tab === 'payroll') refreshPayroll();
+        if (tab === 'advances') refreshAdvances();
+    }
+
+    // SSOT odswiezania: KAZDA mutacja konczy sie tym wywolaniem, zamiast
+    // zgadywac per-handler, ktory widok przeladowac (wczesniej submitLedger
+    // nie odswiezal nic i tabela wyplat zostawala nieaktualna).
+    function refreshActiveTab() {
+        if (_activeTab === 'payroll') return refreshPayroll();
+        if (_activeTab === 'advances') return refreshAdvances();
+        return refreshList();
+    }
+
+    function plnFromMinor(minor) {
+        return (Number(minor || 0) / 100).toFixed(2) + ' zł';
     }
 
     function renderPayroll(report) {
@@ -244,6 +264,295 @@
             showErrorBanner(e.message || 'Błąd raportu wypłat');
             renderPayroll({ employees: [] });
         }
+        refreshPeriodLockUi();
+    }
+
+    // ---------------------------------------------------------------
+    // Zamykanie miesiąca (PayrollLedger::lockPeriod — jednokierunkowe).
+    // Lock operuje na pełnych miesiącach, więc UI pokazujemy tylko w widoku
+    // 'month' dla okresów minionych (offset >= 1) — spójnie z guardem API.
+
+    function payrollMonthFromOffset(offset) {
+        const d = new Date();
+        d.setDate(1);
+        d.setMonth(d.getMonth() - offset);
+        return { year: d.getFullYear(), month: d.getMonth() + 1 };
+    }
+
+    async function refreshPeriodLockUi() {
+        const btn = document.getElementById('hr-pr-close-period');
+        const badge = document.getElementById('hr-pr-lock-badge');
+        if (!btn || !badge) return;
+
+        btn.classList.add('hidden');
+        badge.classList.add('hidden');
+
+        if (_payrollPeriodType !== 'month' || _payrollPeriodOffset === 0) return;
+
+        const p = payrollMonthFromOffset(_payrollPeriodOffset);
+        try {
+            const st = await callHr('payroll_period_status', {
+                period_year: p.year,
+                period_month: p.month,
+            });
+            if (st.is_locked) {
+                badge.textContent = 'Okres zamknięty';
+                badge.className = 'hr-tag hr-tag--ok';
+            } else if (st.entries_total > 0) {
+                btn.classList.remove('hidden');
+            } else {
+                badge.textContent = 'Brak wpisów';
+                badge.className = 'hr-tag hr-tag--off';
+            }
+        } catch (e) {
+            console.warn('[hr] payroll_period_status', e);
+        }
+    }
+
+    async function closePeriod() {
+        const p = payrollMonthFromOffset(_payrollPeriodOffset);
+        const label = `${p.year}-${String(p.month).padStart(2, '0')}`;
+        const msg = `Zamknąć okres ${label}?\n\nOperacja jest JEDNOKIERUNKOWA — zamkniętego miesiąca nie da się odblokować. Korekty po zamknięciu księguje się jako 'adjustment' w kolejnym otwartym okresie.`;
+        if (!window.confirm(msg)) return;
+        try {
+            const res = await callHr('payroll_close_period', {
+                period_year: p.year,
+                period_month: p.month,
+            });
+            const repaid = res.installments_repaid?.length ?? 0;
+            toast(`Okres ${label} zamknięty (${res.locked_entries} wpisów${repaid > 0 ? `, ${repaid} rat zaliczek spłaconych` : ''})`, true);
+            await refreshPayroll();
+        } catch (e) {
+            toast(e.message || 'Błąd zamykania okresu', false);
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // Zaliczki (sh_advances, lifecycle przez AdvanceEngine)
+
+    const ADV_STATUS_LABELS = {
+        requested: 'wniosek', approved: 'zatwierdzona', rejected: 'odrzucona',
+        paid: 'wypłacona', settled: 'rozliczona', void: 'wycofana',
+    };
+
+    function advActionsHtml(a) {
+        if (a.status === 'requested') {
+            return `<button type="button" data-adv="approve">Zatwierdź</button>
+                    <button type="button" data-adv="reject">Odrzuć</button>`;
+        }
+        if (a.status === 'approved') {
+            return `<button type="button" data-adv="pay-cash">Wypłać gotówką</button>
+                    <button type="button" data-adv="pay-transfer">Przelew</button>`;
+        }
+        if (a.status === 'paid' && a.installments_paid === 0) {
+            return `<button type="button" data-adv="void">Wycofaj</button>`;
+        }
+        return '';
+    }
+
+    function renderAdvances(rows) {
+        const tb = document.getElementById('hr-adv-tbody');
+        if (!tb) return;
+        if (!rows.length) {
+            tb.innerHTML = '<tr><td colspan="7" style="color:#78716c;padding:1.5rem;">Brak zaliczek.</td></tr>';
+            return;
+        }
+        tb.innerHTML = rows.map((a) => {
+            const plan = a.repayment_plan === 'installments'
+                ? `raty ${a.installments_paid}/${a.installments_count}`
+                : 'jednorazowo';
+            const statusTag = a.status === 'settled' || a.status === 'paid'
+                ? 'hr-tag hr-tag--ok' : 'hr-tag';
+            return `<tr data-id="${a.id}">
+                <td>${a.id}</td>
+                <td>${esc(a.employee_name)}</td>
+                <td class="num">${plnFromMinor(a.amount_minor)}</td>
+                <td><span class="${statusTag}">${esc(ADV_STATUS_LABELS[a.status] || a.status)}</span></td>
+                <td>${esc(plan)}</td>
+                <td>${esc(a.reason || a.rejection_reason || '—')}</td>
+                <td class="hr-actions">${advActionsHtml(a)}</td>
+            </tr>`;
+        }).join('');
+
+        tb.querySelectorAll('tr[data-id]').forEach((row) => {
+            row.querySelectorAll('button[data-adv]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    advanceAction(parseInt(row.getAttribute('data-id'), 10), btn.getAttribute('data-adv'));
+                });
+            });
+        });
+    }
+
+    async function refreshAdvances() {
+        showErrorBanner('');
+        const tb = document.getElementById('hr-adv-tbody');
+        if (tb) tb.innerHTML = '<tr><td colspan="7" style="color:#78716c;padding:1.5rem;">Ładowanie…</td></tr>';
+        try {
+            const payload = _advStatusFilter ? { status: _advStatusFilter } : {};
+            const data = await callHr('advances_list', payload);
+            renderAdvances(data.advances || []);
+        } catch (e) {
+            if (e.httpCode === 401 || e.httpCode === 403) showAuthBanner(true);
+            showErrorBanner(e.message || 'Błąd listy zaliczek');
+            renderAdvances([]);
+        }
+    }
+
+    async function advanceAction(advanceId, act) {
+        try {
+            if (act === 'approve') {
+                await callHr('advance_approve', { advance_id: advanceId });
+                toast('Zaliczka zatwierdzona', true);
+            } else if (act === 'reject') {
+                const reason = window.prompt('Powód odrzucenia (wymagany):');
+                if (!reason || !reason.trim()) return;
+                await callHr('advance_reject', { advance_id: advanceId, reason: reason.trim() });
+                toast('Zaliczka odrzucona', true);
+            } else if (act === 'pay-cash' || act === 'pay-transfer') {
+                const method = act === 'pay-cash' ? 'cash' : 'transfer';
+                if (!window.confirm('Oznaczyć zaliczkę jako wypłaconą (' + method + ')? Utworzy wpis w ledgerze i harmonogram spłat.')) return;
+                await callHr('advance_mark_paid', { advance_id: advanceId, method });
+                toast('Zaliczka wypłacona', true);
+            } else if (act === 'void') {
+                const reason = window.prompt('Powód wycofania (wymagany, audit trail):');
+                if (!reason || !reason.trim()) return;
+                await callHr('advance_void', { advance_id: advanceId, reason: reason.trim() });
+                toast('Zaliczka wycofana (reversal w ledgerze)', true);
+            } else {
+                return;
+            }
+            await refreshActiveTab();
+        } catch (e) {
+            toast(e.message || 'Błąd operacji na zaliczce', false);
+        }
+    }
+
+    async function openAdvanceModal() {
+        const sel = document.getElementById('hr-adv-employee');
+        if (!sel) return;
+        if (!_employees.length) {
+            try {
+                const data = await callHr('employees_list', {});
+                _employees = data.employees || [];
+            } catch (e) { /* banner ustawi refreshList przy następnym wejściu */ }
+        }
+        const active = _employees.filter((e) => e.status === 'active');
+        sel.innerHTML = active.map((e) => `<option value="${e.id}">${esc(e.display_name)}</option>`).join('');
+        document.getElementById('hr-adv-amount').value = '';
+        document.getElementById('hr-adv-plan').value = 'single';
+        document.getElementById('hr-adv-installments').value = '2';
+        document.getElementById('hr-adv-inst-wrap')?.classList.add('hidden');
+        document.getElementById('hr-adv-reason').value = '';
+        openModal('hr-modal-advance', true);
+    }
+
+    async function submitAdvance() {
+        const employeeId = parseInt(document.getElementById('hr-adv-employee').value, 10);
+        const pln = parseFloat(document.getElementById('hr-adv-amount').value);
+        const plan = document.getElementById('hr-adv-plan').value;
+        const inst = parseInt(document.getElementById('hr-adv-installments').value, 10);
+        const reason = document.getElementById('hr-adv-reason').value.trim();
+        if (!employeeId) { toast('Wybierz pracownika', false); return; }
+        if (Number.isNaN(pln) || pln <= 0) { toast('Podaj kwotę > 0', false); return; }
+        if (plan === 'installments' && (Number.isNaN(inst) || inst < 2 || inst > 24)) {
+            toast('Liczba rat: 2–24', false); return;
+        }
+        try {
+            await callHr('advance_request', {
+                employee_id: employeeId,
+                amount_pln: pln,
+                repayment_plan: plan,
+                installments_count: plan === 'installments' ? inst : 0,
+                reason: reason || null,
+            });
+            toast('Wniosek o zaliczkę złożony', true);
+            openModal('hr-modal-advance', false);
+            await refreshActiveTab();
+        } catch (e) {
+            toast(e.message || 'Błąd wniosku', false);
+        }
+    }
+
+    // ---------------------------------------------------------------
+    // Zdarzenie płacowe: premia / korekta / posiłek (modal wspólny)
+
+    function updateLedgerHint() {
+        const type = document.getElementById('hr-led-type')?.value;
+        const hint = document.getElementById('hr-led-amount-hint');
+        if (!hint) return;
+        const now = new Date();
+        const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        hint.textContent = type === 'bonus' ? `— tylko dodatnia · księgowanie: ${period}`
+            : type === 'adjustment' ? `— dodatnia lub ujemna (np. -50.00) · księgowanie: ${period}`
+            : `— cena posiłku (potrącana z wypłaty) · księgowanie: ${period}`;
+    }
+
+    function openLedgerModal(emp) {
+        document.getElementById('hr-led-employee-id').value = String(emp.id);
+        const nameEl = document.getElementById('hr-led-employee-name');
+        if (nameEl) nameEl.textContent = emp.display_name || '';
+        document.getElementById('hr-led-type').value = 'bonus';
+        document.getElementById('hr-led-amount').value = '';
+        document.getElementById('hr-led-desc').value = '';
+        updateLedgerHint();
+        openModal('hr-modal-ledger', true);
+    }
+
+    async function submitLedger() {
+        const employeeId = parseInt(document.getElementById('hr-led-employee-id').value, 10);
+        const type = document.getElementById('hr-led-type').value;
+        const pln = parseFloat(document.getElementById('hr-led-amount').value);
+        const desc = document.getElementById('hr-led-desc').value.trim();
+
+        if (Number.isNaN(pln)) { toast('Podaj kwotę', false); return; }
+        if (type === 'bonus' && pln <= 0) { toast('Premia musi być > 0', false); return; }
+        if (type === 'adjustment' && pln === 0) { toast('Korekta nie może być 0', false); return; }
+        if (type === 'adjustment' && !desc) { toast('Korekta wymaga opisu (audit trail)', false); return; }
+        if (type === 'meal' && pln <= 0) { toast('Cena posiłku musi być > 0', false); return; }
+
+        const saveBtn = document.getElementById('hr-led-save');
+        if (saveBtn) saveBtn.disabled = true;
+        try {
+            let msg = 'Zapisano w ledgerze';
+            if (type === 'meal') {
+                // Klucz idempotencji: retry (podwójny klik, timeout sieci) nie
+                // zdubluje ani posiłku, ani potrącenia.
+                await callHr('meal_record', {
+                    auth: { employee_id: employeeId },
+                    price_pln: pln,
+                    description: desc || null,
+                    idempotency_key: newIdempotencyKey(),
+                });
+            } else {
+                const res = await callHr(type === 'bonus' ? 'bonus_add' : 'adjustment_add', {
+                    employee_id: employeeId,
+                    amount_pln: pln,
+                    description: desc || null,
+                });
+                if (res && res.period_year && res.period_month) {
+                    msg += ` (okres ${res.period_year}-${String(res.period_month).padStart(2, '0')})`;
+                }
+            }
+            toast(msg, true);
+            openModal('hr-modal-ledger', false);
+            await refreshActiveTab();
+        } catch (e) {
+            toast(e.message || 'Błąd zapisu', false);
+        } finally {
+            if (saveBtn) saveBtn.disabled = false;
+        }
+    }
+
+    function newIdempotencyKey() {
+        if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+            return window.crypto.randomUUID();
+        }
+        // Fallback dla starszych przeglądarek / kontekstów bez secure origin.
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+            const r = (Math.random() * 16) | 0;
+            const v = c === 'x' ? r : ((r & 0x3) | 0x8);
+            return v.toString(16);
+        });
     }
 
     function openModal(id, open = true) {
@@ -374,7 +683,7 @@
             await callHr('employee_upsert', { employee: payload });
             toast('Zapisano pracownika', true);
             openModal('hr-modal-employee', false);
-            await refreshList();
+            await refreshActiveTab();
         } catch (e) {
             toast(e.message || 'Błąd zapisu', false);
         }
@@ -391,7 +700,7 @@
             await callHr('employee_pin_set', { employee_id: eid, pin });
             toast('PIN zapisany', true);
             openModal('hr-modal-pin', false);
-            await refreshList();
+            await refreshActiveTab();
         } catch (e) {
             toast(e.message || 'Błąd PIN', false);
         }
@@ -414,7 +723,7 @@
             });
             toast('Stawka zapisana', true);
             openModal('hr-modal-rate', false);
-            await refreshList();
+            await refreshActiveTab();
         } catch (e) {
             toast(e.message || 'Błąd stawki', false);
         }
@@ -424,10 +733,7 @@
         fillRoleSelects();
         showAuthBanner(!getToken());
 
-        document.getElementById('hr-btn-refresh')?.addEventListener('click', () => {
-            const payrollActive = !document.getElementById('hr-view-payroll')?.classList.contains('hidden');
-            return payrollActive ? refreshPayroll() : refreshList();
-        });
+        document.getElementById('hr-btn-refresh')?.addEventListener('click', refreshActiveTab);
         document.getElementById('hr-btn-add')?.addEventListener('click', () => openEmployeeModal(null));
         document.getElementById('hr-inc-del')?.addEventListener('change', refreshList);
 
@@ -453,6 +759,7 @@
             refreshPayroll();
         });
         document.getElementById('hr-pr-refresh')?.addEventListener('click', refreshPayroll);
+        document.getElementById('hr-pr-close-period')?.addEventListener('click', closePeriod);
 
         document.getElementById('hr-form-employee')?.addEventListener('submit', submitEmployee);
         document.getElementById('hr-form-cancel')?.addEventListener('click', () => openModal('hr-modal-employee', false));
@@ -467,12 +774,33 @@
         document.getElementById('hr-rate-cancel')?.addEventListener('click', () => openModal('hr-modal-rate', false));
         document.getElementById('hr-rate-save')?.addEventListener('click', submitRate);
 
-        ['hr-modal-employee', 'hr-modal-pin', 'hr-modal-rate'].forEach((mid) => {
+        document.getElementById('hr-adv-add')?.addEventListener('click', openAdvanceModal);
+        document.getElementById('hr-adv-refresh')?.addEventListener('click', refreshAdvances);
+        document.getElementById('hr-adv-cancel')?.addEventListener('click', () => openModal('hr-modal-advance', false));
+        document.getElementById('hr-adv-save')?.addEventListener('click', submitAdvance);
+        document.getElementById('hr-adv-plan')?.addEventListener('change', (ev) => {
+            document.getElementById('hr-adv-inst-wrap')?.classList.toggle('hidden', ev.target.value !== 'installments');
+        });
+        document.querySelectorAll('#hr-adv-status-filter button').forEach((b) => {
+            b.addEventListener('click', () => {
+                _advStatusFilter = b.getAttribute('data-status') || '';
+                document.querySelectorAll('#hr-adv-status-filter button')
+                    .forEach((x) => x.classList.toggle('active', x === b));
+                refreshAdvances();
+            });
+        });
+
+        document.getElementById('hr-led-cancel')?.addEventListener('click', () => openModal('hr-modal-ledger', false));
+        document.getElementById('hr-led-save')?.addEventListener('click', submitLedger);
+        document.getElementById('hr-led-type')?.addEventListener('change', updateLedgerHint);
+
+        ['hr-modal-employee', 'hr-modal-pin', 'hr-modal-rate', 'hr-modal-advance', 'hr-modal-ledger'].forEach((mid) => {
             document.getElementById(mid)?.addEventListener('click', (ev) => {
                 if (ev.target.id === mid) openModal(mid, false);
             });
         });
 
+        switchTab('employees');
         refreshList();
     }
 

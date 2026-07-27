@@ -724,7 +724,10 @@ const PosApp = (() => {
                         if (btn) btn.classList.remove('active');
                     }
                 } else {
-                    _openDishCard(chosenVariant);
+                    const siblings = _menuData.items
+                        .filter(i => i.parentAsciiKey === item.parentAsciiKey)
+                        .sort((a, b) => (a.variantOptionKey || '').localeCompare(b.variantOptionKey || ''));
+                    _openDishCard(chosenVariant, siblings);
                 }
             });
             return;
@@ -745,7 +748,7 @@ const PosApp = (() => {
         _openDishCard(item);
     }
 
-    async function _openDishCard(item) {
+    async function _openDishCard(item, variantSiblings) {
         const groups = _menuData.modifierGroups.filter(g => g.itemIds.includes(item.id));
 
         let ingredients = [];
@@ -769,10 +772,24 @@ const PosApp = (() => {
             }),
         }));
 
-        PosUI.showDishCard(item, ingredients, modGroups, (result) => {
-            PosCart.addItem(item, result.quantity, result.addedModifiers, result.removedIngredients, result.comment);
-            PosUI.toast(`${item.name} dodano`, 'success');
+        // Przekaż rodzeństwo wariantów do dish card jako przełącznik rozmiarów.
+        const variants = (variantSiblings || []).map(v => {
+            const channel = PosCart.getChannel();
+            const tier = (v.priceTiers || []).find(t => t.channel === channel) || (v.priceTiers || []).find(t => t.channel === 'POS');
+            return {
+                id: v.id,
+                asciiKey: v.ascii_key,
+                name: v.variantOptionName || v.name,
+                optionKey: v.variantOptionKey || '',
+                priceGrosze: tier ? Math.round(parseFloat(tier.price) * 100) : 0,
+            };
         });
+
+        PosUI.showDishCard(item, ingredients, modGroups, (result) => {
+            const finalItem = result.selectedVariant || item;
+            PosCart.addItem(finalItem, result.quantity, result.addedModifiers, result.removedIngredients, result.comment);
+            PosUI.toast(`${finalItem.name} dodano`, 'success');
+        }, null, variants);
     }
 
     async function _openHalfDishCard(itemA, itemB) {

@@ -44,6 +44,7 @@ function isPaid(string $ps): bool
 try {
     require_once __DIR__ . '/../../core/db_config.php';
     require_once __DIR__ . '/../../core/auth_guard.php';
+    require_once __DIR__ . '/../../core/Uuid.php';
     require_once __DIR__ . '/../../core/OrderStateMachine.php';
     require_once __DIR__ . '/../../core/SettlementEngine.php';
     require_once __DIR__ . '/../../core/DriverFleetHelper.php';
@@ -60,15 +61,6 @@ try {
     // [FF-HOOK] Load tenant feature flags once per request.
     $tenantFlags = OrderStateMachine::loadTenantFlags($pdo, $tenant_id);
 
-    // =========================================================================
-    // UUID v4 helper
-    // =========================================================================
-    $uuid4 = function (): string {
-        $d    = random_bytes(16);
-        $d[6] = chr((ord($d[6]) & 0x0f) | 0x40);
-        $d[8] = chr((ord($d[8]) & 0x3f) | 0x80);
-        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($d), 4));
-    };
 
     // =========================================================================
     // Auto-migration: ensure delivery_status + cancellation_reason columns exist
@@ -406,7 +398,7 @@ try {
             $pdo->prepare(
                 "INSERT INTO sh_dispatch_log (id, tenant_id, course_id, driver_id, order_ids_json, dispatched_by, dispatched_at)
                  VALUES (:id, :tid, :cid, :did, :oj, :uid, NOW())"
-            )->execute([':id'=>$uuid4(), ':tid'=>$tenant_id, ':cid'=>$courseId, ':did'=>$driverId, ':oj'=>json_encode($orderIds), ':uid'=>$user_id]);
+            )->execute([':id'=>Uuid::v4(), ':tid'=>$tenant_id, ':cid'=>$courseId, ':did'=>$driverId, ':oj'=>json_encode($orderIds), ':uid'=>$user_id]);
 
             $pdo->commit();
         } catch (\Throwable $e) {
@@ -499,7 +491,7 @@ try {
             $pdo->prepare(
                 "INSERT INTO sh_dispatch_log (id, tenant_id, course_id, driver_id, order_ids_json, dispatched_by, dispatched_at)
                  VALUES (:id, :tid, :cid, NULL, :oj, :uid, NOW())"
-            )->execute([':id'=>$uuid4(), ':tid'=>$tenant_id, ':cid'=>$courseId, ':oj'=>json_encode($orderIds), ':uid'=>$user_id]);
+            )->execute([':id'=>Uuid::v4(), ':tid'=>$tenant_id, ':cid'=>$courseId, ':oj'=>json_encode($orderIds), ':uid'=>$user_id]);
 
             $pdo->commit();
         } catch (\Throwable $e) {

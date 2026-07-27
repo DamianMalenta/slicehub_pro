@@ -158,7 +158,7 @@ Oprócz **PZ** (`PzEngine`) i **WZ** (`WzEngine`) w repo występują m.in. **`In
 
 ### 3.4 Inne silniki (kontekst)
 
-`core/PayrollEngine.php`, `core/TeamPayrollEngine.php` — dodatkowe ścieżki raportowe / zespoowe oparte m.in. o `sh_work_sessions` i legacy `sh_users.hourly_rate`; **nie należy** ich sumować razem z `sh_payroll_ledger` dla tego samego okresu bez jawnej definicji (ryzyko **podwójnego labor cost**).
+`core/PayrollEngine.php`, `core/TeamPayrollEngine.php` — ✅ **od Fazy 4 (2026-07-25) czytają z `sh_payroll_ledger`** (`PayrollLedger::sumForPeriod`) + stawek temporalnych `sh_employee_rates`. Legacy `sh_users.hourly_rate` **nie jest** już w code-path. Dla BI oznacza to, że są **prezentacją tego samego ledgera**, nie równoległym źródłem — **nie sumuj ich razem z bezpośrednim `SUM(sh_payroll_ledger)`** dla tego samego okresu (ryzyko **podwójnego labor cost**). Szczegóły: `_docs/18_BACKOFFICE_HR_LOGIC.md §13.8`.
 
 **Anty-duplikacja:** odpowiedź API `clock_out` zawiera `preview_earnings` — to **tylko podgląd**, nie zapis księgowy. Koszt pracy w P&L z workerów: **`sh_payroll_ledger`** (`entry_type = 'work_earnings'`, idempotencja po `entry_uuid` = `session_uuid`).
 

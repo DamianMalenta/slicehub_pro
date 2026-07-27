@@ -461,7 +461,13 @@ try {
         $itemId  = (int)($input['item_id'] ?? 0);
         $halfBId = (int)($input['half_b_id'] ?? 0);
 
-        $stmtSku = $pdo->prepare("SELECT ascii_key FROM sh_menu_items WHERE id = ? AND tenant_id = ?");
+        // 048: JEDNA receptura na parent — dzieci wariantów dziedziczą recipe.
+        $stmtSku = $pdo->prepare(
+            "SELECT ascii_key, parent_item_id FROM sh_menu_items WHERE id = ? AND tenant_id = ?"
+        );
+        $stmtParentSku = $pdo->prepare(
+            "SELECT ascii_key FROM sh_menu_items WHERE id = ? AND tenant_id = ?"
+        );
 
         $stmtRecipe = $pdo->prepare(
             "SELECT r.warehouse_sku AS sku, si.name, si.base_unit AS unit
@@ -470,27 +476,35 @@ try {
              WHERE r.menu_item_sku = ? AND r.tenant_id = ?"
         );
 
+        // Zwraca recipe składniki dla item_id — jeśli dziecko wariantu, szuka po parent ascii_key.
+        function _resolveRecipe($pdoItemId, $tenant_id, $stmtSku, $stmtParentSku, $stmtRecipe) {
+            $stmtSku->execute([$pdoItemId, $tenant_id]);
+            $row = $stmtSku->fetch(PDO::FETCH_ASSOC);
+            if (!$row) return [];
+            $sku = $row['ascii_key'];
+            // Jeśli dziecko wariantu — szukaj recipe po parent ascii_key.
+            if (!empty($row['parent_item_id'])) {
+                $stmtParentSku->execute([$row['parent_item_id'], $tenant_id]);
+                $parentSku = $stmtParentSku->fetchColumn();
+                if ($parentSku) $sku = $parentSku;
+            }
+            $stmtRecipe->execute([$sku, $tenant_id]);
+            return $stmtRecipe->fetchAll(PDO::FETCH_ASSOC);
+        }
+
         $ingredients = [];
 
-        $stmtSku->execute([$itemId, $tenant_id]);
-        $skuA = $stmtSku->fetchColumn();
-        if ($skuA) {
-            $stmtRecipe->execute([$skuA, $tenant_id]);
-            foreach ($stmtRecipe->fetchAll(PDO::FETCH_ASSOC) as $ing) {
-                $ing['half'] = 'A';
-                $ingredients[] = $ing;
-            }
+        $ingsA = _resolveRecipe($itemId, $tenant_id, $stmtSku, $stmtParentSku, $stmtRecipe);
+        foreach ($ingsA as $ing) {
+            $ing['half'] = 'A';
+            $ingredients[] = $ing;
         }
 
         if ($halfBId > 0) {
-            $stmtSku->execute([$halfBId, $tenant_id]);
-            $skuB = $stmtSku->fetchColumn();
-            if ($skuB) {
-                $stmtRecipe->execute([$skuB, $tenant_id]);
-                foreach ($stmtRecipe->fetchAll(PDO::FETCH_ASSOC) as $ing) {
-                    $ing['half'] = 'B';
-                    $ingredients[] = $ing;
-                }
+            $ingsB = _resolveRecipe($halfBId, $tenant_id, $stmtSku, $stmtParentSku, $stmtRecipe);
+            foreach ($ingsB as $ing) {
+                $ing['half'] = 'B';
+                $ingredients[] = $ing;
             }
         }
 

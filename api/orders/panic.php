@@ -34,6 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 try {
     require_once __DIR__ . '/../../core/db_config.php';
     require_once __DIR__ . '/../../core/auth_guard.php';
+    require_once __DIR__ . '/../../core/Uuid.php';
 
     if (!isset($pdo)) {
         throw new RuntimeException('Database connection unavailable.');
@@ -80,16 +81,6 @@ try {
         exit;
     }
 
-    // =========================================================================
-    // 3. HELPERS
-    // =========================================================================
-    $generateUuidV4 = function (): string {
-        $data    = random_bytes(16);
-        $data[6] = chr((ord($data[6]) & 0x0f) | 0x40);
-        $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
-        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
-    };
-
     $now = date('Y-m-d H:i:s');
 
     // =========================================================================
@@ -117,7 +108,7 @@ try {
              VALUES (:id, :tid, :uid, :delay, :affected, :now)"
         );
         $stmtLog->execute([
-            ':id'       => $generateUuidV4(),
+            ':id'       => Uuid::v4(),
             ':tid'      => $tenant_id,
             ':uid'      => $user_id,
             ':delay'    => $delayMinutes,

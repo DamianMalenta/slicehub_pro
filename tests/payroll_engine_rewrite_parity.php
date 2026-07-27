@@ -7,8 +7,12 @@ declare(strict_types=1);
  *
  * Wymóg z `_docs/18_BACKOFFICE_HR_LOGIC.md §13.4 pkt 4`: dla tych samych
  * `tenant/employee/period` legacy silnik (readery `sh_work_sessions` +
- * `sh_deductions` + `sh_meals` + `sh_users.hourly_rate`) i przepisany
- * `PayrollEngine` (ledger) muszą dać różnicę **0 gr**.
+ * `sh_deductions` + `sh_meals`) i przepisany `PayrollEngine` (ledger)
+ * muszą dać różnicę **0 gr**.
+ *
+ * Stawka: `sh_users.hourly_rate` zostało ZDROPOWANE (migracja 061) — komparator
+ * czyta aktualną stawkę z temporalnej `sh_employee_rates` (ta sama wartość,
+ * którą backfill 041 przeniosły ze starej kolumny).
  *
  * Legacy jest tu odtworzony inline (nie ma już drugiego pliku silnika — SSOT),
  * dlatego driver ma sens tylko na danych sprzed migracji do ledgera, tzn.
@@ -71,9 +75,25 @@ function parityBounds(string $type, int $offset): array
  */
 function legacyCalculate(PDO $pdo, int $tenantId, int $userId, string $start, string $end): array
 {
-    $st = $pdo->prepare('SELECT hourly_rate FROM sh_users WHERE id = :id AND tenant_id = :tid AND is_deleted = 0');
+    // Aktualna stawka godzinowa z sh_employee_rates (PLN) — odpowiednik
+    // dawnego odczytu sh_users.hourly_rate sprzed Fazy 4.
+    $st = $pdo->prepare("
+        SELECT r.amount_minor
+        FROM sh_employee_rates r
+        INNER JOIN sh_employees e
+            ON e.id = r.employee_id AND e.tenant_id = r.tenant_id
+        WHERE r.tenant_id = :tid
+          AND e.user_id = :id
+          AND e.is_deleted = 0
+          AND r.rate_type = 'hourly'
+          AND r.effective_from <= NOW()
+          AND (r.effective_to IS NULL OR r.effective_to > NOW())
+        ORDER BY r.effective_from DESC
+        LIMIT 1
+    ");
     $st->execute([':id' => $userId, ':tid' => $tenantId]);
-    $rate = (float)($st->fetchColumn() ?: 0.0);
+    $rateMinor = $st->fetchColumn();
+    $rate = $rateMinor === false ? 0.0 : ((int)$rateMinor) / 100.0;
 
     $st = $pdo->prepare("
         SELECT COALESCE(SUM(TIMESTAMPDIFF(SECOND, start_time, end_time)) / 3600.0, 0) AS h

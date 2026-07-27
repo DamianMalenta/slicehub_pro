@@ -102,6 +102,7 @@ function normalizePublicAssetUrl(?string $url): ?string
 
 try {
     require_once __DIR__ . '/../../core/db_config.php';
+    require_once __DIR__ . '/../../core/Uuid.php';
     require_once __DIR__ . '/../../core/AssetResolver.php';
     if (!isset($pdo)) {
         onlineResponse(false, null, 'Database connection failed.');
@@ -1306,12 +1307,6 @@ try {
         }
 
         // 4. Atomic transaction
-        $generateUuid = function (): string {
-            $data = random_bytes(16);
-            $data[6] = chr((ord($data[6]) & 0x0f) | 0x40);
-            $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
-            return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
-        };
         $trackingToken = bin2hex(random_bytes(8)); // 16 hex chars
 
         try {
@@ -1326,7 +1321,7 @@ try {
             $stmtSeq->execute([':tid' => $tenantId]);
             $seq = (int)$pdo->lastInsertId();
             $orderNumber = sprintf('WWW/%s/%04d', date('Ymd'), $seq);
-            $orderId = $generateUuid();
+            $orderId = Uuid::v4();
             $nowTs = date('Y-m-d H:i:s');
 
             // 4b. Bump promo uses (if applicable)
@@ -1398,7 +1393,7 @@ try {
             );
             foreach ($calc['lines_raw'] as $lr) {
                 $stmtLine->execute([
-                    ':id'      => $generateUuid(),
+                    ':id'      => Uuid::v4(),
                     ':oid'     => $orderId,
                     ':sku'     => $lr['item_sku'],
                     ':name'    => $lr['snapshot_name'],
@@ -1552,10 +1547,7 @@ try {
             }
 
             // 4. Generate UUID v4 for new lock
-            $data = random_bytes(16);
-            $data[6] = chr((ord($data[6]) & 0x0f) | 0x40);
-            $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
-            $lockToken = vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
+            $lockToken = Uuid::v4();
 
             $stmtIns = $pdo->prepare(
                 "INSERT INTO sh_checkout_locks

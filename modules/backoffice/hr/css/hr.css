@@ -71,6 +71,12 @@ body {
   cursor: pointer;
 }
 .hr-btn:hover { border-color: rgba(34, 197, 94, 0.45); }
+.hr-btn--danger {
+  background: rgba(248, 113, 113, 0.12);
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #fca5a5;
+}
+.hr-btn--danger:hover { border-color: rgba(248, 113, 113, 0.75); }
 .hr-btn--primary {
   background: rgba(34, 197, 94, 0.15);
   border-color: rgba(34, 197, 94, 0.45);
