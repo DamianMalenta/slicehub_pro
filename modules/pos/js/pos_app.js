@@ -776,10 +776,12 @@ const PosApp = (() => {
         const variants = (variantSiblings || []).map(v => {
             const channel = PosCart.getChannel();
             const tier = (v.priceTiers || []).find(t => t.channel === channel) || (v.priceTiers || []).find(t => t.channel === 'POS');
+            const variantName = v.variantOptionName || v.name;
+            const fullName = v.parentName ? `${v.parentName} ${variantName}` : variantName;
             return {
                 id: v.id,
                 asciiKey: v.ascii_key,
-                name: v.variantOptionName || v.name,
+                name: fullName,
                 optionKey: v.variantOptionKey || '',
                 priceGrosze: tier ? Math.round(parseFloat(tier.price) * 100) : 0,
             };

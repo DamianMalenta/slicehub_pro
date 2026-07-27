@@ -39,7 +39,7 @@ window.Core = {
             container.innerHTML = '<div class="text-center mt-10 text-slate-500 font-bold text-[10px] uppercase">Brak kategorii w bazie.</div>';
             return;
         }
-        let html = '<div class="space-y-3">';
+        let html = '<div class="space-y-3"><style>.variant-parent-group .variant-children{display:none}.variant-parent-group.expanded .variant-children{display:flex;flex-direction:column}</style>';
         categories.forEach(cat => {
             const catItems = items.filter(item => item.categoryId == cat.id);
             html += `
@@ -72,30 +72,43 @@ window.Core = {
             if (catItems.length === 0) {
                 html += `<div class="p-3 text-[10px] text-slate-600 italic pl-8">Kategoria jest pusta</div>`;
             } else {
-                catItems.forEach(item => {
+                // Podziel na parenty (z wariantami), dzieci (pod parentem) i zwykłe itemy.
+                const childParentMap = {};
+                catItems.forEach(it => {
+                    if (it.parentItemId) childParentMap[it.parentItemId] = true;
+                });
+                const parents = catItems.filter(it => it.isVariantParent);
+                const childrenByParent = {};
+                catItems.forEach(it => {
+                    if (it.parentItemId) {
+                        if (!childrenByParent[it.parentItemId]) childrenByParent[it.parentItemId] = [];
+                        childrenByParent[it.parentItemId].push(it);
+                    }
+                });
+                const standalone = catItems.filter(it => !it.isVariantParent && !it.parentItemId);
+
+                const renderItemRow = (item, indent) => {
                     const posTier = item.priceTiers ? item.priceTiers.find(t => t.channel === 'POS') : null;
                     const displayPrice = posTier ? posTier.price.toFixed(2) : (item.price ? parseFloat(item.price).toFixed(2) : "0.00");
                     const statusIcon = item.isActive 
                         ? '<i class="fa-solid fa-circle-check text-green-500 text-[10px]" title="Aktywne"></i>' 
                         : '<i class="fa-solid fa-eye-slash text-red-500 text-[10px]" title="Ukryte na POS"></i>';
-                    
                     const isChecked = window.StudioState.bulkSelectedItems.includes(item.id) ? 'checked' : '';
-
-                    // M1 · thumbnail z AssetResolver::injectHeros (get_menu_tree)
                     const thumbHtml = item.imageUrl
                         ? `<img src="${_e(item.imageUrl)}" alt="" class="w-full h-full object-cover" loading="lazy" onerror="this.remove(); this.parentElement.innerHTML='<i class=\\'fa-solid fa-image text-slate-700 text-[11px]\\'></i>';">`
                         : `<i class="fa-solid fa-image text-slate-700 text-[11px]" title="Brak zdjęcia — dodaj w Asset Studio"></i>`;
                     const thumbRing = item.imageUrl
                         ? 'border-white/10'
                         : 'border-amber-500/20 bg-amber-900/10';
+                    const indentStyle = indent ? `padding-left:${24 + indent * 20}px` : '';
 
-                    html += `
-                    <div class="p-3 pl-8 flex items-center justify-between border-b border-white/5 last:border-0 hover:bg-blue-500/10 cursor-pointer transition group" data-item-id="${item.id}" data-item-sku="${_e(item.asciiKey)}">
+                    return `
+                    <div class="p-3 ${indent ? 'pl-8' : ''} flex items-center justify-between border-b border-white/5 last:border-0 hover:bg-blue-500/10 cursor-pointer transition group" data-item-id="${item.id}" data-item-sku="${_e(item.asciiKey)}" style="${indentStyle}">
                         <div class="flex items-center gap-3 min-w-0 flex-1">
                             <input type="checkbox" ${isChecked} class="w-4 h-4 rounded bg-black/50 border-white/20 cursor-pointer accent-cyan-500 shrink-0" onclick="event.stopPropagation(); window.Core.toggleBulkSelection(${item.id})">
                             <i class="fa-solid fa-grip-vertical text-slate-600 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity shrink-0"></i>
                             <div class="item-thumb w-9 h-9 rounded-lg bg-black/60 border ${thumbRing} overflow-hidden flex items-center justify-center shrink-0 shadow-inner">${thumbHtml}</div>
-                            <span class="text-[11px] font-bold text-slate-300 group-hover:text-blue-400 transition-colors truncate">${_e(item.name)}</span>
+                            <span class="text-[11px] font-bold ${indent ? 'text-slate-400' : 'text-slate-300'} group-hover:text-blue-400 transition-colors truncate">${_e(item.name)}</span>
                         </div>
                         <div class="flex items-center gap-3 shrink-0">
                             <span class="text-[9px] text-slate-600 font-mono hidden group-hover:block transition-all">${_e(item.asciiKey)}</span>
@@ -104,7 +117,41 @@ window.Core = {
                         </div>
                     </div>
                     `;
-                });
+                };
+
+                const renderParentWithChildren = (parent) => {
+                    const children = childrenByParent[parent.id] || [];
+                    const childCount = children.length;
+                    let row = renderItemRow(parent, 0);
+                    if (childCount > 0) {
+                        row = `
+                        <div class="variant-parent-group">
+                            <div class="p-3 pl-8 flex items-center justify-between border-b border-white/5 last:border-0 hover:bg-blue-500/10 cursor-pointer transition group" data-item-id="${parent.id}" data-item-sku="${_e(parent.asciiKey)}">
+                                <div class="flex items-center gap-3 min-w-0 flex-1">
+                                    <input type="checkbox" class="w-4 h-4 rounded bg-black/50 border-white/20 cursor-pointer accent-cyan-500 shrink-0" onclick="event.stopPropagation(); window.Core.toggleBulkSelection(${parent.id})">
+                                    <i class="fa-solid fa-chevron-right text-[8px] text-orange-400 transition-transform shrink-0 variant-toggle" onclick="event.stopPropagation(); this.closest('.variant-parent-group').classList.toggle('expanded'); this.style.transform=this.closest('.variant-parent-group').classList.contains('expanded')?'rotate-90deg':'';"></i>
+                                    <div class="item-thumb w-9 h-9 rounded-lg bg-black/60 border border-orange-500/20 bg-orange-900/10 overflow-hidden flex items-center justify-center shrink-0 shadow-inner">
+                                        ${parent.imageUrl ? `<img src="${_e(parent.imageUrl)}" alt="" class="w-full h-full object-cover" loading="lazy" onerror="this.remove();">` : `<i class="fa-solid fa-clone text-orange-500 text-[11px]"></i>`}
+                                    </div>
+                                    <span class="text-[11px] font-black text-orange-300 group-hover:text-orange-100 transition-colors truncate">${_e(parent.name)}</span>
+                                    <span class="text-[8px] text-orange-500/60 font-bold bg-orange-900/20 px-1.5 py-0.5 rounded">${childCount} rozmi.</span>
+                                </div>
+                                <div class="flex items-center gap-3 shrink-0">
+                                    <span class="text-[9px] text-slate-600 font-mono hidden group-hover:block transition-all">${_e(parent.asciiKey)}</span>
+                                    <span class="text-[10px] text-orange-400 font-bold font-mono bg-black/40 px-2 py-0.5 rounded border border-orange-500/10">WARIANTY</span>
+                                </div>
+                            </div>
+                            <div class="variant-children">
+                                ${children.map(c => renderItemRow(c, 1)).join('')}
+                            </div>
+                        </div>`;
+                    }
+                    return row;
+                };
+
+                // Render: standalone items + parent groups (z dziećmi ukrytymi pod toggle)
+                standalone.forEach(item => { html += renderItemRow(item, 0); });
+                parents.forEach(parent => { html += renderParentWithChildren(parent); });
             }
             html += `</div></div>`;
         });
