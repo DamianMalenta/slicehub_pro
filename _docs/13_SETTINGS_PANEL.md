@@ -94,6 +94,7 @@ php -r "echo bin2hex(random_bytes(32)) . PHP_EOL;"
   (`[CredentialVault] encrypt running in PLAINTEXT mode: libsodium unavailable`). Aplikacja **nie crashuje**.
 - **Korupcja ciphertextu** → `decrypt()` zwraca `null`; wywołujący (BaseAdapter, WebhookDispatcher)
   logują warning i pomijają rekord.
+- **CHECK constraint w bazie (migracja 063):** kolumna `sh_tenant_integrations.credentials` ma table-level CHECK dopuszczający `NULL`, `''`, `vault:v1:%` lub poprawny JSON. Bez migracji 063 UPDATE zaszyfrowanej wartości kończy się `SQLSTATE 23000 / kod 4025` (stary column-level `json_valid(credentials)` odrzuca `vault:v1:...`). Migracja używa `MODIFY COLUMN` (MariaDB 10.4 / XAMPP nie wspiera `DROP CHECK IF EXISTS`). Szczegóły: `_docs/sessions/2026-07-30_credential_vault_bootstrap_and_rotation.md`.
 
 ### 3.4. Integracja z workerami
 

@@ -16,6 +16,11 @@ _archive/
 .env.*.local
 *.env
 
+# CredentialVault master key (Faza 7.6) — NIGDY w repo; generuj przez
+# `php scripts/bootstrap_vault.php`. Utrata = utrata dostępu do wszystkich
+# zaszyfrowanych credentials w sh_tenant_integrations / sh_webhook_endpoints.
+config/vault_key.txt
+
 # -----------------------------------------------------------------------------
 # IDE / edytory
 # -----------------------------------------------------------------------------

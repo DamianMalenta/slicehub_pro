@@ -532,6 +532,8 @@ Prosty wrapper fetch POST → JSON, obsługa błędów i auth header. Powinien b
 ### Vault Scripts — `scripts/bootstrap_vault.php` + `scripts/rotate_credentials_to_vault.php` (Faza 7 · sesja 7.6)
 - **bootstrap_vault.php:** generuje 32-byte XChaCha20 klucz, zapisuje do `config/vault_key.txt` (0600). Flagi: `--force` (overwrite), `--print-only` (stdout). Abortuje gdy klucz już jest (prevent data loss).
 - **rotate_credentials_to_vault.php:** migruje plaintext credentials w `sh_tenant_integrations.credentials` + `sh_webhook_endpoints.secret` do formatu `vault:v1:...`. Flagi: `--dry-run` (default), `--live`, `--only=integrations|webhooks`. Przed UPDATE robi self-test encrypt→decrypt roundtrip (skip gdy fail). Idempotent — już zaszyfrowane rekordy są skip'owane.
+- **Wymagania wstępne:** (1) `extension=sodium` włączone w `php.ini` (DLL `php_sodium.dll` w `ext/`); (2) klucz vaultu wygenerowany (`bootstrap_vault.php`); (3) migracja **063** zaaplikowana — relaksuje CHECK constraint na `sh_tenant_integrations.credentials` z `json_valid(credentials)` na `credentials IS NULL OR '' OR LIKE 'vault:v1:%' OR json_valid(credentials)`. Bez migracji 063 UPDATE zaszyfrowanej wartości kończy się `SQLSTATE 23000 / kod 4025` (constraint violation). Szczegóły: `_docs/sessions/2026-07-30_credential_vault_bootstrap_and_rotation.md`.
+- **.gitignore:** `config/vault_key.txt` jest ignorowany (sekret — nigdy w repo).
 
 ### `core/GatewayAuth.php` — multi-key auth + rate limiter + idempotency (m027, Faza 7)
 - **Cel:** warstwa autoryzacji dla `api/gateway/intake.php` v2. Obsługuje zewnętrznych callerów (aggregatory, kioski, 3rd-party POS, public API, własna apka mobilna).
