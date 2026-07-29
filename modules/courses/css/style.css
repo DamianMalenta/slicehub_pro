@@ -92,6 +92,27 @@ input, textarea, select, [contenteditable] { user-select:text; -webkit-user-sele
 .drv-act-btn.recall { border-color:rgba(239,68,68,0.3); color:var(--accent-red); }
 .drv-act-btn.recall:hover { background:rgba(239,68,68,0.15); }
 
+/* Faza C — SLA BREACH PANEL (sidebar, pod listą kierowców) */
+.sla-breaches-panel { border-top:1px solid var(--border); max-height:240px; overflow-y:auto; background:rgba(0,0,0,0.2); }
+.sla-breach-header { padding:8px 12px; display:flex; align-items:center; gap:6px; font-size:9px; font-weight:900; text-transform:uppercase; letter-spacing:0.08em; color:var(--accent-red); border-bottom:1px solid var(--border); }
+.sla-breach-header i { font-size:11px; }
+.sla-breach-count { margin-left:auto; background:var(--accent-red); color:#fff; padding:1px 7px; border-radius:10px; font-size:9px; font-weight:900; }
+.sla-breach-empty { padding:14px 12px; text-align:center; color:var(--text-muted); font-size:10px; }
+.sla-breach-empty i { font-size:18px; color:var(--accent-green); display:block; margin-bottom:4px; }
+.sla-breach-list { padding:6px; }
+.sla-breach-item { padding:8px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--bg-card); margin-bottom:5px; border-left:3px solid var(--accent-red); }
+.sla-breach-item.warn { border-left-color:var(--accent-yellow); }
+.sla-breach-item.low { border-left-color:var(--accent-orange); }
+.sla-breach-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
+.sla-breach-ord { font-size:11px; font-weight:900; color:var(--text-primary); }
+.sla-breach-mins { font-size:10px; font-weight:900; color:var(--accent-red); padding:1px 6px; border-radius:4px; background:rgba(239,68,68,0.12); }
+.sla-breach-item.warn .sla-breach-mins { color:var(--accent-yellow); background:rgba(234,179,8,0.12); }
+.sla-breach-item.low .sla-breach-mins { color:var(--accent-orange); background:rgba(249,115,22,0.12); }
+.sla-breach-addr { font-size:10px; color:var(--text-secondary); margin-bottom:3px; }
+.sla-breach-addr i { color:var(--accent-blue); margin-right:4px; }
+.sla-breach-meta { display:flex; justify-content:space-between; font-size:9px; color:var(--text-muted); font-weight:700; }
+.sla-breach-meta i { margin-right:3px; }
+
 /* ORDER CARDS (selectable for dispatch) */
 .order-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:10px; }
 .ord-card { padding:12px; border-radius:var(--radius-md); border:1px solid var(--border); background:var(--bg-card); cursor:pointer; transition:all 0.15s; position:relative; border-top:3px solid var(--text-muted); }

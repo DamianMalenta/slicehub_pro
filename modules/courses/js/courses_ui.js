@@ -235,5 +235,48 @@ const CoursesUI = (() => {
         setTimeout(() => t.remove(), 4000);
     }
 
-    return Object.freeze({ renderDriversList, renderOrdersGrid, renderCoursesGrid, toast, formatGrosze, setSlaThresholds });
+    // Faza C — SLA breach panel w Dispatcher. Renderuje listę breachy (ostatnie 24h)
+    // z backendu (action=get_sla_breaches). Sortowane wg breach_minutes desc (już z backendu).
+    // Pure render — nie mutuje stanu. Puste gdy brak kontenera lub brak breachy.
+    const _esc = s => { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; };
+
+    function renderSlaBreachesPanel(breaches) {
+        const el = document.getElementById('sla-breaches-panel');
+        if (!el) return;
+        const list = Array.isArray(breaches) ? breaches : [];
+
+        const headerHtml = `<div class="sla-breach-header">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <span>Spóźnienia SLA</span>
+            <span class="sla-breach-count">${list.length}</span>
+        </div>`;
+
+        if (list.length === 0) {
+            el.innerHTML = `${headerHtml}<div class="sla-breach-empty"><i class="fa-solid fa-circle-check"></i><p>Brak spóźnień (ostatnie 24h)</p></div>`;
+            return;
+        }
+
+        const itemsHtml = list.map(b => {
+            const orderNum = (b.order_number || '').split('/').pop() || '—';
+            const driverName = (b.first_name || b.last_name) ? `${_esc(b.first_name || '')} ${_esc(b.last_name || '')}`.trim() : '—';
+            const mins = parseInt(b.breach_minutes, 10) || 0;
+            const minsCls = mins >= 30 ? 'critical' : mins >= 10 ? 'warn' : 'low';
+            const loggedAt = b.logged_at ? new Date(b.logged_at.replace(' ', 'T')).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' }) : '—';
+            return `<div class="sla-breach-item ${minsCls}">
+                <div class="sla-breach-top">
+                    <span class="sla-breach-ord">#${_esc(orderNum)}</span>
+                    <span class="sla-breach-mins">+${mins} min</span>
+                </div>
+                <div class="sla-breach-addr"><i class="fa-solid fa-location-dot"></i> ${_esc(b.delivery_address || 'Brak adresu')}</div>
+                <div class="sla-breach-meta">
+                    <span><i class="fa-solid fa-motorcycle"></i> ${driverName}</span>
+                    <span><i class="fa-solid fa-clock"></i> ${loggedAt}</span>
+                </div>
+            </div>`;
+        }).join('');
+
+        el.innerHTML = `${headerHtml}<div class="sla-breach-list">${itemsHtml}</div>`;
+    }
+
+    return Object.freeze({ renderDriversList, renderOrdersGrid, renderCoursesGrid, toast, formatGrosche, setSlaThresholds, renderSlaBreachesPanel });
 })();

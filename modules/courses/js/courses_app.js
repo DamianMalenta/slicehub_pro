@@ -4,6 +4,9 @@
  */
 const App = (() => {
     const POLL_INTERVAL = 8000;
+    // Faza C — SLA breaches poll co 30s (rzadziej niż główny poll; breachy nie
+    // wymagają sub-10s świeżości, a get_sla_breaches robi JOIN po 3 tabelach).
+    const SLA_BREACH_POLL_INTERVAL = 30000;
     const TENANT_ID = 1;
 
     const state = {
@@ -12,10 +15,12 @@ const App = (() => {
         orders: [],
         drivers: [],
         courses: [],
+        slaBreaches: [],
         selectedDriverId: null,
         selectedOrderIds: [],
         activeTab: 'orders',
         pollTimer: null,
+        slaBreachTimer: null,
         cashModalDriverId: null,
         reconcileDriverId: null,
         recallDriverId: null,
@@ -73,10 +78,14 @@ const App = (() => {
         startClock();
         poll();
         state.pollTimer = setInterval(poll, POLL_INTERVAL);
+        // Faza C — osobny timer dla SLA breach panel (co 30s)
+        pollSlaBreaches();
+        state.slaBreachTimer = setInterval(pollSlaBreaches, SLA_BREACH_POLL_INTERVAL);
     }
 
     function logout() {
         clearInterval(state.pollTimer);
+        clearInterval(state.slaBreachTimer);
         localStorage.removeItem('sh_token');
         localStorage.removeItem('sh_user');
         state.user = null;
@@ -133,11 +142,21 @@ const App = (() => {
         render();
     }
 
+    // Faza C — osobny poll dla SLA breach panel (co 30s). Nie blokuje głównego polla.
+    async function pollSlaBreaches() {
+        const res = await CoursesAPI.getSlaBreaches();
+        if (!res.success) return;
+        state.slaBreaches = (res.data && res.data.breaches) || [];
+        CoursesUI.renderSlaBreachesPanel(state.slaBreaches);
+    }
+
     function render() {
         CoursesUI.renderDriversList(state.drivers, state.selectedDriverId);
         CoursesUI.renderOrdersGrid(state.orders, state.selectedOrderIds);
         CoursesUI.renderCoursesGrid(state.orders, state.courses, state.drivers);
         updateDispatchBar();
+        // Faza C — re-render breach panel z cache (pollSlaBreaches odświeża co 30s)
+        CoursesUI.renderSlaBreachesPanel(state.slaBreaches);
 
         if (CoursesMap.isInitialized()) {
             CoursesMap.updateMarkers(state.orders, state.drivers);

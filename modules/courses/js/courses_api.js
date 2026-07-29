@@ -47,6 +47,9 @@ const CoursesAPI = (() => {
         },
 
         getDashboard:     ()           => _post('get_dashboard'),
+        // Faza C — SLA breach panel w Dispatcher. Zwraca listę breachy z ostatnich 24h
+        // (order_number, customer_name, delivery_address, breach_minutes, driver_name, logged_at).
+        getSlaBreaches:   ()           => _post('get_sla_breaches'),
         dispatch:         (driverId, orderIds) => _post('dispatch', { driver_id: driverId, order_ids: orderIds }),
         cancelStop:       (orderId)    => _post('cancel_stop', { order_id: orderId }),
         setInitialCash:   (driverUserId, amount) => _post('set_initial_cash', { driver_user_id: driverUserId, amount }),
