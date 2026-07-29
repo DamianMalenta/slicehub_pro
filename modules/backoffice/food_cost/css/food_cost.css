@@ -1,0 +1,128 @@
+/* SliceHub — Food Cost Report (backoffice) */
+* { box-sizing: border-box; }
+body {
+    margin: 0;
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #0a0e14;
+    color: #e5e7eb;
+}
+
+.hidden { display: none !important; }
+
+/* Topbar */
+.fc-topbar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 18px;
+    background: #11161f;
+    border-bottom: 1px solid #1f2937;
+    position: sticky; top: 0; z-index: 10;
+}
+.fc-logo { color: #f59e0b; font-size: 22px; }
+.fc-title { font-size: 18px; font-weight: 700; color: #f1f5f9; }
+.fc-sub { font-size: 12px; color: #94a3b8; font-weight: 400; margin-left: 6px; }
+.fc-spacer { flex: 1; }
+.fc-links a {
+    color: #cbd5e1; text-decoration: none; margin-left: 14px; font-size: 13px;
+    padding: 6px 10px; border-radius: 6px;
+}
+.fc-links a:hover { background: #1f2937; color: #fff; }
+.fc-btn {
+    background: #1f2937; color: #e5e7eb; border: 1px solid #334155;
+    padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 13px;
+    display: inline-flex; align-items: center; gap: 6px;
+}
+.fc-btn:hover { background: #334155; }
+.fc-btn--primary { background: #b45309; border-color: #d97706; color: #fff; font-weight: 600; }
+.fc-btn--primary:hover { background: #d97706; }
+.fc-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Banners */
+.fc-banner {
+    margin: 14px 18px 0; padding: 12px 16px; border-radius: 8px; font-size: 14px;
+}
+.fc-banner--warn { background: #422006; border: 1px solid #92400e; color: #fde68a; }
+.fc-banner--error { background: #450a0a; border: 1px solid #991b1b; color: #fecaca; }
+
+/* Main */
+.fc-main { padding: 18px; max-width: 1280px; margin: 0 auto; }
+
+.fc-card {
+    background: #11161f; border: 1px solid #1f2937; border-radius: 12px;
+    padding: 18px; margin-bottom: 18px;
+}
+.fc-card-title {
+    margin: 0 0 14px; font-size: 15px; color: #f1f5f9; font-weight: 600;
+    display: flex; align-items: center; gap: 8px;
+}
+.fc-card-title i { color: #f59e0b; }
+
+.fc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.fc-field { display: flex; flex-direction: column; gap: 4px; }
+.fc-field--wide { grid-column: 1 / -1; }
+.fc-field label { font-size: 13px; color: #cbd5e1; font-weight: 500; }
+.fc-help { display: block; font-size: 11px; color: #64748b; font-weight: 400; }
+.fc-field select, .fc-field input {
+    background: #0a0e14; border: 1px solid #334155; color: #e5e7eb;
+    padding: 9px 10px; border-radius: 8px; font-size: 14px;
+}
+.fc-field select:focus, .fc-field input:focus { outline: none; border-color: #f59e0b; }
+.fc-actions { margin-top: 14px; }
+
+/* Report */
+.fc-report { display: flex; flex-direction: column; gap: 18px; }
+
+.fc-summary {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+}
+.fc-stat {
+    background: #11161f; border: 1px solid #1f2937; border-radius: 10px; padding: 14px;
+}
+.fc-stat-label { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: .04em; }
+.fc-stat-value { font-size: 22px; font-weight: 700; color: #f1f5f9; margin-top: 4px; }
+.fc-stat-value.zl::after { content: ' zł'; font-size: 13px; color: #94a3b8; font-weight: 400; }
+
+.fc-warn {
+    background: #422006; border: 1px solid #92400e; color: #fde68a;
+    padding: 10px 14px; border-radius: 8px; font-size: 13px;
+    display: flex; align-items: center; gap: 8px;
+}
+.fc-info-line { font-size: 12px; color: #64748b; }
+
+.fc-section-title {
+    font-size: 14px; color: #f1f5f9; font-weight: 600; margin: 0 0 10px;
+    display: flex; align-items: center; gap: 8px;
+}
+.fc-section-title i { color: #f59e0b; }
+
+.fc-table {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+}
+.fc-table th, .fc-table td {
+    text-align: left; padding: 8px 10px; border-bottom: 1px solid #1f2937;
+}
+.fc-table th { color: #94a3b8; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; }
+.fc-table td.num, .fc-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.fc-table tr:hover td { background: #161b26; }
+.fc-tag {
+    display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 4px;
+    background: #1f2937; color: #cbd5e1;
+}
+.fc-tag--pack { background: #1e3a8a; color: #bfdbfe; }
+.fc-tag--missing { background: #7f1d1d; color: #fecaca; }
+.fc-tag--default { background: #14532d; color: #bbf7d0; }
+
+/* Channel margin status badges */
+.fc-status {
+    display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px;
+}
+.fc-status--excellent { background: #14532d; color: #bbf7d0; }
+.fc-status--healthy { background: #365314; color: #d9f99d; }
+.fc-status--at_risk { background: #713f12; color: #fde68a; }
+.fc-status--critical { background: #7f1d1d; color: #fecaca; }
+
+.fc-empty {
+    text-align: center; padding: 40px; color: #64748b;
+}
+.fc-empty i { font-size: 32px; display: block; margin-bottom: 10px; }
+
+.fc-loading { text-align: center; padding: 30px; color: #94a3b8; }

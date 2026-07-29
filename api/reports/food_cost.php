@@ -1,8 +1,10 @@
 <?php
 // =============================================================================
-// STATUS: PLANNED (audit 2026-04-19) — not yet wired.
-// Consumer: reports/analytics panel (Faza 3). Per-item food cost + margin
-// breakdown with per-channel analysis. Backed by FoodCostEngine + AVCO. Keep.
+// STATUS: DOMKNIĘTE 2026-07-29 (Faza D, Prawo VIII).
+// Consumer: modules/backoffice/food_cost/ (Food Cost Report panel).
+//   GET api/reports/food_cost.php?item_sku=...&warehouse_id=...
+// Pickera zasilają: api/warehouse/warehouse_list.php + api/backoffice/api_menu_studio.php#get_menu_tree.
+// Per-item food cost + margin breakdown with per-channel analysis. Backed by FoodCostEngine + AVCO.
 // =============================================================================
 // SliceHub Enterprise — Food Cost & Margin Report Endpoint
 // GET /api/reports/food_cost.php?item_sku=...&warehouse_id=...

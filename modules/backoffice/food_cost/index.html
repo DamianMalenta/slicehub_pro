@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0a0e14">
+    <meta name="sh-tenant-id" content="1">
+    <script src="../../../tenant_config.php"></script>
+    <title>SliceHub — Food Cost Report</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="../../../ui_shell/sh_mobile_shell.css">
+    <link rel="stylesheet" href="css/food_cost.css">
+</head>
+<body>
+
+<header class="fc-topbar">
+    <div class="fc-logo"><i class="fa-solid fa-calculator"></i></div>
+    <div>
+        <div class="fc-title">Food Cost Report <span class="fc-sub">koszt teoretyczny AVCO · marża per kanał</span></div>
+    </div>
+    <div class="fc-spacer"></div>
+    <nav class="fc-links">
+        <a href="../../../hub/index.html"><i class="fa-solid fa-layer-group"></i> Hub</a>
+        <a href="../profile/index.html"><i class="fa-solid fa-building-columns"></i> Profil</a>
+        <a href="../hr/index.html"><i class="fa-solid fa-users"></i> Kadry</a>
+    </nav>
+    <button type="button" class="fc-btn" id="fc-btn-refresh" title="Odśwież"><i class="fa-solid fa-rotate"></i></button>
+</header>
+
+<div id="fc-auth-banner" class="fc-banner fc-banner--warn hidden">
+    Brak tokenu JWT — zaloguj się w <strong>Hub</strong> (login i hasło), potem wróć tutaj.
+    Moduł wymaga roli <strong>owner</strong> / <strong>admin</strong> / <strong>manager</strong>.
+</div>
+<div id="fc-error-banner" class="fc-banner fc-banner--error hidden"></div>
+
+<main class="fc-main">
+
+    <!-- SELEKTOR: magazyn + danie -->
+    <section class="fc-card">
+        <h2 class="fc-card-title"><i class="fa-solid fa-filter"></i> Wybór dania i magazynu</h2>
+        <div class="fc-grid">
+            <div class="fc-field">
+                <label for="fc-warehouse">Magazyn (źródło AVCO)
+                    <span class="fc-help">ceny średnie ważone (AVCO) z wh_stock dla wybranego magazynu</span>
+                </label>
+                <select id="fc-warehouse"><option value="">— wczytaj… —</option></select>
+            </div>
+            <div class="fc-field fc-field--wide">
+                <label for="fc-item">Danie (z recepturą)
+                    <span class="fc-help">tylko dania zdefiniowane w sh_menu_items; koszt liczony gdy istnieje receptura w sh_recipes</span>
+                </label>
+                <select id="fc-item"><option value="">— wczytaj… —</option></select>
+            </div>
+        </div>
+        <div class="fc-actions">
+            <button type="button" class="fc-btn fc-btn--primary" id="fc-btn-compute" disabled>
+                <i class="fa-solid fa-calculator"></i> Oblicz Food Cost
+            </button>
+        </div>
+    </section>
+
+    <!-- RAPORT -->
+    <section id="fc-report" class="fc-report hidden"></section>
+
+</main>
+
+<script src="js/food_cost_app.js"></script>
+</body>
+</html>
