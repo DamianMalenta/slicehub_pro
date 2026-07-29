@@ -79,6 +79,14 @@ const PosAPI = (() => {
         },
         cancelOrder:    (orderId, returnStock) => engine('cancel_order', { order_id: orderId, return_stock: returnStock ? 1 : 0 }),
         panicMode:      () => engine('panic_mode'),
+
+        // Fiscal printer — Elzab Zeta Online
+        fiscalPrint:       (orderId) => engine('fiscal_print', { order_id: orderId }),
+        fiscalDailyReport: () => engine('fiscal_daily_report'),
+        fiscalStatus:      () => engine('fiscal_status'),
+        fiscalGetConfig:   () => engine('fiscal_get_config'),
+        fiscalSaveConfig:  (cfg) => engine('fiscal_save_config', cfg),
+        fiscalTest:        (host, port) => engine('fiscal_test', { host, port }),
         assignRoute:            (driverId, orderIds) => _post('/courses/engine.php', { action: 'dispatch', driver_id: driverId, order_ids: orderIds }),
         createCourse:           (orderIds) => _post('/courses/engine.php', { action: 'create_course', order_ids: orderIds }),
         assignDriverToCourse:   (courseId, driverId) => _post('/courses/engine.php', { action: 'assign_driver_to_course', course_id: courseId, driver_id: driverId }),

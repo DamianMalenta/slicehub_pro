@@ -78,3 +78,5 @@ Multi-tenant / auth: [`sessions/2026-05-22_tenant_discovery_auth.md`](sessions/2
 ## Znane problemy chain na starych instancjach
 
 Migracje 010, 037, 047–048, 053–055 mogą zgłosić FAIL przy duplikatach kolumn — nie blokuje seeda, jeśli tabele już istnieją.
+
+Migracja 062 (`fiscal_receipt_number`) dodaje kolumnę `fiscal_receipt_number` do `sh_orders` — idempotentna (`ADD COLUMN IF NOT EXISTS`), bezpieczna na istniejących bazach.

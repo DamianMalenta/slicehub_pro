@@ -73,4 +73,5 @@ return [
     '059_product_mapping_unique_supplier.sql',
     '060_print_decks.sql',
     '061_drop_users_hourly_rate.sql',
+    '062_fiscal_receipt_number.sql',
 ];

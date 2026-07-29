@@ -34,6 +34,7 @@
         'gateway_scopes_catalog', 'webhook_deliveries_list',
         'notifications_channels_list', 'notifications_routes_get',
         'notifications_templates_get',
+        'fiscal_get_config', 'fiscal_status',
     ]);
 
     let _csrfToken = null;
@@ -194,6 +195,7 @@
             case 'health':        return renderHealth();
             case 'audit':         return renderAuditLog();
             case 'notifications': return renderNotificationsPane();
+            case 'fiscal':       return renderFiscalPane();
         }
     }
 
@@ -1473,6 +1475,171 @@
             updateVaultBadge(s.vault_ready);
             updatePlaintextBanner(s.plaintext);
         } catch { /* cicho — banner po prostu nie wskoczy */ }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // FISCAL PRINTER PANE — Elzab Zeta Online
+    // ═══════════════════════════════════════════════════════════════════
+
+    async function renderFiscalPane() {
+        const pane = $('#st-pane-fiscal');
+        if (!pane) return;
+        pane.innerHTML = '<div class="st-empty"><i class="fa-solid fa-spinner fa-spin"></i><p>Ładowanie…</p></div>';
+
+        let cfg = { host: '', port: '1001', cashbox: 'POS1', footer_line_1: '', footer_line_2: '', footer_line_3: '' };
+        try {
+            const data = await callApi('fiscal_get_config');
+            if (data && data.success !== false) {
+                cfg.host          = data.host          || cfg.host;
+                cfg.port          = data.port          || cfg.port;
+                cfg.cashbox       = data.cashbox       || cfg.cashbox;
+                cfg.footer_line_1 = data.footer_line_1 || '';
+                cfg.footer_line_2 = data.footer_line_2 || '';
+                cfg.footer_line_3 = data.footer_line_3 || '';
+            }
+        } catch (e) {
+            // First time — no config yet, show defaults
+        }
+
+        pane.innerHTML = '';
+
+        // Section header
+        pane.appendChild(el('div', { class: 'st-section-head' },
+            el('h2', {}, el('i', { class: 'fa-solid fa-cash-register' }), ' Drukarka Fiskalna — Elzab Zeta Online'),
+            el('span', { class: 'st-subtitle' }, 'Konfiguracja połączenia TCP, stopki paragonu i test drukarki')
+        ));
+
+        // Config card
+        const card = el('div', { class: 'st-card' });
+
+        // Host + Port row
+        card.appendChild(el('div', { class: 'st-form-row' },
+            el('label', { class: 'st-form-label' }, 'Adres IP drukarki'),
+            el('input', {
+                type: 'text', id: 'fiscal-host', class: 'st-input',
+                value: escHtml(cfg.host), placeholder: '192.168.8.144',
+                style: 'flex:2'
+            }),
+            el('label', { class: 'st-form-label', style: 'margin-left:12px' }, 'Port TCP'),
+            el('input', {
+                type: 'text', id: 'fiscal-port', class: 'st-input',
+                value: escHtml(String(cfg.port)), placeholder: '1001',
+                style: 'flex:1;max-width:80px'
+            })
+        ));
+
+        // Cashbox
+        card.appendChild(el('div', { class: 'st-form-row', style: 'margin-top:12px' },
+            el('label', { class: 'st-form-label' }, 'Identyfikator kasy'),
+            el('input', {
+                type: 'text', id: 'fiscal-cashbox', class: 'st-input',
+                value: escHtml(cfg.cashbox), placeholder: 'POS1',
+                style: 'flex:1;max-width:200px'
+            })
+        ));
+
+        // Footer lines
+        card.appendChild(el('div', { class: 'st-form-row', style: 'margin-top:12px' },
+            el('label', { class: 'st-form-label' }, 'Stopka paragonu — linia 1'),
+            el('input', {
+                type: 'text', id: 'fiscal-footer1', class: 'st-input',
+                value: escHtml(cfg.footer_line_1), placeholder: 'Dziękujemy!',
+                style: 'flex:1'
+            })
+        ));
+        card.appendChild(el('div', { class: 'st-form-row', style: 'margin-top:8px' },
+            el('label', { class: 'st-form-label' }, 'Stopka paragonu — linia 2'),
+            el('input', {
+                type: 'text', id: 'fiscal-footer2', class: 'st-input',
+                value: escHtml(cfg.footer_line_2), placeholder: 'www.lokal.pl',
+                style: 'flex:1'
+            })
+        ));
+        card.appendChild(el('div', { class: 'st-form-row', style: 'margin-top:8px' },
+            el('label', { class: 'st-form-label' }, 'Stopka paragonu — linia 3'),
+            el('input', {
+                type: 'text', id: 'fiscal-footer3', class: 'st-input',
+                value: escHtml(cfg.footer_line_3), placeholder: 'NIP: 123-456-78-90',
+                style: 'flex:1'
+            })
+        ));
+
+        // Buttons row
+        const btnRow = el('div', { class: 'st-form-row', style: 'margin-top:16px;gap:8px' });
+
+        const testBtn = el('button', { class: 'st-btn st-btn--ghost' },
+            el('i', { class: 'fa-solid fa-plug-circle-check' }), ' Test połączenia');
+        testBtn.addEventListener('click', async () => {
+            const host = $('#fiscal-host').value.trim();
+            const port = $('#fiscal-port').value.trim() || '1001';
+            if (!host) { toast('Podaj adres IP drukarki', 'err'); return; }
+            testBtn.disabled = true;
+            testBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Testowanie...';
+            try {
+                await callApi('fiscal_test', { host, port });
+                toast(`Drukarka online: ${host}:${port}`, 'ok');
+            } catch (e) {
+                toast(e.message || 'Brak połączenia z drukarką', 'err');
+            }
+            testBtn.disabled = false;
+            testBtn.innerHTML = '<i class="fa-solid fa-plug-circle-check"></i> Test połączenia';
+        });
+        btnRow.appendChild(testBtn);
+
+        const saveBtn = el('button', { class: 'st-btn st-btn--primary' },
+            el('i', { class: 'fa-solid fa-floppy-disk' }), ' Zapisz konfigurację');
+        saveBtn.addEventListener('click', async () => {
+            const config = {
+                host:           $('#fiscal-host').value.trim(),
+                port:           $('#fiscal-port').value.trim() || '1001',
+                cashbox:        $('#fiscal-cashbox').value.trim() || 'POS1',
+                footer_line_1:  $('#fiscal-footer1').value.trim(),
+                footer_line_2:  $('#fiscal-footer2').value.trim(),
+                footer_line_3:  $('#fiscal-footer3').value.trim(),
+            };
+            if (!config.host) { toast('Podaj adres IP drukarki', 'err'); return; }
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Zapisywanie...';
+            try {
+                await callApi('fiscal_save_config', config);
+                toast('Konfiguracja drukarki zapisana', 'ok');
+            } catch (e) {
+                toast(e.message || 'Błąd zapisu', 'err');
+            }
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Zapisz konfigurację';
+        });
+        btnRow.appendChild(saveBtn);
+
+        const printBtn = el('button', { class: 'st-btn', style: 'background:#059669;color:#fff' },
+            el('i', { class: 'fa-solid fa-print' }), ' Drukuj paragon testowy');
+        printBtn.addEventListener('click', async () => {
+            if (!confirm('Wydrukować testowy paragon fiskalny (1.00 zł)?\n\nTo wydrukuje fizyczny paragon na drukarce.')) return;
+            printBtn.disabled = true;
+            printBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Drukowanie...';
+            try {
+                const r = await callApi('fiscal_test_print');
+                toast('Paragon testowy wydrukowany — sprawdź drukarkę!', 'ok');
+            } catch (e) {
+                toast(e.message || 'Błąd druku testowego', 'err');
+            }
+            printBtn.disabled = false;
+            printBtn.innerHTML = '<i class="fa-solid fa-print"></i> Drukuj paragon testowy';
+        });
+        btnRow.appendChild(printBtn);
+
+        card.appendChild(btnRow);
+        pane.appendChild(card);
+
+        // Info box
+        pane.appendChild(el('div', { class: 'st-card', style: 'margin-top:16px;background:#0f172a;border:1px solid #1e293b' },
+            el('h3', { style: 'font-size:14px;margin:0 0 8px;color:#94a3b8' }, el('i', { class: 'fa-solid fa-circle-info' }), ' Informacje'),
+            el('p', { style: 'font-size:13px;color:#64748b;margin:4px 0' }, '• Drukarka musi być podłączona do sieci LAN (kabel UTP lub WiFi)'),
+            el('p', { style: 'font-size:13px;color:#64748b;margin:4px 0' }, '• Protokół: THERMAL (ustawiony w menu drukarki → USTAWIENIA → PARAMETRY TRANSMISJI)'),
+            el('p', { style: 'font-size:13px;color:#64748b;margin:4px 0' }, '• Strona kodowa: MAZOVIA (polskie znaki na paragonie)'),
+            el('p', { style: 'font-size:13px;color:#64748b;margin:4px 0' }, '• Drukarka musi być zfiskalizowana przez serwis Elzab'),
+            el('p', { style: 'font-size:13px;color:#64748b;margin:4px 0' }, '• Fiskalizacja zamówień i raport dobowy są dostępne w POS')
+        ));
     }
 
     // ─── Boot ───────────────────────────────────────────────────────────

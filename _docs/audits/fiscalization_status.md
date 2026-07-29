@@ -2,7 +2,7 @@
 
 > **READ-ONLY audyt** — dokumentacja ustaleń z kodu, bez propozycji zmian.
 >
-> **Data:** 2026-07-29 (aktualizacja: 2026-07-29 — sekcja 3b)
+> **Data:** 2026-07-29 (aktualizacja: 2026-07-29 — sekcja 3b, sekcja 6: implementacja Elzab, konfiguracja w module Settings)
 >
 > **Zakres:** warstwa VAT, flaga `print_receipt`, fiskalizacja właściwa (kasa/drukarka), integracje POS, pole `legal_fiscal_no`, KSeF.
 >
@@ -107,32 +107,90 @@ const title = isKitchen ? 'BON NA KUCHNIĘ' : 'RACHUNEK / PARAGON NIEFISKALNY';
 
 ---
 
-## 3. Fiskalizacja = tylko PLAN, zamrożony
+## 3. Fiskalizacja bezpośrednia — WDRUŻONA (Elzab Zeta Online, 2026-07-29)
 
-### Dokument referencyjny
+### Implementacja — protokół Thermal przez TCP/IP
 
-- `_docs/16_RESILIENT_POS.md` — spec/historyczny plan architektury „Local-first, Cloud-synced".
+**Zaimplementowano synchroniczną fiskalizację przez drukarkę Elzab Zeta Online przy użyciu protokołu Thermal (Posnet-compatible) over TCP port 1001.**
 
-### Kluczowe sekcje
+#### Nowe pliki (4):
 
-| Sekcja | Linia | Treść |
-|--------|-------|-------|
-| §3.5 Receipt ledger deterministic | ~110–112 | Numery paragonów generowane lokalnie formułą `{tenant}-{pos_id}-{yyyymmdd}-{seq}`. Drukarka fiskalna odbierze paragon gdy wróci (lokalny agent ESC/POS lub Web Bluetooth). |
-| Ograniczenia | ~462 | „Brak fiskalizacji offline — drukarka ESC/POS bridge w **P6+**, Web Bluetooth." |
-| Ryzyka | ~701 | „Fiskalizacja drukarki offline — Wysokie — ESC/POS local bridge (agent) lub Web Bluetooth — **scope P6+**." |
+| Plik | Opis |
+|------|------|
+| `core/Elzab/ThermalProtocol.php` | Protokół Thermal: ramkowanie ESC P/ESC \, XOR checksum, komendy `$h`/`$l`/`$y`/`#r`/`$d`, mapowanie VAT→PTU (A–E), konwersja UTF-8→MAZOVIA, kody błędów |
+| `core/Elzab/ElzabPrinter.php` | Połączenie TCP (`stream_socket_client`), handshake (CAN×3 + DLE/ENQ), `printReceipt()`, `printDailyReport()`, `getStatus()`, `ping()` |
+| `core/Elzab/ElzabFiscalEngine.php` | Synchroniczna fiskalizacja: pobiera order+linie+płatności z DB, mapuje na Thermal, drukuje, zapisuje `fiscal_receipt_number` do `sh_orders` |
+| `core/Integrations/ElzabAdapter.php` | Adapter dla `AdapterRegistry` (widoczność w UI, `supportsEvent('order.completed')`) |
 
-### Code freeze
+#### Migracja DB:
 
-- **🧊 CODE FREEZE od 2026-04-23** (linia ~3).
-- Fazy P1–P4 ukończone. Fazy **P5–P8 świadomie odłożone** (linia ~5, roadmapa ~125–128).
-- Fiskalizacja jest w scope **P6+** — nie rozpoczęta.
+- `database/migrations/062_fiscal_receipt_number.sql` — `ALTER TABLE sh_orders ADD COLUMN fiscal_receipt_number VARCHAR(20)`
+- Zarejestrowana w `scripts/_migrations_chain.php` (pozycja 062)
 
-### Brak bezpośredniego sterownika drukarki fiskalnej
+#### Zmodyfikowane pliki:
 
-- Grep na `escpos`, `renderReceipt`, `fiscal_printer`, `fiscal_no` (w kontekście logiki fiskalizacji) nie zwraca implementacji sterownika.
-- Brak klasy/narzędzia komunikującego się bezpośrednio z drukarką fiskalną (ESC/POS, Web Bluetooth, USB).
-- Brak generowania numeru paragonu fiskalnego (formuła z §3.5 jest tylko opisem planowanym, nie zaimplementowana).
-- **ALE** istnieje pośrednia ścieżka fiskalizacji przez integracje POS — patrz sekcja 3b poniżej.
+| Plik | Zmiana |
+|------|--------|
+| `core/Integrations/AdapterRegistry.php:26` | `'elzab' => ElzabAdapter::class` w `PROVIDER_MAP` |
+| `api/pos/engine.php:1326-1365` | 3 nowe akcje: `fiscal_print`, `fiscal_daily_report`, `fiscal_status` + `fiscal_test` (test połączenia z live form) |
+| `modules/pos/js/pos_api.js:83-99` | `fiscalPrint()`, `fiscalDailyReport()`, `fiscalStatus()`, `fiscalTest()` |
+| `modules/pos/js/pos_app.js` | Auto-fiskalizacja po `settleAndClose` (best-effort) + `_fiscalDailyReport()` + `_fiscalReprint()` (ponowna fiskalizacja z karty zamówienia) |
+| `modules/pos/index.html:81` | Przycisk „RAPORT DOBOWY" w topbarze (przycisk „DRUKARKA" i modal konfiguracji usunięte — przeniesione do Settings) |
+| `api/settings/engine.php:1412-1498` | 6 nowych akcji: `fiscal_get_config`, `fiscal_save_config`, `fiscal_test`, `fiscal_test_print`, `fiscal_status`, `fiscal_daily_report` |
+| `modules/settings/index.html:35,49` | Nowa zakładka „Drukarka Fiskalna" (tab + pane) |
+| `modules/settings/js/settings_app.js:1480-1640` | `renderFiscalPane()` — formularz konfiguracji (IP, port, cashbox, stopka), Test połączenia, Zapisz, Drukuj paragon testowy |
+| `modules/settings/js/settings_app.js:37` | `fiscal_get_config`, `fiscal_status` dodane do `CSRF_READONLY` |
+| `api/settings/engine.php:99` | `fiscal_get_config`, `fiscal_status` dodane do backend CSRF whitelist |
+| `api/settings/engine.php:1141` | `fiscal_*` dodane do fall-through w `default` case switch'a |
+
+#### Flow działania:
+
+```
+Kelner klika „Zapłać" → settle_and_close
+  → POS auto-wywołuje fiscal_print(order_id)
+  → ElzabFiscalEngine: pobiera order z DB
+  → ElzabPrinter: connect TCP → $h → $l×N → $y → szuflada
+  → Drukarka drukuje paragon fiskalny
+  → Numer paragonu → sh_orders.fiscal_receipt_number
+  → POS toast: „Paragon fiskalny nr 000123 ✓"
+```
+
+#### Konfiguracja drukarki:
+
+**Od 2026-07-29 konfiguracja znajduje się w module Settings** (`modules/settings/index.html` → zakładka „Drukarka Fiskalna").
+
+UI pozwala na:
+- Wpisanie adresu IP i portu TCP drukarki
+- Ustawienie identyfikatora kasy (cashbox)
+- Definicję 3 linii stopki paragonu
+- Test połączenia (TCP ping z live form)
+- Zapis konfiguracji do `sh_tenant_settings`
+- Drukowanie paragonu testowego (1× „Test SliceHub" 1.00 zł, płatność gotówką)
+
+W `sh_tenant_settings` (zapisywane przez `ElzabFiscalEngine::saveConfig()`):
+- `ELZAB_PRINTER_HOST = '192.168.8.144'`
+- `ELZAB_PRINTER_PORT = '1001'`
+- `ELZAB_CASHBOX = 'POS1'`
+- `ELZAB_FOOTER_LINE_1` / `ELZAB_FOOTER_LINE_2` / `ELZAB_FOOTER_LINE_3`
+
+Albo w `sh_tenant_integrations` (legacy, czytane przez `resolvePrinterConfig()`):
+- `provider = 'elzab'`
+- `api_base_url = 'tcp://192.168.1.50:1001'`
+- `credentials = {"cashbox": "POS1"}`
+- `is_active = 1`
+
+**POS** zachowuje przycisk „RAPORT DOBOWY" w topbarze oraz przycisk ponownej fiskalizacji na kartach zamówień. Konfiguracja drukarki (przycisk „DRUKARKA" i modal) została usunięta z POS — zarządzanie odbywa się wyłącznie w module Settings.
+
+#### Kluczowe decyzje architektoniczne:
+
+1. **Synchroniczna, nie asynchroniczna** — POS musi natychmiast wiedzieć czy paragon się wydrukował i otrzymać numer. IntegrationDispatcher (cURL + outbox) nie pasuje.
+2. **TCP, nie HTTP** — drukarka używa surowego TCP (protokół Thermal), nie ma endpointu HTTP.
+3. **Best-effort w POS** — jeśli drukarka nie odpowiada, POS nie blokuje rozliczenia; fiskalizację można powtórzyć ręcznie.
+4. **ElzabAdapter w AdapterRegistry** — dla widoczności w UI integracji, ale faktyczna komunikacja odbywa się przez ElzabFiscalEngine, nie przez IntegrationDispatcher.
+
+#### Dokument referencyjny (historyczny)
+
+- `_docs/16_RESILIENT_POS.md` — spec/historyczny plan architektury „Local-first, Cloud-synced". Plan ESC/POS bridge w P6+ został zrealizowany w innej formie (TCP Thermal zamiast ESC/POS).
 
 ---
 
@@ -261,11 +319,14 @@ Każdy adapter:
 | SequenceEngine (numerowanie dok.) | **GOTOWE** (brak typu paragonu) | `core/SequenceEngine.php` — atomowe sekwencje, brak `RPC`/`FIS` |
 | POS Terminal Registration | **GOTOWE** | `api/pos/sync.php` — `register_terminal` z `pos_id` |
 | Fiskalizacja przez zewnętrzny POS | **POŚREDNIA** | Papu/Dotykačka/GastroSoft fiskalizują po odebraniu zamówienia z SliceHub |
-| Numer paragonu fiskalnego | **BRAK** | Plan w `_docs/16_RESILIENT_POS.md` §3.5, nie zaimplementowane |
-| Sterownik ESC/POS / Web Bluetooth (bezpośredni) | **BRAK** | Plan w P6+, nie rozpoczęte |
-| Adapter drukarki fiskalnej (Posnet/Novitus/Elzab) | **BRAK** | Można dodać przez `BaseAdapter` + `AdapterRegistry` — bez nowej infrastruktury |
-| Renderowanie paragonu fiskalnego | **BRAK** | Brak kodu |
-| Fiskalizacja offline-safe (bezpośrednia) | **BRAK** | Plan w P6+, zamrożone od 2026-04-23 |
+| Numer paragonu fiskalnego | **WDRUŻONE** | `sh_orders.fiscal_receipt_number` (migracja 062), zapisywany przez `ElzabFiscalEngine::fiscalizeOrder()` |
+| Sterownik Thermal TCP (bezpośredni) | **WDRUŻONE** | `core/Elzab/ElzabPrinter.php` — TCP `stream_socket_client`, protokół Thermal, port 1001 |
+| Adapter drukarki fiskalnej (Elzab) | **WDRUŻONE** | `core/Integrations/ElzabAdapter.php` + `core/Elzab/ElzabFiscalEngine.php` — zarejestrowany w `AdapterRegistry` |
+| Renderowanie paragonu fiskalnego | **WDRUŻONE** | `ThermalProtocol::buildStartTransaction` + `buildLine` + `buildEndTransaction` — komendy Thermal |
+| Fiskalizacja offline-safe (bezpośrednia) | **CZĘŚCIOWO** | Best-effort w POS — drukarka offline nie blokuje rozliczenia; brak kolejki retry dla fiskalizacji |
+| Konfiguracja drukarki w Settings | **WDRUŻONE** | `modules/settings/` → zakładka „Drukarka Fiskalna" — formularz IP/port/cashbox/stopka + Test + Druk testowy |
+| Test wydruku paragonu | **WDRUŻONE** | `api/settings/engine.php#fiscal_test_print` — drukuje paragon testowy 1.00 zł przez `ElzabPrinter::printReceipt()` |
+| Ponowna fiskalizacja (reprint) | **WDRUŻONE** | `modules/pos/js/pos_app.js#_fiscalReprint` — przycisk na karcie zamówienia, wywołuje `fiscal_print` ponownie |
 
 ---
 
@@ -275,6 +336,6 @@ Każdy adapter:
 
 **Infrastruktura integracji POS jest wdrożona i działa** — `OrderEventPublisher` + `IntegrationDispatcher` + 3 adaptery (Papu, Dotykačka, GastroSoft) pushują zamówienia z pełnymi danymi VAT do zewnętrznych systemów POS, które mogą fiskalizować samodzielnie. Jest to pośrednia ścieżka fiskalizacji dla restauracji używających tych systemów.
 
-**Bezpośrednia fiskalizacja — sterownik ESC/POS, Web Bluetooth, adapter producenta drukarki (Posnet/Novitus/Elzab), generowanie numeru paragonu fiskalnego — jest niezaimplementowana.** Jest zamrożona w fazie P6+ dokumentu `_docs/16_RESILIENT_POS.md` od code freeze 2026-04-23. `SequenceEngine` nie ma typu `RPC`/`FIS`. Pole `legal_fiscal_no` w profilu prawnym tenanta jest wyłącznie danymi informacyjnymi bez powiązania z logiką fiskalizacji. KSeF obsługuje faktury zakupowe (przychodzące), a nie fiskalizację sprzedaży.
+**Bezpośrednia fiskalizacja została wdrożona** — adapter Elzab Zeta Online (protokół Thermal over TCP) jest zaimplementowany w `core/Elzab/` i zintegrowany z POS engine. Synchroniczna fiskalizacja po `settle_and_close` zapisuje numer paragonu fiskalnego w `sh_orders.fiscal_receipt_number` (migracja 062). Raport dobowy dostępny z poziomu POS topbar. Konfiguracja drukarki (IP, port, cashbox, stopka paragonu) oraz test połączenia i druk paragonu testowego zostały przeniesione do modułu Settings (zakładka „Drukarka Fiskalna"). `SequenceEngine` nie ma jeszcze typu `RPC`/`FIS` (numer pochodzi bezpośrednio z drukarki). Pole `legal_fiscal_no` w profilu prawnym tenanta pozostaje danymi informacyjnymi. KSeF obsługuje faktury zakupowe (przychodzące), a nie fiskalizację sprzedaży.
 
-**Dodanie nowego adaptera drukarki fiskalnej** (np. `PosnetAdapter`) możliwe bez nowej infrastruktury — nowa klasa `extends BaseAdapter` + wpis w `AdapterRegistry::PROVIDER_MAP`. Istniejący framework zapewnia retry, DLQ, audit trail i per-tenant konfigurację przez `sh_tenant_integrations`.
+**Dodanie kolejnego adaptera drukarki fiskalnej** (np. `PosnetAdapter`, `NovitusAdapter`) możliwe bez nowej infrastruktury — nowa klasa `extends BaseAdapter` + wpis w `AdapterRegistry::PROVIDER_MAP`. Istniejący framework zapewnia retry, DLQ, audit trail i per-tenant konfigurację przez `sh_tenant_integrations`.

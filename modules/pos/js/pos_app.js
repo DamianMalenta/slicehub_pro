@@ -90,6 +90,7 @@ const PosApp = (() => {
         _on('#btn-show-battlefield', 'click', _exitTableContext);
         _on('#btn-back-to-bf', 'click', _exitTableContext);
         _on('#btn-panic', 'click', _triggerPanic);
+        _on('#btn-fiscal-daily', 'click', _fiscalDailyReport);
         _on('#btn-checkout', 'click', _openCheckout);
         _on('#btn-clear-cart', 'click', () => { PosCart.clear(); PosUI.toast('Koszyk wyczyszczony', 'info'); });
         _on('#btn-half', 'click', _toggleHalf);
@@ -952,6 +953,35 @@ const PosApp = (() => {
     }
 
     // =========================================================================
+    // FISCAL DAILY REPORT — Zamknij dobę fiskalną
+    // =========================================================================
+    async function _fiscalDailyReport() {
+        if (!confirm('Wydrukować raport dobowy i zamknąć dobę fiskalną?\n\nTej operacji nie można cofnąć.')) return;
+        PosUI.toast('Drukowanie raportu dobowego...', 'info');
+        const r = await PosAPI.fiscalDailyReport();
+        if (r.success) {
+            PosUI.toast('Raport dobowy wydrukowany — doba fiskalna zamknięta', 'success');
+        } else {
+            PosUI.toast(r.message || 'Błąd raportu dobowego', 'error');
+        }
+    }
+
+    // =========================================================================
+    // FISCAL RE-PRINT — Ponowna fiskalizacja zamówienia
+    // =========================================================================
+    async function _fiscalReprint(orderId) {
+        if (!confirm('Wydrukować paragon fiskalny ponownie?')) return;
+        PosUI.toast('Fiskalizacja...', 'info');
+        const r = await PosAPI.fiscalPrint(orderId);
+        if (r.success && r.data?.fiscal_receipt_number) {
+            PosUI.toast(`Paragon fiskalny nr ${r.data.fiscal_receipt_number}`, 'success');
+            _fetchOrders();
+        } else {
+            PosUI.toast(r.message || r.data?.error || 'Błąd fiskalizacji', 'error');
+        }
+    }
+
+    // =========================================================================
     // BATTLEFIELD RENDERING (delegates to PosUI)
     // =========================================================================
     function _renderBattlefield() {
@@ -1050,6 +1080,7 @@ const PosApp = (() => {
                 _fetchOrders();
             },
             onPrintReceipt: (id) => _openPaymentModal(id, 'print'),
+            onFiscalReprint: (id) => _fiscalReprint(id),
             onEdit:         (id) => _openEditInCart(id),
             onSettle:       (id) => _openPaymentModal(id, 'settle'),
             onCancel:       (id) => _openCancelModal(id),
@@ -1167,6 +1198,19 @@ const PosApp = (() => {
                     if (printReceipt) PosUI.printOrderTemplate(o, false, { waiterName: _user?.name || 'POS' });
                     const msg = r.data?.split_tender ? 'Zamknięto (split)!' : 'Zamknięto pomyślnie!';
                     PosUI.toast(msg, 'success');
+
+                    // Fiskalizacja — best effort, nie blokuj jeśli drukarka nie odpowiada
+                    try {
+                        const fr = await PosAPI.fiscalPrint(orderId);
+                        if (fr.success && fr.data?.fiscal_receipt_number) {
+                            PosUI.toast(`Paragon fiskalny nr ${fr.data.fiscal_receipt_number}`, 'success');
+                        } else if (!fr.success) {
+                            console.warn('[Fiscal] ' + (fr.message || 'Błąd fiskalizacji'));
+                        }
+                    } catch (e) {
+                        console.warn('[Fiscal] Exception:', e);
+                    }
+
                     _fetchOrders();
                 } else PosUI.toast(r.message || 'Błąd', 'error');
             },

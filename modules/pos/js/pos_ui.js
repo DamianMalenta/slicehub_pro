@@ -560,6 +560,7 @@ const PosUI = (() => {
             const courseBadge = isQueued ? `<div class="course-badge">${_e(o.course_id)} / ${_e(o.stop_number || '?')}</div>` : '';
             const badges = [];
             if (o.receipt_printed == 1) badges.push('<span class="s-badge">PARAGON</span>');
+            if (o.fiscal_receipt_number) badges.push(`<span class="s-badge" style="background:#1e40af;color:#bfdbfe">FISKAL ${_e(o.fiscal_receipt_number)}</span>`);
             if (o.kitchen_ticket_printed == 1) badges.push(`<span class="s-badge ${o.edited_since_print == 1 ? 's-badge-alert' : ''}">BON</span>`);
 
             let expandHtml = '';
@@ -578,7 +579,7 @@ const PosUI = (() => {
                     statusBtn = `<button class="bf-action bf-ready" data-act="status_ready" data-oid="${o.id}">✅ GOTOWE</button>`;
                 }
 
-                expandHtml = `<div class="bf-expand"><div class="bf-lines">${fullLines || '<span class="bf-empty">Pusty</span>'}</div><div class="bf-actions-row"><button class="bf-action ${pColor}" data-act="print_kitchen" data-oid="${o.id}">🖨 ${pText}</button><button class="bf-action" data-act="print_receipt" data-oid="${o.id}">📄 Paragon</button><button class="bf-action" data-act="edit" data-oid="${o.id}">✏️ Edytuj</button></div><div class="bf-actions-row"><button class="bf-action bf-settle" data-act="settle" data-oid="${o.id}">💰 ZAMKNIJ</button><button class="bf-action bf-cancel" data-act="cancel" data-oid="${o.id}">🗑</button>${statusBtn}</div></div>`;
+                expandHtml = `<div class="bf-expand"><div class="bf-lines">${fullLines || '<span class="bf-empty">Pusty</span>'}</div><div class="bf-actions-row"><button class="bf-action ${pColor}" data-act="print_kitchen" data-oid="${o.id}">🖨 ${pText}</button><button class="bf-action" data-act="print_receipt" data-oid="${o.id}">📄 Paragon</button><button class="bf-action" data-act="fiscal_reprint" data-oid="${o.id}" title="Ponowna fiskalizacja">🧾 Fiskal</button><button class="bf-action" data-act="edit" data-oid="${o.id}">✏️ Edytuj</button></div><div class="bf-actions-row"><button class="bf-action bf-settle" data-act="settle" data-oid="${o.id}">💰 ZAMKNIJ</button><button class="bf-action bf-cancel" data-act="cancel" data-oid="${o.id}">🗑</button>${statusBtn}</div></div>`;
             }
 
             const clientLine = o.order_type === 'delivery' ? `📍 ${_e(o.delivery_address || 'Brak adresu')}` : `${_e(o.customer_name || 'Gość')}`;
@@ -682,6 +683,7 @@ const PosUI = (() => {
                 const oid = btn.dataset.oid, act = btn.dataset.act;
                 if (act === 'print_kitchen') callbacks.onPrintKitchen(oid);
                 else if (act === 'print_receipt') callbacks.onPrintReceipt(oid);
+                else if (act === 'fiscal_reprint') callbacks.onFiscalReprint(oid);
                 else if (act === 'edit') callbacks.onEdit(oid);
                 else if (act === 'settle') callbacks.onSettle(oid);
                 else if (act === 'cancel') callbacks.onCancel(oid);

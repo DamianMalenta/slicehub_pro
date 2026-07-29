@@ -23,6 +23,7 @@ final class AdapterRegistry
         'papu'        => PapuAdapter::class,
         'dotykacka'   => DotykackaAdapter::class,
         'gastrosoft'  => GastroSoftAdapter::class,
+        'elzab'       => ElzabAdapter::class,
     ];
 
     /** @var array<int, list<BaseAdapter>> tenant_id → [adapter, ...] */

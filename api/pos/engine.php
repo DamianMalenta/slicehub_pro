@@ -79,6 +79,11 @@ try {
         }
     }
 
+    // Auto-migration: fiscal_receipt_number (migration 062)
+    try { $pdo->query("SELECT fiscal_receipt_number FROM sh_orders LIMIT 0"); } catch (\PDOException $e) {
+        try { $pdo->exec("ALTER TABLE sh_orders ADD COLUMN fiscal_receipt_number VARCHAR(20) DEFAULT NULL"); } catch (\Throwable) {}
+    }
+
     // =========================================================================
     // GET_INIT_DATA — Categories, items+prices, ingredients, drivers, waiters
     // =========================================================================
@@ -1321,6 +1326,97 @@ try {
         $params[] = $tenant_id;
         $pdo->prepare($sql)->execute($params);
         posResponse(true);
+    }
+
+    // =========================================================================
+    // FISCAL_PRINT — Wydrukuj paragon fiskalny przez Elzab Zeta Online
+    // =========================================================================
+    if ($action === 'fiscal_print') {
+        require_once __DIR__ . '/../../core/Elzab/ThermalProtocol.php';
+        require_once __DIR__ . '/../../core/Elzab/ElzabPrinter.php';
+        require_once __DIR__ . '/../../core/Elzab/ElzabFiscalEngine.php';
+
+        $oid = inputStr($input, 'order_id');
+        if ($oid === '') {
+            posResponse(false, null, 'Brak order_id');
+        }
+
+        $result = \SliceHub\Elzab\ElzabFiscalEngine::fiscalizeOrder($pdo, $oid, $tenant_id, $user_id);
+        posResponse($result['success'], $result, $result['error'] ?? null);
+    }
+
+    // =========================================================================
+    // FISCAL_DAILY_REPORT — Raport dobowy (zamknięcie doby fiskalnej)
+    // =========================================================================
+    if ($action === 'fiscal_daily_report') {
+        require_once __DIR__ . '/../../core/Elzab/ThermalProtocol.php';
+        require_once __DIR__ . '/../../core/Elzab/ElzabPrinter.php';
+        require_once __DIR__ . '/../../core/Elzab/ElzabFiscalEngine.php';
+
+        $result = \SliceHub\Elzab\ElzabFiscalEngine::printDailyReport($pdo, $tenant_id);
+        posResponse($result['success'], $result, $result['error'] ?? null);
+    }
+
+    // =========================================================================
+    // FISCAL_STATUS — Sprawdź połączenie z drukarką fiskalną
+    // =========================================================================
+    if ($action === 'fiscal_status' || $action === 'fiscal_test') {
+        require_once __DIR__ . '/../../core/Elzab/ThermalProtocol.php';
+        require_once __DIR__ . '/../../core/Elzab/ElzabPrinter.php';
+        require_once __DIR__ . '/../../core/Elzab/ElzabFiscalEngine.php';
+
+        if ($action === 'fiscal_test') {
+            $host = inputStr($input, 'host');
+            $port = (int)inputStr($input, 'port', '1001');
+            if ($host === '') {
+                posResponse(false, null, 'Podaj adres IP drukarki');
+            }
+            $printer = new \SliceHub\Elzab\ElzabPrinter($host, $port, 3, 5);
+            if (!$printer->ping()) {
+                posResponse(false, null, "Brak połączenia z {$host}:{$port}");
+            }
+            posResponse(true, ['host' => $host, 'port' => $port], 'Drukarka online');
+        }
+
+        $result = \SliceHub\Elzab\ElzabFiscalEngine::checkStatus($pdo, $tenant_id);
+        posResponse($result['success'], $result, $result['error'] ?? null);
+    }
+
+    // =========================================================================
+    // FISCAL_GET_CONFIG — Pobierz konfigurację drukarki fiskalnej
+    // =========================================================================
+    if ($action === 'fiscal_get_config') {
+        require_once __DIR__ . '/../../core/Elzab/ThermalProtocol.php';
+        require_once __DIR__ . '/../../core/Elzab/ElzabPrinter.php';
+        require_once __DIR__ . '/../../core/Elzab/ElzabFiscalEngine.php';
+
+        $result = \SliceHub\Elzab\ElzabFiscalEngine::getConfig($pdo, $tenant_id);
+        posResponse($result['success'] ?? false, $result, $result['error'] ?? null);
+    }
+
+    // =========================================================================
+    // FISCAL_SAVE_CONFIG — Zapisz konfigurację drukarki fiskalnej
+    // =========================================================================
+    if ($action === 'fiscal_save_config') {
+        require_once __DIR__ . '/../../core/Elzab/ThermalProtocol.php';
+        require_once __DIR__ . '/../../core/Elzab/ElzabPrinter.php';
+        require_once __DIR__ . '/../../core/Elzab/ElzabFiscalEngine.php';
+
+        $config = [
+            'host' => inputStr($input, 'host'),
+            'port' => inputStr($input, 'port', '1001'),
+            'cashbox' => inputStr($input, 'cashbox', 'POS1'),
+            'footer_line_1' => inputStr($input, 'footer_line_1'),
+            'footer_line_2' => inputStr($input, 'footer_line_2'),
+            'footer_line_3' => inputStr($input, 'footer_line_3'),
+        ];
+
+        if ($config['host'] === '') {
+            posResponse(false, null, 'Adres IP drukarki jest wymagany');
+        }
+
+        \SliceHub\Elzab\ElzabFiscalEngine::saveConfig($pdo, $tenant_id, $config);
+        posResponse(true, $config, 'Konfiguracja zapisana');
     }
 
     // =========================================================================

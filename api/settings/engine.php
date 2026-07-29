@@ -96,6 +96,7 @@ function settings_csrfCheck(string $action): void
         'gateway_scopes_catalog', 'webhook_deliveries_list',
         'notifications_channels_list', 'notifications_routes_get',
         'notifications_templates_get',
+        'fiscal_get_config', 'fiscal_status',
     ];
     if (in_array($action, $readOnly, true)) return;
 
@@ -1137,9 +1138,8 @@ try {
 
         // ════════════════════════════════════════════════════════════════
         default:
-            // Let notifications_* fall through to handlers below the switch.
-            // Every other unknown action is rejected at the end of the file.
-            if (!str_starts_with((string)$action, 'notifications_')) {
+            // Let notifications_* and fiscal_* fall through to handlers below the switch.
+            if (!str_starts_with((string)$action, 'notifications_') && !str_starts_with((string)$action, 'fiscal_')) {
                 settings_respond(false, null, "Unknown action: '{$action}'", 400);
             }
             break;
@@ -1407,6 +1407,103 @@ if ($action === 'notifications_templates_set') {
     } catch (Throwable $e) {
         settings_respond(false, null, $e->getMessage(), 500);
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FISCAL PRINTER — Elzab Zeta Online (konfiguracja w Settings)
+// ═══════════════════════════════════════════════════════════════════════════
+
+if ($action === 'fiscal_get_config') {
+    require_once __DIR__ . '/../../core/Elzab/ThermalProtocol.php';
+    require_once __DIR__ . '/../../core/Elzab/ElzabPrinter.php';
+    require_once __DIR__ . '/../../core/Elzab/ElzabFiscalEngine.php';
+
+    $cfg = \SliceHub\Elzab\ElzabFiscalEngine::getConfig($pdo, $tenant_id);
+    settings_respond($cfg['success'] ?? false, $cfg, $cfg['error'] ?? null);
+}
+
+if ($action === 'fiscal_save_config') {
+    require_once __DIR__ . '/../../core/Elzab/ThermalProtocol.php';
+    require_once __DIR__ . '/../../core/Elzab/ElzabPrinter.php';
+    require_once __DIR__ . '/../../core/Elzab/ElzabFiscalEngine.php';
+
+    $config = [
+        'host'           => trim((string)($input['host'] ?? '')),
+        'port'           => trim((string)($input['port'] ?? '1001')),
+        'cashbox'        => trim((string)($input['cashbox'] ?? 'POS1')),
+        'footer_line_1'  => trim((string)($input['footer_line_1'] ?? '')),
+        'footer_line_2'  => trim((string)($input['footer_line_2'] ?? '')),
+        'footer_line_3'  => trim((string)($input['footer_line_3'] ?? '')),
+    ];
+    if ($config['host'] === '') settings_respond(false, null, 'Adres IP jest wymagany', 400);
+
+    \SliceHub\Elzab\ElzabFiscalEngine::saveConfig($pdo, $tenant_id, $config);
+    settings_respond(true, $config, 'Konfiguracja drukarki zapisana');
+}
+
+if ($action === 'fiscal_test') {
+    require_once __DIR__ . '/../../core/Elzab/ThermalProtocol.php';
+    require_once __DIR__ . '/../../core/Elzab/ElzabPrinter.php';
+    require_once __DIR__ . '/../../core/Elzab/ElzabFiscalEngine.php';
+
+    $host = trim((string)($input['host'] ?? ''));
+    $port = (int)trim((string)($input['port'] ?? '1001'));
+    if ($host === '') settings_respond(false, null, 'Podaj adres IP drukarki', 400);
+
+    $printer = new \SliceHub\Elzab\ElzabPrinter($host, $port, 5, 10);
+    if (!$printer->ping()) {
+        settings_respond(false, null, "Brak połączenia z {$host}:{$port}");
+    }
+    settings_respond(true, ['host' => $host, 'port' => $port], 'Drukarka online');
+}
+
+if ($action === 'fiscal_status') {
+    require_once __DIR__ . '/../../core/Elzab/ThermalProtocol.php';
+    require_once __DIR__ . '/../../core/Elzab/ElzabPrinter.php';
+    require_once __DIR__ . '/../../core/Elzab/ElzabFiscalEngine.php';
+
+    $result = \SliceHub\Elzab\ElzabFiscalEngine::checkStatus($pdo, $tenant_id);
+    settings_respond($result['success'] ?? false, $result, $result['error'] ?? null);
+}
+
+if ($action === 'fiscal_test_print') {
+    require_once __DIR__ . '/../../core/Elzab/ThermalProtocol.php';
+    require_once __DIR__ . '/../../core/Elzab/ElzabPrinter.php';
+    require_once __DIR__ . '/../../core/Elzab/ElzabFiscalEngine.php';
+
+    $cfgData = \SliceHub\Elzab\ElzabFiscalEngine::getConfig($pdo, $tenant_id);
+    if (empty($cfgData['success'])) {
+        settings_respond(false, null, $cfgData['error'] ?? 'Drukarka nie skonfigurowana — wpisz adres IP i zapisz konfigurację');
+    }
+
+    try {
+        $printer = new \SliceHub\Elzab\ElzabPrinter($cfgData['host'], (int)$cfgData['port'], 5, 15);
+        $printer->connect();
+
+        $receiptNo = $printer->printReceipt(
+            [['name' => 'Test SliceHub', 'quantity' => 1, 'unit_price' => 1.00, 'vat_rate' => 23, 'line_total' => 1.00]],
+            1.00,
+            [['method' => 'cash', 'amount' => 1.00, 'name' => 'Gotowka']],
+            $cfgData['cashbox'] ?? 'POS1',
+            'TEST',
+            'TEST/001',
+            0.0,
+            ['line1' => $cfgData['footer_line_1'] ?? '', 'line2' => $cfgData['footer_line_2'] ?? '', 'line3' => $cfgData['footer_line_3'] ?? '']
+        );
+        $printer->disconnect();
+        settings_respond(true, ['receipt_number' => $receiptNo], 'Paragon testowy wydrukowany');
+    } catch (\Throwable $e) {
+        settings_respond(false, null, 'Błąd druku: ' . $e->getMessage());
+    }
+}
+
+if ($action === 'fiscal_daily_report') {
+    require_once __DIR__ . '/../../core/Elzab/ThermalProtocol.php';
+    require_once __DIR__ . '/../../core/Elzab/ElzabPrinter.php';
+    require_once __DIR__ . '/../../core/Elzab/ElzabFiscalEngine.php';
+
+    $result = \SliceHub\Elzab\ElzabFiscalEngine::printDailyReport($pdo, $tenant_id);
+    settings_respond($result['success'] ?? false, $result, $result['error'] ?? null);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#050508">
+    <title>SliceHub Kierowca — Offline</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { background:#050508; color:#fff; font-family:'Inter',sans-serif; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; text-align:center; padding:24px; }
+        .icon { font-size:64px; margin-bottom:24px; }
+        h1 { font-size:20px; font-weight:900; text-transform:uppercase; margin-bottom:12px; }
+        p { font-size:14px; color:rgba(255,255,255,0.5); max-width:320px; line-height:1.6; }
+        .retry { margin-top:32px; padding:16px 48px; background:#f97316; color:#fff; border:none; border-radius:8px; font-size:14px; font-weight:900; text-transform:uppercase; cursor:pointer; }
+    </style>
+</head>
+<body>
+    <div class="icon">📡</div>
+    <h1>Brak połączenia</h1>
+    <p>Aplikacja kierowcy wymaga połączenia z serwerem. Sprawdź zasięg internetu i spróbuj ponownie.</p>
+    <button class="retry" onclick="location.reload()">Spróbuj ponownie</button>
+</body>
+</html>
