@@ -24,6 +24,7 @@ final class AdapterRegistry
         'dotykacka'   => DotykackaAdapter::class,
         'gastrosoft'  => GastroSoftAdapter::class,
         'elzab'       => ElzabAdapter::class,
+        'choiceqr'    => ChoiceQRAdapter::class,
     ];
 
     /** @var array<int, list<BaseAdapter>> tenant_id → [adapter, ...] */

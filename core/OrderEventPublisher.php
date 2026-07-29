@@ -222,6 +222,23 @@ final class OrderEventPublisher
             // kolumny nie istnieją — skip
         }
 
+        // Opcjonalne kolumny gateway_* (migracja 027) — potrzebne dla adapterów
+        // integracji (np. ChoiceQRAdapter resolveExternalId).
+        try {
+            $gatewayProbe = $pdo->prepare(
+                "SELECT gateway_source, gateway_external_id
+                 FROM sh_orders WHERE id = :oid LIMIT 1"
+            );
+            $gatewayProbe->execute([':oid' => $orderId]);
+            $gateway = $gatewayProbe->fetch(\PDO::FETCH_ASSOC);
+            if ($gateway) {
+                $order['gateway_source']       = $gateway['gateway_source']       ?? null;
+                $order['gateway_external_id']  = $gateway['gateway_external_id']  ?? null;
+            }
+        } catch (\Throwable $e) {
+            // kolumny nie istnieją — skip
+        }
+
         // Line items
         try {
             $lineStmt = $pdo->prepare(

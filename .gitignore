@@ -82,6 +82,7 @@ npm-debug.log*
 scripts/debug_*.php
 scripts/probe_*.php
 scripts/_local_*.php
+scripts/_tmp_*
 
 # -----------------------------------------------------------------------------
 # Python cache

@@ -86,6 +86,8 @@ require_once __DIR__ . '/../core/Integrations/BaseAdapter.php';
 require_once __DIR__ . '/../core/Integrations/PapuAdapter.php';
 require_once __DIR__ . '/../core/Integrations/DotykackaAdapter.php';
 require_once __DIR__ . '/../core/Integrations/GastroSoftAdapter.php';
+require_once __DIR__ . '/../core/Integrations/ElzabAdapter.php';
+require_once __DIR__ . '/../core/Integrations/ChoiceQRAdapter.php';
 require_once __DIR__ . '/../core/Integrations/AdapterRegistry.php';
 require_once __DIR__ . '/../core/Integrations/IntegrationDispatcher.php';
 

@@ -51,7 +51,9 @@ require_once __DIR__ . '/../../core/Integrations/BaseAdapter.php';
 require_once __DIR__ . '/../../core/Integrations/PapuAdapter.php';
 require_once __DIR__ . '/../../core/Integrations/DotykackaAdapter.php';
 require_once __DIR__ . '/../../core/Integrations/GastroSoftAdapter.php';
+require_once __DIR__ . '/../../core/Integrations/ChoiceQRAdapter.php';
 require_once __DIR__ . '/../../core/Integrations/AdapterRegistry.php';
+require_once __DIR__ . '/../../core/OrderStateMachine.php';
 
 use SliceHub\Integrations\AdapterRegistry;
 use SliceHub\Integrations\BaseAdapter;
@@ -347,6 +349,7 @@ foreach ([
     'SliceHub\\Integrations\\PapuAdapter',
     'SliceHub\\Integrations\\DotykackaAdapter',
     'SliceHub\\Integrations\\GastroSoftAdapter',
+    'SliceHub\\Integrations\\ChoiceQRAdapter',
 ] as $cand) {
     if (class_exists($cand) && $cand::providerKey() === $provider) {
         $adapterClass = $cand;
@@ -378,11 +381,13 @@ try {
     inbound_respond(500, ['success' => false, 'error' => 'adapter error']);
 }
 
-$sigVerified      = (bool)($result['signature_verified'] ?? false);
-$externalEventId  = $result['external_event_id'] ?? null;
-$externalRef      = $result['external_ref']      ?? null;
-$eventType        = $result['event_type']        ?? null;
-$newStatus        = $result['new_status']        ?? null;
+$sigVerified         = (bool)($result['signature_verified'] ?? false);
+$externalEventId     = $result['external_event_id'] ?? null;
+$externalRef         = $result['external_ref']      ?? null;
+$eventType           = $result['event_type']        ?? null;
+$newStatus           = $result['new_status']        ?? null;
+$newDeliveryStatus   = $result['new_delivery_status'] ?? null;
+$newPaymentStatus    = $result['new_payment_status']  ?? null;
 
 // Zapis rozpoznanych pól (niezależnie od ok/nie)
 inbound_updateCallback($pdo, $callbackId, [
@@ -449,14 +454,18 @@ if ($externalEventId !== null && $externalEventId !== '') {
 $mappedOrderId = null;
 $orderUuid = null;
 $didBumpStatus = false;
+$didBumpDelivery = false;
+$didBumpPayment = false;
 
 if ($externalRef !== null && $externalRef !== '') {
     try {
+        $pdo->beginTransaction();
+
         $stmt = $pdo->prepare(
-            "SELECT id, id AS order_uuid, status
+            "SELECT id, id AS order_uuid, status, delivery_status, payment_status, order_type
              FROM sh_orders
              WHERE tenant_id = :tid AND gateway_external_id = :ref
-             LIMIT 1"
+             LIMIT 1 FOR UPDATE"
         );
         $stmt->execute([':tid' => $tenantId, ':ref' => $externalRef]);
         $orderRow = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -465,30 +474,56 @@ if ($externalRef !== null && $externalRef !== '') {
             $mappedOrderId = (int)$orderRow['id'];
             $orderUuid     = (string)$orderRow['order_uuid'];
 
+            // ── Status transition via OrderStateMachine ──
             if ($newStatus !== null && $newStatus !== $orderRow['status']) {
-                // Whitelisted status transitions — identyczne jak w OrderStateMachine
-                $allowedTransitions = [
-                    'new'         => ['accepted', 'preparing', 'cancelled'],
-                    'accepted'    => ['preparing', 'ready', 'cancelled'],
-                    'preparing'   => ['ready', 'cancelled'],
-                    'ready'       => ['dispatched', 'in_delivery', 'delivered', 'completed', 'cancelled'],
-                    'dispatched'  => ['in_delivery', 'delivered', 'cancelled'],
-                    'in_delivery' => ['delivered', 'cancelled'],
-                    'delivered'   => ['completed'],
-                ];
-                $curStatus = (string)$orderRow['status'];
-                if (isset($allowedTransitions[$curStatus]) && in_array($newStatus, $allowedTransitions[$curStatus], true)) {
-                    $pdo->prepare(
-                        "UPDATE sh_orders SET status = :s, updated_at = NOW()
-                         WHERE id = :id AND tenant_id = :tid"
-                    )->execute([':s' => $newStatus, ':id' => $mappedOrderId, ':tid' => $tenantId]);
+                $flags = OrderStateMachine::loadTenantFlags($pdo, $tenantId);
+                $extraCols = [];
+                if ($newStatus === 'cancelled' && !empty($result['payload']['cancellation_reason'])) {
+                    $extraCols['cancellation_reason'] = $result['payload']['cancellation_reason'];
+                }
+                $trResult = OrderStateMachine::transitionOrder(
+                    $pdo, $orderUuid, $tenantId, 0, $newStatus, $flags, $extraCols
+                );
+                if ($trResult['success']) {
                     $didBumpStatus = true;
                 } else {
-                    error_log("[inbound.php] Transition rejected: {$curStatus} → {$newStatus} for order #{$mappedOrderId}");
+                    error_log(sprintf(
+                        '[inbound.php] OSM transition rejected: %s → %s for order #%d: %s',
+                        $trResult['old_status'], $newStatus, $mappedOrderId, $trResult['message']
+                    ));
                 }
             }
+
+            // ── Delivery status update ──
+            if ($newDeliveryStatus !== null && $newDeliveryStatus !== ($orderRow['delivery_status'] ?? '')) {
+                $curDelivery = (string)($orderRow['delivery_status'] ?? '');
+                if (OrderStateMachine::canTransitionDelivery($curDelivery, $newDeliveryStatus)) {
+                    $pdo->prepare(
+                        "UPDATE sh_orders SET delivery_status = :ds, updated_at = NOW()
+                         WHERE id = :id AND tenant_id = :tid"
+                    )->execute([':ds' => $newDeliveryStatus, ':id' => $mappedOrderId, ':tid' => $tenantId]);
+                    $didBumpDelivery = true;
+                } else {
+                    error_log("[inbound.php] Delivery transition rejected: {$curDelivery} → {$newDeliveryStatus} for order #{$mappedOrderId}");
+                }
+            }
+
+            // ── Payment status update (no state machine — direct update) ──
+            if ($newPaymentStatus !== null && $newPaymentStatus !== ($orderRow['payment_status'] ?? '')) {
+                $pdo->prepare(
+                    "UPDATE sh_orders SET payment_status = :ps, updated_at = NOW()
+                     WHERE id = :id AND tenant_id = :tid"
+                )->execute([':ps' => $newPaymentStatus, ':id' => $mappedOrderId, ':tid' => $tenantId]);
+                $didBumpPayment = true;
+            }
         }
-    } catch (PDOException $e) {
+
+        $pdo->commit();
+
+    } catch (\Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         error_log('[inbound.php] DB error matching order: ' . $e->getMessage());
     }
 }
@@ -498,7 +533,7 @@ if ($externalRef !== null && $externalRef !== '') {
 // ─────────────────────────────────────────────────────────────────────────
 
 $outboxEventId = null;
-if ($orderUuid !== null && $eventType !== null && $didBumpStatus) {
+if ($orderUuid !== null && $eventType !== null && ($didBumpStatus || $didBumpDelivery || $didBumpPayment)) {
     $outboxEventId = OrderEventPublisher::publishOrderLifecycle(
         $pdo,
         $tenantId,
@@ -531,10 +566,14 @@ inbound_updateCallback($pdo, $callbackId, [
 ]);
 
 inbound_respond(200, [
-    'success'        => true,
-    'callback_id'    => $callbackId,
-    'order_id'       => $mappedOrderId,
-    'status_changed' => $didBumpStatus,
-    'new_status'     => $didBumpStatus ? $newStatus : null,
-    'internal_event' => $outboxEventId,
+    'success'          => true,
+    'callback_id'      => $callbackId,
+    'order_id'         => $mappedOrderId,
+    'status_changed'   => $didBumpStatus,
+    'new_status'       => $didBumpStatus ? $newStatus : null,
+    'delivery_changed' => $didBumpDelivery,
+    'new_delivery_status' => $didBumpDelivery ? $newDeliveryStatus : null,
+    'payment_changed'  => $didBumpPayment,
+    'new_payment_status' => $didBumpPayment ? $newPaymentStatus : null,
+    'internal_event'   => $outboxEventId,
 ]);
