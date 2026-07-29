@@ -54,9 +54,15 @@ dokumentacją ChoiceQR (pos/index.md, order/schema.md, webhooks.md). 3 fixy kryt
 3. **S7 (Priorytet 1)** — brak testów inbound (parseInboundCallback). CLI test P1 pokrywa tylko
    push (42 asercje). Rozszerzyć `scripts/test_choiceqr_adapter.php` o 5 typów eventów.
 
-4. **Prawo IV — czy świadomy wyjątek (totaly ChoiceQR bez CartEngine) jest akceptowalny
-   długoterminowo?** Decyzja biznesowa: odrzucanie zamówień gdy cena ChoiceQR ≠ cena SliceHub vs
-   zaufanie totalom. Obecnie: zaufanie. Do przegadania gdy pojawi się pierwszy klient live.
+4. **Prawo IV — świadomy wyjątek ZAAKCEPTOWANY przez właściciela (2026-07-29).**
+   ChoiceQR przysyła totaly (klient zapłacił u nich). Nie przeliczamy przez CartEngine.
+   Uzasadnienie: klient płaci na ChoiceQR *zanim* zamówienie trafi do SliceHub. Odrzucenie
+   = klient zapłacił, restauracja nie widzi zamówienia. Właściciel świadomie akceptuje że
+   total z ChoiceQR może się różnić od totalu SliceHub (np. promocje ChoiceQR, opłaty
+   platformy, niezsynchronizowane ceny). Mitigacja: re-sync menu w panelu ChoiceQR po
+   każdej zmianie cen w SliceHub. **Nie jest to złamanie Prawa IV** — ChoiceQR to
+   zewnętrzna platforma płatnicza, nie frontend JS. Prawo IV chroni przed hakerem
+   zmieniającym cenę w przeglądarce, nie przed platformą która już pobrała płatność.
 
 5. **Live test z ChoiceQR/papu.io** — gdy panel ChoiceQR będzie skonfigurowany z URL-ami SliceHub,
    zweryfikować end-to-end: zamówienie z ChoiceQR → webhook.php → sh_orders → POS/KDS.
