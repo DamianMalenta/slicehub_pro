@@ -165,8 +165,9 @@ SliceHub **nie jest kolejnym POS-em**. To **gastronomiczny system klasy enterpri
 - Funkcja opisana w docs jako produkcyjna MUSI mieć call-site + test (manual albo auto).
 - Funkcja kompletna ale niewpięta = adnotacja `@planned (Prawo VIII)` w docblocku z konkretnym powodem i datą.
 - Każdy audyt modułu raportuje listę `@planned` na końcu — nie wolno tego ukryć.
-- **Aktualne `@planned`:** `api/orders/edit.php`, `api/orders/estimate.php`, `api/orders/sla_monitor.php` (unikalna logika — DeltaEngine, PromisedTimeEngine, SLA breach logging — czekają na frontend).
-- **Domknięte:** ~~`core/WzEngine.php::consumeForOrder`~~ (F1 · 2026-05-11 — `core/WarehouseConsumeHook`); ~~`api/payments/settle.php`~~ (F1 · 2026-07-07 — **usunięty 2026-07-28**); ~~`api/orders/panic.php`~~, ~~`api/orders/accept.php`~~, ~~`api/orders/checkout.php`~~, ~~`api/delivery/dispatch.php`~~, ~~`api/delivery/reconcile.php`~~, ~~`api/kds/update_ticket.php`~~, ~~`api/staff/payroll.php`~~, ~~`api/dashboard/team_payroll.php`~~ (**usunięte 2026-07-28** — logika wchłonięta do engine.php + core/ silników: `PanicEngine`, `KdsTicketEngine`; katalogi `api/payments/`, `api/delivery/`, `api/dashboard/`, `api/staff/` usunięte).
+- **Aktualne `@planned`:** `api/orders/estimate.php` (wrapper HTTP na `PromisedTimeEngine::calculate()` — docelowy konsument: storefront scheduled-picker UI. Silnik wpięty bezpośrednio w 4 ścieżki ASAP w Fazie B, wrapper pozostaje dla future pre-check UI. Jeden świadomy orphan z udokumentowanym uzasadnieniem).
+- **Domknięte (Fazy A→E, 2026-07-29/30):** ~~`api/orders/edit.php`~~ (Faza E — edycja zamówienia + `DeltaEngine` → `kitchen_delta` JSON dla KDS; konsument `modules/backoffice/order_edit/`); ~~`api/orders/sla_monitor.php`~~ (Faza C — SLA breach monitor; konsument `worker_sla_monitor.php` cron + `courses/engine.php#get_sla_breaches` + Dispatcher panel); ~~`core/PromisedTimeEngine.php`~~ (Faza B — silnik estymacji `promised_time`; wpięty w 4 ścieżki ASAP: online/gateway/choiceqr/pos-accept); ~~`api/reports/food_cost.php`~~ (Faza D — Food Cost Report; konsument `modules/backoffice/food_cost/`).
+- **Domknięte (wcześniejsze):** ~~`core/WzEngine.php::consumeForOrder`~~ (F1 · 2026-05-11 — `core/WarehouseConsumeHook`); ~~`api/payments/settle.php`~~ (F1 · 2026-07-07 — **usunięty 2026-07-28**); ~~`api/orders/panic.php`~~, ~~`api/orders/accept.php`~~, ~~`api/orders/checkout.php`~~, ~~`api/delivery/dispatch.php`~~, ~~`api/delivery/reconcile.php`~~, ~~`api/kds/update_ticket.php`~~, ~~`api/staff/payroll.php`~~, ~~`api/dashboard/team_payroll.php`~~ (**usunięte 2026-07-28** — logika wchłonięta do engine.php + core/ silników: `PanicEngine`, `KdsTicketEngine`; katalogi `api/payments/`, `api/delivery/`, `api/dashboard/`, `api/staff/` usunięte).
 
 ### Prawo IX — Datowane Zamrożenia (Freeze Discipline) · NEW v5
 
@@ -466,6 +467,36 @@ Prosty wrapper fetch POST → JSON, obsługa błędów i auth header. Powinien b
 ### `core/PzEngine.php` — przyjęcie + AVCO
 - Formuła AVCO: `(old_qty × old_avco + new_qty × unit_cost) / (old_qty + new_qty)`, jeśli `old_qty ≤ 0` → `new_avco = unit_cost`.
 - Mapping faktury → SKU przez `sh_product_mapping` (case-insensitive).
+
+### `core/PromisedTimeEngine.php` — estymacja promised_time (Faza B · 2026-07-29 DOMKNIĘTE)
+- **Cel:** inteligentna estymacja czasu obiecanego (`promised_time`) dla trybu ASAP — zamiast hardcoded `null`/`+30`/`now()`. Uwzględnia load factor (obciążenie kuchni), channel buffer (delivery +15, takeaway +5, dine_in +0) i tenant `base_prep_minutes`.
+- **Sygnatura:** `PromisedTimeEngine::calculate(PDO, int $tenantId, string $mode='asap', string $orderType='delivery', ?string $scheduledFor=null): ?string` (Y-m-d H:i:s lub null).
+- **Wpięte w 4 ścieżki ASAP (Faza B):** `api/online/engine.php#guest_checkout`, `api/gateway/intake.php`, `api/integrations/choiceqr/webhook.php`, `api/pos/engine.php#accept_order` (default gdy kasjer nie poda `custom_time`; ręczny input wygrywa). Każda ścieżka ma `try/catch` z defensywnym fallback na poprzednią logikę (silnik NIE blokuje zamówienia przy wyjątku).
+- **Scheduled orders bez zmian** — online zostawia surowy `requested_time`, gateway waliduje lead time + closing time. Silnik używany tylko dla ASAP.
+- **`api/orders/estimate.php`** — wrapper HTTP na silnik, pozostaje `@planned` (docelowy konsument: storefront scheduled-picker UI; silnik wpięty bezpośrednio, wrapper dla future pre-check).
+- Szczegóły: `_docs/sessions/2026-07-29_phase_b_promised_time_engine.md`.
+
+### `core/SlaThresholds.php` — SSOT progów SLA (Faza A · 2026-07-29 DOMKNIĘTE)
+- **Cel:** ujednolicenie progów SLA (`sla_green_min`, `sla_yellow_min`) we wszystkich frontendach. Dotychczas 5 różnych hardcoded wartości (POS 15/59 i 6/14, KDS 0/5, Dispatcher 0/5, Driver 0/5). Teraz wszystkie czytają z `sh_tenant_settings` (default 10/5).
+- **Sygnatura:** `slicehubSlaThresholds(PDO, int $tenantId): array` → `['green_min'=>N, 'yellow_min'=>N]` (proceduralny prymityw infrastrukturalny, wzorzec jak `StaffFleetPresence`/`DriverFleetHelper`).
+- **Konsumenci (5 call-site'ów):** `api/courses/engine.php` (get_dashboard, get_driver_runs), `api/kds/engine.php` (get_board), `api/pos/engine.php` (get_orders), `api/orders/sla_monitor.php`. Każdy backend zwraca `sla_thresholds: {green_min, yellow_min}` w response; frontendy czytają przez `setSlaThresholds()`.
+- **POS single-boundary** — decyzja użytkownika: POS traci per-type różnicę (delivery 15/59 → unified), zyskując spójność z courses/kds/driver. Przy default `yellow_min=5` żółty przy ≤5 min dla wszystkich typów.
+- Szczegóły: `_docs/sessions/2026-07-29_phase_a_sla_thresholds.md`.
+
+### `core/DeltaEngine.php` — diff linii zamówienia → kitchen_delta (Faza E · 2026-07-30 DOMKNIĘTE)
+- **Cel:** wykrywanie różnic w liniach zamówienia po edycji → `kitchen_delta` JSON na order header, konsumowany przez KDS do highlightu zmian (zielony=dodane, żółty=zmienione, czerwony=usunięte) + banner "ZAMÓWIENIE EDYTOWANE".
+- **Flow:** manager edytuje zamówienie w `modules/backoffice/order_edit/` → `POST api/orders/edit.php` (CartEngine przelicza, DeltaEngine diffuje stare vs nowe linie po `line_id`) → `kitchen_delta` JSON zapisany na `sh_orders` + flaga `edited_since_print=1` → KDS `get_board` zwraca delta → `kds_app.js` highlightuje.
+- **Matching:** po `sh_order_lines.id` (`line_id`), nie po SKU (bo SKU może się powtarzać). Delta zawiera `added`/`modified`/`removed` z qty before/after.
+- **`api/orders/get.php`** — nowy endpoint read-only (order header + lines z `line_id`) dla UI edycji. Tenant isolation.
+- **Otwarte (R2):** flaga `edited_since_print` nie jest resetowana — KDS pokazuje banner permanentnie. Fix: akcja `confirm_changes` w KDS (reset po bumpie).
+- Szczegóły: `_docs/sessions/2026-07-30_phase_e_order_edit_kds_delta.md`.
+
+### `core/FoodCostEngine.php` — food cost + marża per kanał (Faza D · 2026-07-29 DOMKNIĘTE)
+- **Cel:** food cost + margin breakdown per item — AVCO składników + modyfikatory, marża per kanał (POS/Takeaway/Delivery mają różne ceny). Status 4-tier: excellent ≤25%, healthy ≤33%, at_risk ≤40%, critical >40%.
+- **Sygnatura:** `FoodCostEngine::calculateForSku(PDO, int $tenantId, string $itemSku, int $warehouseId): array` → koszt, składniki, modyfikatory, marża per kanał, status.
+- **Wpięte end-to-end:** `modules/backoffice/food_cost/` (nowy moduł: `index.html` + `js/food_cost_app.js` + `css/food_cost.css`) → `GET api/reports/food_cost.php?item_sku=&warehouse_id=`. Pickera zasilają istniejące endpointy (Snajper — bez nowych backendów): `api/warehouse/warehouse_list.php` (magazyny) + `api/backoffice/api_menu_studio.php#get_menu_tree` (menu).
+- **Otwarte (R4):** progi statusu hardcoded — demo pizzerii pokazuje wszystko `critical` (54-58% marży typowej dla gastronomii). Rekomendacja: przenieść progi do `sh_tenant_settings` per-tenant.
+- Szczegóły: `_docs/sessions/2026-07-30_phase_d_food_cost_report.md`.
 
 ### `core/OrderStateMachine.php` — machina stanów
 - Statusy: `new → accepted → preparing → ready → in_delivery → completed` / `cancelled`.
