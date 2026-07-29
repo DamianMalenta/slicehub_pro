@@ -1,12 +1,13 @@
 # ChoiceQR POS Integration — dokumentacja wdrożenia
 
-## Status: P0+P1+P2+P2.1+P2.2+P2.3 WDRUŻONE (2026-07-29) — webhook + menu + areas + push adapter + events + QR pay + pay.php payload fix + compliance fix (NC1/NC12 pending staging)
+## Status: P0+P1+P2+P2.1+P2.2+P2.3 WDRUŻONE (2026-07-29) — webhook + menu + areas + push adapter + events + QR pay + pay.php payload fix + compliance fix (NC1/NC12 NAPRAWIONE z docs)
 
 > ⚠ **P2.3 — COMPLIANCE FIX (WDRUŻONE 2026-07-29):** Audyt kodowy + zestawienie z oficjalną dokumentacją
 > ChoiceQR (pos/index.md, order/schema.md, webhooks.md, order/methods.md, api.md) wykryło
-> 3 krytyczne niezgodności z wymogami ChoiceQR + 2 do weryfikacji live payloadiem.
-> P2.3 wdrożyło 3 fixy (K5, NC6, K3). NC1/NC12 — pending live payload ze staging ChoiceQR
-> (użytkownik ma dostęp do staging). Szczegóły: sekcja „P2.3 — Compliance fix" na końcu dokumentu.
+> 3 krytyczne niezgodności z wymogami ChoiceQR + 2 do weryfikacji. P2.3 wdrożyło wszystkie 5
+> (K5, NC6, K3, NC1, NC12). NC1/NC12 naprawione na podstawie dokumentacji webhooks.md
+> (data = pełny Order schema dla order.* events — potwierdzone bez live payloadu).
+> Szczegóły: sekcja „P2.3 — Compliance fix" na końcu dokumentu.
 
 > ⚠ **P2.1 — TECHNICZNY DŁUG (zamknięty):** Po audycie (2026-07-29) odkryto że `events.php` dubluje
 > infrastrukturę `api/integrations/inbound.php` ale nie używa jej mechanizmów (sh_inbound_callbacks,
@@ -23,7 +24,7 @@
 | P2 — Webhook events + QR pay | **WDRUŻONE** | 3 nowe + 1 zmieniony |
 | P2.1 — Naprawa inbound infrastructure | **WDRUŻONE** | events.php refactor + inbound.php fix |
 | P2.2 — Naprawa payloadu pay.php (tablePayOrderSchema) | **WDRUŻONE** | pay.php (payload + idempotencja + tip + event context) |
-| P2.3 — Compliance fix (wymogi ChoiceQR) | **WDRUŻONE** (NC1/NC12 pending staging) | webhook.php + table_orders.php |
+| P2.3 — Compliance fix (wymogi ChoiceQR) | **WDRUŻONE** | webhook.php + table_orders.php + ChoiceQRAdapter.php |
 
 ### Pliki wdrożone (P0)
 
@@ -1178,13 +1179,18 @@ pełny Order schema, gdzie pole to `delivery.status` (zagnieżdżone). Jeśli to
   `$data['deliveryStatus'] ?? $data['delivery']['status'] ?? null`. To bezpieczne — działa dla
   obu wariantów.
 
-**Status (2026-07-29):** PENDING STAGING. `sh_inbound_callbacks` jest pusta (brak live eventów).
-Użytkownik ma dostęp do staging ChoiceQR → weryfikacja po dostarczeniu live payloadu. Nie dodano
-ślepego fallbacku (zgodnie z decyzją użytkownika).
+**Status (2026-07-29):** WDRUŻONE. Dokumentacja ChoiceQR (webhooks.md) jednoznacznie potwierdza:
+dla `order.delivery.update` pole `data` = pełny Order schema (/content/order/schema.md), gdzie
+status dostawy jest zagnieżdżony w `delivery.status` (Order takeaway/delivery schema). Pole
+`deliveryStatus` (płaskie) nie istnieje w Order schema. Naprawiono bez live payloadu — docs
+wystarczające.
 
-**Pliki:** `core/Integrations/ChoiceQRAdapter.php` (do naprawy po weryfikacji)
+**Naprawa:** `ChoiceQRAdapter::parseInboundCallback()` — czyta `$data['delivery']['status']`
+(zagnieżdżone) z fallback na `$data['deliveryStatus']` (płaskie, dla zgodności wstecznej).
 
-**Wymagane przez ChoiceQR:** PRAWDOPODOBNIE (zależy od realnego payloadu)
+**Pliki:** `core/Integrations/ChoiceQRAdapter.php` ✅
+
+**Wymagane przez ChoiceQR:** TAK (potwierdzone w webhooks.md + order/schema.md)
 
 #### Weryfikacja 2: NC12 — `order.qrPayment.completed` pole `payment`
 
@@ -1196,12 +1202,20 @@ i `qrPayment`, nie `payment`. Jeśli `data` = pełny Order, `$data['payment']` p
 `order.qrPayment.completed`, jeśli nie ma → zapytaj użytkownika. Fallback: czytaj
 `$data['payment'] ?? $data['paymentCustomerDetails'] ?? $data['qrPayment'] ?? []`.
 
-**Status (2026-07-29):** PENDING STAGING. Analogicznie jak NC1 — brak live eventów, weryfikacja
-po dostarczeniu payloadu ze staging.
+**Status (2026-07-29):** WDRUŻONE. Dokumentacja ChoiceQR (webhooks.md) potwierdza: dla
+`order.qrPayment.completed` pole `data` = pełny Order schema. Order schema ma:
+- `paymentCustomerDetails` (nested, null) — Customer payment information
+- `qrPayment` (nested, null) — QR Payment schema ({ posOrderId })
+- `paid` (boolean) — Order paid flag
+- **NIE ma** pola `payment` — adapter czytał nieistniejące pole → zawsze puste.
 
-**Pliki:** `core/Integrations/ChoiceQRAdapter.php` (do naprawy po weryfikacji)
+**Naprawa:** `ChoiceQRAdapter::parseInboundCallback()` — czyta
+`$data['paymentCustomerDetails'] ?? $data['qrPayment'] ?? $data['payment'] ?? []` (fallback na
+płaskie `payment` dla zgodności wstecznej).
 
-**Wymagane przez ChoiceQR:** PRAWDOPODOBNIE (zależy od realnego payloadu)
+**Pliki:** `core/Integrations/ChoiceQRAdapter.php` ✅
+
+**Wymagane przez ChoiceQR:** TAK (potwierdzone w webhooks.md + order/schema.md)
 
 ### Poza scope P2.3 (BACKLOG — nie blokuje wdrożenia)
 
@@ -1242,7 +1256,9 @@ Poniższe problemy są celowo poza scope P2.3. To dług wewnętrzny SliceHub, ni
 7. ✅ Wdroż Fix 3 (K3) — Opcja A: match `sh_orders.table_id = N` (FK → sh_tables.id)
    - **Uwaga:** schema DB ma `table_id` (FK), nie `table_number` jak zakładał spec. Implementacja
      dostosowana: 4 ścieżki query (table_id / table_number+JOIN / table_number / brak filtru).
-8. ⏸ NC1/NC12 — pending staging (użytkownik ma dostęp, dostarczy live payload)
+8. ✅ NC1/NC12 — naprawione na podstawie dokumentacji (webhooks.md: data = Order schema)
+   - NC1: `$data['delivery']['status']` zamiast `$data['deliveryStatus']`
+   - NC12: `$data['paymentCustomerDetails'] ?? $data['qrPayment']` zamiast `$data['payment']`
 9. ✅ Lint: `php -l` — 3/3 PASS (webhook.php, table_orders.php, areas.php)
 10. ✅ Testy: `node scripts/run_test_runner_headless.cjs` → 61 pass / 0 fail / 1 warn (brak regresji)
 11. ✅ Testy curl: webhook (401 pre-auth / 200 post-auth), table_orders (schema + JOIN), areas (posID)
