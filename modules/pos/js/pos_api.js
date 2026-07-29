@@ -81,7 +81,7 @@ const PosAPI = (() => {
         panicMode:      () => engine('panic_mode'),
 
         // Fiscal printer — Elzab Zeta Online
-        fiscalPrint:       (orderId) => engine('fiscal_print', { order_id: orderId }),
+        fiscalPrint:       (orderId, force) => engine('fiscal_print', { order_id: orderId, force: force ? 1 : 0 }),
         fiscalDailyReport: () => engine('fiscal_daily_report'),
         fiscalStatus:      () => engine('fiscal_status'),
         fiscalGetConfig:   () => engine('fiscal_get_config'),

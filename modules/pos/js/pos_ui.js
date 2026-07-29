@@ -393,8 +393,8 @@ const PosUI = (() => {
         <p class="pm-split-sum" id="pm-split-sum">Suma: 0.00 / ${totalPln} zł</p>
         </div>
         ${isSettleMode ? `<button type="button" class="pm-split-toggle" id="pm-toggle-split">Podziel płatność</button>` : ''}
-        <label class="ck-check pm-check"><input type="checkbox" id="pm-print" ${mode === 'print' ? 'checked disabled' : ''}> Drukuj Paragon <span class="ck-req hidden" id="pm-req">(wymagane)</span></label>
-        ${isSettleMode ? `<button class="ck-submit-btn" id="pm-settle">Zakończ i zamknij</button>` : `<button class="ck-submit-btn" id="pm-print-only" style="background:var(--accent-blue)">Tylko Drukuj</button>`}
+        <label class="ck-check pm-check"><input type="checkbox" id="pm-print" ${mode === 'print' ? 'checked disabled' : ''}> ${callbacks.fiscalReady ? 'Drukuj Paragon Fiskalny' : 'Drukuj Paragon'} <span class="ck-req hidden" id="pm-req">(wymagane)</span></label>
+        ${isSettleMode ? `<button class="ck-submit-btn" id="pm-settle">Zakończ i zamknij</button>` : `<button class="ck-submit-btn" id="pm-print-only" style="background:var(--accent-blue)">${callbacks.fiscalReady ? 'Drukuj Fiskalny' : 'Tylko Drukuj'}</button>`}
         <button class="pm-cancel" data-close-pm="1">Anuluj</button></div>`;
 
         modal.classList.add('active');
@@ -595,7 +595,11 @@ const PosUI = (() => {
                     statusBtn = `<button class="bf-action bf-ready" data-act="status_ready" data-oid="${o.id}">✅ GOTOWE</button>`;
                 }
 
-                expandHtml = `<div class="bf-expand"><div class="bf-lines">${fullLines || '<span class="bf-empty">Pusty</span>'}</div><div class="bf-actions-row"><button class="bf-action ${pColor}" data-act="print_kitchen" data-oid="${o.id}">🖨 ${pText}</button><button class="bf-action" data-act="print_receipt" data-oid="${o.id}">📄 Paragon</button><button class="bf-action" data-act="fiscal_reprint" data-oid="${o.id}" title="Ponowna fiskalizacja">🧾 Fiskal</button><button class="bf-action" data-act="edit" data-oid="${o.id}">✏️ Edytuj</button></div><div class="bf-actions-row"><button class="bf-action bf-settle" data-act="settle" data-oid="${o.id}">💰 ZAMKNIJ</button><button class="bf-action bf-cancel" data-act="cancel" data-oid="${o.id}">🗑</button>${statusBtn}</div></div>`;
+                const receiptBtn = callbacks.fiscalReady
+                    ? `<button class="bf-action" data-act="fiscal_reprint" data-oid="${o.id}" title="Drukuj paragon fiskalny">🧾 Paragon</button>`
+                    : `<button class="bf-action" data-act="print_receipt" data-oid="${o.id}" title="Drukuj paragon niefiskalny">📄 Paragon</button>`;
+
+                expandHtml = `<div class="bf-expand"><div class="bf-lines">${fullLines || '<span class="bf-empty">Pusty</span>'}</div><div class="bf-actions-row"><button class="bf-action ${pColor}" data-act="print_kitchen" data-oid="${o.id}">🖨 ${pText}</button>${receiptBtn}<button class="bf-action" data-act="edit" data-oid="${o.id}">✏️ Edytuj</button></div><div class="bf-actions-row"><button class="bf-action bf-settle" data-act="settle" data-oid="${o.id}">💰 ZAMKNIJ</button><button class="bf-action bf-cancel" data-act="cancel" data-oid="${o.id}">🗑</button>${statusBtn}</div></div>`;
             }
 
             const clientLine = o.order_type === 'delivery' ? `📍 ${_e(o.delivery_address || 'Brak adresu')}` : `${_e(o.customer_name || 'Gość')}`;

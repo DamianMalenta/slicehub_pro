@@ -40,9 +40,10 @@ final class ElzabFiscalEngine
      * @param string $orderId   UUID zamówienia
      * @param int    $tenantId  ID tenanta
      * @param int    $userId    ID użytkownika (kasjera)
+     * @param bool   $force     Wymuś ponowną fiskalizację (reprint)
      * @return array{success: bool, fiscal_receipt_number?: string, error?: string}
      */
-    public static function fiscalizeOrder(\PDO $pdo, string $orderId, int $tenantId, int $userId): array
+    public static function fiscalizeOrder(\PDO $pdo, string $orderId, int $tenantId, int $userId, bool $force = false): array
     {
         // 1. Pobierz konfigurację drukarki
         $config = self::resolvePrinterConfig($pdo, $tenantId);
@@ -54,6 +55,11 @@ final class ElzabFiscalEngine
         $order = self::fetchOrder($pdo, $orderId, $tenantId);
         if ($order === null) {
             return ['success' => false, 'error' => 'Zamówienie nie znalezione'];
+        }
+
+        // 2a. Guard — nie fiskalizuj ponownie jeśli paragon już wydrukowany
+        if (!$force && !empty($order['fiscal_receipt_number'])) {
+            return ['success' => false, 'error' => 'Zamówienie już ma paragon fiskalny nr ' . $order['fiscal_receipt_number']];
         }
 
         // 3. Pobierz linie zamówienia
@@ -346,7 +352,7 @@ final class ElzabFiscalEngine
         $stmt = $pdo->prepare(
             "SELECT id, order_number, grand_total, subtotal, discount_amount,
                     delivery_fee, tip_amount, payment_method, channel,
-                    customer_name, status, order_type
+                    customer_name, status, order_type, fiscal_receipt_number
              FROM sh_orders
              WHERE id = :oid AND tenant_id = :tid"
         );

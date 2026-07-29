@@ -2,7 +2,7 @@
 
 > **READ-ONLY audyt** — dokumentacja ustaleń z kodu, bez propozycji zmian.
 >
-> **Data:** 2026-07-29 (aktualizacja: 2026-07-29 — sekcja 3b, sekcja 6: implementacja Elzab, konfiguracja w module Settings)
+> **Data:** 2026-07-29 (aktualizacja: 2026-07-29 — sekcja 3b, sekcja 6: implementacja Elzab, konfiguracja w module Settings; aktualizacja 2026-07-29b: przepięcie druku — fiskalny zastępuje niefiskalny, guard na podwójną fiskalizację)
 >
 > **Zakres:** warstwa VAT, flaga `print_receipt`, fiskalizacja właściwa (kasa/drukarka), integracje POS, pole `legal_fiscal_no`, KSeF.
 >
@@ -143,17 +143,32 @@ const title = isKitchen ? 'BON NA KUCHNIĘ' : 'RACHUNEK / PARAGON NIEFISKALNY';
 | `api/settings/engine.php:99` | `fiscal_get_config`, `fiscal_status` dodane do backend CSRF whitelist |
 | `api/settings/engine.php:1141` | `fiscal_*` dodane do fall-through w `default` case switch'a |
 
-#### Flow działania:
+#### Flow działania (po przepięciu 2026-07-29b):
 
 ```
+_bootApp() → _checkFiscalStatus() → _fiscalReady = true/false
+
 Kelner klika „Zapłać" → settle_and_close
-  → POS auto-wywołuje fiscal_print(order_id)
-  → ElzabFiscalEngine: pobiera order z DB
-  → ElzabPrinter: connect TCP → $h → $l×N → $y → szuflada
-  → Drukarka drukuje paragon fiskalny
-  → Numer paragonu → sh_orders.fiscal_receipt_number
-  → POS toast: „Paragon fiskalny nr 000123 ✓"
+  → jeśli _fiscalReady:
+      → POS auto-wywołuje fiscal_print(order_id)  (bez niefiskalnego printOrderTemplate)
+      → ElzabFiscalEngine: pobiera order z DB
+      → Guard: jeśli fiscal_receipt_number już istnieje → blokuj (chyba że force=true)
+      → ElzabPrinter: connect TCP → $h → $l×N → $y → szuflada
+      → Drukarka drukuje paragon fiskalny
+      → Numer paragonu → sh_orders.fiscal_receipt_number
+      → POS toast: „Paragon fiskalny nr 000123 ✓"
+      → Jeśli błąd: toast error + fallback na niefiskalny printOrderTemplate
+  → jeśli !_fiscalReady:
+      → printOrderTemplate (niefiskalny, browser window.print)
 ```
+
+Karta zamówienia — jeden przycisk (zamiast dwóch):
+  → jeśli _fiscalReady: „🧾 Paragon" → fiscalPrint(orderId, force=true)  (reprint z confirm)
+  → jeśli !_fiscalReady: „📄 Paragon" → modal „DRUKUJ PARAGON" → printOrderTemplate (niefiskalny)
+
+Print-only modal (mode='print'):
+  → jeśli _fiscalReady: fiskalizuj przez fiscalPrint() (z fallback na niefiskalny przy błędzie)
+  → jeśli !_fiscalReady: printOrderTemplate (niefiskalny)
 
 #### Konfiguracja drukarki:
 
@@ -323,10 +338,13 @@ Każdy adapter:
 | Sterownik Thermal TCP (bezpośredni) | **WDRUŻONE** | `core/Elzab/ElzabPrinter.php` — TCP `stream_socket_client`, protokół Thermal, port 1001 |
 | Adapter drukarki fiskalnej (Elzab) | **WDRUŻONE** | `core/Integrations/ElzabAdapter.php` + `core/Elzab/ElzabFiscalEngine.php` — zarejestrowany w `AdapterRegistry` |
 | Renderowanie paragonu fiskalnego | **WDRUŻONE** | `ThermalProtocol::buildStartTransaction` + `buildLine` + `buildEndTransaction` — komendy Thermal |
-| Fiskalizacja offline-safe (bezpośrednia) | **CZĘŚCIOWO** | Best-effort w POS — drukarka offline nie blokuje rozliczenia; brak kolejki retry dla fiskalizacji |
+| Fiskalizacja offline-safe (bezpośrednia) | **WDRUŻONE** | Best-effort w POS — drukarka offline nie blokuje rozliczenia; fallback na niefiskalny; toast error przy błędzie |
 | Konfiguracja drukarki w Settings | **WDRUŻONE** | `modules/settings/` → zakładka „Drukarka Fiskalna" — formularz IP/port/cashbox/stopka + Test + Druk testowy |
 | Test wydruku paragonu | **WDRUŻONE** | `api/settings/engine.php#fiscal_test_print` — drukuje paragon testowy 1.00 zł przez `ElzabPrinter::printReceipt()` |
-| Ponowna fiskalizacja (reprint) | **WDRUŻONE** | `modules/pos/js/pos_app.js#_fiscalReprint` — przycisk na karcie zamówienia, wywołuje `fiscal_print` ponownie |
+| Ponowna fiskalizacja (reprint) | **WDRUŻONE** | `modules/pos/js/pos_app.js#_fiscalReprint` — przycisk na karcie zamówienia, wywołuje `fiscal_print` z `force=true` (omiń guard) |
+| Guard podwójnej fiskalizacji | **WDRUŻONE** | `ElzabFiscalEngine::fiscalizeOrder()` — sprawdza `fiscal_receipt_number` w DB, blokuje reprint chyba że `$force=true` |
+| Inteligentne przepięcie druku | **WDRUŻONE** | `_fiscalReady` flag w POS — fiskalny zastępuje niefiskalny wszędzie (settle, karta, modal); niefiskalny tylko jako fallback |
+| Scalony przycisk na karcie | **WDRUŻONE** | `pos_ui.js` — jeden przycisk „🧾 Paragon" (fiskalny) lub „📄 Paragon" (niefiskalny) zamiast dwóch obok siebie |
 
 ---
 
@@ -336,6 +354,10 @@ Każdy adapter:
 
 **Infrastruktura integracji POS jest wdrożona i działa** — `OrderEventPublisher` + `IntegrationDispatcher` + 3 adaptery (Papu, Dotykačka, GastroSoft) pushują zamówienia z pełnymi danymi VAT do zewnętrznych systemów POS, które mogą fiskalizować samodzielnie. Jest to pośrednia ścieżka fiskalizacji dla restauracji używających tych systemów.
 
-**Bezpośrednia fiskalizacja została wdrożona** — adapter Elzab Zeta Online (protokół Thermal over TCP) jest zaimplementowany w `core/Elzab/` i zintegrowany z POS engine. Synchroniczna fiskalizacja po `settle_and_close` zapisuje numer paragonu fiskalnego w `sh_orders.fiscal_receipt_number` (migracja 062). Raport dobowy dostępny z poziomu POS topbar. Konfiguracja drukarki (IP, port, cashbox, stopka paragonu) oraz test połączenia i druk paragonu testowego zostały przeniesione do modułu Settings (zakładka „Drukarka Fiskalna"). `SequenceEngine` nie ma jeszcze typu `RPC`/`FIS` (numer pochodzi bezpośrednio z drukarki). Pole `legal_fiscal_no` w profilu prawnym tenanta pozostaje danymi informacyjnymi. KSeF obsługuje faktury zakupowe (przychodzące), a nie fiskalizację sprzedaży.
+**Bezpośrednia fiskalizacja została wdrożona i przepięta** — adapter Elzab Zeta Online (protokół Thermal over TCP) jest zaimplementowany w `core/Elzab/` i zintegrowany z POS engine. Synchroniczna fiskalizacja po `settle_and_close` zapisuje numer paragonu fiskalnego w `sh_orders.fiscal_receipt_number` (migracja 062). Raport dobowy dostępny z poziomu POS topbar. Konfiguracja drukarki (IP, port, cashbox, stopka paragonu) oraz test połączenia i druk paragonu testowego zostały przeniesione do modułu Settings (zakładka „Drukarka Fiskalna").
+
+**Przepięcie druku (2026-07-29b):** Jeśli drukarka fiskalna jest skonfigurowana i online (`_fiscalReady`), POS drukuje **wyłącznie paragon fiskalny** we wszystkich punktach (settle, karta zamówienia, print-only modal). Paragon niefiskalny (browser `window.print`) jest używany tylko jako **fallback** gdy drukarka nie jest dostępna lub gdy fiskalizacja się nie powiedzie. Dwa przyciski na karcie zamówienia („📄 Paragon" + „🧾 Fiskal") zostały scalone w jeden inteligentny przycisk. Guard na podwójną fiskalizację w `ElzabFiscalEngine::fiscalizeOrder()` blokuje ponowny druk chyba że wywołano z `force=true` (reprint).
+
+`SequenceEngine` nie ma jeszcze typu `RPC`/`FIS` (numer pochodzi bezpośrednio z drukarki). Pole `legal_fiscal_no` w profilu prawnym tenanta pozostaje danymi informacyjnymi. KSeF obsługuje faktury zakupowe (przychodzące), a nie fiskalizację sprzedaży.
 
 **Dodanie kolejnego adaptera drukarki fiskalnej** (np. `PosnetAdapter`, `NovitusAdapter`) możliwe bez nowej infrastruktury — nowa klasa `extends BaseAdapter` + wpis w `AdapterRegistry::PROVIDER_MAP`. Istniejący framework zapewnia retry, DLQ, audit trail i per-tenant konfigurację przez `sh_tenant_integrations`.

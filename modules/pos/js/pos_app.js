@@ -37,6 +37,9 @@ const PosApp = (() => {
     let _routeOrders = [];
     let _assignCourseId = null;
 
+    // Fiscal printer state
+    let _fiscalReady = false;
+
     // =========================================================================
     // BOOT
     // =========================================================================
@@ -123,6 +126,8 @@ const PosApp = (() => {
         } else {
             _switchView('battlefield');
         }
+
+        _checkFiscalStatus();
 
         _startPolling();
 
@@ -975,12 +980,24 @@ const PosApp = (() => {
     async function _fiscalReprint(orderId) {
         if (!confirm('Wydrukować paragon fiskalny ponownie?')) return;
         PosUI.toast('Fiskalizacja...', 'info');
-        const r = await PosAPI.fiscalPrint(orderId);
+        const r = await PosAPI.fiscalPrint(orderId, true);
         if (r.success && r.data?.fiscal_receipt_number) {
             PosUI.toast(`Paragon fiskalny nr ${r.data.fiscal_receipt_number}`, 'success');
             _fetchOrders();
         } else {
             PosUI.toast(r.message || r.data?.error || 'Błąd fiskalizacji', 'error');
+        }
+    }
+
+    // =========================================================================
+    // FISCAL STATUS CHECK — czy drukarka fiskalna jest skonfigurowana i online
+    // =========================================================================
+    async function _checkFiscalStatus() {
+        try {
+            const r = await PosAPI.fiscalStatus();
+            _fiscalReady = !!(r.success && r.data);
+        } catch {
+            _fiscalReady = false;
         }
     }
 
@@ -1084,6 +1101,7 @@ const PosApp = (() => {
             },
             onPrintReceipt: (id) => _openPaymentModal(id, 'print'),
             onFiscalReprint: (id) => _fiscalReprint(id),
+            fiscalReady: _fiscalReady,
             onEdit:         (id) => _openEditInCart(id),
             onSettle:       (id) => _openPaymentModal(id, 'settle'),
             onCancel:       (id) => _openCancelModal(id),
@@ -1195,33 +1213,53 @@ const PosApp = (() => {
         _settleOrderId = orderId;
 
         PosUI.showPaymentModal(o, mode, {
+            fiscalReady: _fiscalReady,
             onSettle: async (methodOrPayments, printReceipt) => {
                 const r = await PosAPI.settleAndClose(orderId, methodOrPayments, printReceipt);
                 if (r.success) {
-                    if (printReceipt) PosUI.printOrderTemplate(o, false, { waiterName: _user?.name || 'POS' });
+                    if (printReceipt && !_fiscalReady) PosUI.printOrderTemplate(o, false, { waiterName: _user?.name || 'POS' });
                     const msg = r.data?.split_tender ? 'Zamknięto (split)!' : 'Zamknięto pomyślnie!';
                     PosUI.toast(msg, 'success');
 
                     // Fiskalizacja — best effort, nie blokuj jeśli drukarka nie odpowiada
-                    try {
-                        const fr = await PosAPI.fiscalPrint(orderId);
-                        if (fr.success && fr.data?.fiscal_receipt_number) {
-                            PosUI.toast(`Paragon fiskalny nr ${fr.data.fiscal_receipt_number}`, 'success');
-                        } else if (!fr.success) {
-                            console.warn('[Fiscal] ' + (fr.message || 'Błąd fiskalizacji'));
+                    if (_fiscalReady) {
+                        try {
+                            const fr = await PosAPI.fiscalPrint(orderId);
+                            if (fr.success && fr.data?.fiscal_receipt_number) {
+                                PosUI.toast(`Paragon fiskalny nr ${fr.data.fiscal_receipt_number}`, 'success');
+                            } else if (!fr.success) {
+                                PosUI.toast(fr.message || fr.data?.error || 'Błąd fiskalizacji — drukarka nie odpowiada', 'error');
+                                if (printReceipt) PosUI.printOrderTemplate(o, false, { waiterName: _user?.name || 'POS' });
+                            }
+                        } catch (e) {
+                            console.warn('[Fiscal] Exception:', e);
+                            PosUI.toast('Błąd fiskalizacji — drukarka nie odpowiada', 'error');
+                            if (printReceipt) PosUI.printOrderTemplate(o, false, { waiterName: _user?.name || 'POS' });
                         }
-                    } catch (e) {
-                        console.warn('[Fiscal] Exception:', e);
                     }
 
                     _fetchOrders();
                 } else PosUI.toast(r.message || 'Błąd', 'error');
             },
             onPrintOnly: async (method) => {
-                PosUI.printOrderTemplate(o, false, { waiterName: _user?.name || 'POS' });
+                if (_fiscalReady) {
+                    try {
+                        const fr = await PosAPI.fiscalPrint(orderId);
+                        if (fr.success && fr.data?.fiscal_receipt_number) {
+                            PosUI.toast(`Paragon fiskalny nr ${fr.data.fiscal_receipt_number}`, 'success');
+                        } else {
+                            PosUI.toast(fr.message || fr.data?.error || 'Błąd fiskalizacji', 'error');
+                            PosUI.printOrderTemplate(o, false, { waiterName: _user?.name || 'POS' });
+                        }
+                    } catch (e) {
+                        PosUI.toast('Błąd fiskalizacji — drukarka nie odpowiada', 'error');
+                        PosUI.printOrderTemplate(o, false, { waiterName: _user?.name || 'POS' });
+                    }
+                } else {
+                    PosUI.printOrderTemplate(o, false, { waiterName: _user?.name || 'POS' });
+                }
                 const r = await PosAPI.printReceipt(orderId, method);
-                if (r.success) { PosUI.toast('Wydrukowano paragon', 'success'); _fetchOrders(); }
-                else PosUI.toast(r.message || 'Błąd', 'error');
+                if (r.success) { _fetchOrders(); }
             },
         });
     }

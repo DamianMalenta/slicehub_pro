@@ -1363,7 +1363,8 @@ try {
             posResponse(false, null, 'Brak order_id');
         }
 
-        $result = \SliceHub\Elzab\ElzabFiscalEngine::fiscalizeOrder($pdo, $oid, $tenant_id, $user_id);
+        $force = !empty($input['force']);
+        $result = \SliceHub\Elzab\ElzabFiscalEngine::fiscalizeOrder($pdo, $oid, $tenant_id, $user_id, $force);
         posResponse($result['success'], $result, $result['error'] ?? null);
     }
 

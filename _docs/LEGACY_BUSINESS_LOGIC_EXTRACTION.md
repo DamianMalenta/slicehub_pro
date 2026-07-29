@@ -64,6 +64,8 @@ $stmt->execute([
 
 **VAT/Tax:** The receipt template labels itself **"RACHUNEK / PARAGON NIEFISKALNY"** (non-fiscal). No net/gross split, no VAT rate computation occurs at order time. The `vat_rate` column exists in `sh_order_items` (default `8.00`) but is **never populated** by the POS — it's a dead schema field in the legacy flow.
 
+> **Aktualizacja 2026-07-29:** Warstwa VAT jest wdrożona (per-linia w `sh_order_lines`, `CartEngine::calculate()`). Fiskalizacja Elzab Zeta Online wdrożona — POS drukuje paragon fiskalny gdy drukarka jest skonfigurowana, z fallback na niefiskalny. Szczegóły: `_docs/audits/fiscalization_status.md`.
+
 ---
 
 ### 1.2 Half-and-Half Pizza Pricing

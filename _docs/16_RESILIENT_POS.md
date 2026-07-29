@@ -111,6 +111,8 @@ Dead-letter queue po 10 nieudanych próbach → UI alert dla kasjera.
 
 Numery paragonów generowane lokalnie formułą `{tenant}-{pos_id}-{yyyymmdd}-{seq}`. 3 kasy offline nie wygenerują kolidujących numerów. Serwer **waliduje chronologię**, nie generuje numerów. Drukarka fiskalna odbierze paragon gdy wróci (lokalny agent ESC/POS lub Web Bluetooth).
 
+> **Aktualizacja 2026-07-29b:** Bezpośrednia fiskalizacja Elzab Zeta Online (protokół Thermal over TCP) została wdrożona. POS sprawdza status drukarki przy starcie (`_fiscalReady`). Jeśli drukarka jest online → drukuje **tylko paragon fiskalny** (numer z drukarki → `sh_orders.fiscal_receipt_number`). Jeśli offline → fallback na paragon niefiskalny (`window.print()`). Guard blokuje podwójną fiskalizację (chyba że `force=true` dla reprintu). Szczegóły: `_docs/audits/fiscalization_status.md`.
+
 ---
 
 ## 4. ROADMAPA
@@ -459,7 +461,7 @@ const unsub = window.SliceHubPOS.sync.on('sync:batch-done', ({ data }) => {
 - ~~**Brak integracji z process_order / accept_order / settle_and_close**~~ → zaimplementowane w **P4** (sekcja 7B).
 - **Brak resolve_conflict UI** — conflict ops lądują w outbox jako 'conflict' ale nie ma ekranu dla usera żeby rozstrzygnąć. **P6.**
 - **Brak WebSocket / Server-Sent Events** — wszystko long-polling po schedule. **P5/P8** dla real-time KDS push.
-- **Brak fiskalizacji offline** — drukarka ESC/POS bridge w **P6+**, Web Bluetooth.
+- ~~**Brak fiskalizacji offline**~~ → Elzab Zeta Online wdrożone (2026-07-29). Best-effort z fallback na niefiskalny. ESC/POS local bridge / Web Bluetooth — scope P6+.
 
 ---
 
@@ -698,7 +700,7 @@ Po udanym replayie: toast `success`: „Zsynchronizowano N operacji offline" + `
 | IndexedDB quota przekroczona na starym tablecie | Niskie | TTL = 30 dni, GC raz na boot, max 500 orders |
 | Konflikt „2 POS robią to samo" | Średnie | `op_id` unique + server deterministic merge w P3 |
 | Sync nigdy nie kończy (pętla retry) | Niskie | Dead-letter queue po 10 retries → UI alert |
-| Fiskalizacja drukarki offline | Wysokie | ESC/POS local bridge (agent) lub Web Bluetooth — **scope P6+** |
+| Fiskalizacja drukarki offline | Średnie | Elzab best-effort + fallback niefiskalny (2026-07-29). ESC/POS local bridge — scope P6+ |
 | PWA install UX nieoczywiste | Średnie | „Zainstaluj POS" button w settings, auto-prompt w `pos_sw_register.js` |
 | Service worker overrides devtools fetches | Niskie | Scope restricted do `/slicehub/modules/pos/`, whitelist API paths |
 | Stara wersja SW kleszczy się | Niskie | auto-update co 10 min, skipWaiting na aktywacji |
