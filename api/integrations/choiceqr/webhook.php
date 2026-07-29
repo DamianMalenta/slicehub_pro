@@ -44,11 +44,31 @@ function cqr_ok(): never
     exit;
 }
 
+/**
+ * Pre-auth failure — zwraca realny HTTP kod (401/403).
+ * Używane TYLKO dla błędów autoryzacji/tenant mapping (brak tokenu, zły token,
+ * brak tenant integration). ChoiceQR i tak retryuje, ale w logach Apache widać 401/403.
+ */
 function cqr_fail(int $code, string $msg): never
 {
     http_response_code($code);
     error_log('[ChoiceQR Webhook] ' . $code . ' — ' . $msg);
     // ChoiceQR ignoruje body — zwracamy puste, tylko logujemy
+    echo '';
+    exit;
+}
+
+/**
+ * Post-auth failure — zwraca 200 OK empty body + error_log.
+ * Używane dla błędów PO udanej autoryzacji (DB down, parse error, insert failure,
+ * missing order._id, FATAL). ChoiceQR docs (pos/index.md): brak 200 = 3 retry →
+ * anuluje zamówienie klienta. Zwracamy 200 żeby ChoiceQR nie anuluował, a błąd
+ * logujemy do error_log dla diagnozy. Wzorzec: events.php cqr_ev_fail / pay.php cqr_pay_fail.
+ */
+function cqr_fail_silent(int $code, string $msg): never
+{
+    http_response_code(200);
+    error_log('[ChoiceQR Webhook] ' . $code . ' (masked as 200) — ' . $msg);
     echo '';
     exit;
 }
@@ -62,7 +82,7 @@ try {
     require_once __DIR__ . '/../../../core/GatewayAuth.php';
 
     if (!isset($pdo)) {
-        cqr_fail(500, 'Database connection unavailable');
+        cqr_fail_silent(500, 'Database connection unavailable');
     }
 
     // -------------------------------------------------------------------------
@@ -80,19 +100,19 @@ try {
     $input = json_decode($raw, true);
 
     if (!is_array($input)) {
-        cqr_fail(400, 'Invalid JSON payload');
+        cqr_fail_silent(400, 'Invalid JSON payload');
     }
 
     $order = $input['order'] ?? null;
     $varSymbol = trim((string)($input['varSymbol'] ?? ''));
 
     if (!is_array($order) || $varSymbol === '') {
-        cqr_fail(400, 'Missing order or varSymbol');
+        cqr_fail_silent(400, 'Missing order or varSymbol');
     }
 
     $externalId = trim((string)($order['_id'] ?? ''));
     if ($externalId === '') {
-        cqr_fail(400, 'Missing order._id');
+        cqr_fail_silent(400, 'Missing order._id');
     }
 
     // -------------------------------------------------------------------------
@@ -456,5 +476,5 @@ try {
 
 } catch (Throwable $e) {
     error_log('[ChoiceQR Webhook] FATAL: ' . $e->getMessage());
-    cqr_fail(500, 'Internal server error: ' . $e->getMessage());
+    cqr_fail_silent(500, 'Internal server error: ' . $e->getMessage());
 }
