@@ -79,7 +79,9 @@ try {
                     o.delivery_address, o.customer_name, o.customer_phone,
                     o.payment_method, o.payment_status, o.grand_total,
                     o.promised_time, o.created_at,
-                    COALESCE(o.kitchen_ticket_printed, 0) AS kitchen_ticket_printed
+                    COALESCE(o.kitchen_ticket_printed, 0) AS kitchen_ticket_printed,
+                    COALESCE(o.edited_since_print, 0) AS edited_since_print,
+                    o.kitchen_delta
              FROM sh_orders o
              WHERE o.tenant_id = :tid
                AND o.status IN ('new','accepted','preparing')";
@@ -159,6 +161,15 @@ try {
 
         foreach ($rows as &$r) {
             $r['lines'] = $lmap[$r['id']] ?? [];
+            // Phase E — kitchen_delta (JSON column → decoded object for KDS highlight).
+            // edited_since_print już int (COALESCE). kitchen_delta może być null.
+            if (!empty($r['kitchen_delta']) && is_string($r['kitchen_delta'])) {
+                $decoded = json_decode($r['kitchen_delta'], true);
+                $r['kitchen_delta'] = (is_array($decoded)) ? $decoded : null;
+            } else {
+                $r['kitchen_delta'] = null;
+            }
+            $r['edited_since_print'] = (int)($r['edited_since_print'] ?? 0);
         }
         unset($r);
 

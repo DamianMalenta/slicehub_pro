@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0a0e14">
+    <meta name="sh-tenant-id" content="1">
+    <script src="../../../tenant_config.php"></script>
+    <title>SliceHub — Edytuj zamówienie</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="../../../ui_shell/sh_mobile_shell.css">
+    <link rel="stylesheet" href="css/order_edit.css">
+</head>
+<body>
+
+<header class="oe-topbar">
+    <div class="oe-logo"><i class="fa-solid fa-pen-to-square"></i></div>
+    <div>
+        <div class="oe-title">Edytuj zamówienie <span class="oe-sub" id="oe-order-num">—</span></div>
+    </div>
+    <div class="oe-spacer"></div>
+    <nav class="oe-links">
+        <a href="../../../hub/index.html"><i class="fa-solid fa-layer-group"></i> Hub</a>
+        <a href="../food_cost/index.html"><i class="fa-solid fa-calculator"></i> Food Cost</a>
+        <a href="../profile/index.html"><i class="fa-solid fa-building-columns"></i> Profil</a>
+    </nav>
+    <button type="button" class="oe-btn" id="oe-btn-reload" title="Przeładuj"><i class="fa-solid fa-rotate"></i></button>
+</header>
+
+<div id="oe-auth-banner" class="oe-banner oe-banner--warn hidden">
+    Brak tokenu JWT — zaloguj się w <strong>Hub</strong> (login i hasło), potem wróć tutaj.
+    Wymagana rola <strong>owner</strong> / <strong>admin</strong> / <strong>manager</strong>.
+</div>
+<div id="oe-error-banner" class="oe-banner oe-banner--error hidden"></div>
+<div id="oe-info-banner" class="oe-banner oe-banner--info hidden"></div>
+
+<main class="oe-main">
+
+    <!-- WYBÓR ZAMÓWIENIA -->
+    <section class="oe-card">
+        <h2 class="oe-card-title"><i class="fa-solid fa-magnifying-glass"></i> Zamówienie</h2>
+        <div class="oe-grid">
+            <div class="oe-field">
+                <label for="oe-order-id">ID zamówienia (UUID)
+                    <span class="oe-help">wklej order_id z Hub/POS/KDS lub z linku</span>
+                </label>
+                <input id="oe-order-id" type="text" placeholder="np. 550e8400-e29b-41d4-a716-446655440000" autocomplete="off">
+            </div>
+            <div class="oe-actions-inline">
+                <button type="button" class="oe-btn oe-btn--primary" id="oe-btn-load"><i class="fa-solid fa-download"></i> Wczytaj</button>
+            </div>
+        </div>
+        <div class="oe-info-line">Statusy terminalne (completed/cancelled) blokują edycję. Edycja zapisuje <code>kitchen_delta</code> dla KDS.</div>
+    </section>
+
+    <!-- FORMULARZ EDYCJI -->
+    <section id="oe-form" class="oe-form hidden">
+        <div class="oe-card">
+            <h2 class="oe-card-title"><i class="fa-solid fa-receipt"></i> Linie zamówienia</h2>
+            <div id="oe-lines" class="oe-lines"></div>
+            <div class="oe-line-actions">
+                <button type="button" class="oe-btn" id="oe-btn-add-line"><i class="fa-solid fa-plus"></i> Dodaj linię</button>
+            </div>
+        </div>
+
+        <div class="oe-card">
+            <h2 class="oe-card-title"><i class="fa-solid fa-coins"></i> Podsumowanie (przeliczone przez serwer)</h2>
+            <div id="oe-summary" class="oe-summary"></div>
+        </div>
+
+        <div class="oe-card">
+            <h2 class="oe-card-title"><i class="fa-solid fa-floppy-disk"></i> Zapisz</h2>
+            <div class="oe-actions">
+                <button type="button" class="oe-btn oe-btn--primary" id="oe-btn-save"><i class="fa-solid fa-floppy-disk"></i> Zapisz zmiany (POST edit.php)</button>
+                <button type="button" class="oe-btn" id="oe-btn-cancel">Anuluj</button>
+            </div>
+            <div class="oe-info-line">
+                Serwer przelicza koszyk przez <code>CartEngine::calculate()</code> (Prawo IV — frontend nie wysyła cen).
+                <code>DeltaEngine</code> wykrywa dodane/usunięte/zmienione linie i zapisuje <code>kitchen_delta</code> JSON.
+            </div>
+        </div>
+    </section>
+
+</main>
+
+<script src="js/order_edit_app.js"></script>
+</body>
+</html>

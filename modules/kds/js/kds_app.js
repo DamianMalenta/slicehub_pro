@@ -160,6 +160,42 @@ const KdsApp = (() => {
         refresh();
     }
 
+    // Phase E — kitchen_delta highlight. Zwraca mapę line_id → {type, changes}
+    // type: 'added' | 'removed' | 'modified'. 'removed' linie nie są już w o.lines
+    // (usunięte z DB), ale delta je listuje — renderujemy je jako przekreślone.
+    function _deltaInfo(order) {
+        const d = order && order.kitchen_delta;
+        if (!d || typeof d !== 'object') return { byLineId: new Map(), removed: [], hasDelta: false };
+        const byLineId = new Map();
+        (d.added || []).forEach(a => {
+            if (a && a.line_id) byLineId.set(a.line_id, { type: 'added', data: a });
+        });
+        (d.modified || []).forEach(m => {
+            if (m && m.line_id) byLineId.set(m.line_id, { type: 'modified', data: m });
+        });
+        return { byLineId, removed: d.removed || [], hasDelta: true };
+    }
+
+    function _deltaLineCls(deltaInfo, lineId) {
+        const info = deltaInfo.byLineId.get(lineId);
+        if (!info) return '';
+        return info.type === 'added' ? 'delta-added'
+             : info.type === 'modified' ? 'delta-modified' : '';
+    }
+
+    function _deltaLineTag(deltaInfo, lineId) {
+        const info = deltaInfo.byLineId.get(lineId);
+        if (!info) return '';
+        if (info.type === 'added') return '<span class="kds-delta-tag kds-delta-add">+ DODANE</span>';
+        if (info.type === 'modified') {
+            const ch = info.data && info.data.changes ? Object.keys(info.data.changes) : [];
+            const labels = { quantity: 'ilość', modifiers_json: 'modyfikatory', removed_ingredients_json: 'składniki', comment: 'komentarz' };
+            const txt = ch.map(c => labels[c] || c).join(', ');
+            return `<span class="kds-delta-tag kds-delta-mod">~ ZMIENIONE: ${_esc(txt)}</span>`;
+        }
+        return '';
+    }
+
     function render(orders) {
         const board = document.getElementById('kds-board');
 
@@ -178,10 +214,18 @@ const KdsApp = (() => {
                 ? `<div class="kds-delivery-bar"><i class="fa-solid fa-truck"></i> ${_esc(o.delivery_address)}</div>`
                 : '';
 
+            // Phase E — kitchen_delta highlight (zielony=dodane, czerwony=usunięte, żółty=zmienione)
+            const deltaInfo = _deltaInfo(o);
+            const editedBanner = (o.edited_since_print && deltaInfo.hasDelta)
+                ? `<div class="kds-edited-banner"><i class="fa-solid fa-pen-to-square"></i> ZAMÓWIENIE EDYTOWANE — zobacz zmiany poniżej</div>`
+                : '';
+
             const linesHtml = (o.lines || []).map(l => {
                 const act = l.driver_action_type || 'none';
                 const actCls = act !== 'none' ? `action-${act}` : '';
                 const actTag = act !== 'none' ? `<span class="kds-action-tag">${ACTION_LABELS[act] || act}</span>` : '';
+                const deltaCls = _deltaLineCls(deltaInfo, l.id);
+                const deltaTag = _deltaLineTag(deltaInfo, l.id);
 
                 let modsHtml = '';
                 if (l.modifiers_json) {
@@ -195,10 +239,18 @@ const KdsApp = (() => {
 
                 const commentHtml = l.comment ? `<span class="kds-line-comment">${_esc(l.comment)}</span>` : '';
 
-                return `<div class="kds-line ${actCls}">
+                return `<div class="kds-line ${actCls} ${deltaCls}">
                     <div class="kds-line-qty">${l.quantity}x</div>
-                    <div style="flex:1"><span class="kds-line-name">${_esc(l.snapshot_name)}</span>${modsHtml}${commentHtml}</div>
+                    <div style="flex:1"><span class="kds-line-name">${_esc(l.snapshot_name)}</span>${modsHtml}${commentHtml}${deltaTag}</div>
                     ${actTag}
+                </div>`;
+            }).join('');
+
+            // Phase E — usunięte linie (nie ma już w o.lines, ale delta je listuje)
+            const removedHtml = deltaInfo.removed.map(rm => {
+                return `<div class="kds-line delta-removed">
+                    <div class="kds-line-qty">${rm.quantity}x</div>
+                    <div style="flex:1"><span class="kds-line-name">${_esc(rm.snapshot_name)}</span><span class="kds-delta-tag kds-delta-rem">- USUNIĘTE</span></div>
                 </div>`;
             }).join('');
 
@@ -233,7 +285,8 @@ const KdsApp = (() => {
                 </div>
                 ${customerLine}
                 ${deliveryBar}
-                <div class="kds-lines">${linesHtml}</div>
+                ${editedBanner}
+                <div class="kds-lines">${linesHtml}${removedHtml}</div>
                 <div class="kds-ticket-foot">
                     <button class="kds-bump ${cfg.cls}" onclick="KdsApp.bump('${o.id}','${cfg.next}')">${cfg.label}</button>
                     ${recallBtn}

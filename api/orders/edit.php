@@ -1,9 +1,11 @@
 <?php
 // =============================================================================
-// STATUS: PLANNED (audit 2026-04-19) — not yet wired, waiting for admin_hub.
-// Consumer: admin_hub "Edytuj zamówienie" modal (Faza 3). Uses DeltaEngine to
-// detect kitchen changes and write structured sh_orders.kitchen_delta JSON.
-// Do NOT delete — referenced historically in _docs/ARCHIWUM/06_WIZJA_MODULU_ONLINE.md §541.
+// STATUS: DOMKNIĘTE 2026-07-30 (Faza E, Prawo VIII).
+// Consumer: modules/backoffice/order_edit/ (Edytuj zamówienie).
+//   POST api/orders/edit.php  { order_id, channel, order_type, lines:[{line_id,item_sku,quantity}] }
+// Uses DeltaEngine to detect kitchen changes and write structured sh_orders.kitchen_delta JSON.
+// KDS consumer: api/kds/engine.php#get_board zwraca kitchen_delta + edited_since_print;
+// modules/kds/js/kds_app.js highlightuje linie (zielony=dodane, żółty=zmienione, czerwony=usunięte).
 // =============================================================================
 // SliceHub Enterprise — Order Edit Endpoint (Kitchen Delta Detection)
 // POST /api/orders/edit.php
