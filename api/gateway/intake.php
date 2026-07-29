@@ -360,8 +360,19 @@ try {
     // -------------------------------------------------------------------------
     // 10. REQUESTED TIME BOUNDS
     // -------------------------------------------------------------------------
+    // Faza B — ASAP: PromisedTimeEngine (load factor + channel buffer + business hours)
+    // zamiast uproszczonego now + minPrepMinutes. Scheduled: zostaje walidacja poniżej.
+    $ptChannel = strtolower($channel); // "Delivery" → "delivery" dla silnika
     if (strtoupper($requestedTime) === 'ASAP' || $requestedTime === '') {
-        $promisedTime = $now->modify("+{$minPrepMinutes} minutes")->format('Y-m-d H:i:s');
+        require_once __DIR__ . '/../../core/PromisedTimeEngine.php';
+        try {
+            $ptCalc = PromisedTimeEngine::calculate($pdo, $tenantId, 'asap', $ptChannel);
+            $promisedTime = (new DateTime($ptCalc['promised_time'], $tz))->format('Y-m-d H:i:s');
+        } catch (\Throwable $e) {
+            error_log('[Gateway.intake.promised] ' . $e->getMessage());
+            // fallback — nie blokuj zamówienia aggreatora
+            $promisedTime = $now->modify("+{$minPrepMinutes} minutes")->format('Y-m-d H:i:s');
+        }
     } else {
         $parsed = DateTimeImmutable::createFromFormat(DateTimeInterface::ATOM, $requestedTime, $tz)
               ?? DateTimeImmutable::createFromFormat('Y-m-d\TH:i:s', $requestedTime, $tz)

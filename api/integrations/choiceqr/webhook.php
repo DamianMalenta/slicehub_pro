@@ -225,8 +225,19 @@ try {
         }
     }
     if ($promisedTime === null) {
-        $promisedTime = (new DateTimeImmutable('now', new DateTimeZone('Europe/Warsaw')))
-            ->modify('+30 minutes')->format('Y-m-d H:i:s');
+        // Faza B — ASAP: PromisedTimeEngine (load factor + channel buffer + tenant base_prep)
+        // zamiast hardcoded +30 min. $orderType jest lowercase (delivery/takeaway/dine_in).
+        require_once __DIR__ . '/../../../core/PromisedTimeEngine.php';
+        try {
+            $ptCalc = PromisedTimeEngine::calculate($pdo, $tenantId, 'asap', $orderType);
+            $promisedTime = (new DateTimeImmutable($ptCalc['promised_time'], new DateTimeZone('Europe/Warsaw')))
+                ->format('Y-m-d H:i:s');
+        } catch (\Throwable $e) {
+            error_log('[ChoiceQR.webhook.promised] ' . $e->getMessage());
+            // fallback — nie blokuj webhooka (aggregator oczekuje 200 OK)
+            $promisedTime = (new DateTimeImmutable('now', new DateTimeZone('Europe/Warsaw')))
+                ->modify('+30 minutes')->format('Y-m-d H:i:s');
+        }
     }
 
     // Payment method

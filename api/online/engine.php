@@ -1377,7 +1377,19 @@ try {
                 ':addr'             => $deliveryAddress !== '' ? $deliveryAddress : null,
                 ':lat'              => $deliveryLat,
                 ':lng'              => $deliveryLng,
-                ':promised'         => $requestedTime !== '' ? $requestedTime : null,
+                ':promised'         => (function() use ($pdo, $tenantId, $orderType, $requestedTime) {
+                    // Faza B — ASAP: PromisedTimeEngine zamiast null.
+                    // Scheduled: surowy requested_time (klient wybrał godzinę).
+                    if ($requestedTime !== '') return $requestedTime;
+                    require_once __DIR__ . '/../../core/PromisedTimeEngine.php';
+                    try {
+                        $calc = PromisedTimeEngine::calculate($pdo, $tenantId, 'asap', $orderType);
+                        return $calc['promised_time'];
+                    } catch (\Throwable $e) {
+                        error_log('[GuestCheckout.promised] ' . $e->getMessage());
+                        return null; // fallback — nie blokuj checkoutu
+                    }
+                })(),
                 ':now'              => $nowTs,
             ]);
 

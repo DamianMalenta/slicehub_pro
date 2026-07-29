@@ -1172,21 +1172,38 @@ try {
         $oid  = inputStr($input, 'order_id');
         $time = inputStr($input, 'custom_time');
         $ts = ($time !== '') ? strtotime($time) : false;
-        $parsedTime = ($ts !== false) ? date('Y-m-d H:i:s', $ts) : date('Y-m-d H:i:s');
+        // Faza B — gdy kasjer nie poda custom_time: PromisedTimeEngine (inteligentny default)
+        // zamiast now(). Ręczny input nadal wygrywa. Poniżej: $parsedTime ustawiane po SELECT
+        // (potrzebny order_type dla kanału silnika).
+        $parsedTime = ($ts !== false) ? date('Y-m-d H:i:s', $ts) : null;
 
         if ($oid === '') {
             posResponse(false, null, 'order_id is required.');
         }
 
-        // Pre-check: fetch current status and validate transition (absorbed from orders/accept.php)
+        // Pre-check: fetch current status + order_type (dla kanału PromisedTimeEngine)
         $stmtOrder = $pdo->prepare(
-            "SELECT status FROM sh_orders WHERE id = :oid AND tenant_id = :tid LIMIT 1"
+            "SELECT status, order_type FROM sh_orders WHERE id = :oid AND tenant_id = :tid LIMIT 1"
         );
         $stmtOrder->execute([':oid' => $oid, ':tid' => $tenant_id]);
         $orderRow = $stmtOrder->fetch(PDO::FETCH_ASSOC);
 
         if (!$orderRow) {
             posResponse(false, null, 'Order not found.');
+        }
+
+        // Faza B — default promised_time przez silnik gdy kasjer nie podał czasu
+        if ($parsedTime === null) {
+            require_once __DIR__ . '/../../core/PromisedTimeEngine.php';
+            $ptChannel = strtolower((string)($orderRow['order_type'] ?? 'delivery'));
+            try {
+                $ptCalc = PromisedTimeEngine::calculate($pdo, $tenant_id, 'asap', $ptChannel);
+                $parsedTime = (new DateTime($ptCalc['promised_time'], new DateTimeZone('Europe/Warsaw')))
+                    ->format('Y-m-d H:i:s');
+            } catch (\Throwable $e) {
+                error_log('[POS.accept_order.promised] ' . $e->getMessage());
+                $parsedTime = date('Y-m-d H:i:s'); // fallback — nie blokuj akceptu
+            }
         }
 
         if (!OrderStateMachine::canTransition($orderRow['status'], 'accepted', $tenantFlags)) {

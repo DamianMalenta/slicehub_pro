@@ -243,11 +243,11 @@ Shared CSS dla wszystkich modułów: safe-area-inset, viewport-fit, mobilne nawi
 | ~~`orders/checkout.php`~~ | **USUNIĘTY 2026-07-28.** Duplikat `online/engine.php#guest_checkout` + `pos/engine.php#process_order`. `WzEngine::checkAvailability()` wchłonięte do obu. |
 | ~~`orders/accept.php`~~ | **USUNIĘTY 2026-07-28.** Duplikat `pos/engine.php#accept_order`. `canTransition()` pre-check wchłonięty. |
 | `orders/edit.php` | 🟡 PLANNED — edycja zamówienia + DeltaEngine (dla admin_hub). Zero call-site'ów. |
-| `orders/estimate.php` | 🟡 PLANNED — estymacja promised_time (dla scheduled orders). Wrapper na `PromisedTimeEngine::calculate()`. Zero call-site'ów. |
+| `orders/estimate.php` | 🟡 PLANNED — estymacja promised_time (dla scheduled orders). Wrapper na `PromisedTimeEngine::calculate()`. Zero call-site'ów (silnik wpięty bezpośrednio w 4 ścieżki — wrapper dla future scheduled-picker UI). |
 | ~~`orders/panic.php`~~ | **USUNIĘTY 2026-07-28.** Duplikat `pos/engine.php#panic_mode`. Logika wchłonięta do `core/PanicEngine.php` (debounce + configurable delay). |
 | `orders/sla_monitor.php` | ✅ **DOMKNIĘTE 2026-07-29 (Faza C)** — SLA breach monitor (4-tier klasyfikacja, zapis do `sh_sla_breaches`). Wpięte end-to-end: `worker_sla_monitor.php` (cron CLI) + `courses/engine.php#get_sla_breaches` (backend) + `courses_api.js#getSlaBreaches` + `courses_app.js` (poll 30s) + `courses_ui.js#renderSlaBreachesPanel` (Dispatcher sidebar). |
 | `orders/DeltaEngine.php` | Klasa wykrywająca różnice w liniach zamówienia (konsument: `edit.php` — orphan) |
-| `core/PromisedTimeEngine.php` | 🟡 PLANNED (dodane 2026-07-29) — pełny silnik estymacji promised_time (load factor, channel buffers, business hours). Tylko `estimate.php` (orphan) wywołuje. Produkcyjne ścieżki (POS, online, gateway, ChoiceQR) używają własnych uproszczonych logik. |
+| `core/PromisedTimeEngine.php` | ✅ **DOMKNIĘTE 2026-07-29 (Faza B)** — pełny silnik estymacji promised_time (load factor, channel buffers, business hours). Wpięty w 4 ścieżki ASAP: online/gateway/choiceqr/pos-accept. Ręczny input (POS) i scheduled (online/gateway) bez zmian. |
 
 #### Warehouse
 | Ścieżka | Opis |
