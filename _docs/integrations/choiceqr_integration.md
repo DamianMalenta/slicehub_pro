@@ -1282,3 +1282,97 @@ Poniższe problemy są celowo poza scope P2.3. To dług wewnętrzny SliceHub, ni
 - Prompt dla nowej sesji: `_docs/integrations/choiceqr_prompt_compliance_fix.md`
 - Oficjalna dokumentacja ChoiceQR: sekcja „Źródła dokumentacji ChoiceQR" wyżej
 - Poprzednie fazy: P2.1 (sekcja wyżej), P2.2 (sekcja wyżej)
+
+---
+
+## Stan gotowości do go-live (2026-07-29)
+
+### Podsumowanie wdrożenia
+
+ChoiceQR POS integration jest **gotowa do go-live**. Wszystkie 6 faz wdrożone (P0–P2.3),
+wszystkie krytyczne wymagania ChoiceQR spełnione, brak regresji w testach.
+
+| Aspekt | Stan | Dowód |
+|--------|------|-------|
+| **Order intake** (Create order URL) | ✅ GOTOWE | webhook.php — 200 OK, idempotency, gateway_external_id |
+| **Menu export** (Get menu URL) | ✅ GOTOWE | menu.php — 8 kategorii, posID=ascii_key, dishOptions |
+| **Areas export** (Get areas URL) | ✅ GOTOWE | areas.php — zones + tables + takeaway + delivery |
+| **Table orders** (Get table orders URL) | ✅ GOTOWE | table_orders.php — tableOrderSchema compliant (P2.3) |
+| **Table pay** (Pay table order URL) | ✅ GOTOWE | pay.php — tablePayOrderSchema, idempotency, FOR UPDATE (P2.2) |
+| **Push statusów** (cancel/close/delivery) | ✅ GOTOWE | ChoiceQRAdapter — 42 asercje PASS (P1) |
+| **Webhook events** (status/delivery/payment) | ✅ GOTOWE | events.php + parseInboundCallback — NC1/NC12 naprawione (P2.3) |
+| **Compliance** (wymogi ChoiceQR) | ✅ GOTOWE | K5 (200 OK), NC6 (schema), K3 (posID), NC1, NC12 — wszystkie 5 |
+| **Lint PHP** | ✅ PASS | 4/4 plików (webhook, table_orders, areas, ChoiceQRAdapter) |
+| **Testy JS (REST API)** | ✅ PASS | 61 pass / 0 fail / 1 warn (brak regresji) |
+| **Testy CLI (adapter)** | ✅ PASS | 42 pass / 0 fail (`scripts/test_choiceqr_adapter.php`) |
+| **Testy curl (compliance)** | ✅ PASS | webhook 401/200, table_orders schema+JOIN, areas posID |
+
+### Konfiguracja wymagana przed go-live
+
+1. **Panel ChoiceQR** — wprowadzić URL-e POS (z tokenem `?t=SECRET`):
+   - Create order URL → `https://<domain>/api/integrations/choiceqr/webhook.php?t=<webhook_token>`
+   - Get menu URL → `https://<domain>/api/integrations/choiceqr/menu.php?t=<webhook_token>&varSymbol=<var_symbol>`
+   - Get areas URL → `https://<domain>/api/integrations/choiceqr/areas.php?t=<webhook_token>&varSymbol=<var_symbol>`
+   - Get table orders URL → `https://<domain>/api/integrations/choiceqr/table_orders.php?t=<webhook_token>&varSymbol=<var_symbol>` (opcjonalny)
+   - Pay table order URL → `https://<domain>/api/integrations/choiceqr/pay.php?t=<webhook_token>` (opcjonalny)
+   - Webhook events URL → `https://<domain>/api/integrations/choiceqr/events.php?t=<webhook_token>` (opcjonalny, dla status updates)
+
+2. **sh_tenant_integrations** — dla każdego tenanta:
+   ```json
+   {
+     "token": "<JWT_BEARER_TOKEN>",        // z OAuth flow ChoiceQR (ważny 5 lat)
+     "webhook_token": "<SECRET_TOKEN>",     // losowy, ≥32 bytes — używany w ?t=
+     "var_symbol": "<ID_FIRMY_W_CHOICEQR>"  // z panelu ChoiceQR
+   }
+   ```
+
+3. **HTTPS** — ChoiceQR wymaga HTTPS dla webhooków na produkcji (token w URL).
+
+4. **Publiczny URL** — endpointy muszą być osiągalne z internetu (nie localhost).
+
+### Co zostało do zrobienia (BACKLOG — priorytetyzacja)
+
+Backlog z sekcji „Poza scope P2.3" pogrupowany wg priorytetów. **Żaden z tych elementów nie blokuje
+go-live** — to dług wewnętrzny SliceHub i feature gaps, nie wymagania ChoiceQR.
+
+#### Priorytet 1 — WARTO zrobić przed go-live (jakość danych, observability)
+
+| Problem | Kategoria | Uzasadnienie | Szacunkowy effort |
+|---------|-----------|--------------|-------------------|
+| **NC3** — `customerComments` vs `delivery.comment` | Jakość danych | ChoiceQR wysyła `customerComments` (array) + `delivery.comment` (string). My czytamy tylko `delivery.comment`. Komentarze klienta mogą nie dotrzeć do restauracji. | Mały (1 plik, webhook.php) |
+| **K4** — pay.php callback log (brak tenant_id/integration_id) | Observability | Płatność QR działa, ale w Settings → Inbound nie widać tenant_id. Utrudnia diagnozę w multi-tenant. | Mały (1 plik, pay.php) |
+| **S7** — testy inbound (parseInboundCallback + E2E) | Test coverage | Brak testów dla 5 typów eventów (order.cancelled, order.closed, order.delivery.update, order.qrPayment.completed, order.qrPayment.error). CLI test P1 pokrywa tylko push. | Średni (rozszerzyć `test_choiceqr_adapter.php`) |
+
+#### Priorytet 2 — Feature gaps (po go-live, gdy pojawi się klient)
+
+| Problem | Kategoria | Uzasadnienie | Szacunkowy effort |
+|---------|-----------|--------------|-------------------|
+| **NC11** — `order.accepted` event nie obsłużony | Log-only | Tracemy info o akceptacji na terminalu ChoiceQR. Zamówienie działa. | Mały |
+| **NC13** — `table.customer.email` | Feature gap | Email klienta przy stoliku (dla marketingu/paragonów). | Mały |
+| **NC17** — `cutlery` (sztućce) | Feature gap | Restauracja nie wie ile osób. | Mały |
+| **NC16** — `discountData` (loyalty/promocode/area discount) | Raportowanie | Nie wiemy z czego zniżka. | Mały |
+| **NC15** — `additionalFees` (opłaty strefowe) | Feature gap | Total z ChoiceQR zawiera opłaty, my nie rozkładamy. | Średni |
+| **NC18** — `preparingTime` / `deliveringTime` | Estymacja | promised_time hardcoded +30min zamiast z ChoiceQR. | Mały |
+| **NC20** — `loyalty` (bonus/gifts) | Feature gap | Brak w POS. | Średni |
+| **NC14** — `external` (marketplace BOLT/GLOVO/WOLT/UBER) | Raportowanie | Brak raportów po marketplace. Backlog gdy pojawi się klient marketplace. | Duży |
+| **W4** — ignorowane pola Order schema (18 pól) | Feature gaps | marketplace, loyalty, cutlery, timezone, etc. ChoiceQR nie waliduje czy czytamy. | Zależy od pola |
+
+#### Priorytet 3 — Hardening / wydajność (kosmetyka, nie blokuje)
+
+| Problem | Kategoria | Uzasadnienie | Szacunkowy effort |
+|---------|-----------|--------------|-------------------|
+| **K1** — pętla eventów (source='gateway' pushowane z powrotem) | Szum operacyjny | ChoiceQR odrzuci duplikat 400 → DLQ. Filtr `source='gateway'` w OrderEventPublisher. | Mały |
+| **K2** — `paid` vs `online_paid` (słownik payment_status) | Nasz słownik wewnętrzny | ChoiceQR nie definiuje słownika. Spójność wewnętrzna. | Mały |
+| **W1** — token w URL → logi Apache | Hardening | Mitigacja: dedykowany vhost z CustomLog wykluczającym query string. | Mały (Apache config) |
+| **W2** — brak `x-idempotence-key` w push adaptera | Hardening | ChoiceQR sugeruje header, nie wymaga. | Mały |
+| **S1** — brak cache menu | Wydajność | 5 SELECTów per request. Cache 60s. | Średni |
+| **S2** — `posID` kategorii to `cat_{id}` nie `ascii_key` | Stabilność ID | Re-import zmieni ID. | Mały |
+| **S6** — DLQ dla events przy DB down | Resilience | Spooler plikowy + alert. | Duży |
+| **NC19** — `timezone` hardcoded Europe/Warsaw | Bug dla klientów spoza PL | Zła strefa dla Czech/Słowacja. Backlog gdy pojawi się klient zagraniczny. | Mały |
+| **NC7** — OAuth flow automatyczny | Onboarding | Manual token entry działa. Automatyzacja to koszt bez ROI. | Duży |
+
+### Rekomendacja
+
+**Go-live: TAK.** Wszystkie krytyczne wymagania ChoiceQR spełnione. Backlog Priorytet 1 (NC3, K4, S7)
+warto zrobić w pierwszym tygodniu po go-live — poprawi jakość danych i observability, bez ryzyka
+destabilizacji. Priorytet 2 i 3 — wg potrzeb biznesowych.
