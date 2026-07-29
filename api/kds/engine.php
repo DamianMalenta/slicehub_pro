@@ -16,6 +16,7 @@ function kdsResponse(bool $ok, $data = null, ?string $msg = null): void {
 try {
     require_once __DIR__ . '/../../core/db_config.php';
     require_once __DIR__ . '/../../core/auth_guard.php';
+    require_once __DIR__ . '/../../core/SlaThresholds.php';
 
     $raw   = file_get_contents('php://input');
     $input = json_decode($raw ?: '{}', true) ?? [];
@@ -161,7 +162,11 @@ try {
         }
         unset($r);
 
-        kdsResponse(true, ['orders' => $rows, 'stations' => $stations, 'station_filter' => $stationFilter]);
+        // SLA thresholds (Phase A) — kds_app _timerInfo czyta yellow_min zamiast hardcoded 5.
+        // SSOT: core/SlaThresholds.php.
+        $slaThresholds = slicehubSlaThresholds($pdo, (int)$tenant_id);
+
+        kdsResponse(true, ['orders' => $rows, 'stations' => $stations, 'station_filter' => $stationFilter, 'sla_thresholds' => $slaThresholds]);
     }
 
     // =========================================================================

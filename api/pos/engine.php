@@ -34,6 +34,7 @@ try {
     require_once __DIR__ . '/../../core/SettlementEngine.php';
     require_once __DIR__ . '/../../core/AssetResolver.php';
     require_once __DIR__ . '/../../core/StaffFleetPresence.php';
+    require_once __DIR__ . '/../../core/SlaThresholds.php';
 
     $raw   = file_get_contents('php://input');
     $input = json_decode($raw ?: '{}', true) ?? [];
@@ -563,7 +564,11 @@ try {
             $drivers = $stmtDrv->fetchAll(PDO::FETCH_ASSOC);
         } catch (\PDOException $e) {}
 
-        posResponse(true, ['orders' => $orders, 'drivers' => $drivers]);
+        // SLA thresholds (Phase A) — pos_ui fmtTime czyta yellow_min (single-boundary)
+        // zamiast hardcoded per-type 15/59 i 6/14. SSOT: core/SlaThresholds.php.
+        $slaThresholds = slicehubSlaThresholds($pdo, (int)$tenant_id);
+
+        posResponse(true, ['orders' => $orders, 'drivers' => $drivers, 'sla_thresholds' => $slaThresholds]);
     }
 
     // =========================================================================

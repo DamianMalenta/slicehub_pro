@@ -49,6 +49,7 @@ try {
     require_once __DIR__ . '/../../core/SettlementEngine.php';
     require_once __DIR__ . '/../../core/DriverFleetHelper.php';
     require_once __DIR__ . '/../../core/StaffFleetPresence.php';
+    require_once __DIR__ . '/../../core/SlaThresholds.php';
 
     if (!isset($pdo)) {
         throw new RuntimeException('Database connection unavailable.');
@@ -264,10 +265,15 @@ try {
         $stmtCourses->execute([':tid' => $tenant_id, ':tid2' => $tenant_id]);
         $courses = $stmtCourses->fetchAll(PDO::FETCH_ASSOC);
 
+        // SLA thresholds (Phase A — unifikacja progów SLA w frontendach).
+        // SSOT: core/SlaThresholds.php — czytane z sh_tenant_settings, default 10/5.
+        $slaThresholds = slicehubSlaThresholds($pdo, (int)$tenant_id);
+
         coursesResponse(true, [
-            'orders'  => $orders,
-            'drivers' => $drivers,
-            'courses' => $courses,
+            'orders'         => $orders,
+            'drivers'        => $drivers,
+            'courses'        => $courses,
+            'sla_thresholds' => $slaThresholds,
         ]);
     }
 
@@ -1113,15 +1119,20 @@ try {
         $cashCollected = (int)$stmtCashW->fetchColumn();
         $stmtCashW->closeCursor();
 
+        // SLA thresholds (Phase A) — driver_app czyta yellow_min zamiast hardcoded 5.
+        // SSOT: core/SlaThresholds.php.
+        $slaThresholds = slicehubSlaThresholds($pdo, (int)$tenant_id);
+
         coursesResponse(true, [
-            'orders' => $orders,
+            'orders'         => $orders,
             'wallet' => [
                 'initial_cash'  => $initialCash,
                 'cash_collected'=> $cashCollected,
                 'total_in_hand' => $initialCash + $cashCollected,
             ],
-            'driver_status' => $driverStatus,
-            'shift_active'  => $hasActiveShift,
+            'driver_status'  => $driverStatus,
+            'shift_active'   => $hasActiveShift,
+            'sla_thresholds' => $slaThresholds,
         ]);
     }
 

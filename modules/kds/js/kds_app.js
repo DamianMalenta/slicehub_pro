@@ -20,6 +20,8 @@ const KdsApp = (() => {
     let _timer = null;
     /** @type {string} pusty = wszystkie stacje */
     let _stationFilter = '';
+    // Phase A — SLA thresholds z get_board (sh_tenant_settings). Default 10/5.
+    let _slaThresholds = { green_min: 10, yellow_min: 5 };
 
     const ACTION_LABELS = {
         pack_cold:     '❄️ ZIMNE — OSOBNO',
@@ -83,7 +85,7 @@ const KdsApp = (() => {
         if (!promisedTime) return { text: 'ASAP', cls: 'ok' };
         const diff = Math.floor((new Date(promisedTime) - new Date()) / 60000);
         if (diff < 0) return { text: `Spóźnione ${Math.abs(diff)}m`, cls: 'urgent' };
-        if (diff <= 5) return { text: `${diff} min`, cls: 'warning' };
+        if (diff <= _slaThresholds.yellow_min) return { text: `${diff} min`, cls: 'warning' };
         return { text: `${diff} min`, cls: 'ok' };
     }
 
@@ -132,6 +134,13 @@ const KdsApp = (() => {
         const r = await _post('get_board', _stationFilter ? { station: _stationFilter } : {});
         if (!r.success) return;
         const data = r.data || {};
+        if (data.sla_thresholds) {
+            const t = data.sla_thresholds;
+            _slaThresholds = {
+                green_min:  Number.isFinite(+t.green_min)  ? +t.green_min  : 10,
+                yellow_min: Number.isFinite(+t.yellow_min) ? +t.yellow_min : 5,
+            };
+        }
         _syncStationSelect(data.stations);
         render(data.orders || []);
     }

@@ -126,6 +126,9 @@ const App = (() => {
         state.orders = res.data.orders || [];
         state.drivers = res.data.drivers || [];
         state.courses = res.data.courses || [];
+        if (res.data.sla_thresholds) {
+            CoursesUI.setSlaThresholds(res.data.sla_thresholds);
+        }
 
         render();
     }

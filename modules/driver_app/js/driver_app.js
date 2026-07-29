@@ -40,6 +40,8 @@ const DriverApp = (() => {
         sseConnected: false,
         shiftActive: localStorage.getItem(LS_SHIFT_ACTIVE) === '1',
         driverStatus: 'offline',
+        // Phase A — SLA thresholds z get_driver_runs (sh_tenant_settings). Default 10/5.
+        slaThresholds: { green_min: 10, yellow_min: 5 },
     };
 
     function formatGrosze(g) {
@@ -54,12 +56,12 @@ const DriverApp = (() => {
         return DRIVER_APP_ROLES.includes(String(role || '').toLowerCase());
     }
 
-    // ── SLA BADGES (copied from courses_ui.js:16-27) ──
+    // ── SLA BADGES (Phase A — yellow_min czytane z state.slaThresholds) ──
     function slaClass(promisedTime) {
         if (!promisedTime) return 'sla-green';
         const diff = (new Date(promisedTime) - new Date()) / 60000;
         if (diff < 0) return 'sla-red';
-        if (diff <= 5) return 'sla-yellow';
+        if (diff <= state.slaThresholds.yellow_min) return 'sla-yellow';
         return 'sla-green';
     }
 
@@ -205,6 +207,13 @@ const DriverApp = (() => {
         }
         state.orders = res.data.orders || [];
         state.wallet = res.data.wallet || null;
+        if (res.data.sla_thresholds) {
+            const t = res.data.sla_thresholds;
+            state.slaThresholds = {
+                green_min:  Number.isFinite(+t.green_min)  ? +t.green_min  : 10,
+                yellow_min: Number.isFinite(+t.yellow_min) ? +t.yellow_min : 5,
+            };
+        }
         // Sync driver status from backend — backend is source of truth
         if (res.data.driver_status) {
             state.shiftActive = !!res.data.shift_active;

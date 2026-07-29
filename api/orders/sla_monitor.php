@@ -43,25 +43,18 @@ try {
     require_once __DIR__ . '/../../core/db_config.php';
     require_once __DIR__ . '/../../core/auth_guard.php';
     require_once __DIR__ . '/../../core/Uuid.php';
+    require_once __DIR__ . '/../../core/SlaThresholds.php';
 
     if (!isset($pdo)) {
         throw new RuntimeException('Database connection unavailable.');
     }
 
     // =========================================================================
-    // 1. FETCH SLA THRESHOLDS (with safe defaults)
+    // 1. FETCH SLA THRESHOLDS (with safe defaults) — SSOT: core/SlaThresholds.php
     // =========================================================================
-    $stmtSettings = $pdo->prepare(
-        "SELECT sla_green_min, sla_yellow_min
-         FROM sh_tenant_settings
-         WHERE tenant_id = :tid AND setting_key = ''
-         LIMIT 1"
-    );
-    $stmtSettings->execute([':tid' => $tenant_id]);
-    $settings = $stmtSettings->fetch(PDO::FETCH_ASSOC);
-
-    $greenThreshold  = (int)($settings['sla_green_min']  ?? 10);
-    $yellowThreshold = (int)($settings['sla_yellow_min'] ?? 5);
+    $thresholds = slicehubSlaThresholds($pdo, (int)$tenant_id);
+    $greenThreshold  = $thresholds['green_min'];
+    $yellowThreshold = $thresholds['yellow_min'];
 
     // =========================================================================
     // 2. FETCH ACTIVE DELIVERY ORDERS WITH PROMISED TIME

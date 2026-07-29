@@ -98,7 +98,11 @@ W systemie znajdują się foldery ze starym kodem (np. poprzednie wersje POS, Ma
 - ~~`api/delivery/dispatch.php`~~ — **USUNIĘTY 2026-07-28.** Duplikat `courses/engine.php#dispatch`. `out_for_delivery_at` + event publishing wchłonięte. Katalog `api/delivery/` usunięty.
 - ~~`api/delivery/reconcile.php`~~ — **USUNIĘTY 2026-07-28.** Duplikat `courses/engine.php#reconcile`. Driver release + delivery stats wchłonięte.
 - ~~`api/kds/update_ticket.php`~~ — **USUNIĘTY 2026-07-28.** Per-ticket state machine wchłonięta do `core/KdsTicketEngine.php` + `kds/engine.php#bump_ticket`.
-- `api/orders/edit.php`, `api/orders/estimate.php`, `api/orders/sla_monitor.php` — placeholder-y oznaczone jako `🟡 PLANNED` w `02_ARCHITEKTURA.md`. Mają unikalną logikę (DeltaEngine, PromisedTimeEngine, SLA breach logging) — zostawione do wpięcia w frontend.
+- `api/orders/edit.php` — 🟡 PLANNED. Edycja zamówienia + `DeltaEngine` (diff linii → `kitchen_delta` JSON dla KDS). Docelowy konsument: `admin_hub` modal "Edytuj zamówienie" (Faza 3). Zero call-site'ów.
+- `api/orders/estimate.php` — 🟡 PLANNED. Wrapper HTTP na `PromisedTimeEngine::calculate()`. Docelowy konsument: storefront "Zaplanuj na później" + scheduled order picker. Zero call-site'ów.
+- `core/PromisedTimeEngine.php` — 🟡 PLANNED (dodane 2026-07-29). Kompletny silnik estymacji `promised_time` (load factor, channel buffers, business hours). Tylko `estimate.php` (orphan) wywołuje. Żadna produkcyjna ścieżka (POS, online, gateway, ChoiceQR) go nie używa — każda ma własną uproszczoną logikę.
+- `api/orders/sla_monitor.php` — 🟡 PARTIAL. SLA breach monitoring API (klasyfikacja 4-tier, zapis do `sh_sla_breaches`). Częściowo wpięte: `scripts/worker_sla_monitor.php` (cron CLI, mirror logiki) + `courses/engine.php#get_sla_breaches` (backend akcja czytająca `sh_sla_breaches`). **ALE**: żaden frontend nie wywołuje ani `sla_monitor.php`, ani `get_sla_breaches`. Cron nie ustawiony na produkcji.
+- `api/reports/food_cost.php` — 🟡 PLANNED (dodane 2026-07-29). Food cost + margin breakdown per item (wrapper `FoodCostEngine`). Docelowy konsument: reports/analytics panel. Zero call-site'ów.
 
 ## 9. PRAWO DATOWANYCH ZAMROŻEŃ (Freeze Discipline) · NEW v5
 

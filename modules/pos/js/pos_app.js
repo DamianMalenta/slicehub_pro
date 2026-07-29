@@ -295,6 +295,9 @@ const PosApp = (() => {
             if (res.data.drivers) {
                 _menuData.drivers = res.data.drivers;
             }
+            if (res.data.sla_thresholds) {
+                PosUI.setSlaThresholds(res.data.sla_thresholds);
+            }
             _renderBattlefield();
         }
     }

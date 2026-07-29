@@ -242,11 +242,12 @@ Shared CSS dla wszystkich modułów: safe-area-inset, viewport-fit, mobilne nawi
 | `cart/calculate.php` | Endpoint kalkulacji koszyka |
 | ~~`orders/checkout.php`~~ | **USUNIĘTY 2026-07-28.** Duplikat `online/engine.php#guest_checkout` + `pos/engine.php#process_order`. `WzEngine::checkAvailability()` wchłonięte do obu. |
 | ~~`orders/accept.php`~~ | **USUNIĘTY 2026-07-28.** Duplikat `pos/engine.php#accept_order`. `canTransition()` pre-check wchłonięty. |
-| `orders/edit.php` | 🟡 PLANNED — edycja zamówienia + DeltaEngine (dla admin_hub) |
-| `orders/estimate.php` | 🟡 PLANNED — estymacja promised_time (dla scheduled orders) |
+| `orders/edit.php` | 🟡 PLANNED — edycja zamówienia + DeltaEngine (dla admin_hub). Zero call-site'ów. |
+| `orders/estimate.php` | 🟡 PLANNED — estymacja promised_time (dla scheduled orders). Wrapper na `PromisedTimeEngine::calculate()`. Zero call-site'ów. |
 | ~~`orders/panic.php`~~ | **USUNIĘTY 2026-07-28.** Duplikat `pos/engine.php#panic_mode`. Logika wchłonięta do `core/PanicEngine.php` (debounce + configurable delay). |
-| `orders/sla_monitor.php` | 🟡 PLANNED — aggregate SLA monitor (dla admin_hub + cron) |
-| `orders/DeltaEngine.php` | Klasa wykrywająca różnice w liniach zamówienia |
+| `orders/sla_monitor.php` | 🟡 PARTIAL — SLA breach monitor (4-tier klasyfikacja, zapis do `sh_sla_breaches`). Częściowo wpięte: `scripts/worker_sla_monitor.php` (cron CLI) + `courses/engine.php#get_sla_breaches` (backend). **Frontend nie wywołuje.** Cron nie ustawiony. |
+| `orders/DeltaEngine.php` | Klasa wykrywająca różnice w liniach zamówienia (konsument: `edit.php` — orphan) |
+| `core/PromisedTimeEngine.php` | 🟡 PLANNED (dodane 2026-07-29) — pełny silnik estymacji promised_time (load factor, channel buffers, business hours). Tylko `estimate.php` (orphan) wywołuje. Produkcyjne ścieżki (POS, online, gateway, ChoiceQR) używają własnych uproszczonych logik. |
 
 #### Warehouse
 | Ścieżka | Opis |
@@ -272,7 +273,7 @@ Shared CSS dla wszystkich modułów: safe-area-inset, viewport-fit, mobilne nawi
 | `backoffice/hr/engine.php` | ✅ **LIVE** — action router HR. **Zmiana (clock):** `clock_in` / `clock_out` / `clock_status` (Faza 3A, m041–m044). **Backoffice (NEW · 2026-05-04, wymaga `hrRequireManager`):** `employees_list`, `employee_get`, `employee_upsert` (z opcjonalnym `create_login` — tworzy konto `sh_users`), `employee_pin_set` (bcrypt do `sh_employees.auth_pin_hash` + sync `sh_users.pin_code` żeby ten sam PIN działał w POS i w Kiosk), `employee_rate_set` (zamyka poprzednią linię w `sh_employee_rates`, otwiera nową), `hr_users_unlinked` (lista `sh_users` bez profilu HR — do podpięcia istniejącego konta przy upsercie). **Faza 4 (2026-07-27):** `payroll_report`, `payroll_period_status`, `payroll_close_period` (auto-spłata rat zaliczek + lockPeriod), `advances_list`, `advance_request`/`approve`/`reject`/`mark_paid`/`void`, `bonus_add`, `adjustment_add`, `meal_record`. Konsument: `modules/backoffice/hr/index.html`. Kanoniczny endpoint silosu HR. |
 | ~~`staff/payroll.php`~~ | **USUNIĘTY 2026-07-28.** Martwy wrapper GET bez konsumenta. Logika w `hr/engine.php#payroll_report` → `PayrollEngine::calculate()`. Katalog `api/staff/` usunięty. |
 | ~~`dashboard/team_payroll.php`~~ | **USUNIĘTY 2026-07-28.** Martwy wrapper GET bez konsumenta. Logika w `hr/engine.php#payroll_report` → `TeamPayrollEngine::getAggregate()`. Katalog `api/dashboard/` usunięty. |
-| `reports/food_cost.php` | 🟡 PLANNED — food cost + margin (FoodCostEngine) |
+| `reports/food_cost.php` | 🟡 PLANNED — food cost + margin (FoodCostEngine). Zero call-site'ów (dodane do Prawo VIII 2026-07-29). |
 
 #### Gateway / Integrations (m026–m029)
 | Ścieżka | Opis |

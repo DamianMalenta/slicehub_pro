@@ -5,6 +5,19 @@
  */
 const CoursesUI = (() => {
 
+    // Phase A — SLA thresholds czytane z backendu (sh_tenant_settings).
+    // Default 10/5 zgodny z api/orders/sla_monitor.php. Ustawiane przez App.poll()
+    // via setSlaThresholds() z response get_dashboard.
+    let _slaThresholds = { green_min: 10, yellow_min: 5 };
+    function setSlaThresholds(t) {
+        if (t && typeof t === 'object') {
+            _slaThresholds = {
+                green_min:  Number.isFinite(+t.green_min)  ? +t.green_min  : 10,
+                yellow_min: Number.isFinite(+t.yellow_min) ? +t.yellow_min : 5,
+            };
+        }
+    }
+
     function formatGrosze(g) {
         return (parseInt(g, 10) / 100).toFixed(2);
     }
@@ -17,7 +30,7 @@ const CoursesUI = (() => {
         if (!promisedTime) return 'sla-green';
         const diff = (new Date(promisedTime) - new Date()) / 60000;
         if (diff < 0) return 'sla-red';
-        if (diff <= 5) return 'sla-yellow';
+        if (diff <= _slaThresholds.yellow_min) return 'sla-yellow';
         return 'sla-green';
     }
 
@@ -222,5 +235,5 @@ const CoursesUI = (() => {
         setTimeout(() => t.remove(), 4000);
     }
 
-    return Object.freeze({ renderDriversList, renderOrdersGrid, renderCoursesGrid, toast, formatGrosze });
+    return Object.freeze({ renderDriversList, renderOrdersGrid, renderCoursesGrid, toast, formatGrosze, setSlaThresholds });
 })();

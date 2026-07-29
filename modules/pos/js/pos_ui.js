@@ -8,6 +8,20 @@ const PosUI = (() => {
 
     const _e = s => { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; };
 
+    // Phase A — SLA thresholds czytane z backendu (sh_tenant_settings).
+    // fmtTime używa single-boundary: red<0, yellow≤yellow_min, green>yellow_min.
+    // Default 10/5 zgodny z api/orders/sla_monitor.php. Ustawiane przez PosApp
+    // via setSlaThresholds() z response get_orders.
+    let _slaThresholds = { green_min: 10, yellow_min: 5 };
+    function setSlaThresholds(t) {
+        if (t && typeof t === 'object') {
+            _slaThresholds = {
+                green_min:  Number.isFinite(+t.green_min)  ? +t.green_min  : 10,
+                yellow_min: Number.isFinite(+t.yellow_min) ? +t.yellow_min : 5,
+            };
+        }
+    }
+
     // === TOAST ===
     function toast(msg, type = 'info') {
         const c = $('#toast-container'); if (!c) return;
@@ -522,9 +536,11 @@ const PosUI = (() => {
             const d = new Date(dateStr), diff = Math.ceil((d - now) / 60000);
             const sign = diff >= 0 ? '+' : '-';
             const text = `<span class="time-indicator">${sign}${Math.abs(diff)}min</span>`;
+            // Phase A — single-boundary SLA (zgodne z courses/kds/driver):
+            // red<0, yellow≤yellow_min, green>yellow_min. Progi z sh_tenant_settings.
             let cls = 'sla-green';
-            if (type === 'delivery') { if (diff < 15) cls = 'sla-red'; else if (diff <= 59) cls = 'sla-yellow'; }
-            else { if (diff < 6) cls = 'sla-red'; else if (diff <= 14) cls = 'sla-yellow'; }
+            if (diff < 0) cls = 'sla-red';
+            else if (diff <= _slaThresholds.yellow_min) cls = 'sla-yellow';
             return { text, cls };
         }
 
@@ -758,7 +774,7 @@ const PosUI = (() => {
         showDishCard, showDishCardEdit, showOrderTypeModal, showTableSelectorModal,
         showCheckoutModal, showPaymentModal, showCancelModal,
         renderPulse, renderKanban, renderDrivers, renderWaiters,
-        printTemplate, printOrderTemplate,
+        printTemplate, printOrderTemplate, setSlaThresholds,
     });
 })();
 
