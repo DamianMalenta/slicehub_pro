@@ -20,6 +20,21 @@ declare(strict_types=1);
  * ============================================================
  */
 
+// ──────────────────────────────────────────────────────────────
+// Guard: SLICEHUB_SCRIPT_KEY (skip in CLI mode)
+// ──────────────────────────────────────────────────────────────
+if (PHP_SAPI !== 'cli') {
+    $localSecrets = __DIR__ . '/../core/local_secrets.php';
+    if (is_file($localSecrets)) require_once $localSecrets;
+    $expectedKey = defined('SLICEHUB_SCRIPT_KEY') ? (string) constant('SLICEHUB_SCRIPT_KEY') : '';
+    $givenKey = (string)($_SERVER['HTTP_X_SCRIPT_KEY'] ?? $_GET['key'] ?? $_POST['key'] ?? '');
+    if ($expectedKey === '' || !hash_equals($expectedKey, $givenKey)) {
+        http_response_code(403);
+        header('Content-Type: application/json; charset=utf-8');
+        die(json_encode(['success' => false, 'message' => 'Brak/zły klucz dostępu (SLICEHUB_SCRIPT_KEY).']));
+    }
+}
+
 $T = 1; // tenant_id — TYLKO dev/test
 $steps = [];
 $errors = [];

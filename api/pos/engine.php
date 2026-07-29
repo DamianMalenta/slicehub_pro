@@ -690,6 +690,37 @@ try {
                 // Loggujemy: na produkcji warning pojawi się w error_log uti.pl.
                 error_log('[POS process_order] CartEngine revalidation failed (using client prices): ' . $ceErr->getMessage());
             }
+
+            // Warehouse preflight — block order creation if stock is insufficient.
+            // Absorbed from api/orders/checkout.php (Konstytucja Prawo II — Bliźniak Cyfrowy).
+            $wzPath = __DIR__ . '/../../core/WzEngine.php';
+            if (file_exists($wzPath)) {
+                require_once $wzPath;
+                if (class_exists('WzEngine') && isset($serverPrices) && $serverTotal !== null) {
+                    $posWarehouseId = trim((string)($input['warehouse_id'] ?? 'MAIN')) ?: 'MAIN';
+                    try {
+                        $wzLines = [];
+                        foreach ($cart as $item) {
+                            $isk = (string)($item['ascii_key'] ?? $item['id'] ?? '');
+                            if ($isk === '') continue;
+                            $wzLines[] = ['item_sku' => $isk, 'quantity' => (float)($item['qty'] ?? $item['quantity'] ?? 1)];
+                        }
+                        if (!empty($wzLines)) {
+                            $availability = WzEngine::checkAvailability($pdo, $tenant_id, $posWarehouseId, $wzLines);
+                            if (($availability['success'] ?? false) && ($availability['available'] ?? true) === false) {
+                                $pdo->rollBack();
+                                posResponse(false, [
+                                    'warehouse_id' => $availability['warehouse_id'] ?? $posWarehouseId,
+                                    'shortages'    => $availability['shortages'] ?? [],
+                                ], 'Insufficient warehouse stock for this order.');
+                            }
+                        }
+                    } catch (\Throwable $wzErr) {
+                        error_log('[POS process_order] WzEngine::checkAvailability failed: ' . $wzErr->getMessage());
+                    }
+                }
+            }
+
             $promisedRaw  = isset($input['custom_datetime']) ? (string)$input['custom_datetime'] : null;
             $printKitchen = (int)($input['print_kitchen'] ?? 0);
             $printReceipt = (int)($input['print_receipt'] ?? 0);
@@ -1137,6 +1168,22 @@ try {
             posResponse(false, null, 'order_id is required.');
         }
 
+        // Pre-check: fetch current status and validate transition (absorbed from orders/accept.php)
+        $stmtOrder = $pdo->prepare(
+            "SELECT status FROM sh_orders WHERE id = :oid AND tenant_id = :tid LIMIT 1"
+        );
+        $stmtOrder->execute([':oid' => $oid, ':tid' => $tenant_id]);
+        $orderRow = $stmtOrder->fetch(PDO::FETCH_ASSOC);
+
+        if (!$orderRow) {
+            posResponse(false, null, 'Order not found.');
+        }
+
+        if (!OrderStateMachine::canTransition($orderRow['status'], 'accepted', $tenantFlags)) {
+            http_response_code(409);
+            posResponse(false, null, "Cannot accept order. Current status is '{$orderRow['status']}', transition to 'accepted' not allowed.");
+        }
+
         require_once __DIR__ . '/../../core/KdsAcceptRouting.php';
 
         $pdo->beginTransaction();
@@ -1511,28 +1558,20 @@ try {
     }
 
     // =========================================================================
-    // PANIC_MODE — +20 min to open pipeline orders (legacy `pending` + canonical)
+    // PANIC_MODE — shift promised_time on all active orders (debounce + configurable delay)
+    // Absorbed from api/orders/panic.php → core/PanicEngine.php
     // =========================================================================
     if ($action === 'panic_mode') {
-        $affected = $pdo->prepare(
-            "UPDATE sh_orders SET promised_time = DATE_ADD(COALESCE(promised_time, created_at), INTERVAL 20 MINUTE), updated_at=NOW()
-             WHERE status IN ('new','accepted','pending','preparing','ready') AND tenant_id = ?"
-        );
-        $affected->execute([$tenant_id]);
-        $cnt = $affected->rowCount();
-
-        $panicId = sprintf(
-            '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
-            mt_rand(0,0xffff), mt_rand(0,0xffff), mt_rand(0,0xffff),
-            mt_rand(0,0x0fff)|0x4000, mt_rand(0,0x3fff)|0x8000,
-            mt_rand(0,0xffff), mt_rand(0,0xffff), mt_rand(0,0xffff)
-        );
-        $pdo->prepare(
-            "INSERT INTO sh_panic_log (id, tenant_id, triggered_by, delay_minutes, affected_count)
-             VALUES (?,?,?,20,?)"
-        )->execute([$panicId, $tenant_id, $user_id, $cnt]);
-
-        posResponse(true, ['message' => "Wydłużono czasy o 20 minut ($cnt zamówień)!"]);
+        require_once __DIR__ . '/../../core/PanicEngine.php';
+        $delayMinutes = (int)($input['delay_minutes'] ?? 20);
+        try {
+            $result = PanicEngine::execute($pdo, $tenant_id, isset($user_id) ? (string)$user_id : null, $delayMinutes);
+            posResponse(true, $result);
+        } catch (\RuntimeException $e) {
+            $code = str_contains($e->getMessage(), 'debounce') || str_contains($e->getMessage(), 'less than') ? 429 : 400;
+            http_response_code($code);
+            posResponse(false, null, $e->getMessage());
+        }
     }
 
     // =========================================================================

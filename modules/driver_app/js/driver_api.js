@@ -30,7 +30,7 @@ const DriverAPI = (() => {
             if (!res.ok) {
                 console.warn(`[DriverAPI] ${action} HTTP ${res.status}:`, json);
             }
-            return { ok: res.ok, success: json.success === true, message: json.message || '', data: json.data ?? null };
+            return { ok: res.ok, httpCode: res.status, success: json.success === true, message: json.message || '', data: json.data ?? null };
         } catch (e) {
             console.error(`[DriverAPI] ${action} network error:`, e);
             return { ok: false, success: false, message: 'Brak połączenia z serwerem', data: null };
@@ -65,5 +65,36 @@ const DriverAPI = (() => {
         checkRecall:      ()              => _post('check_recall'),
         clearRecall:      ()              => _post('clear_recall'),
         setDriverStatus:  (status)        => _post('set_driver_status', { driver_user_id: '', status }),
+        reconcile:        (countedCash)   => _post('reconcile', { counted_cash: countedCash }),
+        sseUrl: () => {
+            const base = (window.SliceHub && window.SliceHub.apiUrl)
+                ? window.SliceHub.apiUrl('courses/sse_driver.php')
+                : apiFallback() + '/courses/sse_driver.php';
+            return base + '?token=' + encodeURIComponent(_token);
+        },
+
+        /** HR clock_in — best effort, does not block shift start. */
+        hrClockIn: () => {
+            const hrUrl = (window.SliceHub && window.SliceHub.apiUrl)
+                ? window.SliceHub.apiUrl('backoffice/hr/engine.php')
+                : apiFallback() + '/backoffice/hr/engine.php';
+            return fetch(hrUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_token}` },
+                body: JSON.stringify({ action: 'clock_in', auth: { self: true }, source: 'mobile' }),
+            }).then(r => r.json()).catch(() => ({ success: false }));
+        },
+
+        /** HR clock_out — best effort, does not block reconcile. */
+        hrClockOut: () => {
+            const hrUrl = (window.SliceHub && window.SliceHub.apiUrl)
+                ? window.SliceHub.apiUrl('backoffice/hr/engine.php')
+                : apiFallback() + '/backoffice/hr/engine.php';
+            return fetch(hrUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_token}` },
+                body: JSON.stringify({ action: 'clock_out', auth: { self: true }, source: 'mobile' }),
+            }).then(r => r.json()).catch(() => ({ success: false }));
+        },
     });
 })();

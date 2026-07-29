@@ -876,16 +876,20 @@ final class SceneResolver
             try {
                 $ph = implode(',', array_fill(0, count($skus), '?'));
                 $stmt = $pdo->prepare(
-                    "SELECT item_sku, id, active_style_id
+                    "SELECT item_sku, id, active_style_id,
+                            atmospheric_effects_enabled_json, active_camera_preset
                      FROM sh_atelier_scenes
                      WHERE tenant_id = ? AND item_sku IN ({$ph})
                        AND COALESCE(scene_kind, 'item') = 'item'"
                 );
                 $stmt->execute(array_merge([$tenantId], $skus));
                 foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+                    $fx = json_decode((string)($r['atmospheric_effects_enabled_json'] ?? '[]'), true);
                     $scenesBySku[$r['item_sku']] = [
-                        'scene_id'        => (int)$r['id'],
-                        'active_style_id' => isset($r['active_style_id']) ? (int)$r['active_style_id'] : null,
+                        'scene_id'           => (int)$r['id'],
+                        'active_style_id'    => isset($r['active_style_id']) ? (int)$r['active_style_id'] : null,
+                        'atmospheric_effects' => is_array($fx) ? array_values($fx) : [],
+                        'active_camera'      => $r['active_camera_preset'] ?: null,
                     ];
                 }
             } catch (\Throwable $e) {
@@ -913,15 +917,17 @@ final class SceneResolver
             }
 
             $out[] = [
-                'sku'                 => $sku,
-                'name'                => (string)$r['name'],
-                'description'         => $r['description'] ?? null,
-                'category_id'         => (int)$r['category_id'],
-                'composition_profile' => (string)$r['composition_profile'],
-                'hero_url'            => $heroUrl,
-                'has_scene'           => $scene !== null,
-                'scene_id'            => $scene['scene_id'] ?? null,
-                'active_style'        => $activeStyle,
+                'sku'                  => $sku,
+                'name'                 => (string)$r['name'],
+                'description'          => $r['description'] ?? null,
+                'category_id'          => (int)$r['category_id'],
+                'composition_profile'  => (string)$r['composition_profile'],
+                'hero_url'             => $heroUrl,
+                'has_scene'            => $scene !== null,
+                'scene_id'             => $scene['scene_id'] ?? null,
+                'active_style'         => $activeStyle,
+                'atmospheric_effects'  => $scene['atmospheric_effects'] ?? [],
+                'active_camera'        => $scene['active_camera'] ?? null,
             ];
         }
         return $out;

@@ -20,8 +20,16 @@
         .toggle-checkbox:checked { right: 0; border-color: #22c55e; }
         .toggle-checkbox:checked + .toggle-label { background-color: #22c55e; }
         
-        .nav-btn.active { border-left-color: #ef4444; background: rgba(255,255,255,0.05); color: white; }
-        .nav-btn { border-left: 3px solid transparent; }
+        .nav-tab { color: #475569; border: 1px solid transparent; }
+        .nav-tab:hover { color: #cbd5e1; background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.05); }
+        .nav-tab.active { color: #60a5fa; background: rgba(59,130,246,0.12); border-color: rgba(59,130,246,0.2); }
+
+        /* Spójne style inspektora i paneli */
+        .studio-card { background: rgba(10,10,15,0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 0.75rem; }
+        .studio-input { background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.5rem; color: white; outline: none; transition: border-color 0.15s; }
+        .studio-input:focus { border-color: #3b82f6; }
+        .studio-label { font-size: 9px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+        .studio-btn { border-radius: 0.5rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.05em; transition: all 0.15s; }
         
         .tree-item:hover .drag-handle { opacity: 1; }
         .drag-handle { opacity: 0; transition: opacity 0.2s; cursor: grab; }
@@ -30,80 +38,105 @@
         /* Subtelny puls dla nowości */
         .badge-soon { animation: pulse-soon 2s infinite; }
         @keyframes pulse-soon { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        /* Modifiers Drawer (Faza 3) */
+        #modifiers-drawer { transform: translateX(100%); transition: transform 200ms ease-out; }
+        #modifiers-drawer.open { transform: translateX(0); }
+        #modifiers-drawer-backdrop { opacity: 0; pointer-events: none; transition: opacity 200ms ease-out; }
+        #modifiers-drawer-backdrop.open { opacity: 1; pointer-events: auto; }
+
+        /* Faza 5: Drag & Drop + Tree navigation */
+        .drag-over-top { border-top: 2px solid #3b82f6 !important; }
+        .drag-over-bottom { border-bottom: 2px solid #3b82f6 !important; }
+        .active-tree-item { background: rgba(59,130,246,0.15) !important; border-color: rgba(59,130,246,0.4) !important; }
     </style>
 </head>
 <body class="flex w-full">
 
-    <aside class="w-64 bg-[#070b14] border-r border-white/5 flex flex-col shrink-0 shadow-[5px_0_15px_rgba(0,0,0,0.5)] z-30">
-        <div class="p-4 border-b border-white/5 bg-red-600 flex items-center justify-between">
-            <div>
-                <h1 class="font-black text-[11px] uppercase tracking-widest text-white shadow-sm">STUDIO MENU</h1>
-                <p class="text-[8px] font-bold text-red-200 mt-0.5">V6.5 ULTIMATE</p>
+    <aside class="w-[280px] bg-[#070b14] border-r border-white/5 flex flex-col shrink-0 shadow-[5px_0_15px_rgba(0,0,0,0.5)] z-30">
+        <div class="px-4 py-3 border-b border-white/5 flex items-center justify-between shrink-0">
+            <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded-lg bg-red-600 flex items-center justify-center shrink-0">
+                    <i class="fa-solid fa-pizza-slice text-white text-[10px]"></i>
+                </div>
+                <div>
+                    <h1 class="font-black text-[10px] uppercase tracking-widest text-white leading-none">STUDIO MENU</h1>
+                    <p class="text-[7px] font-bold text-slate-500 mt-0.5">V6.5 ULTIMATE</p>
+                </div>
             </div>
-            <i class="fa-solid fa-code-branch text-white/50"></i>
-        </div>
-        <nav class="flex-1 overflow-y-auto hide-scrollbar py-2">
-            <p class="text-[8px] font-black uppercase text-slate-500 tracking-widest px-5 mb-2 mt-2">Zarządzanie Kartą</p>
-            <button id="nav-menu" onclick="window.Core.switchView('menu')" class="nav-btn active w-full text-left px-5 py-3 text-[10px] font-black uppercase text-slate-400 hover:text-white transition flex items-center gap-3">
-                <i class="fa-solid fa-sitemap w-4 text-center"></i> Drzewo Menu
-            </button>
-            <button id="nav-modifiers" onclick="window.Core.switchView('modifiers')" class="nav-btn w-full text-left px-5 py-3 text-[10px] font-black uppercase text-slate-400 hover:text-white transition flex items-center gap-3">
-                <i class="fa-solid fa-puzzle-piece w-4 text-center"></i> Dodatki i Modyfikatory
-            </button>
-            <button id="nav-bulk" onclick="window.Core.switchView('bulk')" class="nav-btn w-full text-left px-5 py-3 text-[10px] font-black uppercase text-slate-400 hover:text-white transition flex items-center gap-3">
-                <i class="fa-solid fa-layer-group w-4 text-center"></i> Edycja Masowa
-            </button>
-            <button id="nav-meals" onclick="window.Core.switchView('meals')" class="nav-btn w-full text-left px-5 py-3 text-[10px] font-black uppercase text-slate-400 hover:text-white transition flex items-center gap-3">
-                <i class="fa-solid fa-burger w-4 text-center text-amber-400"></i> Zestawy Combo (F-S3)
-            </button>
-            
-            <p class="text-[8px] font-black uppercase text-slate-500 tracking-widest px-5 mb-2 mt-4">Narzędzia Zwiększania Zysku</p>
-            <button onclick="window.location.href='../online_studio/index.html'" class="nav-btn w-full text-left px-5 py-3 text-[10px] font-black uppercase text-slate-400 hover:text-white transition flex items-center justify-between">
-                <div class="flex items-center gap-3"><i class="fa-solid fa-pizza-slice w-4 text-center text-orange-400"></i> Online Studio (Wizualny Kompozytor)</div>
-                <span class="bg-orange-500/10 text-orange-400 border border-orange-500/30 text-[7px] px-1.5 py-0.5 rounded">NOWY</span>
-            </button>
-            <button class="nav-btn w-full text-left px-5 py-3 text-[10px] font-black uppercase text-slate-500 hover:text-slate-300 transition flex items-center justify-between">
-                <div class="flex items-center gap-3"><i class="fa-solid fa-magnet w-4 text-center"></i> Sprzedaż Sugerowana</div>
-                <span class="bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 text-[7px] px-1.5 py-0.5 rounded badge-soon">WKRÓTCE</span>
-            </button>
-            <button class="nav-btn w-full text-left px-5 py-3 text-[10px] font-black uppercase text-slate-500 hover:text-slate-300 transition flex items-center justify-between">
-                <div class="flex items-center gap-3"><i class="fa-solid fa-qrcode w-4 text-center"></i> E-Menu (QR) i Podgląd</div>
-                <span class="bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 text-[7px] px-1.5 py-0.5 rounded badge-soon">WKRÓTCE</span>
-            </button>
-
-            <p class="text-[8px] font-black uppercase text-slate-500 tracking-widest px-5 mb-2 mt-4">Integracje i Zaplecze</p>
-            <a href="../hub/index.html" class="nav-btn w-full text-left px-5 py-3 text-[10px] font-black uppercase text-slate-400 hover:text-white transition flex items-center gap-3">
-                <i class="fa-solid fa-layer-group w-4 text-center text-blue-400"></i> Hub — centrum lokalu
-            </a>
-            <button onclick="window.location.href='../warehouse/index.html'" class="nav-btn w-full text-left px-5 py-3 text-[10px] font-black uppercase text-slate-400 hover:text-white transition flex items-center gap-3">
-                <i class="fa-solid fa-boxes-stacked w-4 text-center"></i> Magazyn i Food Cost
-            </button>
-            <button class="nav-btn w-full text-left px-5 py-3 text-[10px] font-black uppercase text-slate-500 hover:text-slate-300 transition flex items-center justify-between">
-                <div class="flex items-center gap-3"><i class="fa-solid fa-cloud-arrow-up w-4 text-center"></i> Integracje (Pyszne/Uber)</div>
-                <span class="bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 text-[7px] px-1.5 py-0.5 rounded badge-soon">WKRÓTCE</span>
-            </button>
-        </nav>
-        <div class="p-4 border-t border-white/5 bg-black/40">
-            <button onclick="window.location.href='admin_app.html'" class="w-full py-2.5 bg-white/5 border border-white/10 rounded-lg text-[9px] font-black uppercase text-slate-400 hover:text-white hover:bg-white/10 transition">
-                <i class="fa-solid fa-arrow-left mr-2"></i> Wróć do Panelu Głównego
+            <button onclick="window.Core.addCategory()" class="w-7 h-7 bg-green-900/40 text-green-400 border border-green-500/30 rounded-lg flex items-center justify-center hover:bg-green-600 hover:text-white transition shrink-0" title="Dodaj Kategorię">
+                <i class="fa-solid fa-plus text-[10px]"></i>
             </button>
         </div>
-    </aside>
 
-    <aside class="w-80 bg-[#0a0f1c] border-r border-white/5 flex flex-col shrink-0 z-20">
-        <header class="h-16 border-b border-white/5 bg-black/20 flex items-center justify-between px-4 shrink-0">
-            <h2 class="font-black text-[11px] uppercase tracking-widest text-white">Struktura Karty Dań</h2>
-            <div class="flex gap-2">
-                <button onclick="window.Core.addCategory()" class="w-8 h-8 bg-green-900/40 text-green-400 border border-green-500/30 rounded flex items-center justify-center hover:bg-green-600 hover:text-white transition" title="Dodaj Kategorię">
-                    <i class="fa-solid fa-plus text-[10px]"></i>
-                </button>
+        <div class="flex gap-1 px-3 py-2 border-b border-white/5 shrink-0">
+            <button id="nav-menu" onclick="window.Core.switchView('menu')" class="nav-tab active flex-1 flex flex-col items-center gap-1 py-2 rounded-lg transition" title="Drzewo Menu">
+                <i class="fa-solid fa-sitemap text-[12px]"></i>
+                <span class="text-[7px] font-black uppercase tracking-wider">Menu</span>
+            </button>
+            <button id="nav-modifiers" onclick="window.ModifierInspector.openDrawer()" class="nav-tab flex-1 flex flex-col items-center gap-1 py-2 rounded-lg transition" title="Dodatki i Modyfikatory">
+                <i class="fa-solid fa-puzzle-piece text-[12px]"></i>
+                <span class="text-[7px] font-black uppercase tracking-wider">Dodatki</span>
+            </button>
+            <button id="nav-bulk" onclick="window.Core.switchView('bulk')" class="nav-tab flex-1 flex flex-col items-center gap-1 py-2 rounded-lg transition" title="Edycja Masowa">
+                <i class="fa-solid fa-layer-group text-[12px]"></i>
+                <span class="text-[7px] font-black uppercase tracking-wider">Masowo</span>
+            </button>
+            <button id="nav-meals" onclick="window.Core.switchView('meals')" class="nav-tab flex-1 flex flex-col items-center gap-1 py-2 rounded-lg transition" title="Zestawy Combo">
+                <i class="fa-solid fa-burger text-[12px]"></i>
+                <span class="text-[7px] font-black uppercase tracking-wider">Zestawy</span>
+            </button>
+        </div>
+
+        <div class="px-3 py-2 border-b border-white/5 shrink-0">
+            <div class="relative">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 text-[10px]"></i>
+                <input type="text" id="tree-search" autocomplete="off" placeholder="Szukaj dań po nazwie lub SKU..."
+                       class="w-full bg-black/50 border border-white/10 text-white rounded-lg pl-8 pr-3 py-2 text-[11px] focus:border-blue-500 focus:outline-none transition" oninput="window.Core.filterTree(this.value)">
             </div>
-        </header>
+            <div class="flex gap-1 mt-2" id="tree-filters">
+                <button onclick="window.Core.setTreeFilter('all', this)" class="filter-chip active flex-1 text-[9px] font-bold uppercase py-1 rounded transition bg-blue-600/30 text-blue-300 border border-blue-500/30">Wszystko</button>
+                <button onclick="window.Core.setTreeFilter('active', this)" class="filter-chip flex-1 text-[9px] font-bold uppercase py-1 rounded transition bg-black/40 text-slate-500 border border-white/5 hover:text-white">Aktywne</button>
+                <button onclick="window.Core.setTreeFilter('draft', this)" class="filter-chip flex-1 text-[9px] font-bold uppercase py-1 rounded transition bg-black/40 text-slate-500 border border-white/5 hover:text-white">Draft</button>
+            </div>
+        </div>
 
-        <div id="dynamic-tree-container" class="flex-1 overflow-y-auto p-3 hide-scrollbar">
+        <div id="dynamic-tree-container" class="flex-1 overflow-y-auto p-2 hide-scrollbar">
             <div class="text-center mt-10 text-slate-500 font-black text-[10px] uppercase">
                 <i class="fa-solid fa-spinner fa-spin mr-2"></i> Ładowanie bazy z serwera...
             </div>
+        </div>
+
+        <div id="navigator-dashboard" class="border-t border-white/5 bg-black/30 px-3 py-2.5 shrink-0 hidden">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-[8px] font-black uppercase text-slate-500 tracking-widest">Statystyki</span>
+                <span id="save-indicator-dot" class="w-2 h-2 rounded-full bg-slate-600 transition-colors"></span>
+            </div>
+            <div class="grid grid-cols-3 gap-1.5 text-center">
+                <div class="bg-black/40 rounded-lg p-1.5 border border-white/5">
+                    <div id="dash-total-items" class="text-white text-xs font-black">0</div>
+                    <div class="text-[7px] text-slate-500 uppercase">Dań</div>
+                </div>
+                <div class="bg-black/40 rounded-lg p-1.5 border border-white/5">
+                    <div id="dash-active-items" class="text-emerald-400 text-xs font-black">0</div>
+                    <div class="text-[7px] text-slate-500 uppercase">Live</div>
+                </div>
+                <div class="bg-black/40 rounded-lg p-1.5 border border-white/5">
+                    <div id="dash-draft-items" class="text-amber-400 text-xs font-black">0</div>
+                    <div class="text-[7px] text-slate-500 uppercase">Draft</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center justify-between gap-1 px-3 py-2 border-t border-white/5 bg-black/40 shrink-0">
+            <div class="flex gap-1">
+                <a href="../online_studio/index.html" class="w-7 h-7 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 hover:text-orange-400 hover:border-orange-500/30 transition" title="Online Studio"><i class="fa-solid fa-pizza-slice text-[10px]"></i></a>
+                <a href="../hub/index.html" class="w-7 h-7 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 hover:text-blue-400 hover:border-blue-500/30 transition" title="Hub"><i class="fa-solid fa-layer-group text-[10px]"></i></a>
+                <button onclick="window.location.href='../warehouse/index.html'" class="w-7 h-7 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white transition" title="Magazyn"><i class="fa-solid fa-boxes-stacked text-[10px]"></i></button>
+            </div>
+            <button onclick="window.location.href='admin_app.html'" class="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/5 border border-white/10 rounded-lg text-[8px] font-black uppercase text-slate-400 hover:text-white hover:bg-white/10 transition">
+                <i class="fa-solid fa-arrow-left text-[9px]"></i> Panel
+            </button>
         </div>
     </aside>
 
@@ -113,7 +146,7 @@
 
     <header id="item-command-bar" class="shrink-0 bg-[#0a0a0f]/95 backdrop-blur-xl border-b border-white/10 px-6 py-3 z-40">
         <div class="flex items-center justify-center py-1 text-slate-600">
-            <span class="text-[9px] font-black uppercase tracking-widest"><i class="fa-solid fa-satellite-dish mr-2 opacity-30"></i>Mission Control &mdash; wybierz danie z drzewa</span>
+            <span class="text-[9px] font-black uppercase tracking-widest">Studio Menu &mdash; zarządzaj kartą dań</span>
         </div>
     </header>
 
@@ -125,149 +158,101 @@
             <div class="flex-1 min-w-0 pt-4">
                 <form id="item-form" class="flex flex-col gap-5 pb-20" onsubmit="event.preventDefault();">
                     <input type="hidden" id="item-id" value="0">
-                    <div class="flex flex-col items-center justify-center py-16 text-slate-600 gap-3">
-                        <i class="fa-solid fa-utensils text-2xl opacity-20"></i>
-                        <span class="text-[10px] font-black uppercase tracking-widest">Wybierz danie z drzewa menu</span>
+                    <div class="flex flex-col items-center justify-center py-20 text-center max-w-md mx-auto">
+                        <div class="w-16 h-16 rounded-2xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center mb-5">
+                            <i class="fa-solid fa-utensils text-blue-400 text-2xl"></i>
+                        </div>
+                        <h2 class="text-white font-black text-base uppercase tracking-widest mb-2">Mission Control</h2>
+                        <p class="text-slate-500 text-[11px] leading-relaxed">Wybierz danie z drzewa po lewej stronie aby edytować,<br>lub kliknij <span class="text-green-400 font-bold">+</span> aby dodać nowe danie.</p>
+                        <div class="flex gap-2 mt-6">
+                            <button type="button" onclick="window.Core.addNewItem()" class="px-5 py-2.5 bg-blue-600/20 border border-blue-500/30 text-blue-300 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-blue-600/30 transition">
+                                <i class="fa-solid fa-plus mr-2"></i> Nowe danie
+                            </button>
+                            <button type="button" onclick="window.Core.addCategory()" class="px-5 py-2.5 bg-green-600/20 border border-green-500/30 text-green-300 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-green-600/30 transition">
+                                <i class="fa-solid fa-folder-plus mr-2"></i> Nowa kategoria
+                            </button>
+                        </div>
                     </div>
                 </form>
-            </div>
-
-            <div id="food-cost-panel" class="w-[420px] shrink-0 pt-4 hidden">
-                <div class="sticky top-2">
-                    <div class="bg-[#0a0a0f]/60 border border-white/10 rounded-2xl p-6 shadow-2xl flex flex-col gap-6">
-                        <div class="border-b border-white/5 pb-3">
-                            <h2 class="text-white text-sm font-black tracking-wide uppercase flex items-center gap-2"><i class="fa-solid fa-dna text-purple-400"></i> Bliźniak Cyfrowy (Food Cost)</h2>
-                            <p class="text-slate-500 text-[9px] uppercase mt-1 tracking-wider">Receptury i zużycie magazynowe</p>
-                        </div>
-                        <div class="flex flex-col gap-5">
-                            <div class="flex flex-col gap-3 bg-black/40 p-4 rounded-xl border border-white/5">
-                                <label class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">AutoScan (Food Cost AI)</label>
-                                <textarea id="insp-desc" rows="2" class="bg-black/50 border border-white/10 text-white rounded-lg p-3 text-sm focus:border-purple-500 focus:ring-1 focus:ring-purple-500 focus:outline-none transition resize-none" placeholder="Wpisz opis lub składniki..."></textarea>
-                                <button type="button" onclick="if(window.RecipeMapper && window.RecipeMapper.autoScan) window.RecipeMapper.autoScan();" class="w-full bg-purple-600/80 hover:bg-purple-500 text-white font-bold text-[10px] uppercase tracking-wider py-2 px-4 rounded-lg transition border border-purple-500/50 shadow-[0_0_10px_rgba(147,51,234,0.2)]">
-                                    <i class="fa-solid fa-wand-magic-sparkles mr-2"></i> AutoScan
-                                </button>
-                            </div>
-                            <div class="flex flex-col gap-3 bg-black/40 p-4 rounded-xl border border-white/5">
-                                <div class="flex items-center justify-between">
-                                    <label class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Dodaj Składnik</label>
-                                    <button type="button" onclick="window.RecipeMapper.openBulkAdd()" class="text-[9px] font-black uppercase text-cyan-400 hover:text-cyan-300 px-2 py-1 rounded border border-cyan-500/30 hover:bg-cyan-900/20 transition">
-                                        <i class="fa-solid fa-layer-group mr-1"></i> Bulk Add
-                                    </button>
-                                </div>
-                                <div class="relative">
-                                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 text-[11px]"></i>
-                                    <input type="text" id="ingredient-search" autocomplete="off" placeholder="Szukaj po nazwie lub aliasie (np. 'moz' → Mozzarella)..."
-                                           class="w-full bg-black/50 border border-white/10 text-white rounded-lg pl-9 pr-3 py-2 text-[11px] focus:border-blue-500 focus:outline-none transition">
-                                    <div id="ingredient-search-results" class="hidden absolute top-full left-0 right-0 mt-1 bg-[#0a0a0f] border border-white/10 rounded-lg shadow-2xl max-h-72 overflow-y-auto z-50"></div>
-                                </div>
-                                <div id="ingredient-quickadd" class="hidden flex items-center gap-2 bg-black/40 p-2 rounded-lg border border-blue-500/30">
-                                    <div class="flex-1 min-w-0">
-                                        <div id="quickadd-name" class="text-[11px] font-black text-white truncate"></div>
-                                        <div id="quickadd-sku" class="text-[8px] font-mono text-slate-500 truncate"></div>
-                                    </div>
-                                    <input type="number" id="quickadd-qty" step="0.001" min="0" class="w-20 bg-black/50 border border-white/10 text-white rounded p-1.5 text-[11px] text-center focus:border-blue-500 outline-none" placeholder="100">
-                                    <select id="quickadd-unit" class="bg-black/50 border border-white/10 text-white rounded p-1.5 text-[11px] focus:border-blue-500 outline-none cursor-pointer">
-                                        <option value="g" selected>g</option><option value="ml">ml</option><option value="kg">kg</option><option value="l">l</option><option value="szt">szt</option><option value="por">por</option><option value="opak">opak</option>
-                                    </select>
-                                    <button type="button" onclick="window.RecipeMapper.confirmQuickAdd()" class="bg-green-600 hover:bg-green-500 text-white font-black text-[10px] uppercase py-1.5 px-3 rounded transition shrink-0">
-                                        <i class="fa-solid fa-plus"></i>
-                                    </button>
-                                    <button type="button" onclick="window.RecipeMapper.cancelQuickAdd()" class="bg-slate-700 hover:bg-slate-600 text-white text-[10px] py-1.5 px-2 rounded transition shrink-0">
-                                        <i class="fa-solid fa-xmark"></i>
-                                    </button>
-                                </div>
-                                <select id="manual-ingredient-select" class="hidden"><option value=""></option></select>
-                                <input type="hidden" id="manual-ingredient-qty">
-                                <input type="hidden" id="add-ingredient-unit" value="g">
-                            </div>
-                            <div id="recipe-ingredients-list" class="flex flex-col gap-2"></div>
-                        </div>
-                    </div>
-                    <div id="margin-container" class="p-4 mt-4 bg-[#0a0a0f] bg-opacity-95 backdrop-blur-md border-t border-gray-800 shadow-2xl rounded-xl transition-all duration-300"></div>
-                </div>
             </div>
 
         </div>
     </div>
 </div>
 
-        <div id="modifiers-view" class="flex flex-col h-full animate-fade-in hidden w-full p-10">
-            <h2 class="text-white text-xl font-black">Panel Modyfikatorów i Dodatków</h2>
-        </div>
-
         <div id="meals-view" class="hidden h-full w-full flex flex-col overflow-hidden">
-            <header class="shrink-0 border-b border-white/10 px-8 py-5 flex items-center justify-between bg-[#0a0a0f]/90">
+            <header class="shrink-0 border-b border-white/10 px-5 py-3 flex items-center justify-between bg-[#0a0a0f]/95 backdrop-blur-xl">
                 <div>
-                    <h2 class="text-sm font-black uppercase text-amber-400 tracking-widest">Zestawy Combo</h2>
-                    <p class="text-[9px] text-slate-500 mt-1">F-S3 · sh_meal_packages — kafelki 🍔 w POS (kategoria Zestawy)</p>
+                    <h2 class="text-[11px] font-black uppercase text-amber-400 tracking-widest">Zestawy Combo</h2>
+                    <p class="text-[8px] text-slate-500 mt-0.5">Kafelki 🍔 w POS · kategoria Zestawy</p>
                 </div>
-                <button type="button" onclick="window.MealEditor.newMeal()" class="bg-amber-600 hover:bg-amber-500 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase">+ Nowy zestaw</button>
+                <button type="button" onclick="window.MealEditor.newMeal()" class="bg-amber-600/80 hover:bg-amber-500 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase transition">+ Nowy zestaw</button>
             </header>
             <div class="flex-1 flex overflow-hidden">
-                <div class="w-72 border-r border-white/5 p-4 overflow-y-auto hide-scrollbar">
+                <div class="w-64 border-r border-white/5 p-3 overflow-y-auto hide-scrollbar">
                     <div id="meals-list" class="flex flex-col gap-2"></div>
                 </div>
-                <div class="flex-1 overflow-y-auto p-8 hide-scrollbar max-w-3xl">
-                    <h3 id="meal-form-title" class="text-white font-black text-sm uppercase mb-6">Nowy zestaw combo</h3>
+                <div class="flex-1 overflow-y-auto p-6 hide-scrollbar max-w-2xl">
+                    <h3 id="meal-form-title" class="text-white font-black text-[12px] uppercase mb-5 tracking-wider">Nowy zestaw combo</h3>
                     <input type="hidden" id="meal-id" value="0">
                     <div class="space-y-4">
-                        <div class="grid grid-cols-2 gap-4">
+                        <div class="grid grid-cols-2 gap-3">
                             <div>
-                                <label class="text-[9px] text-slate-500 font-bold uppercase">SKU (ascii_key)</label>
-                                <input id="meal-ascii-key" class="w-full mt-1 bg-black/50 border border-white/10 rounded-lg p-3 text-white text-sm font-mono" placeholder="COMBO_FAMILY">
+                                <label class="studio-label block mb-1">SKU (ascii_key)</label>
+                                <input id="meal-ascii-key" class="studio-input w-full px-3 py-2 text-[12px] font-mono" placeholder="COMBO_FAMILY">
                             </div>
                             <div>
-                                <label class="text-[9px] text-slate-500 font-bold uppercase">Nazwa</label>
-                                <input id="meal-name" class="w-full mt-1 bg-black/50 border border-white/10 rounded-lg p-3 text-white text-sm">
+                                <label class="studio-label block mb-1">Nazwa</label>
+                                <input id="meal-name" class="studio-input w-full px-3 py-2 text-[12px]" placeholder="Nazwa zestawu">
                             </div>
                         </div>
                         <div>
-                            <label class="text-[9px] text-slate-500 font-bold uppercase">Opis</label>
-                            <textarea id="meal-description" rows="2" class="w-full mt-1 bg-black/50 border border-white/10 rounded-lg p-3 text-white text-sm"></textarea>
+                            <label class="studio-label block mb-1">Opis</label>
+                            <textarea id="meal-description" rows="2" class="studio-input w-full px-3 py-2 text-[12px] resize-none"></textarea>
                         </div>
-                        <div class="grid grid-cols-3 gap-4">
+                        <div class="grid grid-cols-3 gap-3">
                             <div>
-                                <label class="text-[9px] text-slate-500 font-bold uppercase">Typ</label>
-                                <select id="meal-type" class="w-full mt-1 bg-black/50 border border-white/10 rounded-lg p-3 text-white text-sm">
+                                <label class="studio-label block mb-1">Typ</label>
+                                <select id="meal-type" class="studio-input w-full px-3 py-2 text-[12px]">
                                     <option value="fixed">fixed — stały skład</option>
                                     <option value="choice">choice — wybór z kategorii</option>
                                 </select>
                             </div>
                             <div>
-                                <label class="text-[9px] text-slate-500 font-bold uppercase">Kategoria menu (POS)</label>
-                                <select id="meal-category-id" class="w-full mt-1 bg-black/50 border border-white/10 rounded-lg p-3 text-white text-sm"></select>
+                                <label class="studio-label block mb-1">Kategoria POS</label>
+                                <select id="meal-category-id" class="studio-input w-full px-3 py-2 text-[12px]"></select>
                             </div>
                             <div>
-                                <label class="text-[9px] text-slate-500 font-bold uppercase">Cena finalna (PLN)</label>
-                                <input id="meal-final-price" type="number" step="0.01" class="w-full mt-1 bg-black/50 border border-white/10 rounded-lg p-3 text-white text-sm" placeholder="35.00">
+                                <label class="studio-label block mb-1">Cena (PLN)</label>
+                                <input id="meal-final-price" type="number" step="0.01" class="studio-input w-full px-3 py-2 text-[12px]" placeholder="35.00">
                             </div>
                         </div>
-                        <div class="grid grid-cols-2 gap-4">
+                        <div class="grid grid-cols-2 gap-3">
                             <div>
-                                <label class="text-[9px] text-slate-500 font-bold uppercase">Publikacja</label>
-                                <select id="meal-pub-status" class="w-full mt-1 bg-black/50 border border-white/10 rounded-lg p-3 text-white text-sm">
+                                <label class="studio-label block mb-1">Publikacja</label>
+                                <select id="meal-pub-status" class="studio-input w-full px-3 py-2 text-[12px]">
                                     <option value="Draft">Draft</option>
                                     <option value="Live">Live</option>
                                     <option value="Archived">Archived</option>
                                 </select>
                             </div>
                             <div class="flex items-end pb-2">
-                                <label class="flex items-center gap-2 text-[10px] text-white font-bold">
-                                    <input type="checkbox" id="meal-is-active" checked class="rounded"> Aktywny w POS
+                                <label class="flex items-center gap-2 text-[10px] text-slate-300 font-bold">
+                                    <input type="checkbox" id="meal-is-active" checked class="rounded accent-amber-500"> Aktywny w POS
                                 </label>
                             </div>
                         </div>
-                        <div>
-                            <div class="flex justify-between items-center mb-2">
-                                <label class="text-[9px] text-amber-500 font-bold uppercase">Składniki</label>
-                                <button type="button" onclick="window.MealEditor.addCompRow()" class="text-[9px] font-black uppercase text-cyan-400">+ wiersz</button>
+                        <div class="studio-card p-4">
+                            <div class="flex justify-between items-center mb-3">
+                                <label class="studio-label text-amber-500">Składniki</label>
+                                <button type="button" onclick="window.MealEditor.addCompRow()" class="text-[9px] font-black uppercase text-cyan-400 hover:text-cyan-300 transition">+ wiersz</button>
                             </div>
                             <div id="meal-components-editor" class="space-y-2"></div>
-                            <p class="text-[8px] text-slate-600 mt-2">fixed_item → pole SKU. category_choice → ID kategorii (np. 2 = Burgery).</p>
+                            <p class="text-[8px] text-slate-600 mt-2">fixed_item → pole SKU. category_choice → ID kategorii.</p>
                         </div>
-                        <div class="flex gap-3 pt-4">
-                            <button type="button" onclick="window.MealEditor.save()" class="bg-green-600 hover:bg-green-500 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase">Zapisz zestaw</button>
-                            <button type="button" onclick="window.MealEditor.deleteMeal()" class="bg-red-900/50 hover:bg-red-800 text-red-300 px-6 py-3 rounded-xl text-[10px] font-black uppercase border border-red-500/30">Usuń</button>
+                        <div class="flex gap-3 pt-2">
+                            <button type="button" onclick="window.MealEditor.save()" class="studio-btn bg-green-600/80 hover:bg-green-500 text-white px-5 py-2.5 text-[10px]">Zapisz zestaw</button>
+                            <button type="button" onclick="window.MealEditor.deleteMeal()" class="studio-btn bg-red-900/40 hover:bg-red-800/60 text-red-300 px-5 py-2.5 text-[10px] border border-red-500/30">Usuń</button>
                         </div>
                     </div>
                 </div>
@@ -275,77 +260,77 @@
         </div>
 
         <div id="bulk-inspector-view" class="flex flex-col h-full animate-fade-in hidden">
-            <header class="h-20 border-b border-purple-500/30 bg-[#0a0a0f]/90 flex items-center justify-between px-10 sticky top-0 z-50 backdrop-blur-xl shadow-[0_4px_30px_rgba(168,85,247,0.15)]">
+            <header class="h-16 border-b border-purple-500/30 bg-[#0a0a0f]/90 flex items-center justify-between px-6 sticky top-0 z-50 backdrop-blur-xl">
                 <div class="flex flex-col">
-                    <h2 class="text-[13px] font-black uppercase text-purple-400 tracking-widest flex items-center gap-3 drop-shadow-[0_0_8px_rgba(168,85,247,0.5)]"><i class="fa-solid fa-bolt text-purple-300"></i> Kreator Masowy</h2>
-                    <span id="bulk-count-label" class="text-[10px] font-black text-slate-400 uppercase mt-1 tracking-wider">Zaznaczono: 0 dań</span>
+                    <h2 class="text-[12px] font-black uppercase text-purple-400 tracking-widest flex items-center gap-2"><i class="fa-solid fa-bolt text-purple-300"></i> Kreator Masowy</h2>
+                    <span id="bulk-count-label" class="text-[9px] font-bold text-slate-400 uppercase mt-0.5 tracking-wider">Zaznaczono: 0 dań</span>
                 </div>
-                <button id="btn-bulk-save" onclick="window.BulkEditor.executeBulkUpdate()" class="bg-purple-600/90 hover:bg-purple-500 text-white h-11 px-8 rounded-xl font-black uppercase text-[11px] shadow-[0_0_15px_rgba(168,85,247,0.4)] transition-all duration-300 transform active:scale-95 flex items-center gap-2 border border-purple-400/50">
+                <button id="btn-bulk-save" onclick="window.BulkEditor.executeBulkUpdate()" class="bg-purple-600/90 hover:bg-purple-500 text-white h-10 px-6 rounded-xl font-black uppercase text-[10px] transition-all transform active:scale-95 flex items-center gap-2 border border-purple-400/50">
                     <i class="fa-solid fa-wand-magic-sparkles"></i> Zastosuj do wszystkich
                 </button>
             </header>
             
-            <div class="p-10 max-w-4xl mx-auto w-full space-y-10 pb-32">
+            <div class="p-6 max-w-3xl mx-auto w-full space-y-6 pb-32">
 
-                <div class="bg-[#0a0a0f]/60 backdrop-blur-md border border-blue-500/20 p-8 rounded-3xl space-y-6 relative overflow-hidden shadow-[0_0_20px_rgba(59,130,246,0.05)] hover:border-blue-500/40 transition-colors group">
-                    <div class="absolute top-0 left-0 w-1.5 h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.8)]"></div>
-                    <h3 class="text-[12px] font-black uppercase text-blue-400 tracking-widest relative z-10"><i class="fa-solid fa-truck-fast mr-3"></i> Logistyka</h3>
-                    <div class="grid grid-cols-2 gap-8 relative z-10">
+                <div class="bg-[#0a0a0f]/60 backdrop-blur-md border border-blue-500/20 p-5 rounded-2xl space-y-4 relative overflow-hidden hover:border-blue-500/40 transition-colors">
+                    <div class="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+                    <h3 class="text-[11px] font-black uppercase text-blue-400 tracking-widest relative z-10"><i class="fa-solid fa-truck-fast mr-2"></i> Logistyka</h3>
+                    <div class="grid grid-cols-2 gap-4 relative z-10">
                         <!-- F-S4 (2026-05-11): bulk-vat poprawiony — value to teraz stawka procentowa (była ID 1/2/3/4 = drift). -->
-                        <select id="bulk-vat" class="w-full bg-[#050508] border border-white/10 rounded-xl p-5 text-[12px] font-bold text-white outline-none focus:border-blue-500 focus:shadow-[0_0_15px_rgba(59,130,246,0.2)] transition-all">
+                        <select id="bulk-vat" class="w-full bg-[#050508] border border-white/10 rounded-xl p-3 text-[12px] font-bold text-white outline-none focus:border-blue-500 transition-all">
                             <option value="">-- VAT (Ignoruj) --</option>
                             <option value="0">VAT 0%</option>
                             <option value="5">VAT 5%</option>
                             <option value="8">VAT 8%</option>
                             <option value="23">VAT 23%</option>
                         </select>
-                        <select id="bulk-printer" class="w-full bg-[#050508] border border-white/10 rounded-xl p-5 text-[12px] font-bold text-white outline-none focus:border-blue-500 focus:shadow-[0_0_15px_rgba(59,130,246,0.2)] transition-all">
+                        <select id="bulk-printer" class="w-full bg-[#050508] border border-white/10 rounded-xl p-3 text-[12px] font-bold text-white outline-none focus:border-blue-500 transition-all">
                             <option value="">-- KDS Station (Ignoruj) --</option><option value="KITCHEN_1">Kuchnia Glowna</option><option value="BAR">Bar Zimny</option><option value="NONE">Brak</option>
                         </select>
                     </div>
                 </div>
 
-                <div class="bg-[#0a0a0f]/60 backdrop-blur-md border border-cyan-500/20 p-8 rounded-3xl space-y-6 relative overflow-hidden shadow-[0_0_20px_rgba(6,182,212,0.08)] hover:border-cyan-500/40 transition-colors group">
-                    <div class="absolute top-0 left-0 w-1.5 h-full bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.8)]"></div>
-                    <h3 class="text-[12px] font-black uppercase text-cyan-400 tracking-widest relative z-10"><i class="fa-solid fa-calendar-days mr-3"></i> Panel Harmonogramu Masowego</h3>
-                    <div class="grid grid-cols-3 gap-4 relative z-10">
-                        <select id="bulk-publication-status" class="w-full bg-[#050508] border border-white/10 rounded-xl p-5 text-[12px] font-bold text-white outline-none focus:border-cyan-500 transition-all">
+                <div class="bg-[#0a0a0f]/60 backdrop-blur-md border border-cyan-500/20 p-5 rounded-2xl space-y-4 relative overflow-hidden hover:border-cyan-500/40 transition-colors">
+                    <div class="absolute top-0 left-0 w-1 h-full bg-cyan-500"></div>
+                    <h3 class="text-[11px] font-black uppercase text-cyan-400 tracking-widest relative z-10"><i class="fa-solid fa-calendar-days mr-2"></i> Harmonogram Masowy</h3>
+                    <div class="grid grid-cols-3 gap-3 relative z-10">
+                        <select id="bulk-publication-status" class="w-full bg-[#050508] border border-white/10 rounded-xl p-3 text-[12px] font-bold text-white outline-none focus:border-cyan-500 transition-all">
                             <option value="NO_CHANGE">Bez Zmian</option>
                             <option value="Draft">Draft</option>
                             <option value="Live">Live</option>
                             <option value="Archived">Archived</option>
                         </select>
-                        <input type="datetime-local" id="bulk-valid-from" class="w-full bg-[#050508] border border-white/10 rounded-xl p-5 text-[12px] font-bold text-white outline-none focus:border-cyan-500 transition-all">
-                        <input type="datetime-local" id="bulk-valid-to" class="w-full bg-[#050508] border border-white/10 rounded-xl p-5 text-[12px] font-bold text-white outline-none focus:border-cyan-500 transition-all">
+                        <input type="datetime-local" id="bulk-valid-from" class="w-full bg-[#050508] border border-white/10 rounded-xl p-3 text-[12px] font-bold text-white outline-none focus:border-cyan-500 transition-all">
+                        <input type="datetime-local" id="bulk-valid-to" class="w-full bg-[#050508] border border-white/10 rounded-xl p-3 text-[12px] font-bold text-white outline-none focus:border-cyan-500 transition-all">
                     </div>
                 </div>
 
-                <div class="bg-[#0a0a0f]/60 backdrop-blur-md border border-yellow-500/20 p-8 rounded-3xl space-y-6 relative overflow-hidden shadow-[0_0_20px_rgba(234,179,8,0.08)] hover:border-yellow-500/40 transition-colors group">
-                    <div class="absolute top-0 left-0 w-1.5 h-full bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.8)]"></div>
-                    <h3 class="text-[12px] font-black uppercase text-yellow-500 tracking-widest relative z-10"><i class="fa-solid fa-layer-group mr-3"></i> Masowy Modyfikator Omnichannel</h3>
-                    <div class="grid grid-cols-3 gap-4 relative z-10">
-                        <select id="bulk-channel-target" class="w-full bg-[#050508] border border-white/10 rounded-xl p-5 text-[12px] font-bold text-white outline-none focus:border-yellow-500 transition-all">
+                <div class="bg-[#0a0a0f]/60 backdrop-blur-md border border-yellow-500/20 p-5 rounded-2xl space-y-4 relative overflow-hidden hover:border-yellow-500/40 transition-colors">
+                    <div class="absolute top-0 left-0 w-1 h-full bg-yellow-500"></div>
+                    <h3 class="text-[11px] font-black uppercase text-yellow-500 tracking-widest relative z-10"><i class="fa-solid fa-layer-group mr-2"></i> Modyfikator Omnichannel</h3>
+                    <div class="grid grid-cols-3 gap-3 relative z-10">
+                        <select id="bulk-channel-target" class="w-full bg-[#050508] border border-white/10 rounded-xl p-3 text-[12px] font-bold text-white outline-none focus:border-yellow-500 transition-all">
                             <option value="POS">POS</option>
                             <option value="Takeaway">Takeaway</option>
                             <option value="Delivery">Delivery</option>
                         </select>
-                        <select id="bulk-omni-price-op" class="w-full bg-[#050508] border border-white/10 rounded-xl p-5 text-[12px] font-bold text-white outline-none focus:border-yellow-500 transition-all">
+                        <select id="bulk-omni-price-op" class="w-full bg-[#050508] border border-white/10 rounded-xl p-3 text-[12px] font-bold text-white outline-none focus:border-yellow-500 transition-all">
                             <option value="set_amount">Ustaw sztywna kwote</option>
                             <option value="increase_percent">Zwieksz o %</option>
                             <option value="increase_pln">Zwieksz o PLN</option>
                         </select>
-                        <input type="number" id="bulk-omni-price-value" step="0.01" placeholder="Wartosc operacji" class="w-full bg-[#050508] border border-white/10 rounded-xl p-5 text-[12px] font-black text-white outline-none focus:border-yellow-500 transition-all">
+                        <input type="number" id="bulk-omni-price-value" step="0.01" placeholder="Wartosc operacji" class="w-full bg-[#050508] border border-white/10 rounded-xl p-3 text-[12px] font-bold text-white outline-none focus:border-yellow-500 transition-all">
                     </div>
                 </div>
 
-                <div class="bg-[#0a0a0f]/60 backdrop-blur-md border border-purple-500/20 p-8 rounded-3xl space-y-6 relative overflow-hidden shadow-[0_0_20px_rgba(168,85,247,0.05)] hover:border-purple-500/40 transition-colors group">
-                    <div class="absolute top-0 left-0 w-1.5 h-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.8)]"></div>
-                    <h3 class="text-[12px] font-black uppercase text-purple-400 tracking-widest relative z-10"><i class="fa-solid fa-bullseye mr-3"></i> Marketing</h3>
-                    <div class="grid grid-cols-2 gap-8 relative z-10">
-                        <select id="bulk-badge" class="w-full bg-[#050508] border border-white/10 rounded-xl p-5 text-[12px] font-bold text-white outline-none focus:border-purple-500 focus:shadow-[0_0_15px_rgba(168,85,247,0.2)] transition-all">
+                <div class="bg-[#0a0a0f]/60 backdrop-blur-md border border-purple-500/20 p-5 rounded-2xl space-y-4 relative overflow-hidden hover:border-purple-500/40 transition-colors">
+                    <div class="absolute top-0 left-0 w-1 h-full bg-purple-500"></div>
+                    <h3 class="text-[11px] font-black uppercase text-purple-400 tracking-widest relative z-10"><i class="fa-solid fa-bullseye mr-2"></i> Marketing</h3>
+                    <div class="grid grid-cols-2 gap-4 relative z-10">
+                        <select id="bulk-badge" class="w-full bg-[#050508] border border-white/10 rounded-xl p-3 text-[12px] font-bold text-white outline-none focus:border-purple-500 transition-all">
                             <option value="">-- Odznaka (Ignoruj) --</option><option value="none">Usuń Odznaki</option><option value="new">NOWOSC</option><option value="bestseller">BESTSELLER</option>
                         </select>
-                        <select id="bulk-secret" class="w-full bg-[#050508] border border-white/10 rounded-xl p-5 text-[12px] font-bold text-white outline-none focus:border-purple-500 focus:shadow-[0_0_15px_rgba(168,85,247,0.2)] transition-all">
+                        <select id="bulk-secret" class="w-full bg-[#050508] border border-white/10 rounded-xl p-3 text-[12px] font-bold text-white outline-none focus:border-purple-500 transition-all">
                             <option value="">-- Tajne Menu (Ignoruj) --</option><option value="1">Ustaw jako Tajne (Tylko QR)</option><option value="0">Zdejmij Tajne (Publiczne)</option>
                         </select>
                     </div>
@@ -354,6 +339,81 @@
         </div>
 
     </main>
+
+    <aside id="studio-inspector" class="w-[380px] flex-shrink-0 bg-[#0a0f1c] border-l border-white/5 flex flex-col overflow-hidden hidden">
+        <header id="inspector-header" class="shrink-0 border-b border-white/5 px-4 py-3 bg-black/20">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 id="inspector-title" class="font-black text-[10px] uppercase tracking-widest text-white">Inspector</h2>
+                    <p id="inspector-subtitle" class="text-[8px] text-slate-500 mt-0.5">Food Cost &amp; Margin</p>
+                </div>
+                <span id="current-sku-display" class="text-[8px] font-mono text-slate-600"></span>
+            </div>
+        </header>
+        <div id="inspector-recipe" class="flex-1 overflow-y-auto hide-scrollbar p-4">
+            <div class="studio-card p-4 flex flex-col gap-4">
+                <div class="border-b border-white/5 pb-3">
+                    <h2 class="text-white text-[12px] font-black tracking-wide uppercase flex items-center gap-2"><i class="fa-solid fa-dna text-purple-400"></i> Bliźniak Cyfrowy</h2>
+                    <p class="text-slate-500 text-[8px] uppercase mt-1 tracking-wider">Receptury i zużycie magazynowe</p>
+                </div>
+                <div class="flex flex-col gap-4">
+                    <div class="flex flex-col gap-2 bg-black/30 p-3 rounded-xl border border-white/5">
+                        <label class="studio-label text-slate-400">AutoScan (Food Cost AI)</label>
+                        <textarea id="insp-desc" rows="2" class="studio-input px-3 py-2 text-[12px] resize-none" placeholder="Wpisz opis lub składniki..."></textarea>
+                        <button type="button" onclick="if(window.RecipeMapper && window.RecipeMapper.autoScan) window.RecipeMapper.autoScan();" class="studio-btn w-full bg-purple-600/80 hover:bg-purple-500 text-white py-2 px-4 text-[10px] border border-purple-500/30">
+                            <i class="fa-solid fa-wand-magic-sparkles mr-2"></i> AutoScan
+                        </button>
+                    </div>
+                    <div class="flex flex-col gap-2 bg-black/30 p-3 rounded-xl border border-white/5">
+                        <div class="flex items-center justify-between">
+                            <label class="studio-label text-slate-400">Dodaj Składnik</label>
+                            <button type="button" onclick="window.RecipeMapper.openBulkAdd()" class="text-[9px] font-black uppercase text-cyan-400 hover:text-cyan-300 px-2 py-1 rounded border border-cyan-500/30 hover:bg-cyan-900/20 transition">
+                                <i class="fa-solid fa-layer-group mr-1"></i> Bulk Add
+                            </button>
+                        </div>
+                        <div class="relative">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 text-[11px]"></i>
+                            <input type="text" id="ingredient-search" autocomplete="off" placeholder="Szukaj po nazwie lub aliasie..."
+                                   class="studio-input w-full pl-9 pr-3 py-2 text-[11px]">
+                            <div id="ingredient-search-results" class="hidden absolute top-full left-0 right-0 mt-1 bg-[#0a0a0f] border border-white/10 rounded-lg shadow-2xl max-h-72 overflow-y-auto z-50"></div>
+                        </div>
+                        <div id="ingredient-quickadd" class="hidden flex items-center gap-2 bg-black/40 p-2 rounded-lg border border-blue-500/30">
+                            <div class="flex-1 min-w-0">
+                                <div id="quickadd-name" class="text-[11px] font-black text-white truncate"></div>
+                                <div id="quickadd-sku" class="text-[8px] font-mono text-slate-500 truncate"></div>
+                            </div>
+                            <input type="number" id="quickadd-qty" step="0.001" min="0" class="studio-input w-20 p-1.5 text-[11px] text-center" placeholder="100">
+                            <select id="quickadd-unit" class="studio-input p-1.5 text-[11px] cursor-pointer">
+                                <option value="g" selected>g</option><option value="ml">ml</option><option value="kg">kg</option><option value="l">l</option><option value="szt">szt</option><option value="por">por</option><option value="opak">opak</option>
+                            </select>
+                            <button type="button" onclick="window.RecipeMapper.confirmQuickAdd()" class="bg-green-600 hover:bg-green-500 text-white font-black text-[10px] uppercase py-1.5 px-3 rounded transition shrink-0">
+                                <i class="fa-solid fa-plus"></i>
+                            </button>
+                            <button type="button" onclick="window.RecipeMapper.cancelQuickAdd()" class="bg-slate-700 hover:bg-slate-600 text-white text-[10px] py-1.5 px-2 rounded transition shrink-0">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                        <select id="manual-ingredient-select" class="hidden"><option value=""></option></select>
+                        <input type="hidden" id="manual-ingredient-qty">
+                        <input type="hidden" id="add-ingredient-unit" value="g">
+                    </div>
+                    <div id="recipe-ingredients-list" class="flex flex-col gap-2"></div>
+                </div>
+            </div>
+            <div id="margin-container" class="p-4 mt-3 bg-[#0a0a0f]/60 border border-white/8 rounded-xl transition-all"></div>
+        </div>
+        <div id="inspector-bulk" class="flex-1 overflow-y-auto hide-scrollbar p-4 hidden">
+            <p class="text-slate-500 text-[10px] text-center mt-10 uppercase font-black tracking-widest">Edycja masowa</p>
+            <div id="inspector-bulk-list" class="space-y-2 mt-4"></div>
+        </div>
+        <div id="inspector-dashboard" class="flex-1 overflow-y-auto hide-scrollbar p-4 hidden">
+            <div id="inspector-dashboard-content"></div>
+        </div>
+    </aside>
+
+    <!-- Modifiers Drawer (Faza 3) -->
+    <div id="modifiers-drawer-backdrop" class="fixed inset-0 bg-black/50 z-[90]" onclick="window.ModifierInspector.closeDrawer()"></div>
+    <aside id="modifiers-drawer" class="fixed top-0 right-0 h-full w-[480px] bg-[#0a0a0f] border-l border-white/10 shadow-2xl z-[100] overflow-y-auto hide-scrollbar"></aside>
 
     <script src="../../core/js/sh_api_base.js"></script>
     <script src="../../core/js/api_client.js"></script>

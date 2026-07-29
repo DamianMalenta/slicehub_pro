@@ -18,6 +18,21 @@ declare(strict_types=1);
 // SAFE TO RE-RUN: Uses ON DUPLICATE KEY UPDATE throughout.
 // =============================================================================
 
+// ──────────────────────────────────────────────────────────────
+// Guard: SLICEHUB_SCRIPT_KEY (skip in CLI mode)
+// ──────────────────────────────────────────────────────────────
+if (PHP_SAPI !== 'cli') {
+    $localSecrets = __DIR__ . '/../core/local_secrets.php';
+    if (is_file($localSecrets)) require_once $localSecrets;
+    $expectedKey = defined('SLICEHUB_SCRIPT_KEY') ? (string) constant('SLICEHUB_SCRIPT_KEY') : '';
+    $givenKey = (string)($_SERVER['HTTP_X_SCRIPT_KEY'] ?? $_GET['key'] ?? $_POST['key'] ?? '');
+    if ($expectedKey === '' || !hash_equals($expectedKey, $givenKey)) {
+        http_response_code(403);
+        header('Content-Type: application/json; charset=utf-8');
+        die(json_encode(['success' => false, 'message' => 'Brak/zły klucz dostępu (SLICEHUB_SCRIPT_KEY).']));
+    }
+}
+
 require_once __DIR__ . '/../core/db_config.php';
 require_once __DIR__ . '/../core/Uuid.php';
 require_once __DIR__ . '/lib/seed_search_aliases.php';
@@ -1108,43 +1123,55 @@ seed('Variant scales (2 scales, 7 options)', function ($pdo, $T) {
             "INSERT INTO sh_menu_items (id, tenant_id, category_id, name, ascii_key, `type`, is_active,
                 display_order, publication_status, vat_rate_dine_in, vat_rate_takeaway, kds_station_id,
                 variant_scale_id, is_variant_parent, parent_item_id, variant_option_id)
-             VALUES (?,?,1,?,?, 'standard', 1, ?, 'Live', 8.00, 5.00, ?,
+             VALUES (?,?,?,?,?, 'standard', 1, ?, 'Live', 8.00, 5.00, ?,
                 ?, 0, ?, ?)
              ON DUPLICATE KEY UPDATE
-                name=VALUES(name), parent_item_id=VALUES(parent_item_id),
+                name=VALUES(name), category_id=VALUES(category_id),
+                parent_item_id=VALUES(parent_item_id),
                 variant_option_id=VALUES(variant_option_id), is_variant_parent=0,
+                variant_scale_id=VALUES(variant_scale_id),
+                kds_station_id=VALUES(kds_station_id),
+                display_order=VALUES(display_order),
                 is_active=1, publication_status='Live'"
         );
         $stmtPrice = $pdo->prepare(
             "INSERT INTO sh_price_tiers (tenant_id, target_type, target_sku, channel, price)
-             VALUES (?, 'ITEM', ?, 'POS', ?)
+             VALUES (?, 'ITEM', ?, ?, ?)
              ON DUPLICATE KEY UPDATE price=VALUES(price)"
         );
 
         $childCount = 0;
         $childId = 100;
 
-        // Pizza children (IDs 100-107)
+        // Pizza children (IDs 100-107) — category_id=1 (Pizza)
+        $pizzaCatId = 1;
         foreach ($pizzaParents as $p) {
             foreach ($pizzaSizes as $sz) {
                 $childSku = $p[0] . '_' . $sz[0];
                 $childName = str_replace('PIZZA_', '', $p[0]) . ' ' . $sz[0];
                 $childPrice = round($p[2] * $sz[2], 2);
-                $stmtChild->execute([$childId, $T, $childName, $childSku, $childId, $p[3], 1, $p[1], $sz[1]]);
-                $stmtPrice->execute([$T, $childSku, $childPrice]);
+                $delPrice = round($childPrice * 1.08, 2);
+                $stmtChild->execute([$childId, $T, $pizzaCatId, $childName, $childSku, $childId, $p[3], 1, $p[1], $sz[1]]);
+                $stmtPrice->execute([$T, $childSku, 'POS', $childPrice]);
+                $stmtPrice->execute([$T, $childSku, 'Takeaway', $childPrice]);
+                $stmtPrice->execute([$T, $childSku, 'Delivery', $delPrice]);
                 $childId++;
                 $childCount++;
             }
         }
 
-        // Burger children (IDs 108-109)
+        // Burger children (IDs 108-109) — category_id=2 (Burgery)
+        $burgerCatId = 2;
         foreach ($burgerParents as $p) {
             foreach ($burgerSizes as $sz) {
                 $childSku = $p[0] . '_' . $sz[0];
                 $childName = str_replace('BURGER_', '', $p[0]) . ' ' . $sz[0];
                 $childPrice = round($p[2] * $sz[2], 2);
-                $stmtChild->execute([$childId, $T, $childName, $childSku, $childId, $p[3], 2, $p[1], $sz[1]]);
-                $stmtPrice->execute([$T, $childSku, $childPrice]);
+                $delPrice = round($childPrice * 1.08, 2);
+                $stmtChild->execute([$childId, $T, $burgerCatId, $childName, $childSku, $childId, $p[3], 2, $p[1], $sz[1]]);
+                $stmtPrice->execute([$T, $childSku, 'POS', $childPrice]);
+                $stmtPrice->execute([$T, $childSku, 'Takeaway', $childPrice]);
+                $stmtPrice->execute([$T, $childSku, 'Delivery', $delPrice]);
                 $childId++;
                 $childCount++;
             }
@@ -1184,7 +1211,7 @@ seed('Variant scales (2 scales, 7 options)', function ($pdo, $T) {
             }
         }
 
-        return "2 skale, 3 parents (2 pizza + 1 burger) + {$childCount} children z cenami + modifierami";
+        return "2 skale, 3 parents (2 pizza + 1 burger) + {$childCount} children z cenami (POS+Takeaway+Delivery) + modifierami";
     }
 
     return '2 skale (bez children — brak kolumn variant w sh_menu_items)';
@@ -1222,6 +1249,222 @@ seed('Print decks (1 demo deck)', function ($pdo, $T) {
         $stmt->execute([$c[0], $c[1], $c[2], $cardKeys[$i], $c[3], $c[4], $c[5]]);
     }
     return '1 deck (5 kart: cover, hero_duo, hero_sizes, hero_list, cta)';
+});
+
+// =============================================================================
+// 15. PAYROLL HISTORY — zamknięte sesje + wpisy ledger (ostatnie 4 miesiące)
+// -----------------------------------------------------------------------------
+// Seedy 13/14 tworzą tylko aktywne (otwarte) sesje i profile HR ze stawkami.
+// Bez historii zamkniętych sesji + wpisów w sh_payroll_ledger raporty płacowe
+// (PayrollEngine, TeamPayrollEngine) i BI P&L (BiEngine::aggregateLaborMinor)
+// pokazują zera. Tu generujemy ~20 sesji miesięcznie per pracownik przez
+// 4 ostatnie miesiące + odpowiadające im wpisy work_earnings w ledgerze.
+//
+// Idempotentność: entry_uuid = deterministyczny UUID per (employee, month, day).
+// sh_work_sessions: ON DUPLICATE KEY UPDATE — re-run nie dubluje.
+// =============================================================================
+seed('Payroll history (4 months × ~20 shifts)', function ($pdo, $T) use ($uuid4, $HR_RATES_MINOR) {
+    // Guard: wymagany profil HR + ledger
+    try {
+        $pdo->query('SELECT 1 FROM sh_payroll_ledger LIMIT 0');
+        $pdo->query('SELECT employee_id FROM sh_work_sessions LIMIT 0');
+    } catch (Throwable $e) {
+        return 'Pominięto — migracje 041-043 nieprzyjęte';
+    }
+
+    // Mapa username → (user_id, employee_id, rate_minor)
+    $empMap = [];
+    $stmtEmp = $pdo->prepare("
+        SELECT u.id AS user_id, u.username, e.id AS employee_id
+        FROM sh_users u
+        INNER JOIN sh_employees e ON e.user_id = u.id AND e.tenant_id = u.tenant_id
+        WHERE u.tenant_id = ? AND u.is_deleted = 0 AND e.is_deleted = 0
+    ");
+    $stmtEmp->execute([$T]);
+    foreach ($stmtEmp->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $uname = $r['username'];
+        $rateMinor = $HR_RATES_MINOR[$uname] ?? 0;
+        if ($rateMinor > 0) {
+            $empMap[$uname] = [
+                'user_id'     => (int)$r['user_id'],
+                'employee_id' => (int)$r['employee_id'],
+                'rate_minor'  => $rateMinor,
+            ];
+        }
+    }
+
+    if ($empMap === []) {
+        return 'Brak pracowników ze stawkami — pominięto';
+    }
+
+    // Pobierz stawki z sh_employee_rates (temporalne — effective_from hire_date)
+    $stmtRate = $pdo->prepare("
+        SELECT amount_minor FROM sh_employee_rates
+        WHERE tenant_id = ? AND employee_id = ? AND rate_type = 'hourly'
+          AND effective_from <= ? AND (effective_to IS NULL OR effective_to > ?)
+        ORDER BY effective_from DESC LIMIT 1
+    ");
+
+    // Insert zamkniętej sesji
+    $stmtWs = $pdo->prepare("
+        INSERT INTO sh_work_sessions
+            (session_uuid, tenant_id, user_id, employee_id, start_time, end_time,
+             total_hours, clock_in_source, clock_out_source)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'kiosk', 'kiosk')
+        ON DUPLICATE KEY UPDATE
+            end_time = VALUES(end_time),
+            total_hours = VALUES(total_hours)
+    ");
+
+    // Insert wpisu work_earnings w ledgerze
+    $stmtLedger = $pdo->prepare("
+        INSERT INTO sh_payroll_ledger
+            (entry_uuid, tenant_id, employee_id, period_year, period_month,
+             entry_type, amount_minor, currency, hours_qty, rate_applied_minor,
+             ref_work_session_id, description, created_at)
+        VALUES (?, ?, ?, ?, ?, 'work_earnings', ?, 'PLN', ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            amount_minor = VALUES(amount_minor),
+            hours_qty = VALUES(hours_qty)
+    ");
+
+    // Pobierz ID sesji po UUID
+    $stmtWsId = $pdo->prepare("SELECT id FROM sh_work_sessions WHERE session_uuid = ? LIMIT 1");
+
+    $now = new DateTimeImmutable('now');
+    $monthsBack = [3, 2, 1, 0]; // 4 miesiące wstecz (0 = bieżący)
+    $shiftsCreated = 0;
+    $ledgerEntries = 0;
+
+    foreach ($monthsBack as $offset) {
+        $monthStart = $now->modify("first day of this month")->modify("-{$offset} months")->setTime(0, 0, 0);
+        $year  = (int)$monthStart->format('Y');
+        $month = (int)$monthStart->format('n');
+        $daysInMonth = (int)$monthStart->format('t');
+
+        // Bieżący miesiąc — nie generuj przyszłości, tylko do dzisiaj
+        $maxDay = $offset === 0 ? (int)$now->format('j') : $daysInMonth;
+
+        foreach ($empMap as $uname => $emp) {
+            // ~20 zmian miesięcznie (pon-pt, ~4 tygodnie)
+            $shiftsThisMonth = 0;
+            for ($day = 1; $day <= $maxDay && $shiftsThisMonth < 22; $day++) {
+                $date = $monthStart->modify("+{$day} days");
+                $dow = (int)$date->format('N'); // 1=Mon, 7=Sun
+                if ($dow >= 6) continue; // skip weekends
+
+                $shiftsThisMonth++;
+
+                // Start 10:00, end 18:00 (8h zmiana)
+                $start = $date->setTime(10, 0, 0);
+                $end   = $date->setTime(18, 0, 0);
+
+                // Pomiń przyszłość
+                if ($start > $now) continue;
+
+                $startSql = $start->format('Y-m-d H:i:s');
+                $endSql   = $end->format('Y-m-d H:i:s');
+                $hours    = 8.0;
+
+                // Stawka temporalna na moment startu
+                $stmtRate->execute([$T, $emp['employee_id'], $startSql, $startSql]);
+                $rateMinor = (int)$stmtRate->fetchColumn();
+                if ($rateMinor <= 0) $rateMinor = $emp['rate_minor'];
+
+                $earningsMinor = (int)round($hours * $rateMinor);
+
+                // Deterministyczny UUID per (employee, month, day, shift)
+                $wsUuid = Uuid::deterministic("seed-hist-{$emp['employee_id']}-{$year}-{$month}-{$day}");
+                $ledgerUuid = Uuid::deterministic("seed-ledger-{$emp['employee_id']}-{$year}-{$month}-{$day}");
+
+                $stmtWs->execute([
+                    $wsUuid, $T, $emp['user_id'], $emp['employee_id'],
+                    $startSql, $endSql, $hours,
+                ]);
+
+                $stmtWsId->execute([$wsUuid]);
+                $wsId = (int)$stmtWsId->fetchColumn();
+
+                $desc = "Seed historyczny: {$uname} {$startSql} (8h × " . number_format($rateMinor / 100, 2) . " zł/h)";
+
+                $stmtLedger->execute([
+                    $ledgerUuid, $T, $emp['employee_id'], $year, $month,
+                    $earningsMinor, $hours, $rateMinor,
+                    $wsId, $desc, $endSql,
+                ]);
+
+                $shiftsCreated++;
+                $ledgerEntries++;
+            }
+        }
+    }
+
+    $cntLedger = (int)$pdo->query("SELECT COUNT(*) FROM sh_payroll_ledger WHERE tenant_id = {$T}")->fetchColumn();
+    $cntWs = (int)$pdo->query("SELECT COUNT(*) FROM sh_work_sessions WHERE tenant_id = {$T} AND end_time IS NOT NULL")->fetchColumn();
+
+    return "{$shiftsCreated} sesji, {$ledgerEntries} wpisów ledger (łącznie: {$cntWs} zamkniętych, {$cntLedger} w ledgerze)";
+});
+
+// =============================================================================
+// Zaliczki demo — jedna jednorazowa + jedna z planem rat (3 raty)
+// Idempotentność: sprawdzenie po employee_id + amount_minor + status.
+// =============================================================================
+seed('Advances demo (single + installments)', function ($pdo, $T) use ($uuid4) {
+    try {
+        $pdo->query('SELECT 1 FROM sh_advances LIMIT 0');
+        $pdo->query('SELECT 1 FROM sh_advance_installments LIMIT 0');
+    } catch (Throwable $e) {
+        return 'Pominięto — migracja 044 nieprzyjęta';
+    }
+
+    // Znajdź pracowników: waiter1 (uid=3) i cook1 (uid=5)
+    $empStmt = $pdo->prepare("SELECT e.id, e.user_id FROM sh_employees e WHERE e.tenant_id = ? AND e.is_deleted = 0 AND e.user_id IN (3, 5) ORDER BY e.user_id");
+    $empStmt->execute([$T]);
+    $emps = $empStmt->fetchAll(PDO::FETCH_ASSOC);
+    if (count($emps) < 2) return 'Brak 2 pracowników (uid 3,5) — pominięto';
+
+    $waiter = $emps[0]['id']; // uid=3
+    $cook = $emps[1]['id'];   // uid=5
+
+    // 1. Zaliczka jednorazowa dla waiter1 (200 PLN, approved)
+    $exists1 = $pdo->prepare("SELECT 1 FROM sh_advances WHERE tenant_id = ? AND employee_id = ? AND amount_minor = 20000 AND repayment_plan = 'single' LIMIT 1");
+    $exists1->execute([$T, $waiter]);
+    if (!$exists1->fetchColumn()) {
+        $pdo->prepare("INSERT INTO sh_advances (advance_uuid, tenant_id, employee_id, amount_minor, currency, status, repayment_plan, installments_count, reason, requested_at, approved_at)
+            VALUES (?, ?, ?, 20000, 'PLN', 'approved', 'single', 1, 'demo seed', NOW(), NOW())")
+            ->execute([$uuid4(), $T, $waiter]);
+    }
+
+    // 2. Zaliczka z ratami dla cook1 (300 PLN, paid, 3 raty)
+    $exists2 = $pdo->prepare("SELECT 1 FROM sh_advances WHERE tenant_id = ? AND employee_id = ? AND amount_minor = 30000 AND repayment_plan = 'installments' LIMIT 1");
+    $exists2->execute([$T, $cook]);
+    if (!$exists2->fetchColumn()) {
+        $advUuid = $uuid4();
+        $pdo->prepare("INSERT INTO sh_advances (advance_uuid, tenant_id, employee_id, amount_minor, currency, status, repayment_plan, installments_count, reason, requested_at, approved_at, paid_at)
+            VALUES (?, ?, ?, 30000, 'PLN', 'paid', 'installments', 3, 'demo seed — raty', NOW(), NOW(), NOW())")
+            ->execute([$advUuid, $T, $cook]);
+
+        $advId = $pdo->lastInsertId();
+        $now = new DateTimeImmutable('now');
+        $instStmt = $pdo->prepare("INSERT INTO sh_advance_installments (tenant_id, advance_id, seq_no, amount_minor, currency, scheduled_period_year, scheduled_period_month, status)
+            VALUES (?, ?, ?, ?, 'PLN', ?, ?, ?)");
+
+        // Rata 1: bieżący miesiąc — pending
+        $m1 = $now->modify('first day of this month');
+        $instStmt->execute([$T, $advId, 1, 10000, (int)$m1->format('Y'), (int)$m1->format('n'), 'pending']);
+
+        // Rata 2: następny miesiąc — pending
+        $m2 = $now->modify('first day of next month');
+        $instStmt->execute([$T, $advId, 2, 10000, (int)$m2->format('Y'), (int)$m2->format('n'), 'pending']);
+
+        // Rata 3: +2 miesiące — pending
+        $m3 = $now->modify('first day of +2 month');
+        $instStmt->execute([$T, $advId, 3, 10000, (int)$m3->format('Y'), (int)$m3->format('n'), 'pending']);
+    }
+
+    $cnt = (int)$pdo->query("SELECT COUNT(*) FROM sh_advances WHERE tenant_id = {$T}")->fetchColumn();
+    $cntInst = (int)$pdo->query("SELECT COUNT(*) FROM sh_advance_installments WHERE tenant_id = {$T}")->fetchColumn();
+    return "{$cnt} zaliczek, {$cntInst} rat w harmonogramie";
 });
 
 // =============================================================================

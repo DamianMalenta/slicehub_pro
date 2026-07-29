@@ -386,101 +386,184 @@ window.ModifierInspector = {
         }
     },
 
-    renderInit() {
-        const container = document.getElementById('modifiers-view');
-        if (!container) return;
-        
-        container.innerHTML = `
-        <header class="h-20 border-b border-white/5 bg-black/60 flex items-center justify-between px-10 sticky top-0 z-50 backdrop-blur-xl">
-            <div class="flex items-center gap-2 text-[9px] font-black uppercase text-slate-500">
-                <span>Modyfikatory</span>
-                <i class="fa-solid fa-chevron-right text-[7px] opacity-30"></i>
-                <span id="insp-mod-name" class="text-blue-400">Wybierz Grupę z lewej</span>
+    // ─────────────────────────────────────────────────────────────────────
+    // Faza 3 · Modifiers Drawer — slide-in overlay (480px) z prawej strony
+    // ─────────────────────────────────────────────────────────────────────
+
+    openDrawer() {
+        const drawer = document.getElementById('modifiers-drawer');
+        const backdrop = document.getElementById('modifiers-drawer-backdrop');
+        if (!drawer) return;
+        backdrop?.classList.add('open');
+        drawer.classList.add('open');
+        document.getElementById('nav-modifiers')?.classList.add('active');
+        this._showListInDrawer();
+    },
+
+    closeDrawer() {
+        const drawer = document.getElementById('modifiers-drawer');
+        const backdrop = document.getElementById('modifiers-drawer-backdrop');
+        if (!drawer) return;
+        drawer.classList.remove('open');
+        backdrop?.classList.remove('open');
+        document.getElementById('nav-modifiers')?.classList.remove('active');
+    },
+
+    _showListInDrawer() {
+        const drawer = document.getElementById('modifiers-drawer');
+        if (!drawer) return;
+        const groups = window.StudioState.modifierGroups || [];
+
+        const statusCls = {
+            Live: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+            Draft: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+            Archived: 'bg-slate-700 text-slate-400 border-slate-500/30'
+        };
+
+        drawer.innerHTML = `
+            <header class="sticky top-0 z-50 bg-[#0a0a0f]/95 backdrop-blur-xl border-b border-white/10 px-5 py-4 flex items-center justify-between">
+                <div>
+                    <div class="text-[9px] font-black uppercase text-slate-500 tracking-widest">Modyfikatory</div>
+                    <div class="text-white text-sm font-black">Grupy Modyfikatorów</div>
+                </div>
+                <button onclick="window.ModifierInspector.closeDrawer()" class="text-slate-400 hover:text-white w-9 h-9 rounded-lg hover:bg-white/5 transition flex items-center justify-center">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </header>
+            <div class="p-5">
+                <button onclick="window.ModifierInspector._showFormInDrawer(0)" class="w-full mb-4 py-4 bg-green-900/40 text-green-400 border border-green-500/30 rounded-2xl flex items-center justify-center hover:bg-green-600 hover:text-white transition text-[10px] font-black uppercase">
+                    <i class="fa-solid fa-plus mr-2"></i> Nowa Grupa
+                </button>
+                ${groups.length === 0 ? `
+                    <div class="text-center py-16 text-slate-600 text-[10px] uppercase font-black tracking-widest">
+                        <i class="fa-solid fa-inbox text-3xl mb-3 opacity-40"></i>
+                        <div>Brak zapisanych grup w bazie.</div>
+                    </div>
+                ` : groups.map(g => {
+                    const optCount = (g.options || []).length;
+                    const status = g.publicationStatus || 'Draft';
+                    const sc = statusCls[status] || statusCls.Draft;
+                    const isActive = g.id === window.StudioState.activeModGroupId;
+                    return `
+                        <div onclick="window.ModifierInspector._showFormInDrawer(${g.id}).catch(()=>{})" class="bg-white/5 border ${isActive ? 'border-blue-500/50' : 'border-white/10'} rounded-2xl p-4 mb-3 cursor-pointer hover:border-blue-500/50 transition group">
+                            <div class="flex items-center justify-between mb-2">
+                                <h3 class="text-[11px] font-black uppercase text-white group-hover:text-blue-400 transition truncate">${this._esc(g.name)}</h3>
+                                <span class="text-[8px] font-black uppercase ${sc} px-2 py-0.5 rounded border shrink-0">${status}</span>
+                            </div>
+                            <div class="flex items-center gap-4 text-[9px] text-slate-500 font-bold">
+                                <span><i class="fa-solid fa-list mr-1"></i>${optCount} ${optCount === 1 ? 'opcja' : 'opcji'}</span>
+                                <span><i class="fa-solid fa-sliders mr-1"></i>Min ${g.min || 0} / Max ${g.max || 1}</span>
+                                ${g.freeLimit ? `<span class="text-yellow-400"><i class="fa-solid fa-gift mr-1"></i>Free ${g.freeLimit}</span>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
             </div>
-            <button id="btn-save-modifier" onclick="window.ModifierInspector.saveModifierGroup()" class="bg-blue-600 hover:bg-blue-500 text-white h-11 px-8 rounded-xl font-black uppercase text-[11px] shadow-lg opacity-50 cursor-not-allowed transition-all">
-                <i class="fa-solid fa-floppy-disk mr-2"></i> Zapisz Grupę
-            </button>
+        `;
+    },
+
+    async _showFormInDrawer(groupId) {
+        this.renderInit();
+        if (groupId > 0) {
+            await this.selectGroup(groupId);
+        } else {
+            await this.createNewGroup();
+        }
+    },
+
+    renderInit() {
+        const drawer = document.getElementById('modifiers-drawer');
+        if (!drawer) return;
+
+        drawer.innerHTML = `
+        <header class="sticky top-0 z-50 bg-[#0a0a0f]/95 backdrop-blur-xl border-b border-white/10 px-5 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <button onclick="window.ModifierInspector._showListInDrawer()" class="text-slate-400 hover:text-white w-8 h-8 rounded-lg hover:bg-white/5 transition flex items-center justify-center" title="Wróć do listy">
+                    <i class="fa-solid fa-arrow-left"></i>
+                </button>
+                <div>
+                    <div class="text-[9px] font-black uppercase text-slate-500 tracking-widest">Modyfikatory</div>
+                    <span id="insp-mod-name" class="text-blue-400 text-sm font-black">Nowa Grupa</span>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="btn-save-modifier" onclick="window.ModifierInspector.saveModifierGroup()" class="bg-blue-600 hover:bg-blue-500 text-white h-10 px-5 rounded-xl font-black uppercase text-[10px] shadow-lg opacity-50 cursor-not-allowed transition-all">
+                    <i class="fa-solid fa-floppy-disk mr-1"></i> Zapisz
+                </button>
+                <button onclick="window.ModifierInspector.closeDrawer()" class="text-slate-400 hover:text-white w-9 h-9 rounded-lg hover:bg-white/5 transition flex items-center justify-center">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
         </header>
 
-        <div class="p-10 max-w-5xl mx-auto w-full pb-40 space-y-10">
+        <div class="p-5 space-y-6 pb-20">
             <input type="hidden" id="mod-group-id" value="0">
-            
-            <section class="grid grid-cols-2 gap-8">
-                <div class="bg-[#0a0a0f]/60 p-8 rounded-3xl border border-white/10 shadow-2xl space-y-6">
-                    <h4 class="text-[10px] font-black uppercase text-blue-400"><i class="fa-solid fa-sliders mr-2"></i> Konfiguracja Grupy (POS)</h4>
-                    
+
+            <div class="bg-[#0a0a0f]/60 p-5 rounded-2xl border border-white/10 space-y-5">
+                <h4 class="text-[10px] font-black uppercase text-blue-400"><i class="fa-solid fa-sliders mr-2"></i> Konfiguracja Grupy</h4>
+
+                <div>
+                    <label class="block text-[9px] font-black uppercase text-slate-500 mb-2">Nazwa Grupy</label>
+                    <input type="text" id="mod-group-name" placeholder="np. Wybierz rodzaj ciasta" class="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white font-black outline-none focus:border-blue-500 transition">
+                </div>
+
+                <div>
+                    <label class="block text-[9px] font-black uppercase text-slate-500 mb-2">Klucz Systemowy (SKU)</label>
+                    <input type="text" id="mod-group-ascii" placeholder="np. GRP_CIASTO" class="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white font-mono uppercase outline-none focus:border-blue-500 transition">
+                    <p class="text-[7px] text-red-400/70 uppercase mt-1 font-bold"><i class="fa-solid fa-lock mr-1"></i> Zablokowane po pierwszym zapisie</p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="block text-[9px] font-black uppercase text-slate-500 mb-2">Nazwa Grupy</label>
-                        <input type="text" id="mod-group-name" placeholder="np. Wybierz rodzaj ciasta" class="w-full bg-black/50 border border-white/10 rounded-xl p-4 text-white font-black outline-none focus:border-blue-500 transition">
+                        <label class="block text-[9px] font-black uppercase text-slate-500 mb-2">Min.</label>
+                        <input type="number" id="mod-min" value="0" min="0" class="w-full bg-black/50 border border-white/10 rounded-xl p-2.5 text-white text-center font-black outline-none focus:border-blue-500">
                     </div>
-
                     <div>
-                        <label class="block text-[9px] font-black uppercase text-slate-500 mb-2">Klucz Systemowy Grupy (SKU)</label>
-                        <input type="text" id="mod-group-ascii" placeholder="np. GRP_CIASTO" class="w-full bg-black/50 border border-white/10 rounded-xl p-4 text-white font-mono uppercase outline-none focus:border-blue-500 transition">
-                        <p class="text-[7px] text-red-400/70 uppercase mt-1 font-bold"><i class="fa-solid fa-lock mr-1"></i> Zablokowane na stałe po pierwszym zapisie</p>
+                        <label class="block text-[9px] font-black uppercase text-slate-500 mb-2">Max.</label>
+                        <input type="number" id="mod-max" value="1" min="1" class="w-full bg-black/50 border border-white/10 rounded-xl p-2.5 text-white text-center font-black outline-none focus:border-blue-500">
                     </div>
-                    
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-[9px] font-black uppercase text-slate-500 mb-2">Min. Wyborów</label>
-                            <input type="number" id="mod-min" value="0" min="0" class="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-center font-black outline-none focus:border-blue-500">
-                        </div>
-                        <div>
-                            <label class="block text-[9px] font-black uppercase text-slate-500 mb-2">Max. Wyborów</label>
-                            <input type="number" id="mod-max" value="1" min="1" class="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-center font-black outline-none focus:border-blue-500">
-                        </div>
-                    </div>
+                </div>
 
-                    <div class="pt-4 border-t border-white/5 space-y-4">
-                        <div>
-                            <label class="block text-[9px] font-black uppercase text-yellow-500 mb-2"><i class="fa-solid fa-gift mr-1"></i> Darmowy Limit (Promocja)</label>
-                            <input type="number" id="mod-free-limit" value="0" min="0" class="w-full bg-yellow-900/10 border border-yellow-500/30 rounded-xl p-3 text-yellow-400 text-center font-black outline-none focus:border-yellow-500" placeholder="0 = Brak darmowych">
-                            <p class="text-[7px] text-slate-500 uppercase mt-1 font-bold">np. Wpisz "2", aby pierwsze dwa składniki były za 0 PLN.</p>
-                        </div>
-                        <div class="flex items-center gap-3 pt-2">
-                            <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" id="mod-multi-qty" class="sr-only peer">
-                                <div class="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500 shadow-inner"></div>
-                                <span class="ml-3 text-[9px] font-black text-slate-400 uppercase tracking-wide">Pozwól na wielokrotność (np. Bekon x3)</span>
-                            </label>
-                        </div>
+                <div class="pt-3 border-t border-white/5 space-y-3">
+                    <div>
+                        <label class="block text-[9px] font-black uppercase text-yellow-500 mb-2"><i class="fa-solid fa-gift mr-1"></i> Darmowy Limit</label>
+                        <input type="number" id="mod-free-limit" value="0" min="0" class="w-full bg-yellow-900/10 border border-yellow-500/30 rounded-xl p-2.5 text-yellow-400 text-center font-black outline-none focus:border-yellow-500" placeholder="0 = brak">
                     </div>
-                    <div class="pt-4 border-t border-white/5 space-y-3">
-                        <label class="block text-[9px] font-black uppercase text-cyan-400 mb-2"><i class="fa-solid fa-globe mr-1"></i> Panel Publikacji</label>
-                        <select id="mod-publication-status" class="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-white text-[10px] font-black uppercase outline-none focus:border-cyan-500 transition">
-                            <option value="Draft">Draft</option>
-                            <option value="Live">Live</option>
-                            <option value="Archived">Archived</option>
-                        </select>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label class="block text-[8px] font-black uppercase text-slate-500 mb-1">validFrom</label>
-                                <input type="datetime-local" id="mod-valid-from" class="w-full bg-black/50 border border-white/10 rounded-xl p-2 text-white text-[10px] outline-none focus:border-cyan-500 transition">
-                            </div>
-                            <div>
-                                <label class="block text-[8px] font-black uppercase text-slate-500 mb-1">validTo</label>
-                                <input type="datetime-local" id="mod-valid-to" class="w-full bg-black/50 border border-white/10 rounded-xl p-2 text-white text-[10px] outline-none focus:border-cyan-500 transition">
-                            </div>
-                        </div>
-                    </div>
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" id="mod-multi-qty" class="sr-only peer">
+                        <div class="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500 shadow-inner"></div>
+                        <span class="text-[9px] font-black text-slate-400 uppercase tracking-wide">Wielokrotność (Bekon x3)</span>
+                    </label>
                 </div>
-                
-                <div class="bg-gradient-to-br from-blue-900/10 to-transparent p-8 rounded-3xl border border-blue-500/20 flex flex-col justify-center items-center text-center">
-                    <i class="fa-solid fa-link text-4xl text-blue-500 mb-4 opacity-50"></i>
-                    <h3 class="text-[12px] font-black uppercase text-white mb-2">Bliźniak Cyfrowy Modyfikatorów</h3>
-                    <p class="text-[9px] text-slate-400 font-bold uppercase leading-relaxed mb-4">Rozwiń "Zaawansowane" przy opcji, aby powiązać ją z magazynem (Dodaj / Usuń Surowiec).</p>
-                    <div class="flex gap-2 text-[8px] font-bold uppercase">
-                        <span class="bg-green-900/30 text-green-400 px-2 py-1 rounded border border-green-500/30">ADD (Dodaje do Food Costu)</span>
-                        <span class="bg-red-900/30 text-red-400 px-2 py-1 rounded border border-red-500/30">REMOVE (Odejmuje z Receptury)</span>
-                    </div>
-                </div>
-            </section>
 
-            <section class="space-y-4">
-                <div id="modifier-items-list" class="grid grid-cols-1 gap-3">
-                    <p class="text-center py-10 text-slate-600 text-[9px] uppercase font-bold tracking-widest">Wybierz grupę z listy po lewej stronie</p>
+                <div class="pt-3 border-t border-white/5 space-y-3">
+                    <label class="block text-[9px] font-black uppercase text-cyan-400 mb-2"><i class="fa-solid fa-globe mr-1"></i> Publikacja</label>
+                    <select id="mod-publication-status" class="w-full bg-black/50 border border-white/10 rounded-xl p-2.5 text-white text-[10px] font-black uppercase outline-none focus:border-cyan-500 transition">
+                        <option value="Draft">Draft</option>
+                        <option value="Live">Live</option>
+                        <option value="Archived">Archived</option>
+                    </select>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[8px] font-black uppercase text-slate-500 mb-1">validFrom</label>
+                            <input type="datetime-local" id="mod-valid-from" class="w-full bg-black/50 border border-white/10 rounded-xl p-2 text-white text-[10px] outline-none focus:border-cyan-500 transition">
+                        </div>
+                        <div>
+                            <label class="block text-[8px] font-black uppercase text-slate-500 mb-1">validTo</label>
+                            <input type="datetime-local" id="mod-valid-to" class="w-full bg-black/50 border border-white/10 rounded-xl p-2 text-white text-[10px] outline-none focus:border-cyan-500 transition">
+                        </div>
+                    </div>
                 </div>
-            </section>
+            </div>
+
+            <div class="bg-blue-900/10 border border-blue-500/20 rounded-2xl p-4 flex items-center gap-3 text-center">
+                <i class="fa-solid fa-link text-2xl text-blue-500 opacity-50"></i>
+                <p class="text-[9px] text-slate-400 font-bold uppercase leading-relaxed">Rozwiń "Zaawansowane" przy opcji, aby powiązać z magazynem (ADD/REMOVE).</p>
+            </div>
+
+            <div id="modifier-items-list" class="grid grid-cols-1 gap-3">
+                <p class="text-center py-10 text-slate-600 text-[9px] uppercase font-bold tracking-widest">Wybierz grupę z listy</p>
+            </div>
         </div>
         `;
 
@@ -488,6 +571,15 @@ window.ModifierInspector = {
     },
 
     async renderGroupList() {
+        const drawer = document.getElementById('modifiers-drawer');
+        if (drawer && drawer.classList.contains('open')) {
+            // Only refresh list if we're in list mode (not form mode)
+            if (!document.getElementById('insp-mod-name')) {
+                this._showListInDrawer();
+            }
+            return;
+        }
+        // Legacy: if drawer not open, don't clobber navigator tree
         const container = document.getElementById('dynamic-tree-container');
         if(!container) return;
 
@@ -1104,19 +1196,15 @@ window.ModifierInspector = {
 
             this.closeCreatorPanel();
             await this.loadModifiersFromDB();
-            this.renderGroupList();
+            window.StudioToast.show('Modyfikator zapisany pomyślnie', 'success');
+            this._showListInDrawer();
 
         } catch (err) {
             if (btn) {
                 btn.disabled = false;
-                btn.innerHTML = '<i class="fa-solid fa-triangle-exclamation mr-2"></i> Błąd — spróbuj ponownie';
-                btn.classList.replace('bg-green-600', 'bg-red-600');
-                setTimeout(() => {
-                    btn.innerHTML = '<i class="fa-solid fa-terminal mr-2"></i> Podgląd Draftu (Console)';
-                    btn.classList.replace('bg-red-600', 'bg-green-600');
-                    btn.disabled = false;
-                }, 3000);
+                btn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-2"></i> Zapisz Modyfikator';
             }
+            window.StudioToast.show('Błąd zapisu: ' + err.message, 'error');
             console.error('[SliceHub] SAVE_MODIFIER error:', err.message);
         }
     },
@@ -1149,9 +1237,13 @@ window.ModifierInspector = {
         const groupId = parseInt(document.getElementById('mod-group-id').value) || 0;
         const groupName = document.getElementById('mod-group-name').value.trim();
         
-        // POBIERANIE I CZYSZCZENIE SKU GRUPY
+        // POBIERANIE I CZYSZCZENIE SKU GRUPY (z transliteracją polskich znaków)
+        const _PL_MAP = {'ą':'a','ć':'c','ę':'e','ł':'l','ń':'n','ó':'o','ś':'s','ź':'z','ż':'z','Ą':'A','Ć':'C','Ę':'E','Ł':'L','Ń':'N','Ó':'O','Ś':'S','Ź':'Z','Ż':'Z'};
         const rawGroupAscii = document.getElementById('mod-group-ascii').value;
-        const groupAsciiKey = rawGroupAscii.replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
+        const groupAsciiKey = rawGroupAscii
+            .replace(/[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/g, c => _PL_MAP[c] || c)
+            .replace(/[^a-zA-Z0-9_-]/g, '')
+            .toUpperCase();
         
         const minSelection = parseInt(document.getElementById('mod-min').value) || 0;
         const maxSelection = parseInt(document.getElementById('mod-max').value) || 1;
@@ -1161,9 +1253,12 @@ window.ModifierInspector = {
         const validFrom = document.getElementById('mod-valid-from').value || '';
         const validTo = document.getElementById('mod-valid-to').value || '';
 
-        if (!groupName) { alert("Nazwa grupy jest wymagana!"); return; }
-        if (!groupAsciiKey) { alert("SKU Grupy jest wymagane i nie może zawierać polskich znaków ani spacji!"); return; }
-        if (minSelection > maxSelection) { alert("Minimum nie może być większe niż maksimum!"); return; }
+        if (!groupName) { window.StudioToast.show('Nazwa grupy jest wymagana', 'error'); return; }
+        if (!groupAsciiKey) { window.StudioToast.show('SKU Grupy jest wymagane (bez polskich znaków)', 'error'); return; }
+        if (groupAsciiKey.length < 3) { window.StudioToast.show('SKU Grupy musi mieć min. 3 znaki', 'error'); return; }
+        if (groupAsciiKey.length > 50) { window.StudioToast.show('SKU Grupy nie może przekraczać 50 znaków', 'error'); return; }
+        if (!/^[A-Z]/.test(groupAsciiKey)) { window.StudioToast.show('SKU Grupy musi zaczynać się od litery', 'error'); return; }
+        if (minSelection > maxSelection) { window.StudioToast.show('Minimum nie może być większe niż maksimum', 'error'); return; }
 
         const options = [];
         let hasValidationError = false;
@@ -1172,7 +1267,10 @@ window.ModifierInspector = {
             const id = parseInt(row.querySelector('.opt-id').value) || 0;
             const name = row.querySelector('.opt-name').value.trim();
             const rawAscii = row.querySelector('.opt-ascii').value;
-            const cleanAscii = rawAscii.replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
+            const cleanAscii = rawAscii
+                .replace(/[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/g, c => _PL_MAP[c] || c)
+                .replace(/[^a-zA-Z0-9_-]/g, '')
+                .toUpperCase();
             const pricePos = parseFloat(row.querySelector('.opt-price-pos').value) || 0.00;
             const priceTakeaway = parseFloat(row.querySelector('.opt-price-takeaway').value) || 0.00;
             const priceDelivery = parseFloat(row.querySelector('.opt-price-delivery').value) || 0.00;
@@ -1183,21 +1281,23 @@ window.ModifierInspector = {
             const linkedQty = parseFloat(row.querySelector('.opt-qty').value) || 0;
             const linkedWaste = parseFloat(row.querySelector('.opt-waste')?.value) || 0;
 
-            if (!name || !cleanAscii) return; 
+            if (!name || !cleanAscii) return;
+            if (cleanAscii.length < 2) { window.StudioToast.show(`Opcja "${name}": SKU min. 2 znaki`, 'error'); hasValidationError = true; return; }
+            if (cleanAscii.length > 50) { window.StudioToast.show(`Opcja "${name}": SKU max. 50 znaków`, 'error'); hasValidationError = true; return; }
 
             if (typeof window.SliceValidator !== 'undefined') {
                 const channelLabels = ['POS', 'Takeaway', 'Delivery'];
                 [pricePos, priceTakeaway, priceDelivery].forEach((channelPrice, idx) => {
                     const validated = window.SliceValidator.validatePrice(channelPrice);
                     if (validated === null) {
-                        alert(`Błąd ceny w opcji "${name}" (${channelLabels[idx]}): wartość musi być liczbą >= 0.`);
+                        window.StudioToast.show(`Błąd ceny: "${name}" (${channelLabels[idx]})`, 'error');
                         hasValidationError = true;
                     }
                 });
             }
 
             if (actionType !== 'NONE' && !linkedSku) {
-                alert(`Opcja "${name}" ma ustawioną akcję magazynową, ale nie wybrano surowca!`);
+                window.StudioToast.show(`Opcja "${name}": brak surowca dla akcji magazynowej`, 'error');
                 hasValidationError = true;
             }
 
@@ -1227,14 +1327,14 @@ window.ModifierInspector = {
         });
 
         if (hasValidationError) return;
-        if (options.length === 0) { alert("Dodaj przynajmniej jedną poprawną opcję!"); return; }
+        if (options.length === 0) { window.StudioToast.show('Dodaj przynajmniej jedną opcję', 'warning'); return; }
 
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> ZAPISYWANIE...';
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Zapisywanie...';
+        btn.disabled = true;
 
         const payload = {
             action: 'save_modifier_group',
             groupId: groupId,
-            groupAsciiKey: groupAsciiKey, // Dodane SKU Grupy do payloadu
             name: groupName,
             minSelection: minSelection,
             maxSelection: maxSelection,
@@ -1245,20 +1345,34 @@ window.ModifierInspector = {
             validTo: validTo,
             options: options
         };
+        if (groupId === 0) {
+            payload.groupAsciiKey = groupAsciiKey;
+        }
 
         try {
             const result = await window.StudioApi.postPayload(payload);
 
             if (result.success === true) {
-                btn.innerHTML = '<i class="fa-solid fa-check mr-2"></i> ZAPISANO!';
-                setTimeout(() => { btn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-2"></i> Zapisz Grupę'; }, 2000);
+                btn.innerHTML = '<i class="fa-solid fa-check mr-1"></i> Zapisano!';
+                window.StudioToast.show('Grupa zapisana pomyślnie', 'success');
                 
                 const returnedId = result.data ? result.data.id : null;
                 if(groupId === 0 && returnedId) {
                     document.getElementById('mod-group-id').value = returnedId;
                     document.getElementById('mod-group-ascii').disabled = true;
                     document.getElementById('mod-group-ascii').classList.add('opacity-50', 'cursor-not-allowed');
+                    document.getElementById('mod-group-ascii').title = 'SKU zablokowane po pierwszym zapisie — używane w integracjach (POS, KSeF, magazyn)';
                 }
+
+                document.querySelectorAll('.mod-option-row').forEach(row => {
+                    const optId = parseInt(row.querySelector('.opt-id').value, 10) || 0;
+                    const optAsciiInput = row.querySelector('.opt-ascii');
+                    if (optId > 0 && optAsciiInput) {
+                        optAsciiInput.disabled = true;
+                        optAsciiInput.classList.add('opacity-50', 'cursor-not-allowed');
+                        optAsciiInput.title = 'SKU zablokowane po pierwszym zapisie';
+                    }
+                });
 
                 if (groupId === 0) {
                     const newGroupId = returnedId ? parseInt(returnedId, 10) : 0;
@@ -1294,14 +1408,16 @@ window.ModifierInspector = {
                     }
                 }
 
-                window.ModifierInspector.renderGroupList();
+                setTimeout(() => { window.ModifierInspector._showListInDrawer(); }, 800);
             } else {
-                alert("Błąd API: " + result.message);
-                btn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-2"></i> Zapisz Grupę';
+                window.StudioToast.show('Błąd API: ' + (result.message || 'nieznany'), 'error');
+                btn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-1"></i> Zapisz';
+                btn.disabled = false;
             }
         } catch (error) {
-            alert("Błąd połączenia z bazą danych.");
-            btn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-2"></i> Zapisz Grupę';
+            window.StudioToast.show('Błąd połączenia z serwerem', 'error');
+            btn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-1"></i> Zapisz';
+            btn.disabled = false;
         }
     },
 
@@ -1313,7 +1429,7 @@ window.ModifierInspector = {
 
     async openSizePricingModal(modifierId, modifierName) {
         if (!modifierId || modifierId <= 0) {
-            alert('Najpierw zapisz grupę żeby modyfikator dostał ID.');
+            window.StudioToast.show('Najpierw zapisz grupę', 'warning');
             return;
         }
 
@@ -1325,7 +1441,7 @@ window.ModifierInspector = {
                 window.apiStudio('get_modifier_pricing', { modifier_id: modifierId })
             ]);
         } catch (e) {
-            alert('Błąd pobierania danych: ' + e.message);
+            window.StudioToast.show('Błąd pobierania danych: ' + e.message, 'error');
             return;
         }
 
@@ -1417,12 +1533,12 @@ window.ModifierInspector = {
                 if (btn) btn.innerHTML = '<i class="fa-solid fa-check"></i> Zapisano';
                 setTimeout(() => document.getElementById('fs21-size-pricing-modal')?.remove(), 800);
             } else {
-                alert('❌ ' + (r?.message || 'unknown'));
+                window.StudioToast.show('Błąd: ' + (r?.message || 'unknown'), 'error');
                 if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Zapisz cennik'; }
             }
         } catch (e) {
             console.error('[F-S2.1] save_modifier_pricing', e);
-            alert('Krytyczny błąd: ' + e.message);
+            window.StudioToast.show('Krytyczny błąd: ' + e.message, 'error');
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Zapisz cennik'; }
         }
     }
@@ -1435,13 +1551,7 @@ window.addEventListener('load', () => {
         const originalSwitch = window.Core.switchView;
         window.Core.switchView = function(viewId) {
             originalSwitch.call(window.Core, viewId);
-            
-            if (viewId === 'modifiers') {
-                if(!document.getElementById('insp-mod-name')) {
-                    window.ModifierInspector.renderInit();
-                }
-                window.ModifierInspector.renderGroupList(); 
-            } else if (viewId === 'menu') {
+            if (viewId === 'menu') {
                 if (window.Core.renderTree) window.Core.renderTree(); 
             }
         };

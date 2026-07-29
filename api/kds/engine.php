@@ -305,6 +305,37 @@ try {
         kdsResponse(true, ['order_id' => $orderId, 'status' => 'preparing']);
     }
 
+    // =========================================================================
+    // ACTION: bump_ticket — Advance a single KDS ticket (per-station).
+    // Absorbed from api/kds/update_ticket.php → core/KdsTicketEngine.php
+    // Transitions: pending → preparing → done.
+    // On last ticket 'done', auto-transitions order to 'ready'.
+    // =========================================================================
+    if ($action === 'bump_ticket') {
+        require_once __DIR__ . '/../../core/KdsTicketEngine.php';
+        $ticketId  = (string)($input['ticket_id'] ?? '');
+        $newStatus = (string)($input['new_status'] ?? '');
+
+        if ($ticketId === '') {
+            kdsResponse(false, null, 'ticket_id is required.');
+        }
+
+        try {
+            $result = KdsTicketEngine::bump($pdo, $tenant_id, $user_id ?? null, $ticketId, $newStatus);
+            kdsResponse(true, $result);
+        } catch (\InvalidArgumentException $e) {
+            http_response_code(400);
+            kdsResponse(false, null, $e->getMessage());
+        } catch (\RuntimeException $e) {
+            if (str_contains($e->getMessage(), 'not found')) {
+                http_response_code(404);
+            } else {
+                http_response_code(409);
+            }
+            kdsResponse(false, null, $e->getMessage());
+        }
+    }
+
     kdsResponse(false, null, "Unknown action: {$action}");
 
 } catch (\Throwable $e) {

@@ -16,7 +16,7 @@ Strategia wdrożenia **nie zakłada** pisania systemu od nowa ani zmiany paradyg
 **Kolejność priorytetów:**
 
 1. **Domknąć panel ustawień** (`modules/settings`, integracje, webhooki, klucze, DLQ, health) jako warstwę konfiguracji **na prawie gotowym** stacku operacyjnym — nie jako osobny produkt obok.
-   - *Stan 2026-05-03:* Settings domknięty funkcjonalnie (w tym zakładka Dziennik / `sh_settings_audit`). Rozliczenia split-tender poza POS: `api/payments/settle.php` emituje **`order.completed`** lub **`payment.settled`** przez `OrderEventPublisher` (ta sama transakcja co zapis płatności).
+   - *Stan 2026-05-03:* Settings domknięty funkcjonalnie (w tym zakładka Dziennik / `sh_settings_audit`). Rozliczenia split-tender: ~~`api/payments/settle.php`~~ **USUNIĘTY 2026-07-28** (martwy wrapper); logika w `core/SettlementEngine.php` używana przez POS `settle_and_close`, Tables `split_payment`, Courses `collect_payment`.
 2. **Następnie** wziąć na warsztat pozostały backlog (np. offline POS, rozliczenia, HR, edge case’y z dokumentów pokrewnych) i **udoskonalać pod testy w realnym lokalu** (własna pizzeria jako środowisko walidacji).
 
 Ten dokument opisuje **logikę złota standardu** niezależnie od kolejności implementacji; powyższa kolejność mówi **w jakiej kolejności sens ma ją wdrażać zespół**.

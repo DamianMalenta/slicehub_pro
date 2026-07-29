@@ -190,7 +190,7 @@ try {
             }
 
             $credsJson = json_encode($merged, JSON_UNESCAPED_UNICODE);
-            $encrypted = \CredentialVault::encrypt($credsJson);
+            $encrypted = \CredentialVault::encryptSoft($credsJson);
 
             // Upsert sh_tenant_integrations (provider='ksef')
             $upsert = $pdo->prepare(

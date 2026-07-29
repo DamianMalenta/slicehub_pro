@@ -42,29 +42,31 @@
 <div id="hr-view-employees">
     <section class="hr-toolbar">
         <button type="button" class="hr-btn hr-btn--primary" id="hr-btn-add"><i class="fa-solid fa-user-plus"></i> Dodaj pracownika</button>
+        <input type="text" class="hr-search" id="hr-search" placeholder="🔍 Szukaj pracownika…">
         <label style="display:flex;align-items:center;gap:0.35rem;font-size:0.8rem;color:#a8a29e;">
-            <input type="checkbox" id="hr-inc-del"> Pokaż usuniętych (soft)
+            <input type="checkbox" id="hr-inc-del"> Pokaż usuniętych
         </label>
+        <span class="hr-live-counter hidden" id="hr-live-counter"><span class="hr-live-pulse"></span> <span id="hr-live-count">0</span> na zmianie</span>
     </section>
 
+    <div class="hr-seg hr-seg--roles" id="hr-role-filter">
+        <button type="button" data-role="" class="active">Wszyscy</button>
+        <button type="button" data-role="kitchen">🔪 Kuchnia</button>
+        <button type="button" data-role="floor">🍽️ Sala</button>
+        <button type="button" data-role="delivery">🛵 Dostawa</button>
+        <button type="button" data-role="mgmt">📋 Zarząd</button>
+    </div>
+
     <main class="hr-main">
-        <div class="hr-table-wrap">
-            <table class="hr-table">
-                <thead>
-                    <tr>
-                        <th>Kod</th>
-                        <th>Nazwa</th>
-                        <th>Rola</th>
-                        <th>Status</th>
-                        <th>Konto</th>
-                        <th>PIN kiosk</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody id="hr-tbody">
-                    <tr><td colspan="7" style="color:#78716c;padding:1.5rem;">Ładowanie…</td></tr>
-                </tbody>
-            </table>
+        <div class="hr-emp-grid" id="hr-emp-grid">
+            <div class="hr-skeleton-grid" id="hr-emp-skeleton">
+                <div class="hr-skeleton-card"></div>
+                <div class="hr-skeleton-card"></div>
+                <div class="hr-skeleton-card"></div>
+                <div class="hr-skeleton-card"></div>
+                <div class="hr-skeleton-card"></div>
+                <div class="hr-skeleton-card"></div>
+            </div>
         </div>
     </main>
 </div>
@@ -80,7 +82,7 @@
             <button type="button" id="hr-pr-prev" title="Poprzedni okres"><i class="fa-solid fa-chevron-left"></i></button>
             <button type="button" id="hr-pr-next" title="Następny okres"><i class="fa-solid fa-chevron-right"></i></button>
         </div>
-        <span class="hr-period-label" id="hr-pr-period-label">—</span>
+        <input type="month" class="hr-period-picker" id="hr-pr-period-picker" title="Wybierz miesiąc">
         <span class="hr-tag hidden" id="hr-pr-lock-badge"></span>
         <button type="button" class="hr-btn" id="hr-pr-refresh"><i class="fa-solid fa-rotate"></i> Odśwież</button>
         <button type="button" class="hr-btn hr-btn--danger hidden" id="hr-pr-close-period"
@@ -90,26 +92,35 @@
     </section>
 
     <main class="hr-main">
-        <div class="hr-table-wrap">
-            <table class="hr-table hr-table--num">
-                <thead>
-                    <tr>
-                        <th>Pracownik</th>
-                        <th class="num">Godziny</th>
-                        <th class="num">Stawka</th>
-                        <th class="num">Brutto</th>
-                        <th class="num">Posiłki / Potrącenia</th>
-                        <th class="num">Spłacona zaliczka</th>
-                        <th class="num">Do wypłaty (netto)</th>
-                    </tr>
-                </thead>
-                <tbody id="hr-pr-tbody">
-                    <tr><td colspan="7" style="color:#78716c;padding:1.5rem;">Ładowanie…</td></tr>
-                </tbody>
-                <tfoot id="hr-pr-tfoot"></tfoot>
-            </table>
+        <div class="hr-card" style="margin-bottom:1rem;">
+            <div class="hr-stat-row" id="hr-pr-stats">
+                <div class="hr-stat"><div class="hr-stat-value" id="hr-pr-stat-hrs">—</div><div class="hr-stat-label">Suma godzin</div></div>
+                <div class="hr-stat"><div class="hr-stat-value" id="hr-pr-stat-cost">—</div><div class="hr-stat-label">Koszt pracy</div></div>
+                <div class="hr-stat"><div class="hr-stat-value" id="hr-pr-stat-adv">—</div><div class="hr-stat-label">Zaliczki</div></div>
+            </div>
         </div>
-        <p class="hr-hint">Wszystkie kwoty liczy backend (akcja <code>payroll_report</code>) — frontend niczego nie przelicza.</p>
+        <div class="hr-card">
+            <div class="hr-table-wrap" style="border:none;">
+                <table class="hr-table hr-table--num">
+                    <thead>
+                        <tr>
+                            <th>Pracownik</th>
+                            <th class="num">Godziny</th>
+                            <th class="num">Stawka</th>
+                            <th class="num">Brutto</th>
+                            <th class="num">Posiłki / Potrącenia</th>
+                            <th class="num">Spłacona zaliczka</th>
+                            <th class="num">Do wypłaty</th>
+                        </tr>
+                    </thead>
+                    <tbody id="hr-pr-tbody">
+                        <tr id="hr-pr-skeleton"><td colspan="7"><div class="hr-skeleton-row"></div><div class="hr-skeleton-row"></div><div class="hr-skeleton-row"></div></td></tr>
+                    </tbody>
+                    <tfoot id="hr-pr-tfoot"></tfoot>
+                </table>
+            </div>
+        </div>
+        <p class="hr-hint">Kliknij wiersz aby rozwinąć wpisy księgowe pracownika. Kwoty liczy backend (<code>payroll_report</code>).</p>
     </main>
 </div>
 
@@ -125,26 +136,95 @@
     </section>
 
     <main class="hr-main">
-        <div class="hr-table-wrap">
-            <table class="hr-table">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Pracownik</th>
-                        <th class="num">Kwota</th>
-                        <th>Status</th>
-                        <th>Plan / raty</th>
-                        <th>Powód</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody id="hr-adv-tbody">
-                    <tr><td colspan="7" style="color:#78716c;padding:1.5rem;">Ładowanie…</td></tr>
-                </tbody>
-            </table>
+        <div class="hr-card">
+            <div class="hr-table-wrap" style="border:none;">
+                <table class="hr-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Pracownik</th>
+                            <th class="num">Kwota</th>
+                            <th>Status</th>
+                            <th>Plan / raty</th>
+                            <th>Powód</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="hr-adv-tbody">
+                        <tr id="hr-adv-skeleton"><td colspan="7"><div class="hr-skeleton-row"></div><div class="hr-skeleton-row"></div></td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
-        <p class="hr-hint">Lifecycle: wniosek → zatwierdzenie → wypłata (wpis w ledgerze + harmonogram rat) → spłata z wypłat. Void tylko przed pierwszą spłaconą ratą.</p>
+        <p class="hr-hint">Lifecycle: wniosek → zatwierdzenie → wypłata (wpis w ledgerze + harmonogram rat) → spłata z wypłat.</p>
     </main>
+</div>
+
+<!-- Slide-out drawer: employee detail -->
+<div class="hr-drawer-overlay" id="hr-drawer-overlay"></div>
+<aside class="hr-drawer" id="hr-drawer">
+    <div class="hr-drawer-head">
+        <div class="hr-avatar hr-avatar--lg" id="hr-dr-avatar">?</div>
+        <div style="flex:1;min-width:0;">
+            <div class="hr-drawer-name" id="hr-dr-name">—</div>
+            <div class="hr-drawer-meta" id="hr-dr-meta"></div>
+            <div id="hr-dr-details"></div>
+            <div class="hr-drawer-actions" id="hr-dr-actions"></div>
+        </div>
+        <button type="button" class="hr-drawer-close" id="hr-dr-close"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="hr-drawer-body">
+        <div class="hr-dr-month-picker">
+            <button type="button" id="hr-dr-month-prev" class="hr-dr-month-btn"><i class="fa-solid fa-chevron-left"></i></button>
+            <span id="hr-dr-month-label" class="hr-dr-month-label">—</span>
+            <button type="button" id="hr-dr-month-next" class="hr-dr-month-btn"><i class="fa-solid fa-chevron-right"></i></button>
+        </div>
+        <div class="hr-stat-row" id="hr-dr-stats"></div>
+        <div class="hr-progress"><div class="hr-progress-fill" id="hr-dr-progress" style="width:0%"></div></div>
+        <div class="hr-subtabs">
+            <button type="button" class="hr-subtab active" data-sub="sessions"><i class="fa-solid fa-clock"></i> Sesje</button>
+            <button type="button" class="hr-subtab" data-sub="ledger"><i class="fa-solid fa-coins"></i> Księgowość</button>
+            <button type="button" class="hr-subtab" data-sub="advances"><i class="fa-solid fa-hand-holding-dollar"></i> Zaliczki</button>
+            <button type="button" class="hr-subtab" data-sub="rates"><i class="fa-solid fa-sack-dollar"></i> Stawki</button>
+        </div>
+        <div class="hr-subpane active" id="hr-dr-pane-sessions">
+            <div class="hr-session-list" id="hr-dr-sessions"><p style="color:#78716c;padding:0.5rem;">Wybierz pracownika…</p></div>
+        </div>
+        <div class="hr-subpane" id="hr-dr-pane-ledger">
+            <div class="hr-ledger-list" id="hr-dr-ledger"><p style="color:#78716c;padding:0.5rem;">—</p></div>
+        </div>
+        <div class="hr-subpane" id="hr-dr-pane-advances">
+            <div id="hr-dr-advances"><p style="color:#78716c;padding:0.5rem;">—</p></div>
+        </div>
+        <div class="hr-subpane" id="hr-dr-pane-rates">
+            <div id="hr-dr-rates"><p style="color:#78716c;padding:0.5rem;">—</p></div>
+        </div>
+    </div>
+</aside>
+
+<!-- Modal: edycja sesji -->
+<div class="hr-modal-overlay" id="hr-modal-session-edit" aria-hidden="true">
+    <div class="hr-modal">
+        <h2>Edycja sesji pracy</h2>
+        <p id="hr-se-employee-name" style="font-size:0.85rem;color:#a8a29e;margin-top:-0.5rem;"></p>
+        <input type="hidden" id="hr-se-session-id">
+        <div class="hr-field">
+            <label for="hr-se-start">Start (data + czas)</label>
+            <input id="hr-se-start" type="datetime-local" required>
+        </div>
+        <div class="hr-field">
+            <label for="hr-se-end">Koniec (data + czas)</label>
+            <input id="hr-se-end" type="datetime-local">
+        </div>
+        <div class="hr-field">
+            <label for="hr-se-reason">Powód korekty (wymagany)</label>
+            <input id="hr-se-reason" type="text" maxlength="255" placeholder="np. zapomniał wylogować się, korekta godzin">
+        </div>
+        <div class="hr-modal-actions">
+            <button type="button" class="hr-btn" id="hr-se-cancel">Anuluj</button>
+            <button type="button" class="hr-btn hr-btn--primary" id="hr-se-save">Zapisz korektę</button>
+        </div>
+    </div>
 </div>
 
 <!-- Modal: nowa zaliczka -->
@@ -326,6 +406,22 @@
         <div class="hr-modal-actions">
             <button type="button" class="hr-btn" id="hr-rate-cancel">Anuluj</button>
             <button type="button" class="hr-btn hr-btn--primary" id="hr-rate-save">Zapisz stawkę</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: confirm close period -->
+<div class="hr-modal-overlay" id="hr-modal-confirm-close" aria-hidden="true">
+    <div class="hr-modal hr-modal--danger">
+        <h2><i class="fa-solid fa-lock"></i> Zamknąć miesiąc?</h2>
+        <p style="font-size:0.85rem;color:#a8a29e;margin-top:-0.5rem;line-height:1.5;">
+            Zamknięcie miesiąca jest <strong>nieodwracalne</strong>. Wszystkie wpisy księgowe zostaną zablokowane.
+            Korekty po zamknięciu będą możliwe tylko jako <code>adjustment</code> w kolejnym otwartym okresie.
+        </p>
+        <p id="hr-confirm-close-period-label" style="font-size:0.9rem;font-weight:600;margin:0.5rem 0;"></p>
+        <div class="hr-modal-actions">
+            <button type="button" class="hr-btn" id="hr-confirm-close-cancel">Anuluj</button>
+            <button type="button" class="hr-btn hr-btn--danger" id="hr-confirm-close-ok"><i class="fa-solid fa-lock"></i> Zamknij miesiąc</button>
         </div>
     </div>
 </div>

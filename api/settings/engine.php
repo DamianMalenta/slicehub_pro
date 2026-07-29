@@ -297,12 +297,12 @@ try {
                 if (is_array($credRaw)) {
                     $credJson = json_encode($credRaw, JSON_UNESCAPED_UNICODE);
                     if ($credJson !== false && $credJson !== '{}') {
-                        $credentialsStorage = CredentialVault::encrypt($credJson);
+                        $credentialsStorage = CredentialVault::encryptSoft($credJson);
                     }
                 } elseif (is_string($credRaw) && $credRaw !== '') {
                     $credentialsStorage = class_exists('CredentialVault') && CredentialVault::isEncrypted($credRaw)
                         ? $credRaw
-                        : CredentialVault::encrypt($credRaw);
+                        : CredentialVault::encryptSoft($credRaw);
                 }
             }
 
@@ -540,7 +540,7 @@ try {
                 ];
                 if ($rotateSecret) {
                     $newSecret = bin2hex(random_bytes(32));
-                    $fields['secret'] = CredentialVault::encrypt($newSecret);
+                    $fields['secret'] = CredentialVault::encryptSoft($newSecret);
                     $fields['consecutive_failures'] = 0;
                 }
 
@@ -567,7 +567,7 @@ try {
 
             // INSERT
             $newSecret = bin2hex(random_bytes(32));
-            $storedSecret = CredentialVault::encrypt($newSecret);
+            $storedSecret = CredentialVault::encryptSoft($newSecret);
 
             $stmt = $pdo->prepare(
                 "INSERT INTO sh_webhook_endpoints

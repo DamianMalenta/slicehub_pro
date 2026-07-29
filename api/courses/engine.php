@@ -373,13 +373,22 @@ try {
             $courseId = 'K' . $seq;
 
             $stmtUp = $pdo->prepare(
-                "UPDATE sh_orders SET delivery_status='in_delivery', driver_id=:did, course_id=:cid, stop_number=:stop, updated_at=:now
+                "UPDATE sh_orders SET delivery_status='in_delivery', driver_id=:did, course_id=:cid, stop_number=:stop,
+                     out_for_delivery_at=:now, updated_at=:now
                  WHERE id=:oid AND tenant_id=:tid AND status='ready' AND delivery_status='unassigned' AND order_type='delivery'"
             );
             $stmtAudit = $pdo->prepare(
                 "INSERT INTO sh_order_audit (order_id, user_id, old_status, new_status, timestamp)
                  VALUES (:oid, :uid, 'unassigned', 'in_delivery', :now)"
             );
+
+            // Event publisher (absorbed from delivery/dispatch.php)
+            $publisherPath = __DIR__ . '/../../core/OrderEventPublisher.php';
+            $publisherReady = false;
+            if (file_exists($publisherPath)) {
+                require_once $publisherPath;
+                $publisherReady = class_exists('OrderEventPublisher');
+            }
 
             $stops = [];
             foreach ($orderIds as $idx => $oid) {
@@ -389,6 +398,25 @@ try {
                     throw new RuntimeException("Concurrent status change on order {$oid}.");
                 }
                 $stmtAudit->execute([':oid'=>$oid, ':uid'=>$user_id, ':now'=>$now]);
+
+                if ($publisherReady) {
+                    OrderEventPublisher::publishOrderLifecycle(
+                        $pdo, $tenant_id, 'order.dispatched', $oid,
+                        [
+                            'driver_id'   => $driverId,
+                            'course_id'   => $courseId,
+                            'stop_number' => $stop,
+                            'address'     => $addrMap[$oid] ?? null,
+                        ],
+                        [
+                            'source'         => 'courses',
+                            'actorType'      => 'staff',
+                            'actorId'        => (string)$user_id,
+                            'idempotencyKey' => $oid . ':order.dispatched:' . $courseId,
+                        ]
+                    );
+                }
+
                 $stops[] = ['order_id'=>$oid, 'stop'=>$stop, 'address'=>$addrMap[$oid] ?? null];
             }
 
@@ -1005,10 +1033,34 @@ try {
     if ($action === 'get_driver_runs') {
         $driverId = (string)($input['driver_id'] ?? $user_id);
         slicehubEnsureDriverFleetRow($pdo, (int)$tenant_id, (int)$driverId, 'offline');
-        // Aplikacja kierowcy pyta o kursy (poll): tylko offline → available. Nie zmieniamy busy (trasa).
-        $pdo->prepare(
-            "UPDATE sh_drivers SET status = 'available' WHERE user_id = :did AND tenant_id = :tid AND status = 'offline'"
-        )->execute([':did' => $driverId, ':tid' => $tenant_id]);
+
+        // Sprawdź czy kierowca ma aktywną zmianę w sh_driver_shifts
+        $stmtShiftActive = $pdo->prepare(
+            "SELECT id FROM sh_driver_shifts WHERE driver_id = :did AND tenant_id = :tid AND status = 'active' LIMIT 1"
+        );
+        $stmtShiftActive->execute([':did' => $driverId, ':tid' => $tenant_id]);
+        $hasActiveShift = $stmtShiftActive->fetchColumn() !== false;
+        $stmtShiftActive->closeCursor();
+
+        if ($hasActiveShift) {
+            // Aktywna zmiana → offline → available (ale nie nadpisuj busy)
+            $pdo->prepare(
+                "UPDATE sh_drivers SET status = 'available' WHERE user_id = :did AND tenant_id = :tid AND status = 'offline'"
+            )->execute([':did' => $driverId, ':tid' => $tenant_id]);
+        } else {
+            // Brak aktywnej zmiany → wymuść offline (kierowca zalogowany ale nie pracuje)
+            $pdo->prepare(
+                "UPDATE sh_drivers SET status = 'offline' WHERE user_id = :did AND tenant_id = :tid AND status = 'available'"
+            )->execute([':did' => $driverId, ':tid' => $tenant_id]);
+        }
+
+        // Pobierz aktualny status z bazy (po ewentualnej aktualizacji)
+        $stmtDStatus = $pdo->prepare(
+            "SELECT status FROM sh_drivers WHERE user_id = :did AND tenant_id = :tid LIMIT 1"
+        );
+        $stmtDStatus->execute([':did' => $driverId, ':tid' => $tenant_id]);
+        $driverStatus = $stmtDStatus->fetchColumn() ?: 'offline';
+        $stmtDStatus->closeCursor();
 
         slicehubTouchStaffPresence($pdo, (int)$tenant_id, (int)$driverId);
 
@@ -1068,6 +1120,8 @@ try {
                 'cash_collected'=> $cashCollected,
                 'total_in_hand' => $initialCash + $cashCollected,
             ],
+            'driver_status' => $driverStatus,
+            'shift_active'  => $hasActiveShift,
         ]);
     }
 
@@ -1108,7 +1162,7 @@ try {
     // ACTION: reconcile
     // =========================================================================
     if ($action === 'reconcile') {
-        $driverUserId = (string)($input['driver_user_id'] ?? '');
+        $driverUserId = (string)($input['driver_user_id'] ?? $user_id);
         $countedRaw   = $input['counted_cash'] ?? null;
 
         if ($driverUserId === '' || !is_numeric($countedRaw)) {
@@ -1130,6 +1184,21 @@ try {
             coursesResponse(false, null, 'No active shift found.');
         }
 
+        // Guard: nie pozwól rozliczyć jeśli kierowca ma aktywne zamówienia
+        $stmtActiveOrders = $pdo->prepare(
+            "SELECT COUNT(*) FROM sh_orders
+             WHERE driver_id = :did AND tenant_id = :tid
+               AND status NOT IN ('completed', 'cancelled')
+               AND order_type = 'delivery'"
+        );
+        $stmtActiveOrders->execute([':did' => $driverUserId, ':tid' => $tenant_id]);
+        $activeCount = (int)$stmtActiveOrders->fetchColumn();
+        $stmtActiveOrders->closeCursor();
+        if ($activeCount > 0) {
+            http_response_code(409);
+            coursesResponse(false, null, 'Nie można rozliczyć — masz aktywne zamówienia (' . $activeCount . '). Najpierw dokończ lub anuluj kursy.');
+        }
+
         // Authoritative cash collected from sh_order_payments (not sh_orders.payment_status)
         $stmtAgg = $pdo->prepare(
             "SELECT COALESCE(SUM(p.amount_grosze), 0) AS cash_grosze
@@ -1143,16 +1212,57 @@ try {
         $cashGrosze = (int)$stmtAgg->fetchColumn();
         $stmtAgg->closeCursor();
 
-        $expected = (int)$shift['initial_cash'] + $cashGrosze;
+        // Cash tips (tip_amount is on sh_orders header, join payments to ensure cash only)
+        $stmtTips = $pdo->prepare(
+            "SELECT COALESCE(SUM(o.tip_amount), 0) AS cash_tips_grosze
+             FROM sh_orders o
+             JOIN sh_order_payments p ON p.order_id = o.id AND p.tenant_id = o.tenant_id AND p.user_id = :did2
+             WHERE o.driver_id = :did AND o.tenant_id = :tid
+               AND o.order_type = 'delivery' AND o.status = 'completed'
+               AND p.method = 'cash' AND o.created_at >= :ss2"
+        );
+        $stmtTips->execute([':did'=>$driverUserId, ':did2'=>$driverUserId, ':tid'=>$tenant_id, ':ss2'=>$shift['created_at']]);
+        $cashTipsGrosze = (int)$stmtTips->fetchColumn();
+        $stmtTips->closeCursor();
+
+        $expected = (int)$shift['initial_cash'] + $cashGrosze + $cashTipsGrosze;
         $variance = $countedGrosze - $expected;
         $flag     = abs($variance) > 500 ? 'REVIEW_REQUIRED' : 'OK';
 
+        // Delivery stats (absorbed from delivery/reconcile.php)
+        $stmtCount = $pdo->prepare(
+            "SELECT COUNT(*) AS completed_deliveries
+             FROM sh_orders
+             WHERE driver_id = :did AND tenant_id = :tid
+               AND order_type = 'delivery' AND status = 'completed'
+               AND created_at >= :shift_start"
+        );
+        $stmtCount->execute([':did'=>$driverUserId, ':tid'=>$tenant_id, ':shift_start'=>$shift['created_at']]);
+        $completedDeliveries = (int)$stmtCount->fetchColumn();
+        $stmtCount->closeCursor();
+
+        $stmtCourses = $pdo->prepare(
+            "SELECT DISTINCT course_id FROM sh_orders
+             WHERE driver_id = :did AND tenant_id = :tid
+               AND order_type = 'delivery' AND status = 'completed'
+               AND created_at >= :shift_start AND course_id IS NOT NULL"
+        );
+        $stmtCourses->execute([':did'=>$driverUserId, ':tid'=>$tenant_id, ':shift_start'=>$shift['created_at']]);
+        $coursesCompleted = $stmtCourses->fetchAll(\PDO::FETCH_COLUMN, 0);
+        $stmtCourses->closeCursor();
+
         $pdo->beginTransaction();
         try {
-            $pdo->prepare(
+            $stmtClose = $pdo->prepare(
                 "UPDATE sh_driver_shifts SET counted_cash=:cc, variance=:v, status='closed' WHERE id=:sid AND status='active'"
-            )->execute([':cc'=>$countedGrosze, ':v'=>$variance, ':sid'=>$shift['id']]);
+            );
+            $stmtClose->execute([':cc'=>$countedGrosze, ':v'=>$variance, ':sid'=>$shift['id']]);
 
+            if ($stmtClose->rowCount() === 0) {
+                throw new RuntimeException('Shift could not be closed — concurrent reconciliation detected.');
+            }
+
+            // Release driver to offline — shift closed, no longer available for dispatch
             $pdo->prepare("UPDATE sh_drivers SET status='offline' WHERE user_id=:did AND tenant_id=:tid")
                 ->execute([':did'=>$driverUserId, ':tid'=>$tenant_id]);
 
@@ -1161,10 +1271,17 @@ try {
 
         $fmt = fn(int $g): string => number_format($g / 100, 2, '.', '');
         coursesResponse(true, [
-            'expected'  => $fmt($expected),
-            'counted'   => $fmt($countedGrosze),
-            'variance'  => $fmt($variance),
-            'flag'      => $flag,
+            'shift_id'             => $shift['id'],
+            'expected'             => $fmt($expected),
+            'counted'              => $fmt($countedGrosze),
+            'variance'             => $fmt($variance),
+            'flag'                 => $flag,
+            'cash_from_orders'     => $fmt($cashGrosze),
+            'cash_from_tips'       => $fmt($cashTipsGrosze),
+            'initial_cash'         => $fmt((int)$shift['initial_cash']),
+            'completed_deliveries' => $completedDeliveries,
+            'courses_completed'    => $coursesCompleted,
+            'driver_status'        => 'offline',
         ]);
     }
 
@@ -1200,6 +1317,20 @@ try {
         }
 
         slicehubEnsureDriverFleetRow($pdo, (int)$tenant_id, $targetUserId, 'offline');
+
+        // Guard: nie pozwól ustawić 'available' bez aktywnej zmiany (self only)
+        if ($newStatus === 'available' && $rawTarget === '') {
+            $stmtShiftChk = $pdo->prepare(
+                "SELECT id FROM sh_driver_shifts WHERE driver_id = :did AND tenant_id = :tid AND status = 'active' LIMIT 1"
+            );
+            $stmtShiftChk->execute([':did' => $targetUserId, ':tid' => $tenant_id]);
+            if ($stmtShiftChk->fetchColumn() === false) {
+                http_response_code(409);
+                coursesResponse(false, null, 'Nie można ustawić statusu Dostępny bez aktywnej zmiany. Najpierw rozpocznij zmianę.');
+            }
+            $stmtShiftChk->closeCursor();
+        }
+
         $pdo->prepare('UPDATE sh_drivers SET status=:s WHERE user_id=:did AND tenant_id=:tid')
             ->execute([':s' => $newStatus, ':did' => $targetUserId, ':tid' => $tenant_id]);
 
@@ -1502,6 +1633,27 @@ try {
             'deliveries'     => $deliveries,
             'delivery_count' => count($deliveries),
         ]);
+    }
+
+    // =========================================================================
+    // ACTION: get_sla_breaches — Returns recent SLA breaches for dispatcher
+    // =========================================================================
+    if ($action === 'get_sla_breaches') {
+        $stmtBreaches = $pdo->prepare(
+            "SELECT b.order_id, b.breach_minutes, b.driver_id, b.course_id, b.logged_at,
+                    o.order_number, o.customer_name, o.delivery_address,
+                    u.first_name, u.last_name
+             FROM sh_sla_breaches b
+             LEFT JOIN sh_orders o ON o.id = b.order_id AND o.tenant_id = b.tenant_id
+             LEFT JOIN sh_users u ON u.id = b.driver_id AND u.tenant_id = b.tenant_id
+             WHERE b.tenant_id = :tid
+               AND b.logged_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+             ORDER BY b.breach_minutes DESC, b.logged_at DESC"
+        );
+        $stmtBreaches->execute([':tid' => $tenant_id]);
+        $breaches = $stmtBreaches->fetchAll(PDO::FETCH_ASSOC);
+
+        coursesResponse(true, ['breaches' => $breaches]);
     }
 
     // Unknown action

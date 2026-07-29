@@ -20,6 +20,21 @@
     let _payrollPeriodOffset = 0;
     let _advStatusFilter = '';
     let _activeTab = 'employees';
+    let _searchQuery = '';
+    let _drawerEmployee = null;
+    let _drawerSubTab = 'sessions';
+    let _drawerMonthOffset = 0;
+    let _roleFilter = '';
+    let _clockedInIds = new Set();
+    let _clockElapsed = new Map();
+    let _clockPollTimer = null;
+
+    const ROLE_GROUPS = {
+        kitchen: ['cook'],
+        floor: ['waiter', 'runner', 'cashier'],
+        delivery: ['driver'],
+        mgmt: ['manager', 'owner', 'shift_lead'],
+    };
 
     function getToken() {
         return localStorage.getItem('sh_token') || '';
@@ -112,68 +127,172 @@
         return d.innerHTML;
     }
 
-    function renderTable() {
-        const tb = document.getElementById('hr-tbody');
-        if (!tb) return;
-        if (!_employees.length) {
-            tb.innerHTML = '<tr><td colspan="7" style="color:#78716c;padding:1.5rem;">Brak pracowników.</td></tr>';
+    function initials(emp) {
+        const fn = (emp.first_name || '').charAt(0).toUpperCase();
+        const ln = (emp.last_name || '').charAt(0).toUpperCase();
+        return (fn + ln) || '?';
+    }
+
+    function roleIcon(role) {
+        const icons = {
+            waiter: '🍽️', cook: '🔪', driver: '🛵', manager: '📋',
+            cashier: '💳', cleaner: '🧹', runner: '🏃', shift_lead: '⏰',
+            owner: '👑', team: '👥',
+        };
+        return icons[role] || '👤';
+    }
+
+    function statusDot(status) {
+        const cls = status === 'active' ? 'hr-dot--active'
+            : status === 'suspended' ? 'hr-dot--suspended'
+            : status === 'terminated' ? 'hr-dot--terminated'
+            : status === 'on_leave' ? 'hr-dot--on_leave' : 'hr-dot--active';
+        return `<span class="hr-dot ${cls}"></span>`;
+    }
+
+    function renderCards() {
+        const grid = document.getElementById('hr-emp-grid');
+        if (!grid) return;
+        let list = _employees;
+        if (_roleFilter && ROLE_GROUPS[_roleFilter]) {
+            list = list.filter(e => ROLE_GROUPS[_roleFilter].includes(e.primary_role));
+        }
+        if (_searchQuery) {
+            const q = _searchQuery.toLowerCase();
+            list = list.filter(e =>
+                (e.display_name || '').toLowerCase().includes(q) ||
+                (e.first_name || '').toLowerCase().includes(q) ||
+                (e.last_name || '').toLowerCase().includes(q) ||
+                (e.primary_role || '').toLowerCase().includes(q)
+            );
+        }
+        if (!list.length) {
+            grid.innerHTML = '<p style="color:#78716c;padding:1.5rem;">Brak pracowników.</p>';
             return;
         }
-        tb.innerHTML = _employees.map((e) => {
-            const acct = e.account_username
-                ? `${esc(e.account_username)} <span class="hr-tag">${esc(e.account_role || '')}</span>`
-                : '<span class="hr-tag hr-tag--off">—</span>';
-            const pin = e.has_kiosk_pin
-                ? '<span class="hr-tag hr-tag--ok">tak</span>'
-                : '<span class="hr-tag hr-tag--off">nie</span>';
-            const code = esc(e.employee_code);
-            const name = esc(e.display_name);
-            return `<tr data-id="${e.id}">
-                <td><code style="font-size:0.78rem;color:#a8a29e;">${code}</code></td>
-                <td>${name}</td>
-                <td>${esc(e.primary_role)}</td>
-                <td>${esc(e.status)}</td>
-                <td>${acct}</td>
-                <td>${pin}</td>
-                <td class="hr-actions">
-                    <button type="button" data-act="edit">Edytuj</button>
-                    <button type="button" data-act="pin">PIN</button>
-                    <button type="button" data-act="rate">Stawka</button>
-                    <button type="button" data-act="ledger">Płace</button>
-                </td>
-            </tr>`;
+        grid.innerHTML = list.map((e) => {
+            const role = esc(e.primary_role || '');
+            const name = esc(e.display_name || `${e.first_name} ${e.last_name}`);
+            const avatarClass = `hr-avatar hr-avatar--${e.primary_role || 'team'}`;
+            const ledgerHrs = e.current_month_hours != null ? e.current_month_hours : 0;
+            const liveSec = _clockElapsed.get(e.id) || 0;
+            const liveHrs = liveSec > 0 ? liveSec / 3600 : 0;
+            const hrs = ledgerHrs + liveHrs;
+            const ledgerEarn = e.current_month_earnings != null ? e.current_month_earnings : 0;
+            const rateMinor = e.current_rate_minor || 0;
+            const liveEarn = Math.round(liveHrs * rateMinor);
+            const earn = ledgerEarn + liveEarn;
+            const targetHrs = 160;
+            const pct = hrs > 0 ? Math.min(100, (hrs / targetHrs) * 100) : 0;
+            const overClass = hrs > targetHrs ? ' hr-progress-fill--over' : '';
+            const hrsDisplay = hrs > 0 ? `${hrs.toFixed(1)}h` : '—';
+            const earnDisplay = earn > 0 ? plnFromMinor(earn) : '';
+            const liveDot = _clockedInIds.has(e.id) ? '<span class="hr-live-dot"></span>' : '';
+            return `<div class="hr-emp-card" data-id="${e.id}">
+                ${liveDot}
+                <div class="hr-emp-card-head">
+                    <div class="${avatarClass}">${esc(initials(e))}</div>
+                    <div style="min-width:0;">
+                        <div class="hr-emp-card-name">${name}</div>
+                        <div class="hr-emp-card-role">${roleIcon(e.primary_role)} ${role}</div>
+                    </div>
+                </div>
+                <div class="hr-emp-card-stats">
+                    <div class="hr-emp-card-hrs"><span>ten miesiąc</span> <strong>${hrsDisplay}</strong></div>
+                    <div class="hr-progress"><div class="hr-progress-fill${overClass}" style="width:${pct}%"></div></div>
+                    ${earnDisplay ? `<div class="hr-emp-card-earn">${earnDisplay}</div>` : ''}
+                </div>
+                <div class="hr-emp-card-status">${statusDot(e.status)} ${esc(e.status || '')}</div>
+            </div>`;
         }).join('');
 
-        tb.querySelectorAll('tr[data-id]').forEach((row) => {
-            row.querySelectorAll('button[data-act]').forEach((btn) => {
-                btn.addEventListener('click', () => {
-                    const id = parseInt(row.getAttribute('data-id'), 10);
-                    const act = btn.getAttribute('data-act');
-                    const emp = _employees.find((x) => x.id === id);
-                    if (!emp) return;
-                    if (act === 'edit') openEmployeeModal(emp);
-                    if (act === 'pin') openPinModal(id);
-                    if (act === 'rate') openRateModal(id);
-                    if (act === 'ledger') openLedgerModal(emp);
-                });
+        grid.querySelectorAll('.hr-emp-card[data-id]').forEach((card) => {
+            card.addEventListener('click', () => {
+                const id = parseInt(card.getAttribute('data-id'), 10);
+                const emp = _employees.find((x) => x.id === id);
+                if (emp) openEmployeeDrawer(emp);
             });
         });
+    }
+
+    async function refreshClockStatus() {
+        try {
+            const data = await callHr('clock_status', {});
+            const sessions = data.sessions || data.open_sessions || [];
+            _clockedInIds = new Set(sessions.map(s => s.employee_id).filter(Boolean));
+            _clockElapsed = new Map();
+            sessions.forEach(s => {
+                if (s.employee_id && s.elapsed_seconds != null) {
+                    _clockElapsed.set(s.employee_id, s.elapsed_seconds);
+                }
+            });
+            const counter = document.getElementById('hr-live-counter');
+            const countEl = document.getElementById('hr-live-count');
+            if (counter && countEl) {
+                countEl.textContent = String(_clockedInIds.size);
+                counter.classList.toggle('hidden', _clockedInIds.size === 0);
+            }
+            if (_activeTab === 'employees') renderCards();
+        } catch (_) {
+        }
+    }
+
+    function startClockPolling() {
+        if (_clockPollTimer) clearInterval(_clockPollTimer);
+        refreshClockStatus();
+        _clockPollTimer = setInterval(refreshClockStatus, 15000);
+    }
+
+    function buildDrawerDetails(emp) {
+        const rows = [];
+        if (emp.phone) rows.push(`<div class="hr-dr-detail-row"><i class="fa-solid fa-phone"></i> ${esc(emp.phone)}</div>`);
+        if (emp.email) rows.push(`<div class="hr-dr-detail-row"><i class="fa-solid fa-envelope"></i> ${esc(emp.email)}</div>`);
+        if (emp.hire_date) rows.push(`<div class="hr-dr-detail-row"><i class="fa-solid fa-calendar"></i> zatr. ${esc(emp.hire_date).slice(0, 10)}</div>`);
+        if (emp.employee_code) rows.push(`<div class="hr-dr-detail-row"><i class="fa-solid fa-id-badge"></i> <span class="hr-dr-detail-code">${esc(emp.employee_code)}</span></div>`);
+        if (emp.account_username) rows.push(`<div class="hr-dr-detail-row"><i class="fa-solid fa-user"></i> ${esc(emp.account_username)} (${esc(emp.account_role || '')})</div>`);
+        if (emp.notes) rows.push(`<div class="hr-dr-detail-notes">${esc(emp.notes)}</div>`);
+        return rows.length ? `<div class="hr-dr-details">${rows.join('')}</div>` : '';
+    }
+
+    function advStepperHtml(status) {
+        const steps = ['requested', 'approved', 'paid', 'settled'];
+        const labels = ['wniosek', 'zatw.', 'wypł.', 'rozl.'];
+        if (status === 'rejected' || status === 'void') {
+            const idx = status === 'rejected' ? 0 : 2;
+            return `<div class="hr-stepper">${steps.map((s, i) => {
+                const dotCls = i < idx ? 'hr-step-dot--done' : i === idx ? (status === 'rejected' ? 'hr-step-dot--rejected' : 'hr-step-dot--void') : '';
+                const lineCls = i < idx ? 'hr-step-line--done' : '';
+                const lblCls = i < idx ? 'hr-step-label--done' : i === idx ? '' : '';
+                return `<div class="hr-step"><div class="hr-step-dot ${dotCls}"></div>${i < steps.length - 1 ? `<div class="hr-step-line ${lineCls}"></div>` : ''}</div>`;
+            }).join('')}<div class="hr-step-label ${status === 'rejected' ? '' : ''}" style="color:#ef4444;">${status === 'rejected' ? 'odrzucona' : 'wycofana'}</div></div>`;
+        }
+        const activeIdx = steps.indexOf(status);
+        const lblCls = activeIdx >= 0 ? (activeIdx === 0 ? 'hr-step-label--active' : 'hr-step-label--done') : '';
+        return `<div class="hr-stepper">${steps.map((s, i) => {
+            const dotCls = i < activeIdx ? 'hr-step-dot--done' : i === activeIdx ? 'hr-step-dot--active' : '';
+            const lineCls = i < activeIdx ? 'hr-step-line--done' : '';
+            return `<div class="hr-step"><div class="hr-step-dot ${dotCls}"></div>${i < steps.length - 1 ? `<div class="hr-step-line ${lineCls}"></div>` : ''}</div>`;
+        }).join('')}<div class="hr-step-label ${lblCls}">${esc(labels[activeIdx] || status)}</div></div>`;
     }
 
     async function refreshList() {
         showErrorBanner('');
         const inc = document.getElementById('hr-inc-del')?.checked;
+        const skel = document.getElementById('hr-emp-skeleton');
+        if (skel) skel.style.display = '';
         try {
             const data = await callHr('employees_list', { include_deleted: inc ? 1 : 0 });
             _employees = data.employees || [];
-            renderTable();
+            if (skel) skel.style.display = 'none';
+            renderCards();
+            startClockPolling();
         } catch (e) {
             if (e.httpCode === 401 || e.httpCode === 403) {
                 showAuthBanner(true);
             }
             showErrorBanner(e.message || 'Błąd listy');
             _employees = [];
-            renderTable();
+            renderCards();
         }
     }
 
@@ -192,9 +311,6 @@
         if (tab === 'advances') refreshAdvances();
     }
 
-    // SSOT odswiezania: KAZDA mutacja konczy sie tym wywolaniem, zamiast
-    // zgadywac per-handler, ktory widok przeladowac (wczesniej submitLedger
-    // nie odswiezal nic i tabela wyplat zostawala nieaktualna).
     function refreshActiveTab() {
         if (_activeTab === 'payroll') return refreshPayroll();
         if (_activeTab === 'advances') return refreshAdvances();
@@ -205,25 +321,41 @@
         return (Number(minor || 0) / 100).toFixed(2) + ' zł';
     }
 
+    function fmtDt(s) {
+        if (!s) return '—';
+        return s.replace('T', ' ').slice(0, 16);
+    }
+
     function renderPayroll(report) {
         const tb = document.getElementById('hr-pr-tbody');
         const tf = document.getElementById('hr-pr-tfoot');
-        const label = document.getElementById('hr-pr-period-label');
+        const picker = document.getElementById('hr-pr-period-picker');
         if (!tb || !tf) return;
 
-        if (label) {
-            const suffix = _payrollPeriodOffset === 0 ? ' (bieżący)' : '';
-            label.textContent = (report?.period || '—') + suffix;
+        if (picker) {
+            const p = payrollMonthFromOffset(_payrollPeriodOffset);
+            const val = `${p.year}-${String(p.month).padStart(2, '0')}`;
+            if (picker.value !== val) picker.value = val;
+            picker.disabled = _payrollPeriodType !== 'month';
         }
 
         const rows = report?.employees || [];
+        const t = report.totals || {};
+
+        const statHrs = document.getElementById('hr-pr-stat-hrs');
+        const statCost = document.getElementById('hr-pr-stat-cost');
+        const statAdv = document.getElementById('hr-pr-stat-adv');
+        if (statHrs) statHrs.textContent = esc(t.total_hours || '0');
+        if (statCost) statCost.textContent = esc(t.total_labor_cost || '0 zł');
+        if (statAdv) statAdv.textContent = esc(t.total_advances_repaid || '0 zł');
+
         if (!rows.length) {
             tb.innerHTML = '<tr><td colspan="7" style="color:#78716c;padding:1.5rem;">Brak danych wypłat w tym okresie.</td></tr>';
             tf.innerHTML = '';
             return;
         }
 
-        tb.innerHTML = rows.map((e) => `<tr>
+        tb.innerHTML = rows.map((e, i) => `<tr data-emp-idx="${i}" style="cursor:pointer;">
             <td>${esc(e.name)}</td>
             <td class="num">${esc(e.hours)}</td>
             <td class="num">${esc(e.rate)}</td>
@@ -233,7 +365,6 @@
             <td class="num">${esc(e.payout)}</td>
         </tr>`).join('');
 
-        const t = report.totals || {};
         tf.innerHTML = `<tr>
             <td>Razem (${rows.length})</td>
             <td class="num">${esc(t.total_hours)}</td>
@@ -243,12 +374,65 @@
             <td class="num">${esc(t.total_advances_repaid)}</td>
             <td class="num">${esc(t.total_payout)}</td>
         </tr>`;
+
+        tb.querySelectorAll('tr[data-emp-idx]').forEach((row) => {
+            row.addEventListener('click', async () => {
+                const idx = parseInt(row.getAttribute('data-emp-idx'), 10);
+                const emp = rows[idx];
+                if (!emp) return;
+                const existing = row.nextElementSibling;
+                if (existing && existing.classList.contains('hr-pr-expand')) {
+                    existing.remove();
+                    return;
+                }
+                const expandRow = document.createElement('tr');
+                expandRow.className = 'hr-pr-expand';
+                expandRow.innerHTML = '<td colspan="7"><div class="hr-pr-expand-inner"><p style="color:#78716c;font-size:0.75rem;">Ładowanie wpisów…</p></div></td>';
+                row.after(expandRow);
+                try {
+                    const p = payrollMonthFromOffset(_payrollPeriodOffset);
+                    const empId = parseInt(emp.employee_id, 10) || _employees.find(x => x.display_name === emp.name)?.id;
+                    if (!empId) throw new Error('Nie znaleziono ID pracownika');
+                    const data = await callHr('employee_ledger', {
+                        employee_id: empId,
+                        period_year: p.year,
+                        period_month: p.month,
+                    });
+                    const entries = data.entries || [];
+                    if (!entries.length) {
+                        expandRow.querySelector('.hr-pr-expand-inner').innerHTML = '<p style="color:#78716c;font-size:0.75rem;">Brak wpisów.</p>';
+                        return;
+                    }
+                    const maxAbs = Math.max(...entries.map(x => Math.abs(x.amount_minor || 0)), 1);
+                    expandRow.querySelector('.hr-pr-expand-inner').innerHTML = entries.map(en => {
+                        const amt = en.amount_minor || 0;
+                        const isPos = amt >= 0;
+                        const w = Math.max(3, (Math.abs(amt) / maxAbs) * 100);
+                        const typeLabel = en.entry_type === 'work_earnings' ? 'zarobek'
+                            : en.entry_type === 'bonus' ? 'premia'
+                            : en.entry_type === 'adjustment' ? 'korekta'
+                            : en.entry_type === 'meal_deduction' ? 'posiłek'
+                            : en.entry_type === 'advance_payout' ? 'zaliczka'
+                            : en.entry_type === 'advance_repaid' ? 'spłata'
+                            : en.entry_type || '—';
+                        return `<div class="hr-pr-expand-row">
+                            <span class="hr-ledger-amount ${isPos ? 'hr-ledger-amount--pos' : 'hr-ledger-amount--neg'}">${isPos ? '+' : ''}${plnFromMinor(amt)}</span>
+                            <div class="hr-ledger-bar ${isPos ? 'hr-ledger-bar--pos' : 'hr-ledger-bar--neg'}" style="width:${w}%"></div>
+                            <span class="hr-ledger-type">${esc(typeLabel)} · ${esc(en.description || '')}</span>
+                        </div>`;
+                    }).join('');
+                } catch (err) {
+                    expandRow.querySelector('.hr-pr-expand-inner').innerHTML = `<p style="color:#fca5a5;font-size:0.75rem;">Błąd: ${esc(err.message)}</p>`;
+                }
+            });
+        });
     }
 
     async function refreshPayroll() {
         showErrorBanner('');
         const tb = document.getElementById('hr-pr-tbody');
-        if (tb) tb.innerHTML = '<tr><td colspan="7" style="color:#78716c;padding:1.5rem;">Ładowanie…</td></tr>';
+        const skel = document.getElementById('hr-pr-skeleton');
+        if (tb && skel) tb.innerHTML = '<tr id="hr-pr-skeleton"><td colspan="7"><div class="hr-skeleton-row"></div><div class="hr-skeleton-row"></div><div class="hr-skeleton-row"></div></td></tr>';
 
         const nextBtn = document.getElementById('hr-pr-next');
         if (nextBtn) nextBtn.disabled = _payrollPeriodOffset === 0;
@@ -312,8 +496,15 @@
     async function closePeriod() {
         const p = payrollMonthFromOffset(_payrollPeriodOffset);
         const label = `${p.year}-${String(p.month).padStart(2, '0')}`;
-        const msg = `Zamknąć okres ${label}?\n\nOperacja jest JEDNOKIERUNKOWA — zamkniętego miesiąca nie da się odblokować. Korekty po zamknięciu księguje się jako 'adjustment' w kolejnym otwartym okresie.`;
-        if (!window.confirm(msg)) return;
+        const labelEl = document.getElementById('hr-confirm-close-period-label');
+        if (labelEl) labelEl.textContent = `Okres: ${label}`;
+        openModal('hr-modal-confirm-close', true);
+    }
+
+    async function doClosePeriod() {
+        const p = payrollMonthFromOffset(_payrollPeriodOffset);
+        const label = `${p.year}-${String(p.month).padStart(2, '0')}`;
+        openModal('hr-modal-confirm-close', false);
         try {
             const res = await callHr('payroll_close_period', {
                 period_year: p.year,
@@ -363,30 +554,120 @@
                 : 'jednorazowo';
             const statusTag = a.status === 'settled' || a.status === 'paid'
                 ? 'hr-tag hr-tag--ok' : 'hr-tag';
-            return `<tr data-id="${a.id}">
+            const stepper = advStepperHtml(a.status);
+            const expandable = a.repayment_plan === 'installments' && a.installments_count > 0;
+            const expandCls = expandable ? ' hr-adv-row--expandable' : '';
+            const expandIcon = expandable ? '<i class="fa-solid fa-chevron-down hr-adv-expand-icon"></i>' : '';
+            return `<tr data-id="${a.id}" class="hr-adv-row${expandCls}">
                 <td>${a.id}</td>
                 <td>${esc(a.employee_name)}</td>
                 <td class="num">${plnFromMinor(a.amount_minor)}</td>
                 <td><span class="${statusTag}">${esc(ADV_STATUS_LABELS[a.status] || a.status)}</span></td>
-                <td>${esc(plan)}</td>
+                <td>${stepper}<div style="font-size:0.72rem;color:#78716c;">${esc(plan)} ${expandIcon}</div></td>
                 <td>${esc(a.reason || a.rejection_reason || '—')}</td>
                 <td class="hr-actions">${advActionsHtml(a)}</td>
+            </tr>
+            <tr class="hr-adv-expand" data-expand-for="${a.id}" style="display:none;">
+                <td colspan="7"><div class="hr-adv-expand-inner"><p style="color:#78716c;padding:0.5rem;">Ładowanie…</p></div></td>
             </tr>`;
         }).join('');
 
         tb.querySelectorAll('tr[data-id]').forEach((row) => {
             row.querySelectorAll('button[data-adv]').forEach((btn) => {
-                btn.addEventListener('click', () => {
+                btn.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
                     advanceAction(parseInt(row.getAttribute('data-id'), 10), btn.getAttribute('data-adv'));
                 });
             });
+            if (row.classList.contains('hr-adv-row--expandable')) {
+                row.style.cursor = 'pointer';
+                row.addEventListener('click', () => {
+                    const advId = parseInt(row.getAttribute('data-id'), 10);
+                    const expandRow = tb.querySelector(`tr[data-expand-for="${advId}"]`);
+                    if (!expandRow) return;
+                    const isOpen = expandRow.style.display !== 'none';
+                    if (isOpen) {
+                        expandRow.style.display = 'none';
+                        row.classList.remove('hr-adv-row--open');
+                    } else {
+                        expandRow.style.display = '';
+                        row.classList.add('hr-adv-row--open');
+                        loadAdvanceInstallments(advId, expandRow);
+                    }
+                });
+            }
         });
+    }
+
+    async function loadAdvanceInstallments(advId, expandRow) {
+        const inner = expandRow.querySelector('.hr-adv-expand-inner');
+        if (!inner) return;
+        inner.innerHTML = '<p style="color:#78716c;padding:0.5rem;">Ładowanie…</p>';
+        try {
+            const data = await callHr('advance_installments', { advance_id: advId });
+            const insts = data.installments || [];
+            if (!insts.length) {
+                inner.innerHTML = '<p style="color:#78716c;padding:0.5rem;">Brak harmonogramu rat.</p>';
+                return;
+            }
+            const statusClasses = {
+                pending: 'hr-inst-status--pending',
+                applied: 'hr-inst-status--applied',
+                skipped: 'hr-inst-status--skipped',
+                void: 'hr-inst-status--void',
+            };
+            const statusLabels = {
+                pending: 'oczekuje',
+                applied: 'zaksięgowana',
+                skipped: 'pominięta',
+                void: 'wycofana',
+            };
+            inner.innerHTML = `<table class="hr-inst-table"><thead><tr>
+                <th>#</th><th>Kwota</th><th>Okres</th><th>Status</th><th>Aplikacja</th><th></th>
+            </tr></thead><tbody>` + insts.map((i) => {
+                const cls = statusClasses[i.status] || '';
+                const lbl = statusLabels[i.status] || i.status;
+                const period = `${i.scheduled_period_year}-${String(i.scheduled_period_month).padStart(2, '0')}`;
+                const applied = i.applied_at ? (i.applied_at).replace('T', ' ').slice(0, 16) : '—';
+                const repayBtn = i.status === 'pending'
+                    ? `<button type="button" class="hr-inst-repay-btn" data-inst-id="${i.id}"><i class="fa-solid fa-check"></i> Spłać</button>`
+                    : '';
+                return `<tr>
+                    <td>${i.seq_no}</td>
+                    <td class="num">${plnFromMinor(i.amount_minor)}</td>
+                    <td>${period}</td>
+                    <td><span class="hr-inst-status ${cls}">${lbl}</span></td>
+                    <td>${esc(applied)}</td>
+                    <td>${repayBtn}</td>
+                </tr>`;
+            }).join('') + `</tbody></table>`;
+
+            inner.querySelectorAll('.hr-inst-repay-btn').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const instId = parseInt(btn.getAttribute('data-inst-id'), 10);
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+                    try {
+                        await callHr('advance_installment_repay', { installment_id: instId });
+                        toast('Rata spłacona', true);
+                        loadAdvanceInstallments(advId, expandRow);
+                        refreshAdvances();
+                    } catch (e) {
+                        toast(e.message || 'Błąd spłaty raty', false);
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fa-solid fa-check"></i> Spłać';
+                    }
+                });
+            });
+        } catch (e) {
+            inner.innerHTML = `<p style="color:#fca5a5;padding:0.5rem;">Błąd: ${esc(e.message)}</p>`;
+        }
     }
 
     async function refreshAdvances() {
         showErrorBanner('');
         const tb = document.getElementById('hr-adv-tbody');
-        if (tb) tb.innerHTML = '<tr><td colspan="7" style="color:#78716c;padding:1.5rem;">Ładowanie…</td></tr>';
+        if (tb) tb.innerHTML = '<tr id="hr-adv-skeleton"><td colspan="7"><div class="hr-skeleton-row"></div><div class="hr-skeleton-row"></div></td></tr>';
         try {
             const payload = _advStatusFilter ? { status: _advStatusFilter } : {};
             const data = await callHr('advances_list', payload);
@@ -729,6 +1010,386 @@
         }
     }
 
+    // ---------------------------------------------------------------
+    // Employee drawer — slide-out panel z sesjami, księgowością, zaliczkami
+
+    function drawerMonthDate() {
+        const d = new Date();
+        d.setDate(1);
+        d.setMonth(d.getMonth() - _drawerMonthOffset);
+        return { year: d.getFullYear(), month: d.getMonth() + 1 };
+    }
+
+    function updateDrawerMonthLabel() {
+        const lbl = document.getElementById('hr-dr-month-label');
+        if (!lbl) return;
+        const { year, month } = drawerMonthDate();
+        const names = ['styczeń','luty','marzec','kwiecień','maj','czerwiec','lipiec','sierpień','wrzesień','październik','listopad','grudzień'];
+        const isCurrent = _drawerMonthOffset === 0;
+        lbl.textContent = `${names[month - 1]} ${year}${isCurrent ? ' (bieżący)' : ''}`;
+        const nextBtn = document.getElementById('hr-dr-month-next');
+        if (nextBtn) nextBtn.disabled = _drawerMonthOffset === 0;
+    }
+
+    function openEmployeeDrawer(emp) {
+        _drawerEmployee = emp;
+        _drawerMonthOffset = 0;
+        const drawer = document.getElementById('hr-drawer');
+        const overlay = document.getElementById('hr-drawer-overlay');
+        if (!drawer || !overlay) return;
+
+        const avatar = document.getElementById('hr-dr-avatar');
+        if (avatar) {
+            avatar.className = `hr-avatar hr-avatar--lg hr-avatar--${emp.primary_role || 'team'}`;
+            avatar.textContent = initials(emp);
+        }
+
+        const nameEl = document.getElementById('hr-dr-name');
+        if (nameEl) nameEl.textContent = emp.display_name || `${emp.first_name} ${emp.last_name}`;
+
+        const metaEl = document.getElementById('hr-dr-meta');
+        if (metaEl) {
+            metaEl.innerHTML = `${roleIcon(emp.primary_role)} ${esc(emp.primary_role || '')} · ${statusDot(emp.status)} ${esc(emp.status || '')}`;
+        }
+
+        const detailsEl = document.getElementById('hr-dr-details');
+        if (detailsEl) {
+            detailsEl.innerHTML = buildDrawerDetails(emp);
+        }
+
+        const actionsEl = document.getElementById('hr-dr-actions');
+        if (actionsEl) {
+            actionsEl.innerHTML = `
+                <button type="button" data-act="edit">Edytuj</button>
+                <button type="button" data-act="pin">PIN</button>
+                <button type="button" data-act="rate">Stawka</button>
+                <button type="button" data-act="ledger">Płace</button>
+            `;
+            actionsEl.querySelectorAll('button[data-act]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const act = btn.getAttribute('data-act');
+                    if (act === 'edit') openEmployeeModal(emp);
+                    if (act === 'pin') openPinModal(emp.id);
+                    if (act === 'rate') openRateModal(emp.id);
+                    if (act === 'ledger') openLedgerModal(emp);
+                });
+            });
+        }
+
+        updateDrawerMonthLabel();
+        loadDrawerStats(emp);
+
+        _drawerSubTab = 'sessions';
+        document.querySelectorAll('.hr-subtab').forEach((b) => {
+            b.classList.toggle('active', b.getAttribute('data-sub') === 'sessions');
+        });
+        document.querySelectorAll('.hr-subpane').forEach((p) => {
+            p.classList.toggle('active', p.id === 'hr-dr-pane-sessions');
+        });
+
+        drawer.classList.add('open');
+        overlay.classList.add('open');
+
+        loadDrawerSessions(emp.id);
+        loadDrawerLedger(emp.id);
+        loadDrawerAdvances(emp.id);
+        loadDrawerRates(emp.id);
+    }
+
+    function loadDrawerStats(emp) {
+        const statsEl = document.getElementById('hr-dr-stats');
+        const progEl = document.getElementById('hr-dr-progress');
+        const { year, month } = drawerMonthDate();
+
+        if (statsEl) {
+            statsEl.innerHTML = `
+                <div class="hr-stat"><div class="hr-stat-value" id="hr-dr-stat-hrs">…</div><div class="hr-stat-label">Godziny</div></div>
+                <div class="hr-stat"><div class="hr-stat-value" id="hr-dr-stat-earn">…</div><div class="hr-stat-label">Brutto</div></div>
+                <div class="hr-stat"><div class="hr-stat-value" id="hr-dr-adv-total">—</div><div class="hr-stat-label">Zaliczki</div></div>
+            `;
+        }
+        if (progEl) { progEl.style.width = '0%'; }
+
+        const now = new Date();
+        Promise.all([
+            callHr('employee_ledger', { employee_id: emp.id, period_year: year, period_month: month }),
+            callHr('employee_sessions', { employee_id: emp.id, period_year: year, period_month: month }),
+        ]).then(([ledgerData, sessData]) => {
+            const entries = ledgerData.entries || [];
+            let hrs = 0, earn = 0;
+            entries.forEach((en) => {
+                if (en.entry_type === 'work_earnings') {
+                    hrs += (en.hours || 0);
+                    earn += (en.amount_minor || 0);
+                }
+            });
+
+            const sessions = sessData.sessions || [];
+            let liveHrs = 0;
+            sessions.forEach((s) => {
+                if (s.is_open) {
+                    const start = new Date(s.start_time.replace(' ', 'T'));
+                    const elapsed = (now - start) / 3600000;
+                    if (elapsed > 0) liveHrs += elapsed;
+                }
+            });
+
+            const totalHrs = hrs + liveHrs;
+            const rateMinor = (emp.current_rate_minor || (sessions.find(s => s.is_open)?.rate_minor) || 0);
+            const liveEarn = Math.round(liveHrs * rateMinor);
+            const totalEarn = earn + liveEarn;
+
+            const hrsEl = document.getElementById('hr-dr-stat-hrs');
+            const earnEl = document.getElementById('hr-dr-stat-earn');
+            if (hrsEl) hrsEl.textContent = `${totalHrs.toFixed(1)}h`;
+            if (earnEl) earnEl.textContent = plnFromMinor(totalEarn);
+            if (progEl) {
+                const pct = Math.min(100, (totalHrs / 160) * 100);
+                progEl.style.width = pct + '%';
+                progEl.className = 'hr-progress-fill' + (totalHrs > 160 ? ' hr-progress-fill--over' : '');
+            }
+        }).catch(() => {});
+    }
+
+    function reloadDrawerMonth() {
+        if (!_drawerEmployee) return;
+        updateDrawerMonthLabel();
+        loadDrawerStats(_drawerEmployee);
+        loadDrawerSessions(_drawerEmployee.id);
+        loadDrawerLedger(_drawerEmployee.id);
+        loadDrawerAdvances(_drawerEmployee.id);
+    }
+
+    function closeEmployeeDrawer() {
+        document.getElementById('hr-drawer')?.classList.remove('open');
+        document.getElementById('hr-drawer-overlay')?.classList.remove('open');
+        _drawerEmployee = null;
+    }
+
+    function switchDrawerSubTab(sub) {
+        _drawerSubTab = sub;
+        document.querySelectorAll('.hr-subtab').forEach((b) => {
+            b.classList.toggle('active', b.getAttribute('data-sub') === sub);
+        });
+        document.querySelectorAll('.hr-subpane').forEach((p) => {
+            p.classList.toggle('active', p.id === `hr-dr-pane-${sub}`);
+        });
+    }
+
+    async function loadDrawerSessions(empId) {
+        const container = document.getElementById('hr-dr-sessions');
+        if (!container) return;
+        container.innerHTML = '<p style="color:#78716c;padding:0.5rem;">Ładowanie…</p>';
+        try {
+            const { year, month } = drawerMonthDate();
+            const data = await callHr('employee_sessions', {
+                employee_id: empId,
+                period_year: year,
+                period_month: month,
+            });
+            const sessions = data.sessions || [];
+            if (!sessions.length) {
+                container.innerHTML = '<p style="color:#78716c;padding:0.5rem;">Brak sesji w tym miesiącu.</p>';
+                return;
+            }
+            const sorted = sessions.sort((a, b) => (b.start_time || '').localeCompare(a.start_time || ''));
+            container.innerHTML = sorted.map((s) => {
+                let hrs;
+                if (s.is_open) {
+                    const start = new Date(s.start_time.replace(' ', 'T'));
+                    hrs = ((new Date() - start) / 3600000).toFixed(1);
+                } else {
+                    hrs = s.total_hours != null ? s.total_hours.toFixed(1) : '—';
+                }
+                const startStr = fmtDt(s.start_time);
+                const endStr = s.end_time ? fmtDt(s.end_time) : '—';
+                const edited = s.adjusted ? ' hr-session-bar--edited' : '';
+                const editBtn = !s.is_open
+                    ? `<button type="button" class="hr-session-edit-btn" data-sid="${s.id}" data-eid="${empId}">Edytuj</button>`
+                    : '<span class="hr-tag hr-tag--off" style="font-size:0.65rem;">otwarta</span>';
+                return `<div class="hr-session-row">
+                    <span class="hr-session-date">${startStr.slice(5, 10)}</span>
+                    <div class="hr-session-bar${edited}">${startStr.slice(11)} → ${endStr.slice(11)}</div>
+                    <span class="hr-session-hrs">${hrs}h ${editBtn}</span>
+                </div>`;
+            }).join('');
+            container.querySelectorAll('button[data-sid]').forEach((btn) => {
+                btn.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                    const sid = parseInt(btn.getAttribute('data-sid'), 10);
+                    const eid = parseInt(btn.getAttribute('data-eid'), 10);
+                    const session = sessions.find(s => s.id === sid);
+                    if (session) openSessionEditModal(session, eid);
+                });
+            });
+        } catch (e) {
+            container.innerHTML = `<p style="color:#fca5a5;padding:0.5rem;">Błąd: ${esc(e.message)}</p>`;
+        }
+    }
+
+    async function loadDrawerLedger(empId) {
+        const container = document.getElementById('hr-dr-ledger');
+        if (!container) return;
+        container.innerHTML = '<p style="color:#78716c;padding:0.5rem;">Ładowanie…</p>';
+        try {
+            const { year, month } = drawerMonthDate();
+            const data = await callHr('employee_ledger', {
+                employee_id: empId,
+                period_year: year,
+                period_month: month,
+            });
+            const entries = data.entries || [];
+            if (!entries.length) {
+                container.innerHTML = '<p style="color:#78716c;padding:0.5rem;">Brak wpisów w tym miesiącu.</p>';
+                return;
+            }
+            const maxAbs = Math.max(...entries.map(x => Math.abs(x.amount_minor || 0)), 1);
+            let saldo = 0;
+            const html = entries.map((en) => {
+                const amt = en.amount_minor || 0;
+                saldo += amt;
+                const isPos = amt >= 0;
+                const w = Math.max(3, (Math.abs(amt) / maxAbs) * 100);
+                const typeLabel = en.entry_type === 'work_earnings' ? 'zarobek'
+                    : en.entry_type === 'bonus' ? 'premia'
+                    : en.entry_type === 'adjustment' ? 'korekta'
+                    : en.entry_type === 'meal_deduction' ? 'posiłek'
+                    : en.entry_type === 'advance_payout' ? 'zaliczka'
+                    : en.entry_type === 'advance_repaid' ? 'spłata'
+                    : en.entry_type || '—';
+                return `<div class="hr-ledger-row">
+                    <span class="hr-ledger-amount ${isPos ? 'hr-ledger-amount--pos' : 'hr-ledger-amount--neg'}">${isPos ? '+' : ''}${plnFromMinor(amt)}</span>
+                    <div class="hr-ledger-bar ${isPos ? 'hr-ledger-bar--pos' : 'hr-ledger-bar--neg'}" style="width:${w}%"></div>
+                    <span class="hr-ledger-type">${esc(typeLabel)}${en.description ? ' · ' + esc(en.description) : ''}</span>
+                </div>`;
+            }).join('');
+            const saldoClass = saldo >= 0 ? 'hr-ledger-amount--pos' : 'hr-ledger-amount--neg';
+            container.innerHTML = html + `<div class="hr-ledger-saldo"><span>Saldo</span><span class="${saldoClass}">${saldo >= 0 ? '+' : ''}${plnFromMinor(saldo)}</span></div>`;
+        } catch (e) {
+            container.innerHTML = `<p style="color:#fca5a5;padding:0.5rem;">Błąd: ${esc(e.message)}</p>`;
+        }
+    }
+
+    async function loadDrawerAdvances(empId) {
+        const container = document.getElementById('hr-dr-advances');
+        const totalEl = document.getElementById('hr-dr-adv-total');
+        if (!container) return;
+        container.innerHTML = '<p style="color:#78716c;padding:0.5rem;">Ładowanie…</p>';
+        try {
+            const data = await callHr('advances_list', { employee_id: empId });
+            const empAdvances = data.advances || [];
+            if (totalEl) {
+                const total = empAdvances.reduce((sum, a) => sum + (a.amount_minor || 0), 0);
+                totalEl.textContent = empAdvances.length ? plnFromMinor(total) : '0 zł';
+            }
+            if (!empAdvances.length) {
+                container.innerHTML = '<p style="color:#78716c;padding:0.5rem;">Brak zaliczek.</p>';
+                return;
+            }
+            container.innerHTML = empAdvances.map((a) => {
+                const statusTag = a.status === 'settled' || a.status === 'paid'
+                    ? 'hr-tag hr-tag--ok' : 'hr-tag';
+                const plan = a.repayment_plan === 'installments'
+                    ? `raty ${a.installments_paid}/${a.installments_count}` : 'jednorazowo';
+                const repaidMinor = Math.round((a.amount_minor || 0) * (a.installments_paid || 0) / Math.max(1, a.installments_count || 1));
+                const remainingMinor = (a.amount_minor || 0) - repaidMinor;
+                const repaidInfo = repaidMinor > 0
+                    ? `<div style="font-size:0.68rem;color:#78716c;margin-top:0.15rem;">spłacono ${plnFromMinor(repaidMinor)} · pozostało ${plnFromMinor(remainingMinor)}</div>`
+                    : '';
+                return `<div class="hr-ledger-row" style="grid-template-columns:30px 1fr auto;">
+                    <span style="color:var(--hr-muted);">#${a.id}</span>
+                    <span style="font-size:0.78rem;"><span class="${statusTag}">${esc(ADV_STATUS_LABELS[a.status] || a.status)}</span> ${esc(plan)}${repaidInfo}</span>
+                    <span class="hr-ledger-amount hr-ledger-amount--pos">${plnFromMinor(a.amount_minor)}</span>
+                </div>`;
+            }).join('');
+        } catch (e) {
+            container.innerHTML = `<p style="color:#fca5a5;padding:0.5rem;">Błąd: ${esc(e.message)}</p>`;
+        }
+    }
+
+    async function loadDrawerRates(empId) {
+        const container = document.getElementById('hr-dr-rates');
+        if (!container) return;
+        container.innerHTML = '<p style="color:#78716c;padding:0.5rem;">Ładowanie…</p>';
+        try {
+            const data = await callHr('employee_rate_history', { employee_id: empId });
+            const rates = data.rates || [];
+            if (!rates.length) {
+                container.innerHTML = '<p style="color:#78716c;padding:0.5rem;">Brak historii stawek.</p>';
+                return;
+            }
+            const reasonIcons = {
+                hiring: '🤝', raise: '📈', correction: '🔧',
+                demotion: '📉', bulk_adjust: '⚖️', rehire: '🔄',
+            };
+            container.innerHTML = rates.map((r) => {
+                const isCurrent = !r.effective_to;
+                const from = (r.effective_from || '').slice(0, 10);
+                const to = r.effective_to ? (r.effective_to).slice(0, 10) : 'obecnie';
+                const icon = reasonIcons[r.reason] || '💰';
+                const cls = isCurrent ? ' hr-rate-row--current' : '';
+                const noteHtml = r.note ? `<div class="hr-rate-note">${esc(r.note)}</div>` : '';
+                return `<div class="hr-rate-row${cls}">
+                    <div class="hr-rate-row-head">
+                        <span class="hr-rate-amount">${plnFromMinor(r.amount_minor)}</span>
+                        <span class="hr-rate-period">${from} → ${to}</span>
+                    </div>
+                    <div class="hr-rate-reason">${icon} ${esc(r.reason || '—')}</div>
+                    ${noteHtml}
+                </div>`;
+            }).join('');
+        } catch (e) {
+            container.innerHTML = `<p style="color:#fca5a5;padding:0.5rem;">Błąd: ${esc(e.message)}</p>`;
+        }
+    }
+
+    function openSessionEditModal(session, employeeId) {
+        const emp = _employees.find(e => e.id === employeeId);
+        const nameEl = document.getElementById('hr-se-employee-name');
+        if (nameEl) nameEl.textContent = emp ? emp.display_name : `Pracownik #${employeeId}`;
+        document.getElementById('hr-se-session-id').value = String(session.id);
+        // Convert to datetime-local format (YYYY-MM-DDTHH:MM)
+        const startVal = (session.start_time || '').replace(' ', 'T').slice(0, 16);
+        const endVal = session.end_time ? (session.end_time).replace(' ', 'T').slice(0, 16) : '';
+        document.getElementById('hr-se-start').value = startVal;
+        document.getElementById('hr-se-end').value = endVal;
+        document.getElementById('hr-se-reason').value = '';
+        openModal('hr-modal-session-edit', true);
+    }
+
+    async function submitSessionEdit() {
+        const sessionId = parseInt(document.getElementById('hr-se-session-id').value, 10);
+        const start = document.getElementById('hr-se-start').value.trim();
+        const end = document.getElementById('hr-se-end').value.trim();
+        const reason = document.getElementById('hr-se-reason').value.trim();
+
+        if (!sessionId) { toast('Brak ID sesji', false); return; }
+        if (!start) { toast('Start jest wymagany', false); return; }
+        if (!reason) { toast('Powód korekty jest wymagany', false); return; }
+
+        const saveBtn = document.getElementById('hr-se-save');
+        if (saveBtn) saveBtn.disabled = true;
+        try {
+            const payload = {
+                session_id: sessionId,
+                start_time: start.replace('T', ' '),
+                reason,
+            };
+            if (end) payload.end_time = end.replace('T', ' ');
+            await callHr('session_edit', payload);
+            toast('Sesja zaktualizowana', true);
+            openModal('hr-modal-session-edit', false);
+            if (_drawerEmployee) {
+                await loadDrawerSessions(_drawerEmployee.id);
+                await loadDrawerLedger(_drawerEmployee.id);
+            }
+        } catch (e) {
+            toast(e.message || 'Błąd edycji sesji', false);
+        } finally {
+            if (saveBtn) saveBtn.disabled = false;
+        }
+    }
+
     function wire() {
         fillRoleSelects();
         showAuthBanner(!getToken());
@@ -760,6 +1421,30 @@
         });
         document.getElementById('hr-pr-refresh')?.addEventListener('click', refreshPayroll);
         document.getElementById('hr-pr-close-period')?.addEventListener('click', closePeriod);
+        document.getElementById('hr-pr-period-picker')?.addEventListener('change', (e) => {
+            const val = e.target.value;
+            if (!val) return;
+            const [y, m] = val.split('-').map(Number);
+            const now = new Date();
+            now.setDate(1);
+            const cur = new Date(now.getFullYear(), now.getMonth(), 1);
+            const sel = new Date(y, m - 1, 1);
+            const diff = (cur.getFullYear() - sel.getFullYear()) * 12 + (cur.getMonth() - sel.getMonth());
+            if (diff >= 0) {
+                _payrollPeriodOffset = diff;
+                _payrollPeriodType = 'month';
+                document.querySelectorAll('#hr-pr-period-type button').forEach((b) => {
+                    b.classList.toggle('active', b.getAttribute('data-period') === 'month');
+                });
+                refreshPayroll();
+            }
+        });
+
+        document.getElementById('hr-confirm-close-cancel')?.addEventListener('click', () => openModal('hr-modal-confirm-close', false));
+        document.getElementById('hr-confirm-close-ok')?.addEventListener('click', doClosePeriod);
+        document.getElementById('hr-modal-confirm-close')?.addEventListener('click', (ev) => {
+            if (ev.target.id === 'hr-modal-confirm-close') openModal('hr-modal-confirm-close', false);
+        });
 
         document.getElementById('hr-form-employee')?.addEventListener('submit', submitEmployee);
         document.getElementById('hr-form-cancel')?.addEventListener('click', () => openModal('hr-modal-employee', false));
@@ -794,10 +1479,47 @@
         document.getElementById('hr-led-save')?.addEventListener('click', submitLedger);
         document.getElementById('hr-led-type')?.addEventListener('change', updateLedgerHint);
 
-        ['hr-modal-employee', 'hr-modal-pin', 'hr-modal-rate', 'hr-modal-advance', 'hr-modal-ledger'].forEach((mid) => {
+        ['hr-modal-employee', 'hr-modal-pin', 'hr-modal-rate', 'hr-modal-advance', 'hr-modal-ledger', 'hr-modal-confirm-close'].forEach((mid) => {
             document.getElementById(mid)?.addEventListener('click', (ev) => {
                 if (ev.target.id === mid) openModal(mid, false);
             });
+        });
+
+        // Drawer
+        document.getElementById('hr-dr-close')?.addEventListener('click', closeEmployeeDrawer);
+        document.getElementById('hr-drawer-overlay')?.addEventListener('click', closeEmployeeDrawer);
+        document.getElementById('hr-dr-month-prev')?.addEventListener('click', () => {
+            _drawerMonthOffset++;
+            reloadDrawerMonth();
+        });
+        document.getElementById('hr-dr-month-next')?.addEventListener('click', () => {
+            if (_drawerMonthOffset > 0) { _drawerMonthOffset--; reloadDrawerMonth(); }
+        });
+        document.querySelectorAll('.hr-subtab').forEach((b) => {
+            b.addEventListener('click', () => switchDrawerSubTab(b.getAttribute('data-sub')));
+        });
+
+        // Search
+        document.getElementById('hr-search')?.addEventListener('input', (e) => {
+            _searchQuery = e.target.value.trim();
+            renderCards();
+        });
+
+        // Role filter
+        document.querySelectorAll('#hr-role-filter button').forEach((b) => {
+            b.addEventListener('click', () => {
+                _roleFilter = b.getAttribute('data-role') || '';
+                document.querySelectorAll('#hr-role-filter button')
+                    .forEach((x) => x.classList.toggle('active', x === b));
+                renderCards();
+            });
+        });
+
+        // Session edit modal
+        document.getElementById('hr-se-cancel')?.addEventListener('click', () => openModal('hr-modal-session-edit', false));
+        document.getElementById('hr-se-save')?.addEventListener('click', submitSessionEdit);
+        document.getElementById('hr-modal-session-edit')?.addEventListener('click', (ev) => {
+            if (ev.target.id === 'hr-modal-session-edit') openModal('hr-modal-session-edit', false);
         });
 
         switchTab('employees');

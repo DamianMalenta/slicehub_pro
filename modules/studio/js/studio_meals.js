@@ -110,7 +110,7 @@
         open: async function (mealId) {
             const res = await window.apiStudio('get_meal_details', { meal_id: mealId });
             if (!res.success || !res.data) {
-                alert(res.message || 'Nie udało się wczytać zestawu');
+                if (window.StudioToast) window.StudioToast.show(res.message || 'Nie udało się wczytać zestawu', 'error');
                 return;
             }
             const m = res.data;
@@ -156,18 +156,18 @@
                 components: collectComponents(),
             };
             if (!payload.ascii_key || !payload.name) {
-                alert('SKU i nazwa są wymagane');
+                if (window.StudioToast) window.StudioToast.show('SKU i nazwa są wymagane', 'warning');
                 return;
             }
             const res = await window.apiStudio('save_meal', payload);
             if (res.success) {
-                alert(res.message || 'Zapisano');
+                if (window.StudioToast) window.StudioToast.show(res.message || 'Zapisano', 'success');
                 await loadMeals();
                 if (res.data && res.data.meal_id) {
                     await window.MealEditor.open(res.data.meal_id);
                 }
             } else {
-                alert(res.message || 'Błąd zapisu');
+                if (window.StudioToast) window.StudioToast.show(res.message || 'Błąd zapisu', 'error');
             }
         },
 
@@ -177,11 +177,11 @@
             if (!confirm('Usunąć ten zestaw (soft delete)?')) return;
             const res = await window.apiStudio('delete_meal', { id });
             if (res.success) {
-                alert('Usunięto');
+                if (window.StudioToast) window.StudioToast.show('Usunięto', 'success');
                 window.MealEditor.newMeal();
                 await loadMeals();
             } else {
-                alert(res.message || 'Błąd');
+                if (window.StudioToast) window.StudioToast.show(res.message || 'Błąd', 'error');
             }
         },
     };

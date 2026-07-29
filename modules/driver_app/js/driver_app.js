@@ -1,7 +1,8 @@
 /**
  * SLICEHUB DRIVER APP — Main Application Controller
- * Login + hasło (mode: system), 10s polling, GPS 15s, payment lock, emergency recall.
+ * Login + hasło (mode: system), SSE + polling fallback, GPS 15s, payment lock, emergency recall.
  * 3-Pillar State Machine: payment_status = to_pay | online_unpaid | cash | card | online_paid
+ * Driver App 2.0 — Full Connect: Start Shift, Status Toggle, SLA Badges, Reconcile, SSE, Service Worker
  */
 const DriverApp = (() => {
     const POLL_INTERVAL = 10000;
@@ -10,6 +11,7 @@ const DriverApp = (() => {
 
     const LS_DISMISSED = 'sh_dismissed_courses';
     const LS_AGE_VERIFIED = 'sh_age_verified';
+    const LS_SHIFT_ACTIVE = 'sh_driver_shift_active';
 
     function _loadSet(key) {
         try { const raw = localStorage.getItem(key); return raw ? new Set(JSON.parse(raw)) : new Set(); }
@@ -34,6 +36,10 @@ const DriverApp = (() => {
         dismissedCourses: _loadSet(LS_DISMISSED),
         ageVerified: _loadSet(LS_AGE_VERIFIED),
         holdTimer: null,
+        sse: null,
+        sseConnected: false,
+        shiftActive: localStorage.getItem(LS_SHIFT_ACTIVE) === '1',
+        driverStatus: 'offline',
     };
 
     function formatGrosze(g) {
@@ -46,6 +52,23 @@ const DriverApp = (() => {
 
     function roleOkForDriverApp(role) {
         return DRIVER_APP_ROLES.includes(String(role || '').toLowerCase());
+    }
+
+    // ── SLA BADGES (copied from courses_ui.js:16-27) ──
+    function slaClass(promisedTime) {
+        if (!promisedTime) return 'sla-green';
+        const diff = (new Date(promisedTime) - new Date()) / 60000;
+        if (diff < 0) return 'sla-red';
+        if (diff <= 5) return 'sla-yellow';
+        return 'sla-green';
+    }
+
+    function slaText(promisedTime) {
+        if (!promisedTime) return '--:--';
+        const diff = Math.floor((new Date(promisedTime) - new Date()) / 60000);
+        if (diff < 0) return `Spóźnione ${Math.abs(diff)}m`;
+        if (diff <= 5) return `${diff}m`;
+        return `${diff}m`;
     }
 
     // ── LOGIN (login + hasło) ──
@@ -80,18 +103,33 @@ const DriverApp = (() => {
         document.getElementById('app-root').classList.remove('hidden');
         const u = state.user;
         document.getElementById('topbar-name').textContent = u.name || u.username || 'Kierowca';
+        updateStatusUI('offline');
+        if (!state.shiftActive) {
+            showStartShiftModal();
+        } else {
+            startPollingAndSSE();
+        }
+    }
+
+    function startPollingAndSSE() {
         poll();
         state.pollTimer = setInterval(poll, POLL_INTERVAL);
         startGPS();
         state.recallTimer = setInterval(checkRecall, RECALL_CHECK_INTERVAL);
+        startSse();
+    }
+
+    function stopPollingAndSSE() {
+        clearInterval(state.pollTimer);
+        clearInterval(state.gpsTimer);
+        clearInterval(state.recallTimer);
+        stopSse();
     }
 
     function logout() {
         const tok = localStorage.getItem('sh_token') || '';
         void DriverAPI.setDriverStatus('offline');
-        clearInterval(state.pollTimer);
-        clearInterval(state.gpsTimer);
-        clearInterval(state.recallTimer);
+        stopPollingAndSSE();
         const h = { 'Content-Type': 'application/json' };
         if (tok) {
             h['Authorization'] = 'Bearer ' + tok;
@@ -110,6 +148,9 @@ const DriverApp = (() => {
         localStorage.removeItem(LS_AGE_VERIFIED);
         state.dismissedCourses.clear();
         state.ageVerified.clear();
+        state.shiftActive = false;
+        state.driverStatus = 'offline';
+        localStorage.removeItem(LS_SHIFT_ACTIVE);
         state.user = null;
         document.getElementById('pin-screen').classList.remove('hidden');
         document.getElementById('app-root').classList.add('hidden');
@@ -164,9 +205,16 @@ const DriverApp = (() => {
         }
         state.orders = res.data.orders || [];
         state.wallet = res.data.wallet || null;
+        // Sync driver status from backend — backend is source of truth
+        if (res.data.driver_status) {
+            state.shiftActive = !!res.data.shift_active;
+            updateStatusUI(res.data.driver_status);
+        }
         console.log(`POLL OK — ${state.orders.length} order(s) in delivery:`, state.orders);
         renderRuns();
-        document.getElementById('topbar-status').textContent = state.orders.length > 0 ? `${state.orders.length} zamówień w trasie` : 'Brak kursów';
+        if (state.driverStatus === 'busy' || state.orders.length > 0) {
+            document.getElementById('topbar-status').textContent = `${state.orders.length} zamówień w trasie`;
+        }
     }
 
     // ── GPS ──
@@ -201,6 +249,187 @@ const DriverApp = (() => {
         await DriverAPI.clearRecall();
         document.getElementById('emergency-overlay').classList.remove('active');
         toast('Sygnał potwierdzony — wracaj do bazy', 'info');
+    }
+
+    // ── SSE (pattern from online_track.js:202-249) ──
+    function startSse() {
+        if (!window.EventSource) return;
+        if (!DriverAPI.getToken()) return;
+        if (state.sse) { state.sse.close(); state.sse = null; state.sseConnected = false; }
+
+        try {
+            const es = new EventSource(DriverAPI.sseUrl());
+            state.sse = es;
+
+            es.addEventListener('connected', () => { state.sseConnected = true; });
+
+            const driverEvents = ['order.assigned','order.dispatched','order.in_delivery','order.delivered','order.completed','order.cancelled','driver.recall','driver.status_change'];
+            driverEvents.forEach(evType => {
+                es.addEventListener(evType, () => { poll(); });
+            });
+
+            es.addEventListener('recall', () => {
+                document.getElementById('emergency-overlay').classList.add('active');
+                if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 500]);
+            });
+
+            es.addEventListener('timeout', () => {
+                es.close(); state.sse = null; state.sseConnected = false;
+                setTimeout(startSse, 2000);
+            });
+
+            es.onerror = () => { state.sseConnected = false; };
+        } catch (e) { /* SSE unavailable — polling is sufficient */ }
+    }
+
+    function stopSse() {
+        if (state.sse) { state.sse.close(); state.sse = null; state.sseConnected = false; }
+    }
+
+    // ── START SHIFT ──
+    function showStartShiftModal() {
+        const overlay = document.getElementById('modal-start-shift');
+        if (!overlay) { startPollingAndSSE(); return; }
+        document.getElementById('shift-cash-input').value = '';
+        overlay.classList.add('active');
+        const btn = document.getElementById('shift-confirm-btn');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-play"></i> Rozpocznij zmianę';
+    }
+
+    function closeStartShiftModal() {
+        document.getElementById('modal-start-shift').classList.remove('active');
+    }
+
+    async function confirmStartShift() {
+        const cashInput = document.getElementById('shift-cash-input');
+        const cash = parseFloat(cashInput.value) || 0;
+        const btn = document.getElementById('shift-confirm-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Rozpoczynanie...';
+
+        const res = await DriverAPI.startShift(cash);
+        if (res.success || res.httpCode === 409) {
+            state.shiftActive = true;
+            localStorage.setItem(LS_SHIFT_ACTIVE, '1');
+            closeStartShiftModal();
+            updateStatusUI('available');
+            if (res.success) {
+                toast(`Zmiana rozpoczęta — pogotowie: ${cash.toFixed(2)} zł`, 'success');
+            } else {
+                toast('Zmiana już aktywna — kontynuuj', 'info');
+            }
+            if (navigator.vibrate) navigator.vibrate(100);
+            startPollingAndSSE();
+
+            // HR clock_in — best effort, does not block shift
+            DriverAPI.hrClockIn().then(hr => {
+                if (!hr.success && hr.message && !hr.message.includes('ALREADY_CLOCKED_IN')) {
+                    console.warn('[DriverApp] HR clock_in failed:', hr.message);
+                }
+            });
+        } else {
+            toast(res.message || 'Błąd rozpoczynania zmiany', 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-play"></i> Rozpocznij zmianę';
+        }
+    }
+
+    // ── STATUS TOGGLE ──
+    async function toggleStatus() {
+        if (state.driverStatus === 'offline') {
+            toast('Najpierw rozpocznij zmianę', 'error');
+            return;
+        }
+        const newStatus = state.driverStatus === 'available' ? 'busy' : 'available';
+        const res = await DriverAPI.setDriverStatus(newStatus);
+        if (res.success) {
+            updateStatusUI(newStatus);
+            toast(newStatus === 'busy' ? 'Status: Zajęty' : 'Status: Dostępny', 'info');
+            if (navigator.vibrate) navigator.vibrate(50);
+        } else {
+            toast(res.message || 'Błąd zmiany statusu', 'error');
+        }
+    }
+
+    function updateStatusUI(status) {
+        state.driverStatus = status;
+        const btn = document.getElementById('topbar-status-btn');
+        const label = document.getElementById('topbar-status');
+        if (!btn || !label) return;
+        if (status === 'available') {
+            btn.className = 'topbar-status-btn available';
+            btn.innerHTML = '<i class="fa-solid fa-circle"></i>';
+            label.textContent = state.orders.length > 0 ? `${state.orders.length} zamówień w trasie` : 'Dostępny';
+        } else if (status === 'busy') {
+            btn.className = 'topbar-status-btn busy';
+            btn.innerHTML = '<i class="fa-solid fa-circle"></i>';
+            label.textContent = 'Zajęty';
+        } else {
+            btn.className = 'topbar-status-btn offline';
+            btn.innerHTML = '<i class="fa-solid fa-circle"></i>';
+            label.textContent = 'Offline';
+        }
+    }
+
+    // ── RECONCILE (end shift) ──
+    function showReconcileModal() {
+        const overlay = document.getElementById('modal-reconcile');
+        if (!overlay) return;
+        const w = state.walletDetail || state.wallet;
+        const expectedEl = document.getElementById('reconcile-expected');
+        if (expectedEl && w) {
+            const total = formatGrosze(w.total_in_hand_grosze || w.total_in_hand * 100);
+            expectedEl.textContent = total + ' zł';
+        }
+        document.getElementById('reconcile-counted-input').value = '';
+        overlay.classList.add('active');
+        const btn = document.getElementById('reconcile-confirm-btn');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-check-double"></i> Zakończ zmianę';
+    }
+
+    function closeReconcileModal() {
+        document.getElementById('modal-reconcile').classList.remove('active');
+    }
+
+    async function confirmReconcile() {
+        const countedInput = document.getElementById('reconcile-counted-input');
+        const counted = parseFloat(countedInput.value);
+        if (isNaN(counted)) {
+            toast('Wpisz policzoną kwotę gotówki', 'error');
+            return;
+        }
+        const btn = document.getElementById('reconcile-confirm-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Rozliczanie...';
+
+        const res = await DriverAPI.reconcile(counted);
+        if (res.success) {
+            const d = res.data;
+            closeReconcileModal();
+            state.shiftActive = false;
+            localStorage.removeItem(LS_SHIFT_ACTIVE);
+            stopPollingAndSSE();
+            const flagText = d.flag === 'OK' ? '✅ Rozliczenie zgodne' : '⚠️ Wymaga weryfikacji';
+            toast(`${flagText} — oczekiwano: ${d.expected} zł, policzono: ${d.counted} zł, różnica: ${d.variance} zł`, d.flag === 'OK' ? 'success' : 'error');
+            if (navigator.vibrate) navigator.vibrate(d.flag === 'OK' ? 200 : [200, 100, 200, 100, 200]);
+            updateStatusUI('offline');
+
+            // HR clock_out — best effort, does not block
+            DriverAPI.hrClockOut().then(hr => {
+                if (!hr.success) {
+                    console.warn('[DriverApp] HR clock_out failed:', hr.message);
+                }
+            });
+
+            // After reconcile: stay logged in, show start shift modal for next shift
+            setTimeout(() => showStartShiftModal(), 2000);
+        } else {
+            toast(res.message || 'Błąd rozliczenia', 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-check-double"></i> Zakończ zmianę';
+        }
     }
 
     // ── DRIVER ACTION HELPERS ──
@@ -400,12 +629,19 @@ const DriverApp = (() => {
                         <button class="d-action locked" disabled><i class="fa-solid fa-lock"></i> Dostarcz</button>`;
                 }
 
+                const sla = slaClass(o.promised_time);
+                const slaT = slaText(o.promised_time);
+                const tipHtml = (o.tip_amount && parseInt(o.tip_amount) > 0)
+                    ? `<div class="d-card-tip"><i class="fa-solid fa-coins"></i> Napiwek: ${formatGrosze(o.tip_amount)} zł</div>`
+                    : '';
+
                 html += `
-                <div class="d-card">
+                <div class="d-card ${sla}">
                     <div class="d-card-header">
                         <div style="display:flex; align-items:center">
                             <div class="d-card-stop">${o.stop_number || '—'}</div>
                             <span class="d-card-num">#${(o.order_number || '').split('/').pop()}</span>
+                            <span class="d-card-sla ${sla}">${slaT}</span>
                         </div>
                         <span class="d-card-total">${total} zł</span>
                     </div>
@@ -414,6 +650,7 @@ const DriverApp = (() => {
                         ${phone ? `<div class="d-card-phone"><i class="fa-solid fa-phone" style="margin-right:6px"></i>${phone}</div>` : ''}
                         ${o.customer_name ? `<div class="d-card-phone"><i class="fa-solid fa-user" style="margin-right:6px"></i>${o.customer_name}</div>` : ''}
                         ${payBadge}
+                        ${tipHtml}
                         ${lines ? `<div class="d-card-items">${lines}</div>` : ''}
                         ${ageGate}
                     </div>
@@ -545,6 +782,10 @@ const DriverApp = (() => {
                 </div>`;
             }).join('');
 
+        const reconcileBtn = state.shiftActive
+            ? `<button class="wallet-reconcile-btn" onclick="DriverApp.showReconcileModal()"><i class="fa-solid fa-check-double"></i> Zakończ zmianę i rozlicz gotówkę</button>`
+            : '';
+
         el.innerHTML = `
             <div class="wallet-hero">
                 <div class="wallet-label">Gotówka w ręku</div>
@@ -557,6 +798,7 @@ const DriverApp = (() => {
                 <div class="wb-card"><div class="wb-label">Opłacone online</div><div class="wb-value prepaid">${w.prepaid_total || '0.00'} zł</div></div>
                 <div class="wb-card"><div class="wb-label">Dostawy dzisiaj</div><div class="wb-value count">${w.delivery_count}</div></div>
             </div>
+            ${reconcileBtn}
             <div class="wallet-history">
                 <div class="wh-title"><i class="fa-solid fa-clock-rotate-left"></i> Historia dostaw</div>
                 ${historyHtml}
@@ -573,10 +815,22 @@ const DriverApp = (() => {
         setTimeout(() => t.remove(), 4000);
     }
 
+    // ── SERVICE WORKER REGISTRATION (pattern from pos_sw_register.js) ──
+    function registerServiceWorker() {
+        if (!('serviceWorker' in navigator)) return;
+        const swUrl = (window.SliceHub && window.SliceHub.appUrl)
+            ? window.SliceHub.appUrl('modules/driver_app/sw.js')
+            : new URL('sw.js', location.href).href;
+        navigator.serviceWorker.register(swUrl, { scope: './' })
+            .then(() => { console.log('[DriverApp] SW registered'); })
+            .catch(() => { /* SW optional — app works without it */ });
+    }
+
     // ── INIT ──
     document.addEventListener('DOMContentLoaded', () => {
         bindLoginForm();
         tryAutoLogin();
+        registerServiceWorker();
     });
 
     return Object.freeze({
@@ -585,5 +839,8 @@ const DriverApp = (() => {
         acknowledgeRecall, loadWallet,
         openCancelModal, closeCancelModal, confirmCancelOrder,
         verifyAge,
+        toggleStatus,
+        showStartShiftModal, closeStartShiftModal, confirmStartShift,
+        showReconcileModal, closeReconcileModal, confirmReconcile,
     });
 })();

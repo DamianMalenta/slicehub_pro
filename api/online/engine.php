@@ -1943,21 +1943,20 @@ try {
             $enriched = array_map(function ($it) use ($priceMap) {
                 $sku = (string)($it['sku'] ?? '');
                 $p   = $priceMap[$sku] ?? null;
-                $sm  = $it['scene_meta'] ?? [];
                 return [
                     'sku'                => $sku,
                     'name'               => (string)($it['name'] ?? ''),
                     'description'        => $it['description'] ?? null,
                     'heroUrl'            => $it['hero_url'] ?? null,
                     'compositionProfile' => (string)($it['composition_profile'] ?? 'static_hero'),
-                    'hasScene'           => !empty($sm['scene_id']),
-                    'activeStyle'        => $sm['active_style'] ?? null,
+                    'hasScene'           => !empty($it['scene_id']),
+                    'activeStyle'        => $it['active_style'] ?? null,
                     // G6 · Living Scene — klucze atmospheric_effects dla storefrontu
-                    'atmosphericEffects' => is_array($sm['atmospheric_effects'] ?? null)
-                                              ? array_values($sm['atmospheric_effects'])
+                    'atmosphericEffects' => is_array($it['atmospheric_effects'] ?? null)
+                                              ? array_values($it['atmospheric_effects'])
                                               : [],
                     // M3 #4 · Auto-perspective — active_camera_preset z sceny
-                    'activeCamera'       => $sm['active_camera'] ?? null,
+                    'activeCamera'       => $it['active_camera'] ?? null,
                     'price'              => $p ? $p['price'] : null,
                     'priceFallback'      => $p ? $p['fallback'] : true,
                 ];
@@ -2153,21 +2152,20 @@ try {
         $enriched = array_map(function ($it) use ($priceMap) {
             $sku = (string)($it['sku'] ?? '');
             $p   = $priceMap[$sku] ?? null;
-            $sm  = $it['scene_meta'] ?? [];
             return [
                 'sku'                => $sku,
                 'name'               => (string)($it['name'] ?? ''),
                 'description'        => $it['description'] ?? null,
                 'heroUrl'            => $it['hero_url'] ?? null,
                 'compositionProfile' => (string)($it['composition_profile'] ?? 'static_hero'),
-                'hasScene'           => !empty($sm['scene_id']),
-                'activeStyle'        => $sm['active_style'] ?? null,
+                'hasScene'           => !empty($it['scene_id']),
+                'activeStyle'        => $it['active_style'] ?? null,
                 // G6 · Living Scene — klucze atmospheric_effects (dla tile/card renderu)
-                'atmosphericEffects' => is_array($sm['atmospheric_effects'] ?? null)
-                                          ? array_values($sm['atmospheric_effects'])
+                'atmosphericEffects' => is_array($it['atmospheric_effects'] ?? null)
+                                          ? array_values($it['atmospheric_effects'])
                                           : [],
                 // M3 #4 · Auto-perspective — active_camera_preset
-                'activeCamera'       => $sm['active_camera'] ?? null,
+                'activeCamera'       => $it['active_camera'] ?? null,
                 'price'              => $p ? $p['price'] : null,
                 'priceFallback'      => $p ? $p['fallback'] : true,
             ];

@@ -4,7 +4,7 @@ window.BulkEditor = {
 
     async executeBulkUpdate() {
         if (!window.StudioState || !window.StudioState.bulkSelectedItems || window.StudioState.bulkSelectedItems.length === 0) {
-            alert('Błąd: Zaznacz przynajmniej jedno danie z listy po lewej stronie!');
+            if (window.StudioToast) window.StudioToast.show('Zaznacz przynajmniej jedno danie w drzewie!', 'warning');
             return;
         }
 
@@ -51,7 +51,7 @@ window.BulkEditor = {
             const result = await window.StudioApi.postPayload(payload);
             
             if (result.success === true) {
-                alert("SUKCES: " + result.message);
+                if (window.StudioToast) window.StudioToast.show(result.message || 'Masowo zaktualizowano!', 'success');
                 
                 // Resetujemy zaznaczenia i UI po udanej operacji
                 window.StudioState.bulkSelectedItems = [];
@@ -66,10 +66,10 @@ window.BulkEditor = {
                     });
                 }
             } else {
-                alert("BŁĄD: " + result.message);
+                if (window.StudioToast) window.StudioToast.show('Błąd: ' + result.message, 'error');
             }
         } catch (error) {
-            alert("Krytyczny błąd sieci podczas masowego zapisu.");
+            if (window.StudioToast) window.StudioToast.show('Krytyczny błąd sieci podczas masowego zapisu.', 'error');
             console.error(error);
         }
     }

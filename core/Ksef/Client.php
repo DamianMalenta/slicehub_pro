@@ -830,7 +830,7 @@ class Client
         if ($json === false) {
             return;
         }
-        $enc = \CredentialVault::encrypt($json);
+        $enc = \CredentialVault::encryptSoft($json);
         $up = $this->pdo->prepare(
             "UPDATE sh_tenant_integrations SET credentials = :c, updated_at = NOW()
               WHERE tenant_id = :tid AND provider = 'ksef'"

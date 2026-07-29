@@ -44,7 +44,7 @@ Innowacyjny **system operacyjny gastronomii** z dwiema twarzami: dla **managera*
 
 1. **Scena Drzwi** (`modules/online/index.html#doorway`) — hero-entry: ilustracja lokalu, marka, godziny, kanały (POS/Takeaway/Delivery), status otwarcia, mapa modal, CTA „Wejdź”. **Ma być żywa** (pora dnia, obciążenie, pogoda) — nie static.
 2. **Scena Daniowa / „Living Table”** (swipe'owany katalog `pizza-scene`) — kafelki oparte na `SceneResolver` (layer_base + sauce + cheese + toppings). Klient przesuwa jak na Instagramie. Bez dropdownów, bez formularzy. Wejście w kafelek → **Counter** (Bottom Sheet) z live price (`CartEngine`), Half & Half, modifikatorami z podglądem warstw i companion-items.
-3. **Checkout** (`api/online/engine.php` → `init_checkout` + `guest_checkout`) — publiczny flow storefrontu: lock token, phone-keyed order, bez rejestracji, bez `auth_guard.php`. `api/orders/checkout.php` pozostaje kanonicznym endpointem finalizacji dla ścieżek chronionych / backoffice i NIE jest jeszcze publicznym checkoutem klienta online.
+3. **Checkout** (`api/online/engine.php` → `init_checkout` + `guest_checkout`) — publiczny flow storefrontu: lock token, phone-keyed order, bez rejestracji, bez `auth_guard.php`. ~~`api/orders/checkout.php`~~ **USUNIĘTY 2026-07-28** — logika wchłonięta do `online/engine.php#guest_checkout` + `pos/engine.php#process_order`.
 4. **Track** (`modules/online/track.html`) — **nie** ekran „twoje zamówienie: PRZYJĘTE”. To **living timeline** z ETA (`PromisedTimeEngine`), świadomy stanu kuchni + kierowcy (GPS z `api/courses/engine.php`), z obrazem daniową sceną w tle.
 
 ### Docelowy przepływ (manager) — Studio
@@ -78,10 +78,10 @@ Biblioteka zdjęć historycznie miała 3 niezależne endpointy: `library_list` (
 | C · Harmony Score FIX | Transparentny model scoring (completeness 0–50 + polish 0–30 + consistency 0–20) + UI rozbicia + cache v2 (`outliers_json` jako obiekt z `version`+`breakdown`+`outliers`+`layerOutliers`) | **DONE** (2026-04-19) |
 | D · Ustawienia sklepu | `api/online_studio/engine.php` akcje `storefront_settings_get`/`storefront_settings_save` + nowy tab `modules/online_studio/js/tabs/storefront.js` (brand, kontakt, godziny, kanały+preorder, mapa OSM) | **DONE** (2026-04-19) |
 | E · Track screen | `api/online/engine.php action=track_order` rozbudowany (items + storeCoords + etaSeconds + heroImage). Front: live ETA countdown (1s ticker z serwerową kotwicą), hero image tła karty, lista pozycji z miniaturami, origin pin (restauracja) + driver pin + auto-fit bounds. Polling storefrontu ujednolicony do `10s`. | **DONE** (2026-04-19) |
-| F · Counter + Living Table | Scena Daniowa jako teatr (swipe + Bottom Sheet + Living 3D) | **ODDZIELNA SESJA** — wymaga samodzielnej iteracji |
+| F · Counter + Living Table | Scena Daniowa jako teatr (swipe + Bottom Sheet + Living 3D) | **NIE ROZPOCZĘTA** — wymaga samodzielnej iteracji |
 | G · Admin Hub | Meta-panel dla kilku tenantów (oddzielna Faza 3) | LATER |
 
-> **Status sesji 2026-04-19:** A→E zamknięte. Następny krok: Faza F (Counter + Living Table) po tescie Fazy A–E przez użytkownika.
+> **Status sesji 2026-07-29:** A→E zamknięte. HR Faza 3A–3C + Faza 4 (PayrollEngine rewrite + DROP `sh_users.hourly_rate`) — DONE. Faza 7 (Event System + Gateway + Integrations + Settings) — DONE. Faza 5 (Self-service ekipy) — NIE ROZPOCZĘTA. Offline POS P4.5–P8 — 🧊 FREEZE do 2026-08-23. Faza F (Counter + Living Table) — NIE ROZPOCZĘTA. **Menu Studio Faza 2 (Tabbed Editor 7-zakładkowy)** — ✅ WDRUŻONE (`studio_item.js`: `switchTab()`, `_markDirty()/_markClean()`, Ctrl+S, StudioToast, no-op anchor nav/scroll spy). **Menu Studio Faza 3 (Modifiers Drawer)** — ✅ WDRUŻONE (`studio_modifiers.js`: `openDrawer()`/`closeDrawer()`/`_showListInDrawer()`/`_showFormInDrawer()`, `renderInit()` → drawer 480px, `renderGroupList()` → drawer refresh, `saveModifierGroup()` → StudioToast, `index.html`: `#modifiers-drawer` + backdrop, `studio_ui.js`: switchView fallback, `studio_item.js`: Tab 3 button → drawer. Lint 3/3 PASS). **Menu Studio Faza 4 (Inspector + Dashboard + Bulk auto-switch)** — ✅ WDRUŻONE (`index.html`: `#studio-inspector` 380px z recipe/margin/bulk/dashboard, `studio_ui.js`: `renderDashboard()`, `updateInspector()`, `toggleBulkSelection()` auto-switch, `studio_core.js`: `StudioState.currentView` + `routeToMode()`, `studio_item.js`: usunięte ref do `food-cost-panel`. Lint 5/5 PASS). **Driver App 2.0 (Full Connect)** — ✅ WDRUŻONE (SSE, Service Worker, Start Shift, Status Toggle, SLA Badges, Reconcile UI, Tips fix, PWA manifest). **HR integracja** — ✅ WDRUŻONE: `hrClockIn`/`hrClockOut` w Driver App (`driver_api.js` + `driver_app.js`), feature flag `HR_USE_EVENT_DRIVER_FANOUT='1'` ON dla tenant 1. **SLA breach logging** — ✅ WDRUŻONE: `scripts/worker_sla_monitor.php` (CLI cron) + `engine.php#get_sla_breaches` akcja. 2 pozostałe Driver App: status `returning` (odłożone), push notifications (niski priorytet). **Menu Studio Faza 5 (Polish + Keyboard Shortcuts)** — ✅ WDRUŻONE (`studio_core.js`: keyboard shortcuts listener — Ctrl+S save, Esc close/back, Ctrl+D duplicate, Ctrl+B bulk toggle, ↑↓ tree nav, Enter open item; `studio_ui.js`: `navigateTree()`, `openSelectedItem()`, `bindTreeDragDrop()` HTML5 DnD reorder, `quickEditPrice()` inline POS price modal, `renderTree()` draggable rows + pen-icon quick edit button, `alert()`→`StudioToast.show()` in addCategory/editCategory; `studio_item.js`: `duplicateItem()` + KOPIUJ button in command bar, standalone `alert()`→`StudioToast.show()`; `studio_bulk.js` + `studio_meals.js`: all `alert()`→`StudioToast.show()`; `index.html`: CSS `.drag-over-top/bottom` + `.active-tree-item`. Lint 5/5 PASS). Następny krok: Faza F (Counter + Living Table) — decyzja właściciela. Szczegóły Driver App: `_docs/19_LOGISTYKA_I_BEZPIECZENSTWO.md` §6, Studio: `_docs/19_STUDIO_MENU_PRO_DESIGN.md`.
 
 ---
 
@@ -165,8 +165,8 @@ SliceHub **nie jest kolejnym POS-em**. To **gastronomiczny system klasy enterpri
 - Funkcja opisana w docs jako produkcyjna MUSI mieć call-site + test (manual albo auto).
 - Funkcja kompletna ale niewpięta = adnotacja `@planned (Prawo VIII)` w docblocku z konkretnym powodem i datą.
 - Każdy audyt modułu raportuje listę `@planned` na końcu — nie wolno tego ukryć.
-- **Aktualne `@planned`:** `api/payments/settle.php` (decyzja: integracja albo usunięcie), `api/orders/edit.php`, `api/orders/estimate.php`, `api/orders/sla_monitor.php`.
-- **Domknięte:** ~~`core/WzEngine.php::consumeForOrder`~~ (F1 · 2026-05-11 — `core/WarehouseConsumeHook`).
+- **Aktualne `@planned`:** `api/orders/edit.php`, `api/orders/estimate.php`, `api/orders/sla_monitor.php` (unikalna logika — DeltaEngine, PromisedTimeEngine, SLA breach logging — czekają na frontend).
+- **Domknięte:** ~~`core/WzEngine.php::consumeForOrder`~~ (F1 · 2026-05-11 — `core/WarehouseConsumeHook`); ~~`api/payments/settle.php`~~ (F1 · 2026-07-07 — **usunięty 2026-07-28**); ~~`api/orders/panic.php`~~, ~~`api/orders/accept.php`~~, ~~`api/orders/checkout.php`~~, ~~`api/delivery/dispatch.php`~~, ~~`api/delivery/reconcile.php`~~, ~~`api/kds/update_ticket.php`~~, ~~`api/staff/payroll.php`~~, ~~`api/dashboard/team_payroll.php`~~ (**usunięte 2026-07-28** — logika wchłonięta do engine.php + core/ silników: `PanicEngine`, `KdsTicketEngine`; katalogi `api/payments/`, `api/delivery/`, `api/dashboard/`, `api/staff/` usunięte).
 
 ### Prawo IX — Datowane Zamrożenia (Freeze Discipline) · NEW v5
 
@@ -202,8 +202,7 @@ slicehub/
 │   ├── online/engine.php               # Storefront (get_menu, get_dish, cart_calculate)
 │   ├── cart/CartEngine.php             # Core silnik koszyka (static ::calculate)
 │   ├── cart/calculate.php              # HTTP wrapper nad CartEngine
-│   ├── orders/checkout.php             # Finalizacja zamówienia
-│   ├── orders/edit.php                 # Edycja zamówienia
+│   ├── orders/edit.php                 # Edycja zamówienia (PLANNED)
 │   ├── pos/engine.php                  # POS (action-based)
 │   ├── tables/engine.php               # Dine-in (zones, tables, merge)
 │   ├── courses/engine.php              # Logistyka (dispatch, GPS, recall)
@@ -213,7 +212,6 @@ slicehub/
 │   │   ├── api_menu_studio.php         # Studio menu CRUD
 │   │   ├── api_visual_studio.php       # Upload warstw wizualnych (Studio)
 │   │   └── hr/engine.php               # HR: clock_* + employees_* + employee_pin_set + employee_rate_set
-│   └── delivery/{dispatch,reconcile}.php
 ├── core/
 │   ├── db_config.php                   # PDO → $pdo
 │   ├── AuthEngine.php / AuthGuard.php  # JWT + session auth
@@ -229,7 +227,7 @@ slicehub/
 │   ├── HrClockEngine.php               # HR clock-in/out (m041-m044, Faza 3A)
 │   ├── PayrollLedger.php               # Append-only writer (Faza 3B/3C) — record/reverse/readers + period locks
 │   ├── AdvanceEngine.php               # Workflow zaliczki (Faza 3B/3C) — request/approve/pay/repay/settle/void
-│   ├── PayrollEngine.php / TeamPayrollEngine.php  # SSOT: rewrite IN-PLACE na readery z `sh_payroll_ledger::sumForPeriod` (Faza 4 — zakaz plików równoległych / sufiksowanych)
+│   ├── PayrollEngine.php / TeamPayrollEngine.php  # SSOT: rewrite IN-PLACE DONE (Faza 4 ✅) — czyta z `sh_payroll_ledger` + `sh_employee_rates`, nie czyta `sh_users.hourly_rate` (DROP m061)
 │   ├── FoodCostEngine.php
 │   ├── AsciiKeyEngine.php              # ASCII key generation (Polish → a-z0-9_)
 │   ├── StaffFleetPresence.php          # Heartbeat last_seen + TTL=120s (NEW · 2026-05-04)
@@ -314,7 +312,7 @@ slicehub/
 | Orders | `sh_course_sequences` | `(tenant_id, date)` | kursy K1, K2… |
 | Orders | `sh_dispatch_log`, `sh_delivery_zones`, `sh_sla_breaches`, `sh_panic_log` | | Logistyka |
 | Staff | `sh_drivers`, `sh_driver_shifts`, `sh_driver_locations` (mig. 008) | | GPS UPSERT |
-| Staff | `sh_work_sessions`, `sh_deductions`, `sh_meals` | | Payroll |
+| Staff | `sh_work_sessions`, ~~`sh_deductions`~~, ~~`sh_meals`~~ | | Payroll — `sh_deductions`/`sh_meals` DEPRECATED (dane zmigrowane do `sh_payroll_ledger`; tabele istnieją fizycznie ale kod HR nie czyta) |
 | WH | `sys_items` | `id` AI + `sku` | słownik surowców (kg/l/szt) |
 | WH | `wh_stock` | `(tenant_id, warehouse_id, sku)` | + `current_avco_price` (AVCO) |
 | WH | `wh_documents` / `wh_document_lines` | | **KANON** — types: PZ/WZ/MM/INW/KOR/RW (wszystkie silniki magazynu: `WzEngine`, `PzEngine`, `InwEngine`, `KorEngine`, `MmEngine`) |
@@ -323,7 +321,7 @@ slicehub/
 | WH | `sh_product_mapping` | | external_name → sku (AutoScan faktur) |
 | WH | `sh_doc_sequences` | `(tenant_id, doc_type, doc_date)` | numerator dokumentów |
 
-### Migracje (stan 040 · 🧊 039/040 freeze — patrz `17_OFFLINE_POS_BACKLOG.md`)
+### Migracje (stan 061 · 🧊 039/040 freeze — patrz `17_OFFLINE_POS_BACKLOG.md`)
 
 | Nr | Co |
 |----|-----|
@@ -363,10 +361,27 @@ slicehub/
 | 038 | **Drop Legacy Inventory Docs** — DROP `wh_inventory_docs` + `wh_inventory_doc_items`. Obie tabele były martwe od m001 (nigdy nie referencowane w kodzie PHP, zero wierszy w bazie). Kanon inwentaryzacji: `wh_documents` (type=INW) + `wh_document_lines`. |
 | 039 | 🧊 **Resilient POS Foundation (P1–P3)** — `sh_pos_terminals` (rejestracja urządzeń per tenant), `sh_pos_sync_cursors` (stan synchronizacji per terminal), `sh_pos_op_log` (idempotent log operacji z UUID v7 PK). Obsługuje push klient→serwer. **FREEZE 2026-04-23** — edycja tylko przez rozmrożenie + nowa migracja. Spec: `_docs/16_RESILIENT_POS.md`. |
 | 040 | 🧊 **Resilient POS · Phase 3.5 — Server→Client delta stream** — `sh_pos_server_events` (append-only log eventów serwer→POS, retention 7 dni) + rozszerzenie `sh_pos_sync_cursors` o `pull_events_total` / `pull_last_count` / `pull_last_fetched_at`. **FREEZE 2026-04-23.** Po rozmrożeniu — producenci publikują przez `sh_event_outbox` (m026) + nowy `scripts/worker_pos_fanout.php` (P4.5). Zakaz bezpośredniego `INSERT` z innych modułów. |
-| 041 | **Backoffice HR · Employees Foundation (Faza 3A)** — `sh_employees` (profil kadrowy 1:1 z `sh_users`, NULLABLE; agregat główny dla całego silosu HR), `sh_employee_rates` (temporalne stawki `effective_from/to`, grosze + currency). Backfill z `sh_users` (8/8 profili w dev) + z `sh_users.hourly_rate` (tylko `>0`). `sh_users.hourly_rate` oznaczona `DEPRECATED_HR_M041` — DROP dopiero po 2× zamknięciu okresu (Expand-Contract). Rozwiązania: HR-2 (historia stawek), HR-10 (tożsamość HR), HR-12 (bcrypt `auth_pin_hash`). Spec: `_docs/18_BACKOFFICE_HR_LOGIC.md`. |
+| 041 | **Backoffice HR · Employees Foundation (Faza 3A)** — `sh_employees` (profil kadrowy 1:1 z `sh_users`, NULLABLE; agregat główny dla całego silosu HR), `sh_employee_rates` (temporalne stawki `effective_from/to`, grosze + currency). Backfill z `sh_users` (8/8 profili w dev) + z `sh_users.hourly_rate` (tylko `>0`). ~~`sh_users.hourly_rate` oznaczona `DEPRECATED_HR_M041`~~ — **DROPPED w m061 (2026-07-27)**. Rozwiązania: HR-2 (historia stawek), HR-10 (tożsamość HR), HR-12 (bcrypt `auth_pin_hash`). Spec: `_docs/18_BACKOFFICE_HR_LOGIC.md`. |
 | 042 | **Backoffice HR · Work Sessions extend (Faza 3A)** — rozszerzenie `sh_work_sessions` o `employee_id` (FK → `sh_employees`), `terminal_id`, `clock_in_source` / `clock_out_source` (ASCII: kiosk/pos/mobile/manager_override/system_auto), `adjusted_by_user_id` + `adjustment_reason`, `geo_lat_in/out` + `geo_lon_in/out`. Hardware-level idempotency: generated column `open_guard` + UNIQUE INDEX `uq_ws_single_open(tenant_id, employee_id, open_guard)` — max 1 otwarta sesja per pracownik (HR-5). Backfill `employee_id` dla istniejących wierszy. |
 | 043 | **Backoffice HR · Payroll Ledger (Faza 3A)** — `sh_payroll_ledger` (append-only księga finansowa, SIGNED `amount_minor`: + zarobki / − potrącenia; typy: work_earnings, meal_deduction, advance_payment, advance_repayment, adjustment, reversal, bonus), idempotencja przez `entry_uuid` + `(employee_id, ref_work_session_id, entry_type)` UNIQUE, kolumny `is_locked/locked_at` (preparacja pod Fazę 3C — twardy lock księgowy po zamknięciu okresu). FK → sh_meals. Zasada: zero UPDATE po zapisie (tylko reversal przez `reverses_entry_id`). |
 | 044 | **Backoffice HR · Advances Lifecycle (Faza 3A)** — `sh_advances` (zaliczki z pełnym workflow: requested → approved → paid → settled + rejection/void), `sh_advance_installments` (harmonogram spłat per okres rozliczeniowy, `status`: pending/applied/waived/void, `applied_ledger_entry_id` FK). Domknięcie FK-ów w `sh_payroll_ledger` do `sh_advances` i `sh_advance_installments`. Rozwiązanie HR-8 (brak workflow zatwierdzania) + HR-9 (brak harmonogramu spłat). |
+| 045 | **Tenant Legal Profile** — dane prawne tenanta (NIP, REGON, adres, dane do faktur). |
+| 046 | **KSeF Inbox** — `sh_ksef_inbox_invoices`, `sh_ksef_inbox_mappings` (import faktur KSeF). |
+| 047 | **Order Geocoding** — rozszerzenie `sh_orders` o geokodowanie (lat/lng z adresu). |
+| 048 | **Variant Scales** — warianty skal cenowych dla pozycji menu. |
+| 049 | **Modifier Size Pricing** — cennik modyfikatorów zależny od rozmiaru. |
+| 050 | **Meal Packages** — pakiety posiłków (combo bundles). |
+| 051 | **Publication Status Normalize** — normalizacja statusów publikacji (Draft/Live/Archived). |
+| 052 | **Valid From/To Datetime** — zmiana `valid_from`/`valid_to` z DATE na DATETIME. |
+| 053 | **Subrecipes** — pod-receptury (zagnieżdżone kompozycje składników). |
+| 054 | **Order Line Combo Meta** — metadane linii zamówienia dla pakietów/combo. |
+| 055 | **Recipe Display Order** — kolejność wyświetlania receptur. |
+| 056 | **KSeF Invoice Cost Category** — kategorie kosztów na fakturach KSeF. |
+| 057 | **KSeF Line OPEX Expense Categories** — kategorie wydatków operacyjnych KSeF. |
+| 058 | **KSeF Line Qty Normalization** — normalizacja ilości na liniach faktur KSeF. |
+| 059 | **Product Mapping Unique Supplier** — UNIQUE constraint na `(tenant_id, supplier_id, external_name)` w `sh_product_mapping`. |
+| 060 | **Print Decks** — konfiguracja dek drukarek (receipt/kitchen tickets). |
+| 061 | **DROP `sh_users.hourly_rate` (Faza 4 · CONTRACT)** — idempotentny DROP COLUMN z information_schema guardem. Domyka wzorzec Expand-Contract rozpoczęty w m041. Walidacja: `SELECT COUNT(*) FROM information_schema.COLUMNS WHERE ... hourly_rate` → 0. |
 
 ---
 
@@ -460,7 +475,7 @@ Prosty wrapper fetch POST → JSON, obsługa błędów i auth header. Powinien b
 - **Cel:** publikowanie eventów lifecycle (`order.created`, `order.accepted`, `order.preparing`, `order.ready`, `order.dispatched`, `order.delivered`, `order.completed`, `order.cancelled`, `order.recalled`, `order.edited`) do `sh_event_outbox` w tej samej transakcji co zapis do `sh_orders`.
 - **Gwarancje:** idempotency (UNIQUE tenant_id+key), silent degradation gdy tabela nie istnieje, snapshot payload (worker nie joinuje przy dispatchu).
 - Metody: `publish()`, `publishOrderLifecycle()` (auto-snapshot order header + lines).
-- Używane w: `api/online/engine.php#guest_checkout`, `api/gateway/intake.php`, `api/pos/engine.php`, `api/kds/engine.php` (bump+recall), `api/delivery/dispatch.php`, `api/courses/engine.php`.
+- Używane w: `api/online/engine.php#guest_checkout`, `api/gateway/intake.php`, `api/pos/engine.php`, `api/kds/engine.php` (bump+recall), `api/courses/engine.php`.
 - Konsumenci (async): `scripts/worker_webhooks.php` (m026 · Sesja 7.3), `scripts/worker_integrations.php` (m028 · Sesja 7.4), 3rd-party adapters w `core/Integrations/`.
 - Szczegóły: `_docs/09_EVENT_SYSTEM.md`.
 
@@ -586,7 +601,7 @@ Prosty wrapper fetch POST → JSON, obsługa błędów i auth header. Powinien b
    - Promo (jeśli kod): validate window, uses, min_order, allowed_channels.
 5. **Zwrot** → serwer oddaje serwer-autorytatywny `grand_total`, `vat_summary`, structured lines.
 6. **Checkout publiczny (storefront)** → `api/online/engine.php#init_checkout` tworzy `lock_token`, potem `api/online/engine.php#guest_checkout` rekalkuluje koszyk, woła `WzEngine::checkAvailability()`, zapisuje `sh_orders` + `sh_order_lines`, generuje `tracking_token` i konsumuje lock.
-7. **Checkout chroniony / kanoniczny** → `api/orders/checkout.php` pozostaje endpointem auth-guarded dla ścieżek wewnętrznych; ma rozszerzenia pod `source='ONLINE'`, ale nie jest jeszcze publicznym wejściem storefrontu.
+7. **Checkout chroniony / kanoniczny** → ~~`api/orders/checkout.php`~~ **USUNIĘTY 2026-07-28.** Logika wchłonięta do `online/engine.php#guest_checkout` (publiczny) + `pos/engine.php#process_order` (chroniony).
 
 ---
 
@@ -596,7 +611,7 @@ Prosty wrapper fetch POST → JSON, obsługa błędów i auth header. Powinien b
 |----------|------|-------------|
 | `api/online/engine.php` | **PUBLIC** (storefront — klient anonimowy; `delivery_zones`, `init_checkout`, `guest_checkout`, `track_order`) | `tenantId` w POST body |
 | `api/cart/calculate.php` | PUBLIC | POST body |
-| `api/orders/checkout.php` | `auth_guard.php` (sesja/JWT) | `$tenant_id` z guardu |
+| ~~`api/orders/checkout.php`~~ | **USUNIĘTY 2026-07-28** — logika w `online/engine.php#guest_checkout` + `pos/engine.php#process_order` | — |
 | `api/pos/engine.php` | `auth_guard.php` (sesja/JWT) | `$tenant_id` z guardu |
 | `api/tables/engine.php` | `auth_guard.php` | `$tenant_id` z guardu |
 | `api/courses/engine.php` | `auth_guard.php` (dispatcher) + PIN (driver app) | guard |
@@ -813,7 +828,7 @@ Braki do uzupełnienia (z `ustalenia.md` §10):
 - `modules/online/js/online_api.js` rozwiązuje tenant publiczny z `meta[name="sh-tenant-id"]` albo `?tenant=` / `?tenantId=` — nie ma jeszcze wspólnego resolvera w `core/`.
 - `track_order` działa po parze `tracking_token + customer_phone`; obecnie brak fallbacku po `order_number`.
 - `delivery_zones` jest autorytatywne tylko gdy storefront poda `lat/lng`; sam `address` uruchamia miękki fallback (`in_zone = null`, manualna weryfikacja).
-- `api/orders/checkout.php` ma już część rozszerzeń online (`lock_token`, `tracking_token`, stock preflight), ale nadal jest za `auth_guard.php`, więc nie zastępuje publicznego `guest_checkout`.
+- ~~`api/orders/checkout.php`~~ **USUNIĘTY 2026-07-28.** Rozszerzenia online (`lock_token`, `tracking_token`, stock preflight) wchłonięte do `online/engine.php#guest_checkout` + `pos/engine.php#process_order`.
 
 **PREREKWIZYTY FAZY 2**
 1. ✅ **Menu Studio Polish** (DONE · 2026-04-19) — connect-dots modyfikator↔warstwa z asset pickerem + live preview + badge, **hero picker dania** (akcje `set_item_hero` / `unlink_item_hero` → `sh_asset_links` entity_type='menu_item' role='hero'), auto-generator domyślnej kompozycji (akcja `autogenerate_scene` → upsert do `sh_atelier_scenes.spec_json.pizza.layers[]`; gdy brak materiału zwraca `data.reason='no_source_data'` + `steps[]` żeby manager wiedział co uzupełnić), miniatura dania w drzewie Studio (reuse `get_menu_tree` + `AssetResolver::injectHeros`), pełen overhaul UX recept (fuzzy search z autocomplete, stock badge per wiersz z `wh_stock`, bulk add modal, live Food Cost total, przycisk "Zapisz Recepturę"). **Zero zmian schematu DB.** Patrz `_docs/15_KIERUNEK_ONLINE.md` § 2.1.
@@ -839,10 +854,11 @@ Braki do uzupełnienia (z `ustalenia.md` §10):
    - Backend: `api/online/engine.php` action=`get_doorway` — zwraca brand, contact (address/city/phone/email/lat/lng), hours (today + week + JSON), status (code/label/next_open_at), channels, timeOfDay, preOrderEnabled. Klucze konfiguracyjne w `sh_tenant_settings` (KV): `storefront_address`, `storefront_city`, `storefront_phone`, `storefront_email`, `storefront_lat`, `storefront_lng`, `storefront_tagline`, `storefront_brand_color`, `storefront_channels_json`, `storefront_preorder_enabled`. Godziny otwarcia czytane z kolumny `opening_hours_json` (wspólna z PromisedTimeEngine).
    - API client: `OnlineAPI.getDoorway(channel)` w `modules/online/js/online_api.js`.
 
-**MVP FAZY 2 — DO BUDOWY**
+**MVP FAZY 2 — STAN**
 - ✅ Scena 1: **Drzwi** (M4 DONE — hero entry, mapa w modalu, tryb statyczny fallback, zamknięta restauracja z pre-order).
-- Scena 2: **Counter + Living Table** (horyzontalny swipe między daniami, Bottom Sheet „Komponuj / Do stołu", companions persist przy swipe, live price).
-- Checkout: guest + phone-keyed, drawer koszyka, tracker P1.
+- ✅ Checkout: guest + phone-keyed, drawer koszyka, tracker P1 — DONE (logika w `online/engine.php#guest_checkout`).
+- ✅ Track screen — DONE (live ETA countdown, SSE, Leaflet map, timeline).
+- ❌ Scena 2: **Counter + Living Table** (horyzontalny swipe między daniami, Bottom Sheet „Komponuj / Do stołu", companions persist przy swipe, live price) — **NIE ROZPOCZĘTA**. Infrastruktura sceny (SceneResolver, SharedSceneRenderer, atmospheric effects) gotowa, ale brak UI Counter + Living Table.
 - Stack: czysty HTML + CSS + vanilla JS (ES6+ modules), bez frameworków. Mobile-first.
 
 **ODŁOŻONE NA FAZĘ 3+**
@@ -870,7 +886,7 @@ Rejestr rzeczy które istniały w legacy albo były projektowane, ale **nie są 
 - **Zaliczki (Faza 3B + 3C):** `core/AdvanceEngine.php` — state machine `requested → approved → paid → settled` (+ `rejected`, `void`). `markPaid()` rozbija kwotę na raty z resztą do ostatniej raty + emituje `advance_payment` do ledgera. `recordRepayment()` emituje `advance_repayment` i auto-settluje. **Od Fazy 3C:** `voidAdvance()` — wycofanie błędnie wypłaconej zaliczki (reverse payment + void pending installments; blokada `ERR_PARTIAL_REPAYMENT` jeśli jakakolwiek rata spłacona). **34/34 smoke PASS (20 lifecycle + 14 void).**
 - **Konsumer events → drivery (Faza 3B):** `scripts/worker_driver_fanout.php` — subskrybuje `employee.clocked_in/out` (aggregate_type=`shift`) i fluktuuje `sh_drivers.status` pod **FF per-tenant `HR_USE_EVENT_DRIVER_FANOUT`** (w `sh_tenant_settings`, default OFF). Polityka: `busy` NIGDY nie jest nadpisywany (kierowca w trasie kończy kurs). Retry z backoff do `MAX_ATTEMPTS=5`. **9/9 smoke PASS.**
 - **Konsumer events → earnings (Faza 3C):** `scripts/worker_payroll_accrual.php` — subskrybuje `employee.clocked_out` i generuje wpisy `work_earnings` w ledgerze. Resolver stawki: (1) snapshot `rate_at_clock_in` z payloadu, (2) fallback do `sh_employee_rates` (temporal). Obliczenia int-safe HALF_UP: `intdiv(rate_minor × hours_milli + 5000, 10000)`. Zero floatów w pieniądzach. Idempotency: `entry_uuid = session_uuid`. **14/14 smoke PASS.**
-- **Faza 4 (następne sesje):** `PayrollEngine` — **rewrite IN-PLACE** (ten sam plik `core/PayrollEngine.php`, **absolutny zakaz plików równoległych / sufiksowanych duplikatów** — SSOT §Konstytucja): readery przepinamy na `sh_payroll_ledger::sumForPeriod`, stara logika z `sh_work_sessions` + `sh_deductions` + `sh_meals` + `sh_users.hourly_rate` znika z code-path w jednym commicie. Do tego: HR-6 midnight-crossing allocation (`fn_allocate_hours` SQL); UI `modules/backoffice/hr/` (Kiosk PIN + Timesheet); DROP `sh_users.hourly_rate` po 2× zamknięciu okresu na przepisanym silniku. Decyzja w `_docs/18_BACKOFFICE_HR_LOGIC.md §13`.
+- **Faza 4 — DONE ✅ (2026-07-25/27):** `PayrollEngine` — **rewrite IN-PLACE wykonany** (ten sam plik `core/PayrollEngine.php`, zero plików równoległych). Readery przepięte na `sh_payroll_ledger` + `sh_employee_rates` (temporal). Stara logika z `sh_work_sessions` + `sh_deductions` + `sh_meals` + `sh_users.hourly_rate` usunięta z code-path. `TeamPayrollEngine` również przepisany. UI `modules/backoffice/hr/` dostarczone (Kiosk PIN + Timesheet + Advances). **Migracja 061** `DROP COLUMN sh_users.hourly_rate` — wykonana 2026-07-27. Parity test 11/11 PASS (0 gr różnicy). Pozostało otwarte: HR-6 midnight-crossing allocation (`fn_allocate_hours` — edge case). Szczegóły: `_docs/18_BACKOFFICE_HR_LOGIC.md §13` (§13.8 = stan wykonania).
 - **Legacy (usunięte):** dawne wnioski finansowe z `api_manager.php` (`get_team`, `submit_finance`) zastąpione przez `sh_advances` (pełny lifecycle) i `sh_payroll_ledger` (bonus/kara przez `entry_type=bonus|adjustment`).
 
 ---

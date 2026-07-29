@@ -99,8 +99,10 @@ deterministyczny `entry_uuid` — retry zwraca istniejący wpis, zero duplikatu.
    Migracja `061_drop_users_hourly_rate.sql` wykonana. `seed_demo_all.php` i
    `tests/payroll_engine_rewrite_parity.php` przestawione na `sh_employee_rates`.
    Migracja `041` ma dynamic-SQL-guards na re-run po 061.
-3. **`api/payments/settle.php`** — nadal ORPHAN bez UI (Prawo VIII). Decyzja:
-   wpiąć w POS albo świadomie usunąć.
+3. ~~**`api/payments/settle.php`**~~ — **USUNIĘTY 2026-07-28**. Audyt wykazał:
+   zero call-site'ów (frontend ani backend), martwy wrapper HTTP delegujący do
+   `core/SettlementEngine.php` (który POS używa bezpośrednio przez `settleAndClose()`).
+   Decyzja: usunięto plik + katalog `api/payments/`. `SettlementEngine.php` nietknięty.
 4. **Self-service ekipy (`modules/ekipa/`, Faza 5)** — `advance_request` z poziomu
    pracownika (nie managera) wymaga osobnego trybu auth (PIN zamiast sesji managera).
 

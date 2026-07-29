@@ -19,8 +19,9 @@ declare(strict_types=1);
  * ją as-is (plaintext legacy). To pozwala migrować stopniowo — stare rekordy
  * działają, nowe są szyfrowane, migration job może je przepchnąć.
  *
- * **Graceful degradation:** gdy brak libsodium LUB brak klucza w env:
- *   • encrypt() zwraca plaintext z warning do error_log (nie crashuje)
+ * **Strict vs Graceful:** gdy brak libsodium LUB brak klucza w env:
+ *   • encrypt() rzuca RuntimeException (STRICT — dla produkcji / rotate_credentials)
+ *   • encryptSoft() zwraca plaintext bez logowania (GRACEFUL — dla dev / call-site'ów produkcyjnych)
  *   • decrypt() obsługuje plaintext i "vault:v1:" raw (zwraca raw bez dekodowania,
  *     logując warning — pozwala to admin przeczytać dane na innej maszynie).
  *
@@ -39,15 +40,20 @@ final class CredentialVault
     private static bool $keyWarningLogged = false;
 
     /**
-     * Zaszyfruj string (przy braku sodium/klucza → zwraca plaintext + warning log).
+     * Zaszyfruj string (STRICT — rzuca RuntimeException gdy vault niegotowy).
+     * Dla graceful degradation użyj encryptSoft().
      */
     public static function encrypt(string $plaintext): string
     {
         if ($plaintext === '') return '';
 
         if (!self::isReady()) {
-            self::logMissingVault('encrypt');
-            return $plaintext;
+            throw new \RuntimeException(
+                'CredentialVault not ready: ' . (!self::isSodiumAvailable()
+                    ? 'libsodium unavailable'
+                    : 'SLICEHUB_VAULT_KEY not set')
+                . '. Use encryptSoft() for graceful degradation or set up vault.'
+            );
         }
 
         $key = self::getKey();
@@ -61,8 +67,7 @@ final class CredentialVault
                 $key
             );
         } catch (\Throwable $e) {
-            error_log('[CredentialVault] encrypt failed: ' . $e->getMessage());
-            return $plaintext;
+            throw new \RuntimeException('[CredentialVault] encrypt failed: ' . $e->getMessage(), 0, $e);
         }
 
         return self::PREFIX . base64_encode($nonce . $cipher);

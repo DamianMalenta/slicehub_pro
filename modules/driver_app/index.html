@@ -12,7 +12,7 @@
     <meta name="theme-color" content="#050508">
     <title>SliceHub — Kierowca</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="../hub/css/icon-192.png">
+    <link rel="apple-touch-icon" href="icon.svg">
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="../ui_shell/sh_mobile_shell.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -66,6 +66,7 @@
             <div id="topbar-name" class="topbar-name">Kierowca</div>
             <div id="topbar-status" class="topbar-status">Online</div>
         </div>
+        <button id="topbar-status-btn" class="topbar-status-btn available" onclick="DriverApp.toggleStatus()"><i class="fa-solid fa-circle"></i></button>
         <button class="topbar-btn" onclick="DriverApp.poll()"><i class="fa-solid fa-rotate"></i></button>
         <button class="topbar-btn" onclick="DriverApp.logout()" style="border-color:rgba(239,68,68,0.3); color:var(--accent-red)"><i class="fa-solid fa-right-from-bracket"></i></button>
     </div>
@@ -123,6 +124,46 @@
         <div class="cancel-actions">
             <button class="modal-btn secondary" onclick="DriverApp.closeCancelModal()">Wróć</button>
             <button id="cancel-confirm-btn" class="modal-btn danger" onclick="DriverApp.confirmCancelOrder()"><i class="fa-solid fa-ban"></i> Potwierdź anulowanie</button>
+        </div>
+    </div>
+</div>
+
+<!-- START SHIFT MODAL -->
+<div id="modal-start-shift" class="modal-overlay">
+    <div class="modal-backdrop"></div>
+    <div class="modal-card">
+        <div class="shift-icon"><i class="fa-solid fa-play"></i></div>
+        <div class="modal-title">Rozpocznij zmianę</div>
+        <div class="cancel-text">Wpisz kwotę pogotowia kasowego, którą otrzymałeś na start zmiany.</div>
+        <div class="shift-input-row">
+            <input type="number" id="shift-cash-input" class="cancel-input" placeholder="0.00" inputmode="decimal" step="0.01" min="0" style="text-align:center; font-size:24px; font-weight:900">
+            <span style="font-size:20px; font-weight:900; color:var(--text-secondary); margin-left:8px">zł</span>
+        </div>
+        <div class="cancel-actions">
+            <button class="modal-btn secondary" onclick="DriverApp.closeStartShiftModal()">Anuluj</button>
+            <button id="shift-confirm-btn" class="modal-btn" style="background:var(--accent-green); color:#fff" onclick="DriverApp.confirmStartShift()"><i class="fa-solid fa-play"></i> Rozpocznij zmianę</button>
+        </div>
+    </div>
+</div>
+
+<!-- RECONCILE MODAL -->
+<div id="modal-reconcile" class="modal-overlay">
+    <div class="modal-backdrop" onclick="DriverApp.closeReconcileModal()"></div>
+    <div class="modal-card">
+        <div class="shift-icon"><i class="fa-solid fa-check-double"></i></div>
+        <div class="modal-title">Rozliczenie zmiany</div>
+        <div class="cancel-text">Policz gotówkę w kopercie i wpisz kwotę poniżej.</div>
+        <div class="reconcile-expected-row">
+            <span class="reconcile-label">Oczekiwana gotówka:</span>
+            <span id="reconcile-expected" class="reconcile-expected-value">— zł</span>
+        </div>
+        <div class="shift-input-row">
+            <input type="number" id="reconcile-counted-input" class="cancel-input" placeholder="0.00" inputmode="decimal" step="0.01" min="0" style="text-align:center; font-size:24px; font-weight:900">
+            <span style="font-size:20px; font-weight:900; color:var(--text-secondary); margin-left:8px">zł</span>
+        </div>
+        <div class="cancel-actions">
+            <button class="modal-btn secondary" onclick="DriverApp.closeReconcileModal()">Wróć</button>
+            <button id="reconcile-confirm-btn" class="modal-btn" style="background:var(--accent-orange); color:#fff" onclick="DriverApp.confirmReconcile()"><i class="fa-solid fa-check-double"></i> Zakończ zmianę</button>
         </div>
     </div>
 </div>

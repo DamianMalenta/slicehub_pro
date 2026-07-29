@@ -955,6 +955,58 @@ export class DirectorApp {
         if (this._selection.type === 'companion' && this._selection.id === sku) this._selection.deselect();
     }
 
+    moveLayerUp(layerSku) {
+        const layers = structuredClone(this._store.spec.pizza?.layers || []);
+        const L = layers.find(l => l.layerSku === layerSku);
+        if (L) {
+            L.zIndex = Math.max(0, (L.zIndex || 0) + 5);
+            this._store.patch('pizza.layers', layers, `Warstwa ${layerSku} w górę`);
+        }
+    }
+
+    moveLayerDown(layerSku) {
+        const layers = structuredClone(this._store.spec.pizza?.layers || []);
+        const L = layers.find(l => l.layerSku === layerSku);
+        if (L) {
+            L.zIndex = Math.max(0, (L.zIndex || 0) - 5);
+            this._store.patch('pizza.layers', layers, `Warstwa ${layerSku} w dół`);
+        }
+    }
+
+    duplicateLayer(layerSku) {
+        const layers = structuredClone(this._store.spec.pizza?.layers || []);
+        const L = layers.find(l => l.layerSku === layerSku);
+        if (L) {
+            const clone = { ...structuredClone(L), layerSku: L.layerSku + '_copy_' + Date.now().toString(36) };
+            layers.push(clone);
+            this._store.patch('pizza.layers', layers, `Duplikuj warstwę ${layerSku}`);
+            this._selection.select('layer', clone.layerSku);
+        }
+    }
+
+    duplicateCompanion(sku) {
+        const comps = structuredClone(this._store.spec.companions || []);
+        const orig = comps.find((c, i) => c.sku === sku || String(i) === sku);
+        if (orig) {
+            const dup = { ...structuredClone(orig), sku: (orig.sku || 'c') + '_copy_' + Date.now().toString(36), x: (orig.x || 50) + 6, y: (orig.y || 75) + 3 };
+            comps.push(dup);
+            this._store.patch('companions', comps, `Duplikuj companion ${sku}`);
+            this._selection.select('companion', dup.sku);
+        }
+    }
+
+    reorderLayers(orderBottomUp) {
+        const layers = structuredClone(this._store.spec.pizza?.layers || []);
+        const bySku = new Map(layers.map(l => [l.layerSku, l]));
+        const reordered = [];
+        orderBottomUp.forEach((sku, idx) => {
+            const L = bySku.get(sku);
+            if (L) { L.zIndex = (idx + 1) * 10; reordered.push(L); bySku.delete(sku); }
+        });
+        bySku.forEach(L => reordered.push(L));
+        this._store.patch('pizza.layers', reordered, 'Reorder layers');
+    }
+
     _zOrder(dir) {
         if (this._selection.type !== 'layer' || !this._selection.id) return;
         const layers = structuredClone(this._store.spec.pizza?.layers || []);

@@ -82,11 +82,6 @@ final class ChannelRegistry
     /** Lista znanych channel_type (dla UI). */
     public static function knownTypes(): array
     {
-        return array_keys(self::$fileMap ?? [
-            'in_app'         => '',
-            'email'          => '',
-            'personal_phone' => '',
-            'sms_gateway'    => '',
-        ]);
+        return array_keys(self::$classMap);
     }
 }

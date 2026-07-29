@@ -126,7 +126,7 @@ Jeśli w przyszłości powstanie nowy silos (np. `pay_`, `log_`, `aud_`), automa
 - Funkcja kompletna ale niewpięta = adnotacja `@planned (Prawo VIII)` w docblocku z konkretnym powodem i datą planowanego włączenia.
 - Audyt modułu (sesja typu „przejrzyj X") raportuje listę `@planned` + funkcji opisanych w docs ale bez call-sitów. Nie wolno tego ukryć.
 - Aktualne `@planned`: `api/orders/edit.php`, `api/orders/estimate.php`, `api/orders/sla_monitor.php`.
-- Domknięte: ~~`core/WzEngine.php::consumeForOrder`~~ (F1 · 2026-05-11 — `core/WarehouseConsumeHook`); ~~`api/payments/settle.php`~~ (F1 · 2026-07-07 — `core/SettlementEngine.php`).
+- Domknięte: ~~`core/WzEngine.php::consumeForOrder`~~ (F1 · 2026-05-11 — `core/WarehouseConsumeHook`); ~~`api/payments/settle.php`~~ (F1 · 2026-07-07 — **usunięty 2026-07-28**); ~~`api/orders/panic.php`~~, ~~`api/orders/accept.php`~~, ~~`api/orders/checkout.php`~~, ~~`api/delivery/dispatch.php`~~, ~~`api/delivery/reconcile.php`~~, ~~`api/kds/update_ticket.php`~~, ~~`api/staff/payroll.php`~~, ~~`api/dashboard/team_payroll.php`~~ (**usunięte 2026-07-28** — logika wchłonięta do `core/PanicEngine.php`, `core/KdsTicketEngine.php` + engine.php akcje; katalogi `api/payments/`, `api/delivery/`, `api/dashboard/`, `api/staff/` usunięte).
 
 ## 11. PRAWO DATOWANYCH ZAMROŻEŃ (Freeze Discipline) — NEW v5 (2026-05-11)
 Każda sekcja `FREEZE NOTICE` w jakimkolwiek dokumencie systemu MUSI zawierać:

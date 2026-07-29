@@ -194,13 +194,21 @@ SQL;
 
     private static function aggregateLaborMinor(PDO $pdo, int $tenantId, string $startTs, string $endTs): int
     {
+        // Logika daty spójna z PayrollEngine::aggregateLedger — używa
+        // COALESCE(ws.start_time, pl.created_at) jako punktu w czasie,
+        // nie samego created_at (clock-out time). Bez tego zmiany nocne,
+        // sesje splitowane (HR-6) i wpisy deferred dają rozjazd między
+        // BI P&L a raportem płacowym.
         $sql = <<<'SQL'
 SELECT COALESCE(SUM(pl.amount_minor), 0) AS v
 FROM sh_payroll_ledger pl
+LEFT JOIN sh_work_sessions ws
+       ON ws.id = pl.ref_work_session_id
+      AND ws.tenant_id = pl.tenant_id
 WHERE pl.tenant_id = :tid
   AND pl.entry_type = 'work_earnings'
-  AND pl.created_at >= :start_ts
-  AND pl.created_at <= :end_ts
+  AND COALESCE(ws.start_time, pl.created_at) >= :start_ts
+  AND COALESCE(ws.start_time, pl.created_at) <= :end_ts
 SQL;
         $st = $pdo->prepare($sql);
         $st->execute([

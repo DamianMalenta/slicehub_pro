@@ -226,7 +226,7 @@ Shared CSS dla wszystkich modułów: safe-area-inset, viewport-fit, mobilne nawi
 | `pos/engine.php` | Router POS (menu, koszyk, checkout, accept, settle, panic) |
 | `tables/engine.php` | Router Stolików + Waiter (plany sali, rachunki, transfery) |
 | `courses/engine.php` | Router logistyki (dispatch, GPS, reconcile, payment lock, recall) |
-| `kds/engine.php` | Router KDS (`get_board` z opcjonalnym `station` — filtr linii wg `sh_kds_tickets` / menu; `bump_order`; `recall_order`) |
+| `kds/engine.php` | Router KDS (`get_board` z opcjonalnym `station` — filtr linii wg `sh_kds_tickets` / menu; `bump_order`; `bump_ticket` — per-ticket state machine via `core/KdsTicketEngine.php`; `recall_order`) |
 | `online/engine.php` | Router publicznej witryny (storefront, `delivery_zones`, `init_checkout`, `guest_checkout`, `track_order`) |
 | `online_studio/engine.php` | Router Studio Online (director, composer, style presets, scene) |
 | `online_studio/library_upload.php` | Multipart upload biblioteki assetów |
@@ -240,11 +240,11 @@ Shared CSS dla wszystkich modułów: safe-area-inset, viewport-fit, mobilne nawi
 |---------|------|
 | `cart/CartEngine.php` | Klasa silnika koszyka (ceny, grosze, half/half) |
 | `cart/calculate.php` | Endpoint kalkulacji koszyka |
-| `orders/checkout.php` | Finalizacja zamówienia (kanoniczna / chroniona; nadal za `auth_guard.php`, nie jest publicznym checkoutem storefrontu) |
-| `orders/accept.php` | Alias POST przyjęcia zamówienia — logika zsynchronizowana z `pos/engine.php#accept_order` (`core/KdsAcceptRouting.php`, outbox). POS woła engine; endpoint pod integracje zewnętrzne / testy |
+| ~~`orders/checkout.php`~~ | **USUNIĘTY 2026-07-28.** Duplikat `online/engine.php#guest_checkout` + `pos/engine.php#process_order`. `WzEngine::checkAvailability()` wchłonięte do obu. |
+| ~~`orders/accept.php`~~ | **USUNIĘTY 2026-07-28.** Duplikat `pos/engine.php#accept_order`. `canTransition()` pre-check wchłonięty. |
 | `orders/edit.php` | 🟡 PLANNED — edycja zamówienia + DeltaEngine (dla admin_hub) |
 | `orders/estimate.php` | 🟡 PLANNED — estymacja promised_time (dla scheduled orders) |
-| `orders/panic.php` | 🟡 LEGACY DUPLICATE — zastąpione przez `pos/engine.php#panic_mode` |
+| ~~`orders/panic.php`~~ | **USUNIĘTY 2026-07-28.** Duplikat `pos/engine.php#panic_mode`. Logika wchłonięta do `core/PanicEngine.php` (debounce + configurable delay). |
 | `orders/sla_monitor.php` | 🟡 PLANNED — aggregate SLA monitor (dla admin_hub + cron) |
 | `orders/DeltaEngine.php` | Klasa wykrywająca różnice w liniach zamówienia |
 
@@ -265,19 +265,13 @@ Shared CSS dla wszystkich modułów: safe-area-inset, viewport-fit, mobilne nawi
 | `warehouse/documents_list.php` | Lista dokumentów magazynowych |
 | `warehouse/mapping.php` | Mapowanie surowców |
 
-#### Delivery (standalone, koegzystuje z `courses/engine.php`)
-| Ścieżka | Opis |
-|---------|------|
-| `delivery/dispatch.php` | Standalone dispatch endpoint |
-| `delivery/reconcile.php` | Standalone rozliczenie |
-
 #### Payments, Staff, Reports, Dashboard
 | Ścieżka | Status |
 |---------|--------|
-| `payments/settle.php` | ✅ **WRAPPER (F1–F2)** — HTTP adapter nad `core/SettlementEngine.php`; split-tender (F2). Outbox: `order.completed` lub `payment.settled`. Produkcja POS: `pos/engine.php#settle_and_close`. |
+| ~~`payments/settle.php`~~ | **USUNIĘTY 2026-07-28.** Martwy wrapper HTTP, zero call-site'ów. Logika w `core/SettlementEngine.php`. Produkcja POS: `pos/engine.php#settle_and_close`. |
 | `backoffice/hr/engine.php` | ✅ **LIVE** — action router HR. **Zmiana (clock):** `clock_in` / `clock_out` / `clock_status` (Faza 3A, m041–m044). **Backoffice (NEW · 2026-05-04, wymaga `hrRequireManager`):** `employees_list`, `employee_get`, `employee_upsert` (z opcjonalnym `create_login` — tworzy konto `sh_users`), `employee_pin_set` (bcrypt do `sh_employees.auth_pin_hash` + sync `sh_users.pin_code` żeby ten sam PIN działał w POS i w Kiosk), `employee_rate_set` (zamyka poprzednią linię w `sh_employee_rates`, otwiera nową), `hr_users_unlinked` (lista `sh_users` bez profilu HR — do podpięcia istniejącego konta przy upsercie). **Faza 4 (2026-07-27):** `payroll_report`, `payroll_period_status`, `payroll_close_period` (auto-spłata rat zaliczek + lockPeriod), `advances_list`, `advance_request`/`approve`/`reject`/`mark_paid`/`void`, `bonus_add`, `adjustment_add`, `meal_record`. Konsument: `modules/backoffice/hr/index.html`. Kanoniczny endpoint silosu HR. |
-| `staff/payroll.php` | ✅ **WRAPPER (Prawo VIII domknięte 2026-07-27)** — GET alias, deleguje do `PayrollEngine::calculate` (ten sam silnik co `hr/engine.php#payroll_report`). Dla integracji zewnętrznych preferujących GET. |
-| `dashboard/team_payroll.php` | ✅ **WRAPPER (Prawo VIII domknięte 2026-07-27)** — GET alias, deleguje do `TeamPayrollEngine::getAggregate` (ten sam silnik co `hr/engine.php#payroll_report`). Dla integracji zewnętrznych preferujących GET. |
+| ~~`staff/payroll.php`~~ | **USUNIĘTY 2026-07-28.** Martwy wrapper GET bez konsumenta. Logika w `hr/engine.php#payroll_report` → `PayrollEngine::calculate()`. Katalog `api/staff/` usunięty. |
+| ~~`dashboard/team_payroll.php`~~ | **USUNIĘTY 2026-07-28.** Martwy wrapper GET bez konsumenta. Logika w `hr/engine.php#payroll_report` → `TeamPayrollEngine::getAggregate()`. Katalog `api/dashboard/` usunięty. |
 | `reports/food_cost.php` | 🟡 PLANNED — food cost + margin (FoodCostEngine) |
 
 #### Gateway / Integrations (m026–m029)

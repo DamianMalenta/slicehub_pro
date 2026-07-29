@@ -54,7 +54,7 @@ php scripts/test_ksef_parser_quality.php      # 8/8
 - POS: `api/pos/engine.php`, `modules/pos/`
 - Kursy: `api/courses/engine.php`, `modules/courses/`, `modules/driver_app/`
 - Payment Lock: `collect_payment` przed `deliver_order`
-- **Settle:** produkcyjnie `pos/engine.php#settle_and_close`; `api/payments/settle.php` = **@planned orphan** (split tender bez UI)
+- **Settle:** produkcyjnie `pos/engine.php#settle_and_close` → `core/SettlementEngine.php`; ~~`api/payments/settle.php`~~ **USUNIĘTY 2026-07-28** (martwy wrapper, zero call-site'ów)
 
 ### E. HR / Payroll
 
@@ -112,8 +112,16 @@ Szczegóły: [`AGENTS.md`](../AGENTS.md) w root.
 
 | Element | Stan |
 |---------|------|
-| `api/payments/settle.php` | ORPHAN — split tender, brak UI; decyzja: promote vs `SettlementEngine` |
-| `api/orders/edit.php`, `estimate.php`, `sla_monitor.php` | @planned |
+| ~~`api/payments/settle.php`~~ | **USUNIĘTY 2026-07-28** — logika w `core/SettlementEngine.php` |
+| ~~`api/orders/panic.php`~~ | **USUNIĘTY 2026-07-28** — wchłonięty do `core/PanicEngine.php` → `pos/engine.php#panic_mode` |
+| ~~`api/orders/accept.php`~~ | **USUNIĘTY 2026-07-28** — `canTransition()` pre-check wchłonięty do `pos/engine.php#accept_order` |
+| ~~`api/orders/checkout.php`~~ | **USUNIĘTY 2026-07-28** — `WzEngine::checkAvailability()` wchłonięte do `online/engine.php` + `pos/engine.php` |
+| ~~`api/delivery/dispatch.php`~~ | **USUNIĘTY 2026-07-28** — `out_for_delivery_at` + events wchłonięte do `courses/engine.php#dispatch` |
+| ~~`api/delivery/reconcile.php`~~ | **USUNIĘTY 2026-07-28** — driver release + stats wchłonięte do `courses/engine.php#reconcile` |
+| ~~`api/kds/update_ticket.php`~~ | **USUNIĘTY 2026-07-28** — per-ticket state machine w `core/KdsTicketEngine.php` → `kds/engine.php#bump_ticket` |
+| ~~`api/staff/payroll.php`~~ | **USUNIĘTY 2026-07-28** — martwy wrapper, logika w `hr/engine.php#payroll_report` |
+| ~~`api/dashboard/team_payroll.php`~~ | **USUNIĘTY 2026-07-28** — martwy wrapper, logika w `hr/engine.php#payroll_report` |
+| `api/orders/edit.php`, `estimate.php`, `sla_monitor.php` | @planned (unikalna logika — zostawione) |
 | `tables/split_payment`, `complete_dine_in` (UI) | backend bez pełnego podpięcia frontend |
 | Offline POS P4.5–P8 | FREEZE do 2026-08-23 — [`17_OFFLINE_POS_BACKLOG.md`](17_OFFLINE_POS_BACKLOG.md) |
 

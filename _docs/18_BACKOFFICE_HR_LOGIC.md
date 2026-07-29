@@ -596,12 +596,15 @@ Body analogiczne + `session_uuid` opcjonalne (gdy nie podane — silnik wybiera 
 
 | Action | Kto używa | Cel | Status |
 |---|---|---|---|
+| `clock_in` | POS, Kiosk, Driver App | rozpoczęcie sesji pracy (PIN lub sesja); patrz §5.2.1 | ✅ LIVE (Faza 3A) |
+| `clock_out` | POS, Kiosk, Driver App | zakończenie sesji pracy + preview_earnings; patrz §5.2.2 | ✅ LIVE (Faza 3A) |
 | `clock_status` | POS widget, Kiosk, hr_app | kto jest na zmianie (POST z body dla spójności; może być filtrowany po `auth.pin` → zwraca `employee_snapshot`) | ✅ LIVE (Faza 3A) |
 | `employees_list` | Backoffice HR UI / Settings | lista profili HR z join do konta sh_users + flag `has_kiosk_pin` | ✅ **LIVE od 2026-05-04** |
 | `employee_get` | Backoffice HR UI | jeden rekord + aktualna stawka godzinowa | ✅ **LIVE od 2026-05-04** |
 | `employee_upsert` | Backoffice HR UI / Settings | CRUD profilu; opcjonalnie `create_login` tworzy nowe konto sh_users (z opcjonalnym `pos_pin`) | ✅ **LIVE od 2026-05-04** |
 | `employee_pin_set` | Backoffice HR UI | bcrypt PIN do `sh_employees.auth_pin_hash` + sync `sh_users.pin_code` (ten sam PIN w POS i Kiosk) | ✅ **LIVE od 2026-05-04** |
 | `employee_rate_set` | Backoffice HR UI / Settings | zamyka poprzednią linię w `sh_employee_rates`, otwiera nową | ✅ **LIVE od 2026-05-04** |
+| `employee_rate_history` | HR UI (drawer → subtab Stawki) | historia stawek z `sh_employee_rates` dla danego `employee_id`; dodana 2026-07-28 (§13.1) | ✅ **LIVE** |
 | `hr_users_unlinked` | Backoffice HR UI | sh_users w tenancie bez aktywnego powiązania do sh_employees (do podpięcia istniejącego konta przy upsercie) | ✅ **LIVE od 2026-05-04** |
 | `meal_record` | Kiosk / HR UI | posiłek pracowniczy → `sh_meals` + `meal_deduction` w ledgerze (jedna transakcja). **Idempotentny** przez `idempotency_key` (2026-07-27) | ✅ **LIVE** |
 | `payroll_report` | Szefa | wynik `TeamPayrollEngine` / `PayrollEngine::calculate()` z ledgera | ✅ **LIVE od 2026-07-25** |
@@ -612,12 +615,19 @@ Body analogiczne + `session_uuid` opcjonalne (gdy nie podane — silnik wybiera 
 | `advance_approve` / `advance_reject` | Szefa | decyzja (`AdvanceEngine::approve`/`reject`) | ✅ **LIVE** |
 | `advance_mark_paid` | Szefa + kasa | `AdvanceEngine::markPaid` — emituje `advance_payment` do ledgera | ✅ **LIVE** |
 | `advance_void` | Szefa | `AdvanceEngine::voidAdvance` — wycofanie błędnej wypłaty | ✅ **LIVE** |
+| `advance_installments` | HR UI (drawer → zaliczki) | harmonogram rat z `sh_advance_installments` dla danego `advance_id`; dodana 2026-07-28 (§13.1) | ✅ **LIVE** |
+| `advance_installment_repay` | HR UI (drawer) | ręczna spłata pojedynczej raty zaliczki (`AdvanceEngine::recordRepayment`); dodana 2026-07-28 | ✅ **LIVE** |
 | `bonus_add` / `adjustment_add` | Szefa | wpisy ledgera; opcjonalny `period_year`/`period_month` (2026-07-27) | ✅ **LIVE** |
+| `employee_sessions` | HR UI (drawer) | lista sesji pracy (`sh_work_sessions`) z filtrem okresu; otwarte sesje oznaczone `is_open=true` | ✅ **LIVE** |
+| `employee_ledger` | HR UI (drawer) | wpisy `sh_payroll_ledger` pracownika z filtrem okresu; pole `hours` (nie `hours_qty`) | ✅ **LIVE** |
+| `session_edit` | HR UI (drawer → sesje) | edycja sesji przez managera (start/end_time + reason); blokada na zamkniętym okresie; aktualizuje też wpis `work_earnings` w ledgerze | ✅ **LIVE** |
+| `periods_overview` | HR UI | historia okresów z sumą godzin/kosztów i statusem `is_locked` | ✅ **LIVE** |
 | `my_sessions` | Ekipa (self) | lista zmian pracownika w okresie | ⏳ Faza 5 (`modules/ekipa/`) |
 | `advance_request` (tryb self) | Ekipa (self) | wniosek składany przez pracownika, auth PIN zamiast sesji managera | ⏳ Faza 5 |
 
-**Stan na 2026-07-27:** clock + CRUD kadr + pełny payroll (raport, zamknięcie okresu) +
-pełny lifecycle zaliczek + premie/korekty — wszystko LIVE z UI w `modules/backoffice/hr/`.
+**Stan na 2026-07-28:** clock + CRUD kadr + pełny payroll (raport, zamknięcie okresu) +
+pełny lifecycle zaliczek + premie/korekty + drawer z month nav + live accrual z otwartych sesji —
+wszystko LIVE z UI w `modules/backoffice/hr/`.
 Pozostało **wyłącznie self-service ekipy** (Faza 5, osobny moduł `modules/ekipa/`).
 
 ### 5.4. Integracja z POS (frontend)
@@ -1200,3 +1210,124 @@ Dokument `_docs/18_BACKOFFICE_HR_LOGIC.md` utworzony.
 - Integracja z POS bez hardcode-logiki payroll na frontu.
 
 **Gotowy do wygenerowania migracji SQL (041–044) po otrzymaniu zielonego światła na listę z §8.**
+
+---
+
+## 13. UI/UX Improvements + nowe akcje API (2026-07-28)
+
+### 13.1 Nowe akcje API w `engine.php`
+
+| Akcja | Guard | Opis |
+|-------|-------|------|
+| `employee_rate_history` | `hrRequireManager` | Zwraca historię stawek godzinowych z `sh_employee_rates` dla danego `employee_id`. Sortowane `effective_from DESC`. Pola: `id`, `amount_minor`, `currency`, `effective_from`, `effective_to`, `reason`, `note`, `created_at`. |
+| `advance_installments` | `hrRequireManager` | Zwraca harmonogram rat z `sh_advance_installments` dla danego `advance_id`. Sortowane `seq_no ASC`. Pola: `id`, `seq_no`, `amount_minor`, `currency`, `scheduled_period_year`, `scheduled_period_month`, `status`, `applied_at`. |
+
+Obie akcje są read-only (SELECT), nie modyfikują danych. Guard: `HrRoles::MANAGER_ROLES = ['owner', 'manager', 'admin']`.
+
+### 13.2 Frontend UI/UX — `modules/backoffice/hr/`
+
+**Kafelki pracowników:**
+- Filtr roli (segmented control): Wszyscy / Kuchnia / Sala / Dostawa / Zarząd — filtruje `renderCards()` po `ROLE_GROUPS`.
+- Live status dot — pulsująca zielona kropka na kafelkach pracowników z otwartą sesją (`clock_status` polling co 30s).
+- Licznik "X na zmianie" w toolbarze.
+- Skeleton loading placeholders (shimmer) zamiast "Ładowanie…".
+
+**Drawer pracownika:**
+- Sekcja danych kontaktowych (telefon, email, data zatrudnienia, kod, konto, notatki) — `buildDrawerDetails()`.
+- Nowa subtab "Stawki" (`data-sub="rates"`) — timeline historii stawek z `employee_rate_history`. Aktualna stawka z zieloną ramką, ikony powodu (🤝 hiring, 📈 raise, 🔧 correction, 📉 demotion).
+
+**Tabela zaliczek:**
+- Visual lifecycle stepper (4 kroki: wniosek → zatw. → wypł. → rozl.) w kolumnie statusu.
+- Rozwijane wiersze dla zaliczek z `repayment_plan = 'installments'` — klik rozwija harmonogram rat z `advance_installments`. Tabela rat: #, kwota, okres (YYYY-MM), status (badge: pending=żółty, applied=zielony, skipped=szary, void=czerwony), data aplikacji.
+
+**Payroll:**
+- `<input type="month">` picker zamiast statycznej etykiety okresu — synchronizowany z `period_offset`.
+- Confirm modal (zamiast `window.confirm`) dla zamknięcia miesiąca — czerwony header, ostrzeżenie o nieodwracalności.
+
+### 13.3 Demo seed — `scripts/seed_demo_all.php`
+
+Nowa sekcja "Advances demo (single + installments)":
+- Zaliczka jednorazowa 200 PLN (approved) dla waiter1.
+- Zaliczka z ratami 300 PLN (paid, 3 raty × 100 PLN) dla cook1 — harmonogram w `sh_advance_installments`.
+- Idempotentne (sprawdzenie istnienia przed INSERT).
+
+### 13.4 Pliki zmodyfikowane
+
+| Plik | Zmiana |
+|------|--------|
+| `api/backoffice/hr/engine.php` | +`employee_rate_history` (~30 linii), +`advance_installments` (~32 linie) |
+| `modules/backoffice/hr/index.html` | +role filter, +live counter, +skeleton, +month picker, +confirm modal, +drawer details div, +rates subtab |
+| `modules/backoffice/hr/css/hr.css` | +live dot, +skeleton, +role filter, +rate timeline, +stepper, +installment table, +confirm modal, +period picker |
+| `modules/backoffice/hr/js/hr_app.js` | +`refreshClockStatus()`, +`buildDrawerDetails()`, +`advStepperHtml()`, +`loadDrawerRates()`, +`loadAdvanceInstallments()`, +role filter, +month picker, +confirm modal, +skeleton |
+| `scripts/seed_demo_all.php` | +sekcja "Advances demo" (~60 linii) |
+
+### 13.5 Testy
+
+- `test_runner.html`: 60 pass, 1 fail (T62 BI 403 — pre-existing), 1 warn (T24 studio endpoint — pre-existing).
+- `php -l engine.php`: OK.
+- `node -c hr_app.js`: OK.
+- `php -l seed_demo_all.php`: OK.
+
+---
+
+## 15. Drawer live accrual + month navigation + naprawy rozbieżności (2026-07-28, sesja 2)
+
+**Sesja:** `_docs/sessions/2026-07-28_hr_payroll_drawer_live.md`
+
+### 15.1 Problem
+
+1. **Poprzednie miesiące nie pokazywały godzin/brutto w drawerze** — `loadDrawerStats` czytało pole `en.hours_qty` z API, ale `employee_ledger` zwraca to pole jako `hours`.
+2. **Karta pracownika vs drawer — różne godziny** — karta używała snapshot `current_month_hours` z `employees_list` (tylko ledger), drawer liczył na żywo. Rozbieżność 9.1h vs 9.0678h.
+3. **Otwarta sesja — 0 godzin** — drawer i karta liczyły tylko z `sh_payroll_ledger` (zamknięte sesje). Live elapsed z otwartej sesji nie był doliczany.
+4. **Nowy pracownik po clock-out bez wypłaty** — `worker_payroll_accrual` nie był uruchomiony; event `employee.clocked_out` czekał w outbox.
+5. **Timezone** — `start_time` z DB jest local (CEST), JS traktował jako UTC przez append `'Z'` → 2h błędu.
+
+### 15.2 Zmiany
+
+#### API — `api/backoffice/hr/engine.php`
+
+| Zmiana | Opis |
+|---|---|
+| `current_rate_minor` w `employees_list` | Subquery z `sh_employee_rates` — aktywna stawka godzinowa dla każdego pracownika. Używane przez frontend do live accrual z otwartej sesji. |
+| `advance_installment_repay` | Nowa akcja API — ręczna spłata pojedynczej raty zaliczki przez `AdvanceEngine::recordRepayment`. Guard: `hrRequireManager`. |
+
+#### `core/TeamPayrollEngine.php`
+
+| Zmiana | Opis |
+|---|---|
+| `employee_id` w payroll report | `fetchRelevantEmployees` zwraca `e.id AS employee_id`; wynik zawiera `employee_id` dla matching z drawer. |
+
+#### Frontend — `modules/backoffice/hr/js/hr_app.js`
+
+| Zmiana | Opis |
+|---|---|
+| `loadDrawerStats` — zawsze fetch z API | Usunięto ścieżkę z cached `emp.current_month_hours`. Zawsze `Promise.all([employee_ledger, employee_sessions])`. |
+| Live accrual z otwartych sesji | `clock_status` zwraca `elapsed_seconds`; `_clockElapsed` map przechowuje per employee. `renderCards` i `loadDrawerStats` dodają `liveHrs = elapsed_seconds / 3600` do ledger hours. `liveEarn = liveHrs × current_rate_minor`. |
+| `loadDrawerSessions` — live elapsed | Otwarte sesje pokazują live elapsed time zamiast `—h`. |
+| Month picker w drawer | `_drawerMonthOffset` + `drawerMonthDate()` + strzałki nawigacji. `reloadDrawerMonth()` odświeża stats, sessions, ledger, advances. |
+| Timezone fix | `new Date(s.start_time.replace(' ', 'T'))` — parse jako local, nie UTC (brak `'Z'`). |
+| Polling 15s | `refreshClockStatus` co 15s (z 30s) — szybsze odświeżanie live hours. |
+| `hours` vs `hours_qty` | Naprawa nazwy pola — API zwraca `hours`, nie `hours_qty`. |
+
+#### HTML/CSS
+
+| Plik | Zmiana |
+|---|---|
+| `index.html` | Month picker (strzałki + label) w drawer body. |
+| `hr.css` | Style month picker (`.hr-dr-month-picker`, `.hr-dr-month-btn`, `.hr-dr-month-label`). |
+
+### 15.3 Otwarte pytania (do kolejnej sesji)
+
+1. **Panel podsumowania rozliczenia w drawer** — czy dodać panel (gross/deductions/net/advances) nad listą ledgera w istniejącym subtabie? Minimalna zmiana JS (fetch `payroll_report` z `employee_id`), zero backend. Nie dodawać nowego subtabu (Prawo VI — minimalizm).
+2. **Per-employee close period** — odrzucone jako ryzykowne (`PayrollLedger::lockPeriod` lockuje globalnie). Zamykanie zostaje w zakładce Wypłaty.
+3. **`worker_payroll_accrual` automatyzacja lokalnie** — na produkcji cron co 1-5 min; lokalnie uruchamiany ręcznie po clock-out.
+
+### 15.4 Pozostałe w HR (kanoniczny stan)
+
+| # | Temat | Status |
+|---|---|---|
+| 1 | HR-6 PayrollAllocator | ✅ DONE |
+| 2 | Migracja 061 DROP hourly_rate | ✅ DONE |
+| 3 | **Faza 5** — self-service ekipa (`modules/ekipa/`) | ⏳ nierozpoczęte |
+| 4 | **HR-13/HR-14** — `sh_employment_contracts`, `sh_employee_absences` | ⏳ zaprojektowane (§3.6), bez migracji |
+| 5 | **Panel rozliczenia w drawer** | ⏳ do decyzji (§15.3 pkt 1) |

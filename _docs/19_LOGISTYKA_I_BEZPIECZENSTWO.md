@@ -336,3 +336,105 @@ Wzorzec architektoniczny: **defense in depth + single source of truth**.
 
 Każda z tych prawd ma jedno miejsce zapisu i wiele miejsc czytania —
 brak rozjazdów, brak duplikacji stanu, brak okazji do błędu ludzkiego.
+
+---
+
+## 6. Driver App — stan modułu i roadmapa (audyt 2026-07-29)
+
+### 6.1 Architektura
+
+| Warstwa | Plik | Opis |
+|---|---|---|
+| Backend API | `api/courses/engine.php` | 20 akcji REST (action-based, JWT auth, tenant-scoped) |
+| SSE endpoint | `api/courses/sse_driver.php` | Real-time push dla kierowcy (JWT via `?token=`) |
+| Frontend PWA | `modules/driver_app/` | Vanilla JS, Tailwind CDN, offline-first |
+| Service Worker | `modules/driver_app/sw.js` | Offline app shell, stale-while-revalidate |
+| Dokumentacja | `_docs/19_LOGISTYKA_I_BEZPIECZENSTWO.md` | 3 mechanizmy anty-błędowe (§1-5) |
+
+### 6.2 Backend — 20 akcji `engine.php` (wszystkie ✅)
+
+| Akcja | Linia | Opis |
+|---|---|---|
+| `get_dashboard` | 164 | Auto-heal busy drivers, lista kierowców + kursów |
+| `dispatch` | 289 | Przypisz zamówienia do kierowcy |
+| `create_course` | 444 | Utwórz kurs K-number bez kierowcy (queued) |
+| `assign_driver_to_course` | 537 | Przypisz kierowcę do istniejącego kursu |
+| `append_to_course` | 622 | Dodaj zamówienia do aktywnego kursu |
+| `update_order_status` | 732 | Zmień status zamówienia (state machine) |
+| `cancel_stop` | 860 | Usuń pojedyncze zamówienie z kursu |
+| `cancel_order` | 899 | Anuluj zamówienie (kierowca lub dyspozytor) |
+| `start_shift` | 976 | Rozpocznij zmianę — initial cash → `sh_driver_shifts` |
+| `update_location` | 1007 | GPS — `sh_driver_locations` |
+| `get_driver_runs` | 1033 | Aktywne zamówienia kierowcy + wallet summary |
+| `set_initial_cash` | 1105 | Ustaw pogotowie kasowe |
+| `reconcile` | 1138 | Rozliczenie zmiany — SSOT `sh_order_payments` + tips + ±5 zł |
+| `set_driver_status` | 1250 | `available` / `busy` / `offline` |
+| `collect_payment` | 1295 | Pobierz gotówkę/kartę — atomic INSERT + audit |
+| `deliver_order` | 1371 | Oznacz dostarczone — Payment Lock (HTTP 409 if unpaid) |
+| `emergency_recall` | 1457 | Zawróć kierowcę — `heading = -999` sentinel |
+| `check_recall` | 1476 | Sprawdź sygnał zawrócenia |
+| `clear_recall` | 1491 | Potwierdź zawrócenie |
+| `get_driver_wallet` | 1499 | Live dashboard — settlement-safe z `sh_order_payments` |
+
+### 6.3 Frontend — funkcje PWA (wszystkie ✅)
+
+| Funkcja | Plik | Opis |
+|---|---|---|
+| Login (login + hasło, mode: system) | `driver_app.js`, `driver_api.js` | JWT token w localStorage |
+| Polling (10s) + GPS (15s) + Recall check (12s) | `driver_app.js` | Fallback dla SSE |
+| SSE real-time (8 event types + auto-reconnect) | `driver_app.js`, `sse_driver.php` | JWT auth via `?token=` |
+| Start Shift modal (initial cash input) | `driver_app.js`, `index.html` | `sh_driver_shifts` + localStorage |
+| Status Toggle (available ↔ busy, topbar circle) | `driver_app.js`, `index.html` | `setDriverStatus()` |
+| SLA Badges (green/yellow/red + min remaining) | `driver_app.js` | Client-side, `promised_time` z API |
+| Order cards (address, phone, maps, lines, pay badge) | `driver_app.js` | Pełne renderowanie kursów |
+| Pre-Flight Check (cold/separate/check_id + 1.5s hold) | `driver_app.js`, `index.html` | Per-course dismiss |
+| Age Gate (checkbox + disabled Deliver button) | `driver_app.js` | Weryfikacja wieku dla alkoholu |
+| Payment Lock (disabled Deliver + lock icon if unpaid) | `driver_app.js` | HTTP 409 backend + UI frontend |
+| Collect Payment (cash/card buttons) | `driver_app.js` | Atomic INSERT `sh_order_payments` |
+| Deliver Order | `driver_app.js` | Payment Lock enforcement |
+| Cancel Order modal (reason textarea) | `driver_app.js`, `index.html` | Z powodem |
+| Tip display on order cards | `driver_app.js` | `tip_amount > 0` |
+| Wallet tab (cash in hand, breakdown, delivery history) | `driver_app.js` | Settlement-safe |
+| Reconcile modal (expected vs counted, variance, auto-logout) | `driver_app.js`, `index.html` | ±5 zł tolerance |
+| Emergency Recall overlay (full-screen red + vibrate) | `driver_app.js`, `index.html` | `heading=-999` sentinel |
+| Service Worker (offline app shell) | `sw.js`, `driver_app.js` | Network-first + offline fallback |
+| PWA manifest (SVG icons, mobile-web-app-capable) | `manifest.json`, `icon.svg` | Instalowalna PWA |
+| Offline fallback page | `offline.html` | Brak sieci → fallback |
+
+### 6.4 Bug fix (2026-07-28)
+
+- **Tips w reconcile** — `engine.php#reconcile` nie wliczał `tip_amount` do expected cash → naprawione (dodane `cash_tips_grosze` query + `cash_from_tips` w response). Wzorzec skopiowany z legacy `api/delivery/reconcile.php`.
+
+### 6.5 Niedokończone — roadmapa
+
+| # | Funkcja | Status | Szczegóły |
+|---|---|---|---|
+| 1 | **SLA breach logging** (`api/orders/sla_monitor.php`) | ✅ WDRUŻONE (2026-07-29) | `scripts/worker_sla_monitor.php` — CLI cron script (iteruje po tenantach, UPSERT do `sh_sla_breaches`). `engine.php#get_sla_breaches` — nowa akcja zwracająca breachy (24h) z JOIN do zamówień i kierowców. Cron: `php scripts/worker_sla_monitor.php` co 1-2 min. |
+| 2 | **`worker_driver_fanout.php`** — auto-sync statusu kierowcy z HR | ✅ WŁĄCZONY (2026-07-29) | Feature flag `HR_USE_EVENT_DRIVER_FANOUT='1'` ustawiona dla tenant 1. Worker gotowy (9/9 smoke test PASS). Cron: `php scripts/worker_driver_fanout.php` co 30s. |
+| 3 | **HR clock_in/clock_out integracja** | ✅ WDRUŻONE (2026-07-29) | `driver_api.js` — `hrClockIn()` / `hrClockOut()` (wywołuje `/api/backoffice/hr/engine.php` z `auth:self`, `source:mobile`). `driver_app.js` — `confirmStartShift()` wywołuje `hrClockIn()` po sukcesie, `confirmReconcile()` wywołuje `hrClockOut()` po sukcesie. Best effort — nie blokuje shift/reconcle przy błędzie. |
+| 4 | **Status `returning`** | ⚠️ ODŁOŻONE | Kierowca wracający do bazy po dostawie — dodatkowy status w state machine. Na prośbę użytkownika — nie implementowane. |
+| 5 | **Push notifications dla kierowcy** | ❌ Brak | `NotificationDispatcher` działa dla klientów (SMS/email). Driver App ma SSE + polling, ale nie ma pushów. Może wykorzystać `sh_notification_routes`. |
+
+### 6.6 Kolejność prac (rekomendowana)
+
+1. ~~**HR integracja (fanout)**~~ — ✅ DONE. Flag ON dla tenant 1, `hrClockIn`/`hrClockOut` w Driver App, worker gotowy do cron.
+2. ~~**SLA breach logging**~~ — ✅ DONE. `worker_sla_monitor.php` (CLI cron) + `get_sla_breaches` akcja w `engine.php`.
+3. **Status `returning`** — gdy właściciel zdecyduje. Wymaga zmiany w state machine (`OrderStateMachine.php` + `engine.php` + frontend).
+4. **Push notifications** — opcjonalne, niski priorytet. SSE + polling działają wystarczająco.
+
+### 6.7 Cron setup (Windows/XAMPP)
+
+Na produkcji (Linux) użyj crontab. Na Windows/XAMPP użyj Task Scheduler:
+
+```bash
+# Linux crontab — co 30s (worker_driver_fanout) + co 1 min (worker_sla_monitor)
+* * * * * php /path/to/scripts/worker_driver_fanout.php
+* * * * * sleep 30 && php /path/to/scripts/worker_driver_fanout.php
+* * * * * php /path/to/scripts/worker_sla_monitor.php
+```
+
+```powershell
+# Windows Task Scheduler — odpowiedniki
+# worker_driver_fanout: co 30s (wymaga 2 zadań z offset 30s)
+# worker_sla_monitor: co 1 min
+```

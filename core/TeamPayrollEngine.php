@@ -83,6 +83,7 @@ class TeamPayrollEngine
 
             $employees[] = [
                 'user_id'       => (string)$uid,
+                'employee_id'   => (int)($user['employee_id'] ?? 0),
                 'name'          => self::displayName($user),
                 'hours'         => round($hours, 2),
                 'rate'          => number_format($rate, 2, '.', ''),
@@ -129,7 +130,7 @@ class TeamPayrollEngine
         string $endSql
     ): array {
         $sql = "
-            SELECT DISTINCT u.id, u.first_name, u.last_name, u.username
+            SELECT DISTINCT u.id, u.first_name, u.last_name, u.username, e.id AS employee_id
             FROM sh_employees e
             INNER JOIN sh_users u
                 ON u.id = e.user_id

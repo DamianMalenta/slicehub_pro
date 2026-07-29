@@ -89,10 +89,16 @@ W systemie znajdują się foldery ze starym kodem (np. poprzednie wersje POS, Ma
 
 **Aktualna lista znanych `@planned` funkcji** (do zlikwidowania w kolejnych sesjach):
 - ~~`core/WzEngine.php::consumeForOrder`~~ — **DOMKNIĘTE w sesji F1 · 2026-05-11.** Wpięte w `core/WarehouseConsumeHook` → `api/pos/engine.php#accept_order` + `api/orders/accept.php`. Test E2E w `_docs/sessions/2026-05-11_phase_f1_consume_loop.md`.
-- ~~`api/staff/payroll.php`~~ — **DOMKNIĘTE 2026-07-27.** Przekonwertowane z ORPHAN → WRAPPER (deleguje do `PayrollEngine::calculate`, ten sam silnik co `api/backoffice/hr/engine.php#payroll_report`).
-- ~~`api/dashboard/team_payroll.php`~~ — **DOMKNIĘTE 2026-07-27.** Przekonwertowane z ORPHAN → WRAPPER (deleguje do `TeamPayrollEngine::getAggregate`, ten sam silnik co `api/backoffice/hr/engine.php#payroll_report`).
-- `api/payments/settle.php` — kompletny endpoint split-tender, ORPHAN bez UI. Plan: integracja z `pos/engine.php` lub świadome usunięcie po decyzji o canonical settlement.
-- `api/orders/edit.php`, `api/orders/estimate.php`, `api/orders/sla_monitor.php` — placeholder-y oznaczone jako `🟡 PLANNED` w `02_ARCHITEKTURA.md`.
+- ~~`api/staff/payroll.php`~~ — **USUNIĘTY 2026-07-28.** Martwy wrapper GET bez konsumenta. Logika w `hr/engine.php#payroll_report` → `PayrollEngine::calculate()`. Katalog `api/staff/` usunięty.
+- ~~`api/dashboard/team_payroll.php`~~ — **USUNIĘTY 2026-07-28.** Martwy wrapper GET bez konsumenta. Logika w `hr/engine.php#payroll_report` → `TeamPayrollEngine::getAggregate()`. Katalog `api/dashboard/` usunięty.
+- ~~`api/payments/settle.php`~~ — **USUNIĘTY 2026-07-28.** Martwy wrapper HTTP, zero call-site'ów. Logika w `core/SettlementEngine.php`.
+- ~~`api/orders/panic.php`~~ — **USUNIĘTY 2026-07-28.** Duplikat `pos/engine.php#panic_mode`. Logika wchłonięta do `core/PanicEngine.php` (debounce + configurable delay).
+- ~~`api/orders/accept.php`~~ — **USUNIĘTY 2026-07-28.** Duplikat `pos/engine.php#accept_order`. `canTransition()` pre-check wchłonięty.
+- ~~`api/orders/checkout.php`~~ — **USUNIĘTY 2026-07-28.** Duplikat `online/engine.php#guest_checkout` + `pos/engine.php#process_order`. `WzEngine::checkAvailability()` wchłonięte do obu.
+- ~~`api/delivery/dispatch.php`~~ — **USUNIĘTY 2026-07-28.** Duplikat `courses/engine.php#dispatch`. `out_for_delivery_at` + event publishing wchłonięte. Katalog `api/delivery/` usunięty.
+- ~~`api/delivery/reconcile.php`~~ — **USUNIĘTY 2026-07-28.** Duplikat `courses/engine.php#reconcile`. Driver release + delivery stats wchłonięte.
+- ~~`api/kds/update_ticket.php`~~ — **USUNIĘTY 2026-07-28.** Per-ticket state machine wchłonięta do `core/KdsTicketEngine.php` + `kds/engine.php#bump_ticket`.
+- `api/orders/edit.php`, `api/orders/estimate.php`, `api/orders/sla_monitor.php` — placeholder-y oznaczone jako `🟡 PLANNED` w `02_ARCHITEKTURA.md`. Mają unikalną logikę (DeltaEngine, PromisedTimeEngine, SLA breach logging) — zostawione do wpięcia w frontend.
 
 ## 9. PRAWO DATOWANYCH ZAMROŻEŃ (Freeze Discipline) · NEW v5
 
