@@ -703,13 +703,13 @@ class WzEngine
             ];
         }
 
-        $skus = array_keys($deductions);
+        $skus = array_values(array_keys($deductions));
         $ph = self::placeholders($skus);
         $stmt = $pdo->prepare("
             SELECT sku, quantity
             FROM wh_stock
-            WHERE tenant_id = :tid
-              AND warehouse_id = :wid
+            WHERE tenant_id = ?
+              AND warehouse_id = ?
               AND sku IN ({$ph})
         ");
         $stmt->execute(array_merge([$tenantId, $warehouseId], $skus));

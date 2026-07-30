@@ -35,7 +35,10 @@ final class KdsAcceptRouting
         $lines = $stmtLines->fetchAll(\PDO::FETCH_ASSOC);
 
         if (count($lines) === 0) {
-            throw new \InvalidArgumentException('Order has no lines to route.');
+            // Defensive: nie rzucaj wyjątku — skip KDS ticket creation.
+            // Zamówienie bez linii (legacy/empty cart) nadal może być zaakceptowane,
+            // po prostu nie ma ticketów kuchennych do routowania.
+            return [];
         }
 
         $stationGroups = [];

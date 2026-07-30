@@ -1450,8 +1450,8 @@ const SUITES = [
                 }
             },
             {
-                id: 'T56', label: 'process_order — pusty koszyk → success:true (puste zamówienie)',
-                desc: 'POST process_order z cart:[] → zapis przechodzi (pusta kwota)',
+                id: 'T56', label: 'process_order — pusty koszyk → success:false (guard: 0 lines)',
+                desc: 'POST process_order z cart:[] → odrzucone (guard blokuje puste zamówienia)',
                 async run() {
                     const r = await callPosEngine({
                         action: 'process_order',
@@ -1462,9 +1462,8 @@ const SUITES = [
                     if (r.error) return ['fail', r.error];
                     const json = tryParse(r.body);
                     if (!json) return ['fail', 'Nieparsowalny JSON'];
-                    if (json.success !== true) return ['fail', `Zamówienie nie zostało zapisane: ${json.message}`];
-                    if (!json.data?.order_id) return ['warn', 'Brak order_id w odpowiedzi'];
-                    return ['pass', `Zamówienie utworzone: ${json.data.order_id}`];
+                    if (json.success !== false) return ['fail', 'Pusty koszyk powinien być odrzucony (guard 0 lines)'];
+                    return ['pass', `Pusty koszyk odrzucony: ${json.message}`];
                 }
             },
             {

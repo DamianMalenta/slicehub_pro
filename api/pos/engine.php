@@ -584,6 +584,13 @@ try {
             $payMethodRaw = (string)($input['payment_method'] ?? 'unpaid');
             $payStatusRaw = (string)($input['payment_status'] ?? 'unpaid');
 
+            // Guard: pusty koszyk = nie twórz zamówienia (0 lines → KdsAcceptRouting
+            // rzuca "Order has no lines to route" przy akceptacji).
+            if (!is_array($cart) || count($cart) === 0) {
+                $pdo->rollBack();
+                posResponse(false, null, 'Koszyk jest pusty — dodaj pozycje przed złożeniem zamówienia.');
+            }
+
             // Map legacy values to 3-pillar model
             $payMethodMap = ['unpaid' => null, 'cash' => 'cash', 'card' => 'card', 'online' => 'online'];
             $payMethod = $payMethodMap[$payMethodRaw] ?? $payMethodRaw;
