@@ -278,5 +278,5 @@ const CoursesUI = (() => {
         el.innerHTML = `${headerHtml}<div class="sla-breach-list">${itemsHtml}</div>`;
     }
 
-    return Object.freeze({ renderDriversList, renderOrdersGrid, renderCoursesGrid, toast, formatGrosche, setSlaThresholds, renderSlaBreachesPanel });
+    return Object.freeze({ renderDriversList, renderOrdersGrid, renderCoursesGrid, toast, formatGrosze, setSlaThresholds, renderSlaBreachesPanel });
 })();

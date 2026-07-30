@@ -40,29 +40,32 @@
 
 ### 🔴 WYSOKI PRIORYTET
 
-#### R1. Demo data SKU inconsistency (seed_demo_all.php)
+#### R1. Demo data SKU inconsistency (seed_demo_all.php) — ✅ DOMKNIĘTE 2026-07-30
 
-**Problem:** `seed_demo_all.php` zapisuje legacy SKU w `sh_order_lines` (np. `item_sku=MARGHERITA`), ale `sh_menu_items.ascii_key=PIZZA_MARGHERITA`. CartEngine (używany przez `edit.php` w Fazie E) szuka po `ascii_key` i rzuca `"SKU 'MARGHERITA' not found for this tenant"`.
+**Problem (diagnoza poprawiona):** Pierwotna rekomendacja twierdziła, że `seed_demo_all.php` zapisuje `item_sku=MARGHERITA` w `sh_order_lines`. Audyt `git blame` (2026-07-30) wykazał, że seed od pierwszego commita (`554594f`, 2026-04-23) używa poprawnych SKU z prefiksem (`PIZZA_MARGHERITA`, `BURGER_CLASSIC`, etc.) — zgodnych z `sh_menu_items.ascii_key`. `MARGHERITA` (bez prefiksu) w bazie pochodził z ręcznego utworzenia menu item podczas testów, nie z seeda.
 
-**Wpływ:** Edycja zamówień z legacy SKU przez `modules/backoffice/order_edit/` się nie powiedzie. Edycja zamówień z poprawnymi SKU (np. ChoiceQR `CQR/20260729/0002` z `BURGER_CLASSIC`) działa poprawnie.
+**Realny problem:** `tests/test_runner.html` (suite POS) używał nieistniejących SKU (`MARGHERITA`, `OPT_JALAPENO`, `SER_MOZZARELLA`) zamiast `PIZZA_MARGHERITA`, `EXTRA_JALAP`, `SER_MOZZ` — test przechodził tylko dlatego, że w bazie był ręcznie utworzony item `ascii_key=MARGHERITA`.
 
-**Odkryte w:** Fazie E (smoke test). To NIE jest bug Fazy E — pre-existing data inconsistency.
+**Fix (2026-07-30):**
+- `tests/test_runner.html` — poprawiono SKU + ceny (24.00/56.00 zamiast 25.99/51.98) na zgodne z seedem.
+- `scripts/check_sku_consistency.php` (nowy) — backfill `MARGHERITA` → `PIZZA_MARGHERITA` dla istniejących order lines + weryfikacja orphanów.
 
-**Rekomendacja:** Fix `seed_demo_all.php` żeby używał `ascii_key` z `sh_menu_items` przy insertach do `sh_order_lines`. Alternatywa (ryzykowna): fallback w CartEngine po `snapshot_name` gdy `ascii_key` nie istnieje — odradzam (name nie jest unikalny, ryzyko mismatch).
-
-**Pliki:** `scripts/seed_demo_all.php` (insert order_lines), ew. `database/migrations/*` jeśli trzeba backfill istniejących order_lines.
+**Weryfikacja:** Po `seed_demo_all.php` — 0 orphan SKU (LEFT JOIN `sh_menu_items` zwraca 0 braków). `check_sku_consistency.php` = 0 rows to backfill.
 
 ---
 
-#### R2. `edited_since_print` reset
+#### R2. `edited_since_print` reset — ✅ DOMKNIĘTE 2026-07-30
 
-**Problem:** Flaga `sh_orders.edited_since_print` ustawiana na `1` przy edycji (Faza E) ale nigdy resetowana na `0`. KDS pokazuje banner "ZAMÓWIENIE EDYTOWANE"永久nie.
+**Problem:** Flaga `sh_orders.edited_since_print` ustawiana na `1` przy edycji (Faza E) ale nigdy resetowana na `0`. KDS pokazuje banner "ZAMÓWIENIE EDYTOWANE" permanentnie.
 
-**Wpływ:** UX — KDS po potwierdzeniu zmian nadal pokazuje banner. Funkcjonalnie OK (delta pozostaje zapisana), ale wizualnie mylące.
+**Fix (2026-07-30) — podejście auto-reset przy `ready` (prostsze niż przycisk):**
+- `api/kds/engine.php#bump_order` (linia 225-227): przejście do `ready` → `edited_since_print=0, kitchen_delta=NULL`.
+- `core/KdsTicketEngine.php#bump` (linia 103-107): last ticket done → order `ready` → ten sam reset.
+- `api/pos/engine.php#print_kitchen` (linia 1328, już committed): reset `edited_since_print=0` przy ponownym druku ticketu.
 
-**Rekomendacja:** Dodać akcję `confirm_changes` w `api/kds/engine.php` (lub w `pos/engine.php#bump`) która resetuje `edited_since_print=0` po bumpie ticketu. Frontend: przycisk "Potwierdzam zmiany" w KDS, albo auto-reset przy bumpie do `ready`.
+**Logika:** gdy kuchnia kończy (bump do `ready`), flaga edycji i `kitchen_delta` są czyszczone — banner "ZAMÓWIENIE EDYTOWANE" znika, bo kuchnia potwierdziła zakończeniem. Nie wymaga przycisku w UI — zero dodatkowego click-path dla kucharza.
 
-**Pliki:** `api/kds/engine.php` (nowa akcja), `modules/kds/js/kds_app.js` (przycisk/auto-reset).
+**Dodatkowy fix:** `modules/courses/js/courses_ui.js:281` — typo w eksporcie `formatGrosche` → `formatGrosze` (nazwa funkcji to `formatGrosze`).
 
 ---
 

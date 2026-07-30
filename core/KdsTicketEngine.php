@@ -100,10 +100,13 @@ final class KdsTicketEngine
                     $stmtOldStatus->execute([':oid' => $orderId, ':tid' => $tenantId]);
                     $oldOrderStatus = $stmtOldStatus->fetchColumn() ?: 'accepted';
 
-                    // All stations done → order is ready
+                    // All stations done → order is ready.
+                    // R2 (2026-07-30): reset flagi edycji i kitchen_delta — kuchnia
+                    // potwierdziła zakończeniem, banner edycji nie ma już sensu.
                     $stmtOrderStatus = $pdo->prepare(
                         "UPDATE sh_orders
-                         SET status = 'ready', updated_at = :now
+                         SET status = 'ready', updated_at = :now,
+                             edited_since_print = 0, kitchen_delta = NULL
                          WHERE id = :oid AND tenant_id = :tid AND status IN ('accepted', 'preparing')"
                     );
                     $stmtOrderStatus->execute([':oid' => $orderId, ':tid' => $tenantId, ':now' => $now]);

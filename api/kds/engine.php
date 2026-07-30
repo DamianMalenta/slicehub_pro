@@ -222,6 +222,10 @@ try {
             if ($newStatus === 'accepted') $tsExtra = ', accepted_at = NOW()';
             elseif ($newStatus === 'ready')    $tsExtra = ', ready_at = NOW()';
 
+            // R2 (2026-07-30): przejście do 'ready' = kuchnia zakończyła → reset flagi
+            // edycji i kitchen_delta. Order opuszcza tablicę KDS, banner nie ma już sensu.
+            if ($newStatus === 'ready') $tsExtra .= ', edited_since_print = 0, kitchen_delta = NULL';
+
             $pdo->prepare(
                 "UPDATE sh_orders SET status = :ns, updated_at = NOW() {$tsExtra}
                  WHERE id = :oid AND tenant_id = :tid"

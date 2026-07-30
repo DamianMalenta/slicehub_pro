@@ -1473,13 +1473,13 @@ const SUITES = [
                 async run() {
                     const r = await callPosEngine({
                         action: 'process_order',
-                        cart: [{ cart_id: 'test1', ascii_key: 'MARGHERITA', name: 'Margherita', price: '25.99', qty: 2,
-                                 added: [{ ascii_key: 'OPT_JALAPENO', name: 'Jalapeno', price: '4.00' }],
-                                 removed: [{ sku: 'SER_MOZZARELLA', name: 'Mozzarella' }],
+                        cart: [{ cart_id: 'test1', ascii_key: 'PIZZA_MARGHERITA', name: 'Margherita', price: '24.00', qty: 2,
+                                 added: [{ ascii_key: 'EXTRA_JALAP', name: 'Jalapeno', price: '4.00' }],
+                                 removed: [{ sku: 'SER_MOZZ', name: 'Mozzarella' }],
                                  comment: 'Dobrze wypieczona' }],
                         source: 'POS', order_type: 'takeaway',
                         payment_method: 'cash', payment_status: 'paid',
-                        total_price: 51.98, status: 'pending',
+                        total_price: 56.00, status: 'pending',
                     });
                     if (r.error) return ['fail', r.error];
                     const json = tryParse(r.body);
