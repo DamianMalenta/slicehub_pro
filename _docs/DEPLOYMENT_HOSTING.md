@@ -122,7 +122,7 @@ Lub coś podobnego z polami `success` i `message`. **Jeśli widzisz `Database co
 
 ## ✅ KROK 4 — Łańcuch migracji (przeglądarka)
 
-> **Po co:** baza ma na razie tylko schemat z `001`. Cały kod (Studio, Online, POS, KDS, Driver, Workers, Settings) wymaga tabel/kolumn dodanych w migracjach 004–044. Bez tego co druga akcja zwraca 500.
+> **Po co:** baza ma na razie tylko schemat z `001`. Cały kod (Studio, Online, POS, KDS, Driver, Workers, Settings) wymaga tabel/kolumn dodanych w migracjach **004–059** (`scripts/_migrations_chain.php`). Bez tego co druga akcja zwraca 500. **Uwaga:** migracje nie wstawiają produktów — menu po chain nadal jest puste (patrz `database/README.md` § „migracje ≠ produkty”).
 
 **Co zrobić:**
 
@@ -144,6 +144,8 @@ OK: 006_studio_mission_control.sql
 OK: 007_pos_engine_columns.sql
 ...
 OK: 044_hr_advances.sql
+...
+OK: 059_product_mapping_unique_supplier.sql
 Zakończono.
 ```
 

@@ -118,7 +118,7 @@ USE slicehub_pro_v2;
 
 Hosting nie pozwoli `CREATE DATABASE`. Pozostała część (`DROP TABLE`, `CREATE TABLE`) musi przejść.
 
-#### KROK B — wszystkie pozostałe migracje (004–044)
+#### KROK B — wszystkie pozostałe migracje (004–059)
 
 Najprostszy sposób: uruchom przez przeglądarkę:
 
@@ -127,11 +127,13 @@ https://<TWOJA_DOMENA>/scripts/apply_migrations_chain.php
 ```
 
 Skrypt:
-- Audytuje, czy lista migracji w kodzie zgadza się z plikami SQL na dysku.
-- Wykonuje po kolei pliki: `004, 006, 007, 008, 009, 010, 011, 012, 013, 014, 016, 017, 019, 020, 021, 022, 023, 024, 025, 026, 027, 028, 029, 030, 031, 032, 033, 034, 035, 036, 037, 038, 039, 040, 041, 042, 043, 044`.
+- Audytuje, czy lista migracji w kodzie zgadza się z plikami SQL na dysku (`scripts/_migrations_chain.php` — **53 pliki**).
+- Wykonuje po kolei pliki **004 … 059** (pełna lista: `php scripts/apply_migrations_chain.php --dry-run` lub `database/README.md`).
 - **Pomija celowo `015`** (destrukcyjne `DELETE/UPDATE` na demo tenancie).
 
-> Po zakończeniu skrypt zaproponuje uruchomić jeszcze `scripts/setup_database.php`. Można puścić — dokłada idempotentne ALTER-y i zabezpieczenia. Nie jest to krok obowiązkowy do logowania, ale jest zalecany dla pełnej zgodności UI.
+> **Migracje nie wstawiają produktów.** Po krokach A+B tabela `sh_menu_items` jest pusta — POS/Online bez seeda lub ręcznego menu w Studio to **oczekiwany** stan. Patrz §2.4.
+
+> Po zakończeniu skrypt zaproponuje uruchomić jeszcze `scripts/setup_database.php`. Na hostingu po pełnym chain zwykle **nie jest wymagany** do logowania; dokłada idempotentne ALTER-y z PHP (m.in. domknięcie M022).
 
 #### Spodziewane "FAIL"-e w outputcie chain'a (NIESZKODLIWE)
 
@@ -143,11 +145,35 @@ Na hostingu uti.pl skrypt zazwyczaj pokazuje dwa `FAIL` — oba są spodziewane 
 2. `FAIL: 037_pos_foundation.sql — SQLSTATE[HY000]: General error: 1901 Function or expression 'table_id' cannot be used in the GENERATED ALWAYS AS clause of '_active_table_guard'`
    - Wersja MariaDB na hostingu nie wspiera tego konkretnego wzorca `GENERATED ALWAYS AS` z odwołaniem do innej kolumny w `STORED`. Dotyczy **tylko** opcjonalnej "siatki bezpieczeństwa" anti-ghosting w POS (max 1 aktywne zamówienie per stolik). Wszystkie pozostałe obiekty z tej migracji (kolumny `table_id`, `waiter_id`, `guest_count`, `split_type`, `qr_session_token`, FK, indeksy) **zostały utworzone**. POS będzie działał normalnie. Jeżeli kiedyś zechcesz dorzucić anti-ghosting, zrobimy to triggerem zamiast generated column.
 
-Wszystko inne powinno mieć `OK`. Migracje `041–044` (HR) muszą być na liście `OK` — bez nich Kadry zwracają 500.
+Wszystko inne powinno mieć `OK`. Migracje `041–044` (HR) oraz `048–051` (warianty, zestawy, `publication_status`) muszą być na liście `OK` — bez HR Kadry zwracają 500; bez 048+ POS nie obsługuje rodzin wariantów.
 
-#### KROK C — dlaczego HR też jest potrzebne
+#### KROK C — dlaczego HR i nowsze migracje też są potrzebne
 
-Bez migracji `041–044` **nie da się dodać pracownika** (`Kadry → Dodaj`). Endpoint `api/backoffice/hr/engine.php` korzysta z tabel `sh_employees`, `sh_employee_rates`, `sh_payroll_ledger`, `sh_advances`. Krok B wgrywa je automatycznie.
+Bez migracji `041–044` **nie da się dodać pracownika** (`Kadry → Dodaj`). Endpoint `api/backoffice/hr/engine.php` korzysta z tabel `sh_employees`, `sh_employee_rates`, `sh_payroll_ledger`, `sh_advances`.
+
+Migracje `045–059` dodają m.in. profil firmy (NIP), KSeF inbox, geokodowanie, **warianty rozmiarów pizz (048)**, zestawy POS (050), normalizację statusu publikacji menu (051). Krok B wgrywa je automatycznie z `_migrations_chain.php`.
+
+#### KROK D — skąd wziąć produkty (menu)
+
+Czysty deploy z tej instrukcji **świadomie nie seeduje menu**. Po A+B+C masz schemat + ownera, ale **zero pozycji w `sh_menu_items`**.
+
+| Cel | Co zrobić |
+|-----|-----------|
+| Jedna pizza testowa | Hub → **Studio** → kategoria + danie, status **Live**, cena w macierzy cenowej |
+| Demo sandbox (tenant 1) | `https://<TWOJA_DOMENA>/scripts/seed_demo_all.php` — 33 produkty, PIN-y demo |
+| Pełne menu Pizzerii Forno (tenant 2) | phpMyAdmin → import `scripts/seed_pizzaforno.sql` (idempotentny) |
+| Install Panel | Tworzy tenanta + ownera — **bez** automatycznego menu |
+
+Ceny są w `sh_price_tiers` (`target_type='ITEM'`, `target_sku`), nie w `sh_menu_items`. Seedy wstawiają obie tabele.
+
+Weryfikacja w phpMyAdmin:
+
+```sql
+SELECT tenant_id, COUNT(*) AS produkty FROM sh_menu_items WHERE is_deleted = 0 GROUP BY tenant_id;
+SELECT tenant_id, COUNT(*) AS ceny FROM sh_price_tiers WHERE target_type = 'ITEM' GROUP BY tenant_id;
+```
+
+Szczegóły: [`database/README.md`](../database/README.md), [`SEED_GUIDE.md`](SEED_GUIDE.md).
 
 ---
 

@@ -1,6 +1,8 @@
 # Seed — ścieżka „golden path” (SliceHub demo)
 
-> Ostatnia aktualizacja: 2026-05-22. Główny seed: `scripts/seed_demo_all.php` (tenant_id = 1).
+> Ostatnia aktualizacja: 2026-07-07. Główny seed: `scripts/seed_demo_all.php` (tenant_id = 1).
+
+**Ważne:** seedy wymagają wcześniejszego pełnego łańcucha migracji **004–059** (`php scripts/apply_migrations_chain.php`). Same migracje **nie** tworzą produktów — patrz [`database/README.md`](../database/README.md).
 
 ## Pełna baza od zera
 
