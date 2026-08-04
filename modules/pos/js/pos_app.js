@@ -1037,9 +1037,12 @@ const PosApp = (() => {
         PosUI.renderPulse(onlineOrders, _expandedOnlineId, {
             onToggle: (id) => { _expandedOnlineId = _expandedOnlineId === id ? null : id; _renderBattlefield(); },
             onAccept: async (id, mins) => {
-                const t = new Date(); t.setMinutes(t.getMinutes() + mins);
-                const iso = t.toISOString().slice(0, 16);
-                const r = await PosAPI.acceptOrder(id, iso);
+                let iso = '';
+                if (mins > 0) {
+                    const t = new Date(); t.setMinutes(t.getMinutes() + mins);
+                    iso = t.toISOString().slice(0, 16);
+                }
+                const r = await PosAPI.acceptOrder(id, iso || null);
                 if (!r.success) {
                     PosUI.toast(r.message || 'Nie udało się przyjąć zamówienia', 'error');
                     return;
