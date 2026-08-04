@@ -1,4 +1,4 @@
-Ôªø<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
@@ -55,7 +55,7 @@
                 <span class="nav-title">SliceHub</span>
             </div>
             <div class="nav-tabs" id="nav-tabs">
-                <button class="nav-tab active"><span class="nav-tab-icon"><i class="fa-solid fa-receipt"></i></span> <span class="nav-tab-label">Zam√≥wienia</span></button>
+                <button class="nav-tab active"><span class="nav-tab-icon"><i class="fa-solid fa-receipt"></i></span> <span class="nav-tab-label">ZamÛwienia</span></button>
                 <button class="nav-tab" data-href="../tables/index.html"><span class="nav-tab-icon"><i class="fa-solid fa-chair"></i></span> <span class="nav-tab-label">Sala</span></button>
                 <button class="nav-tab" data-href="../courses/index.html"><span class="nav-tab-icon"><i class="fa-solid fa-motorcycle"></i></span> <span class="nav-tab-label">Kursy</span></button>
                 <button class="nav-tab" data-href="../courses/index.html#map"><span class="nav-tab-icon"><i class="fa-solid fa-map-location-dot"></i></span> <span class="nav-tab-label">Mapa</span></button>
@@ -73,12 +73,12 @@
         <header class="pos-topbar">
             <button class="topbar-btn accent" id="btn-new-order"><i class="fa-solid fa-plus" style="font-size:10px"></i> NOWE</button>
             <button class="topbar-btn" id="btn-show-battlefield"><i class="fa-solid fa-grip" style="font-size:10px"></i> PULPIT</button>
-            <button type="button" class="topbar-btn" id="btn-hr-clock" title="Zmiana ‚Äî clock in / out">
+            <button type="button" class="topbar-btn" id="btn-hr-clock" title="Zmiana ó clock in / out">
                 <i class="fa-solid fa-clock" style="font-size:10px"></i> <span id="hr-clock-badge">Zmiana</span>
             </button>
             <div class="topbar-spacer"></div>
             <button class="topbar-btn danger-subtle" id="btn-panic"><i class="fa-solid fa-triangle-exclamation" style="font-size:9px"></i> PANIC (+20M)</button>
-            <button class="topbar-btn" id="btn-fiscal-daily" title="Raport dobowy ‚Äî zamknij dobƒô fiskalnƒÖ"><i class="fa-solid fa-receipt" style="font-size:10px"></i> RAPORT DOBOWY</button>
+            <button class="topbar-btn" id="btn-fiscal-daily" title="Raport dobowy ó zamknij dobÍ fiskalnπ"><i class="fa-solid fa-receipt" style="font-size:10px"></i> RAPORT DOBOWY</button>
             <div class="topbar-spacer"></div>
             <button class="topbar-btn" id="btn-view-routes"><i class="fa-solid fa-route" style="font-size:10px"></i> KURSY <span id="fcnt-routes" style="font-size:8px;background:rgba(255,255,255,0.1);padding:1px 5px;border-radius:8px;margin-left:2px">0</span></button>
         </header>
@@ -93,7 +93,7 @@
                         <span class="pulse-count" id="pulse-count">0</span>
                     </div>
                     <div class="pulse-scroll">
-                        <div class="pulse-section"><h5><i class="fa-solid fa-motorcycle" style="font-size:9px"></i> Dow√≥z</h5><div id="pulse-delivery"></div></div>
+                        <div class="pulse-section"><h5><i class="fa-solid fa-motorcycle" style="font-size:9px"></i> DowÛz</h5><div id="pulse-delivery"></div></div>
                         <div class="pulse-section"><h5><i class="fa-solid fa-bag-shopping" style="font-size:9px"></i> Wynos</h5><div id="pulse-takeaway"></div></div>
                         <div class="pulse-section"><h5><i class="fa-solid fa-chair" style="font-size:9px"></i> Sala</h5><div id="pulse-dinein"></div></div>
                     </div>
@@ -105,7 +105,7 @@
                 <!-- Right: Fleet Sidebar -->
                 <aside class="fleet-sidebar">
                     <div class="fleet-section">
-                        <div class="fleet-header"><span><i class="fa-solid fa-motorcycle" style="font-size:10px"></i> Flota</span><div class="fleet-btns"><button class="fleet-action-btn hidden" id="btn-send-route">Wy≈õlij Kurs</button><button class="fleet-action-btn fleet-create-btn hidden" id="btn-create-course">Stw√≥rz Kurs</button></div></div>
+                        <div class="fleet-header"><span><i class="fa-solid fa-motorcycle" style="font-size:10px"></i> Flota</span><div class="fleet-btns"><button class="fleet-action-btn hidden" id="btn-send-route">Wyúlij Kurs</button><button class="fleet-action-btn fleet-create-btn hidden" id="btn-create-course">StwÛrz Kurs</button></div></div>
                         <div id="drivers-list" class="fleet-list"></div>
                     </div>
                     <div class="fleet-section">
@@ -122,10 +122,10 @@
                 <!-- Menu Area -->
                 <div class="pos-menu-area">
                     <div class="creator-topbar">
-                        <button class="topbar-btn" id="btn-back-to-bf">‚Üê Wr√≥ƒá do Pulpitu</button>
-                        <span class="edit-badge hidden" id="edit-mode-badge">‚úèÔ∏è TRYB EDYCJI</span>
+                        <button class="topbar-btn" id="btn-back-to-bf">ã WrÛÊ do Pulpitu</button>
+                        <span class="edit-badge hidden" id="edit-mode-badge">?? TRYB EDYCJI</span>
                         <div class="topbar-spacer"></div>
-                        <button class="topbar-btn" id="btn-half">¬Ω + ¬Ω</button>
+                        <button class="topbar-btn" id="btn-half">1 + 1</button>
                     </div>
                     <div id="cat-tabs"></div>
                     <div id="item-grid"></div>
@@ -143,18 +143,18 @@
                     <div id="delivery-fields" class="delivery-fields hidden">
                         <input type="text" id="cust-addr" placeholder="Adres dostawy / Stolik" class="field-input">
                         <input type="text" id="cust-phone" placeholder="Telefon" class="field-input">
-                        <input type="text" id="cust-name" placeholder="Imiƒô klienta" class="field-input">
+                        <input type="text" id="cust-name" placeholder="ImiÍ klienta" class="field-input">
                     </div>
                     <div id="cart-lines"></div>
                     <div class="cart-footer">
                         <input type="text" id="cust-nip" placeholder="NIP (opcjonalnie)" class="field-input nip-field">
                         <div class="cart-total-row">
                             <span class="cart-total-label">Suma</span>
-                            <span id="cart-total">0.00 z≈Ç</span>
+                            <span id="cart-total">0.00 z≥</span>
                         </div>
                         <div class="cart-actions">
-                            <button id="btn-checkout" disabled>Zatwierd≈∫ ‚Üí</button>
-                            <button id="btn-clear-cart" title="Wyczy≈õƒá">üóë</button>
+                            <button id="btn-checkout" disabled>Zatwierdü õ</button>
+                            <button id="btn-clear-cart" title="WyczyúÊ">??</button>
                         </div>
                     </div>
                 </aside>
@@ -177,10 +177,10 @@
         <div class="hrclk-card">
             <div class="hrclk-head">
                 <h3 class="hrclk-title">Zmiana</h3>
-                <button type="button" class="dc-close" id="hrclk-close-x" title="Zamknij">‚úï</button>
+                <button type="button" class="dc-close" id="hrclk-close-x" title="Zamknij">?</button>
             </div>
             <div id="hrclk-open-list" class="hrclk-open-list"></div>
-            <p class="hrclk-hint">PIN z modu≈Çu Kadry (kiosk HR). <strong>Odbij</strong>: najpierw wyj≈õcie ze zmiany, je≈õli nie ma ‚Äî wej≈õcie.</p>
+            <p class="hrclk-hint">PIN z modu≥u Kadry (kiosk HR). <strong>Odbij</strong>: najpierw wyjúcie ze zmiany, jeúli nie ma ó wejúcie.</p>
             <div class="hrclk-dots" id="hrclk-dots"></div>
             <div class="pin-grid hrclk-pin-grid">
                 <button type="button" class="pin-btn" onclick="_hrclkPin('1')">1</button>
@@ -194,9 +194,9 @@
                 <button type="button" class="pin-btn" onclick="_hrclkPin('9')">9</button>
                 <button type="button" class="pin-btn pin-action" onclick="_hrclkPin('clear')">C</button>
                 <button type="button" class="pin-btn" onclick="_hrclkPin('0')">0</button>
-                <button type="button" class="pin-btn pin-action" onclick="_hrclkPin('back')">‚å´</button>
+                <button type="button" class="pin-btn pin-action" onclick="_hrclkPin('back')">?</button>
             </div>
-            <button type="button" class="hrclk-submit" id="hrclk-submit">Odbij zmianƒô</button>
+            <button type="button" class="hrclk-submit" id="hrclk-submit">Odbij zmianÍ</button>
             <button type="button" class="hrclk-self" id="hrclk-self">Moja zmiana (to konto POS)</button>
         </div>
     </div>

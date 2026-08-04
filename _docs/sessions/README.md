@@ -65,6 +65,14 @@ Spine czytania: [`2026-05-11_STUDIO_RELEASE_INDEX.md`](2026-05-11_STUDIO_RELEASE
 - [`2026-07-07_docs_start_tutaj_verification.md`](2026-07-07_docs_start_tutaj_verification.md) — START_TUTAJ.md, weryfikacja 62/62, fix Deno CI workflow_dispatch.
 - [`2026-07-22_audyt_produkcyjny.md`](2026-07-22_audyt_produkcyjny.md) — pełny audyt gotowości produkcyjnej; inwentarz stanu plików (A–I), realne bugi (ChannelRegistry, DirectorApp), martwy/zdublowany kod, białe plamy.
 
+### Promised Time / SLA (Fazy A–E + audyty)
+
+- [`2026-07-29_promised_time_sla_audit_and_plan.md`](2026-07-29_promised_time_sla_audit_and_plan.md) — audyt pierwotny obiegu `promised_time`; 6 ścieżek nadawania, 5 frontendów SLA, plan naprawczy Fazy A–E.
+- [`2026-07-29_phase_a_sla_thresholds.md`](2026-07-29_phase_a_sla_thresholds.md) — Faza A: SSOT progów SLA (`core/SlaThresholds.php`), 4 frontendy czytają z `sh_tenant_settings`.
+- [`2026-07-29_phase_b_promised_time_engine.md`](2026-07-29_phase_b_promised_time_engine.md) — Faza B: wpięcie `PromisedTimeEngine` ASAP w 4 ścieżki (online, gateway, choiceqr, POS accept_order).
+- [`2026-07-29_phase_c_sla_breach_panel.md`](2026-07-29_phase_c_sla_breach_panel.md) — Faza C: SLA breach panel w Dispatcher + cron `worker_sla_monitor.php`.
+- [`2026-08-03_promised_time_wiring_audit.md`](2026-08-03_promised_time_wiring_audit.md) — **Audyt follow-up Faza B**: 3 luki krytyczne (POS "ZAAKCEPTUJ" wysyła `now` zamiast pustego → silnik ASAP nie odpala; online scheduled zapis surowy bez walidacji; tryb `scheduled` silnika = martwy kod) + 2 kosmetyczne.
+
 ### SPARK (materiały wniosku — bez zmian runtime)
 
 - [`2026-05-20_spark_prezentacja_ludzka.md`](2026-05-20_spark_prezentacja_ludzka.md) — Prezentacja SPARK: screeny, HTML/PDF, teksty F6S.

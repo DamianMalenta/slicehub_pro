@@ -4,6 +4,14 @@
 **Powiązane:** `_docs/sessions/2026-07-29_promised_time_sla_audit_and_plan.md` (Faza B)
 **Konstytucja:** Prawo VI (Snajper), Prawo VIII (Domknięcie Kontraktu), Prawo X (Audyt Sesji)
 
+> **⚠️ AUDYT FOLLOW-UP 2026-08-03:** Weryfikacja end-to-end wykazała 3 luki
+> w wpięciu Fazy B — szczegóły w
+> [`2026-08-03_promised_time_wiring_audit.md`](2026-08-03_promised_time_wiring_audit.md).
+> Główne znalezisko: silnik ASAP w `accept_order` nie odpala dla przycisku
+> "ZAAKCEPTUJ" (wysyła `now` zamiast pustego `custom_time`), a tryb
+> `scheduled` silnika pozostaje martwym kodem (online checkout zapisuje
+> surowo bez walidacji).
+
 ---
 
 ## 1. Cel

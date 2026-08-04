@@ -123,6 +123,7 @@ Szczegóły: [`AGENTS.md`](../AGENTS.md) w root.
 | ~~`api/dashboard/team_payroll.php`~~ | **USUNIĘTY 2026-07-28** — martwy wrapper, logika w `hr/engine.php#payroll_report` |
 | `api/orders/edit.php`, `estimate.php`, `sla_monitor.php` | @planned (unikalna logika — zostawione) |
 | `tables/split_payment`, `complete_dine_in` (UI) | backend bez pełnego podpięcia frontend |
+| `core/PromisedTimeEngine.php` (tryb `scheduled`) | ⚠️ **AUDYT 2026-08-03**: tryb scheduled = martwy kod (0 call-site'ów); ASAP częściowo wpięte (POS "ZAAKCEPTUJ" wysyła `now` zamiast pustego → silnik nie odpala). Szczegóły: [`sessions/2026-08-03_promised_time_wiring_audit.md`](sessions/2026-08-03_promised_time_wiring_audit.md) |
 | Offline POS P4.5–P8 | FREEZE do 2026-08-23 — [`17_OFFLINE_POS_BACKLOG.md`](17_OFFLINE_POS_BACKLOG.md) |
 
 Pełna lista: `01_KONSTYTUCJA.md` § Prawo VIII, `00_PAMIEC_SYSTEMU.md`.

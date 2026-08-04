@@ -247,7 +247,7 @@ Shared CSS dla wszystkich modułów: safe-area-inset, viewport-fit, mobilne nawi
 | ~~`orders/panic.php`~~ | **USUNIĘTY 2026-07-28.** Duplikat `pos/engine.php#panic_mode`. Logika wchłonięta do `core/PanicEngine.php` (debounce + configurable delay). |
 | `orders/sla_monitor.php` | ✅ **DOMKNIĘTE 2026-07-29 (Faza C)** — SLA breach monitor (4-tier klasyfikacja, zapis do `sh_sla_breaches`). Wpięte end-to-end: `worker_sla_monitor.php` (cron CLI) + `courses/engine.php#get_sla_breaches` (backend) + `courses_api.js#getSlaBreaches` + `courses_app.js` (poll 30s) + `courses_ui.js#renderSlaBreachesPanel` (Dispatcher sidebar). |
 | `orders/DeltaEngine.php` | ✅ **DOMKNIĘTE 2026-07-30 (Faza E)** — diff linii zamówienia → `kitchen_delta` JSON. Konsument: `edit.php` → KDS `get_board` (highlight zielony/żółty/czerwony + banner "ZAMÓWIENIE EDYTOWANE"). |
-| `core/PromisedTimeEngine.php` | ✅ **DOMKNIĘTE 2026-07-29 (Faza B)** — pełny silnik estymacji promised_time (load factor, channel buffers, business hours). Wpięty w 4 ścieżki ASAP: online/gateway/choiceqr/pos-accept. Ręczny input (POS) i scheduled (online/gateway) bez zmian. |
+| `core/PromisedTimeEngine.php` | ✅ **DOMKNIĘTE 2026-07-29 (Faza B)** ⚠️ **AUDYT 2026-08-03: częściowe** — pełny silnik estymacji promised_time (load factor, channel buffers, business hours). Wpięty w 4 ścieżki ASAP: online/gateway/choiceqr/pos-accept. Ręczny input (POS) i scheduled (online/gateway) bez zmian. **Luki (audyt 2026-08-03):** (L1) POS "ZAAKCEPTUJ" wysyła `now` → silnik ASAP nie odpala; (L2) online scheduled zapis surowy bez walidacji; (L3) tryb `scheduled` = martwy kod. Szczegóły: `sessions/2026-08-03_promised_time_wiring_audit.md`. |
 
 #### Warehouse
 | Ścieżka | Opis |

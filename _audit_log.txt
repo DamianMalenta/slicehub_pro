@@ -1,0 +1,236 @@
+﻿3c7b5c4|2026-04-08|Add new item editor functionality and API for menu management
+6ed573c|2026-04-08|Zabezpieczenie plikow i bazy wiedzy
+e452c50|2026-04-09|Enhance item editor and API to support barcode, parent SKU, and allergens
+5e095f0|2026-04-23|chore: _KOPALNIA_WIEDZY_LEGACY przeniesione do archiwum offline + nowy .gitignore
+554594f|2026-04-23|chore: checkpoint - m037, m038, fix doc wh_documents, gitignore, fix migration collisions (035/036)
+cde1f69|2026-04-23|chore: _archive przeniesione do archiwum offline + TODO HR w backlogu
+1a50528|2026-04-23|docs: Zamro┼╝enie Offline POS, utrwalenie backlogu
+0561962|2026-04-24|feat(hr): Core payroll ledger, advance engine i nadprogramowy driver fanout (Faza 3B)
+e6be7c4|2026-05-03|feat(settings,kds,payments): audit log UI, station filter, settle outbox
+1e24dae|2026-05-03|chore(repo): remove _RPA_AUTOMATION experimental subtree
+d01af38|2026-05-03|chore(repo): remove tracked SQL dump copies
+a0b3db2|2026-05-03|docs: sync PAMIEC and HR logic; remove superseded START_TUTAJ
+72eec73|2026-05-03|feat(hr): payroll accrual worker with ledger and advance engine updates
+cd569f3|2026-05-03|chore(scripts): add asset restore helpers for local recovery
+ba41545|2026-05-03|feat(settings): ┬ž12 roadmap ÔÇö webhook delivery inspector, scope picker, integration ping worker
+79744ea|2026-05-04|Mobile shell: shared safe-area CSS, viewport-fit, KDS/Settings tweaks
+cd94182|2026-05-04|tests: add mobile shell and viewport-fit to test_runner.html
+60192fb|2026-05-04|chore(db): align m030 with m020 schema (signed INT, drop FK)
+31ad3e3|2026-05-04|feat(auth,hr): Staff Fleet Presence + 4-digit PIN policy + HR backoffice CRUD
+42d58cc|2026-05-04|feat(shell): Hub launcher + Kiosk terminal + Backoffice HR UI + ui_shell consolidation
+6c26ee2|2026-05-04|docs: sync architecture to 2026-05-04 (Hub-Shell + Fleet Presence + PIN policy)
+4c6c560|2026-05-09|chore(security): gitignore debug scripts and local secret overrides
+31f6f7c|2026-05-09|feat(deploy): hosting-ready (env-driven DB config + tenant config + root redirect)
+393c46b|2026-05-09|docs(deploy): hosting deployment guide for shared PHP/MySQL hosting
+104ab5a|2026-05-09|fix(modules): wire tenant_config.php + mobile shell tweaks after hosting test
+3fd0e0c|2026-05-06|Add AGENTS.md with Cursor Cloud development instructions
+4804daf|2026-05-07|Add technical architecture report for grant application (wniosek.md)
+f643e9e|2026-05-07|Add innovation report: 13 unique technical mechanisms (wniosek_innowacje.md)
+96fab02|2026-05-07|Add competitive analysis: SliceHub vs Papu.io (wniosek_porownanie_papu.md)
+cdb2d0d|2026-05-08|Add Online Studio module analysis and roadmap (wniosek_modul_studio_online.md)
+ec6f018|2026-05-08|Add warehouse module audit and automation roadmap (wniosek_modul_magazyn.md)
+f85d858|2026-05-08|Shorten warehouse module report: 588 Ôćĺ 247 lines, all key content preserved
+ae65b09|2026-05-08|docs: raport ÔÇö Panic Button, dynamiczna dost─Öpno┼Ť─ç menu, sh_tenant_settingchain to _migrations_chain.php
+023ff56|2026-05-10|feat(scripts): add install_panel.php ÔÇs
+2e887f9|2026-05-09|docs: dodaj audyt bezpiecze┼ästwa i UX (multi-tenant, offline POS, KDS bump flow) (#4)
+1a6099e|2026-05-10|refactor(scripts): extract migration ö jeden URL do czystej instalacji bazy
+70c31b5|2026-05-10|fix(install_panel): czytelne komunikaty na pustej bazie, friendly 1062, auto-refresh
+f3e6fa1|2026-05-10|fix(install_panel): show all auth errors (not only 403), defensive JS
+b9dd1ce|2026-05-11|feat(db): m045 ÔÇö sh_tenant.nip + sh_tenant.slug (legal profile foundation)
+f3be809|2026-05-11|feat(api): backoffice/profile/engine.php ÔÇö Tenant Legal Profile API
+8b8b467|2026-05-11|feat(ui): modules/backoffice/profile ÔÇö Profil Firmy frontend
+037c4f4|2026-05-11|feat(hub): kafelek 'Profil Firmy' (visible owner+admin) + role-based visibility
+c03529b|2026-05-11|feat(install_panel): create_tenant z opcjonalnym slug + nip (m045-aware)
+686470d|2026-05-11|feat(docs): Konstytucja v5 ÔÇö Prawa VIII/IX/X + naprawa liter├│wek + zaw─Ö┼╝enie VII
+6e788c2|2026-05-11|feat(docs): synchronizacja North Star + Architektura + Kierunek Online + .cursorrules do Konstytucji v5
+9622b3e|2026-05-11|feat(code): adnotacje @planned + folder _docs/sessions/ (Prawo VIII + Prawo X)
+ff15ffc|2026-05-11|fix(WzEngine): SQLSTATE[HY093] mixed named/positional params (3 miejsca)
+97cb9f8|2026-05-11|feat(F1): petla zuzycia POS<->Magazyn \u2014 hook po transitionOrder('accepted')
+324eee9|2026-05-11|docs(F1): odznacz consumeForOrder z @planned + plik sesji (Prawo X)
+2aaed99|2026-05-11|feat(F2): core/AutoScanEngine.php \u2014 shared 4-stopniowy confidence scoring + self-learning
+11c8928|2026-05-11|feat(F2): api/procurement/suggest.php \u2014 endpoint AutoScan z RBAC + audit
+9559688|2026-05-11|docs(F2): zapisanie AutoScan w Architekturze + plik sesji (Prawo X)
+99f7f01|2026-05-11|feat(F2.5): PzEngine na shared AutoScan + candidates w PzMappingException
+1ba044e|2026-05-11|feat(F2.5): warehouse_pz.js \u2014 UI sugestie z confidence pill + auto-fill SKU
+1b6e9e8|2026-05-11|feat(F3): m046 ksef_inbox \u2014 sh_ksef_invoices + lines + state
+faa2da1|2026-05-11|feat(F3): core/Ksef/Parser.php FA(2) + api/procurement/inbox.php endpoint
+acb4ea5|2026-05-11|feat(F3): modules/procurement/ UI + Hub kafelek 'Inbox KSeF'
+35b6065|2026-05-11|docs(F3): Architecture + plik sesji F3 (Prawo X)
+4caf7ec|2026-05-11|feat(F4): KSeF API Client + worker + Settings endpoint
+7b55032|2026-05-11|feat(F4.5): smart_create_sku + reverse-PZ + UI rozszerzenia
+0b5d7b6|2026-05-11|docs(F4+F4.5): Architecture + pliki sesji (Prawo X)
+7b79719|2026-05-11|F5+F6: POS Integrity Pass ÔÇö server-authoritative cart, reverse stock, geocoding
+ca6c321|2026-05-11|F5-E: doc sync (Architektura + PamiecSystemu + session audit) + 047 syntax fix
+29aef58|2026-05-11|docs(logistyka): dokumentacja 3 mechanizmow anty-bledowych (Recall, Pre-Flight, Payment Lock) (#2)
+4ea957f|2026-05-11|F-S1 (1/3): variant scale schema + WzEngine multiplier resolution
+25d15b3|2026-05-11|F-S1 (2/3): Studio API + UI dla wariantow rozmiaru
+37ba76b|2026-05-11|F-S1 (3/3): POS UI variant picker + legacy parent_sku migration + docs
+2400e15|2026-05-11|merge: F5 POS Integrity + F6 Geocoder
+6a2b2ed|2026-05-11|merge: F-S1 Variant Scales (resolved conflicts: chain + POS SELECT + arch doc)
+409ae34|2026-05-11|F-S2: Topping Size Pricing + half-half strategy
+5de991a|2026-05-11|F-S3: Meal Packages (Combo / Bundle)
+c48da01|2026-05-11|F-S4: Studio drift cleanup (5 fix├│w)
+b788282|2026-05-11|F-S2+F-S3+F-S4 session audit + arch doc bump
+76682d9|2026-05-11|Follow-ups: F-S2.1 size pricing UI + F-S3.1 POS combo wizard + F-S5 subrecipes + F-S6 nowa-pizza wizard
+10a2b26|2026-05-11|Session audit follow-ups F-S2.1+F-S3.1+F-S5+F-S6 + arch doc bump
+1b8f058|2026-05-11|F-S3.2: WzEngine combo expansion Ôćĺ konsumpcja per skladnik
+627e8e0|2026-05-11|F-S3.2 session audit + arch doc bump
+f9c8bfb|2026-05-11|F-S5.1: Studio UI dla polproduktow (is_subrecipe + subrecipe_yield)
+d0dd250|2026-05-11|F-S5.1 session audit + arch doc bump
+d452347|2026-05-11|F-S1.2 + F-S8 verify: variant scale presets + combo reverse stock
+32c5bfc|2026-05-11|F-S6.1 + F-S7 + F-S9: wizard modifier groups + hard PRICE_MISMATCH + recipe reorder
+c9fbdd9|2026-05-11|Final session audit (F-S8/F-S1.2/F-S6.1/F-S7/F-S9) + arch doc bump
+cc30359|2026-05-11|Merge origin/projektx/release-bundle-c3d7 into projektx/dev-environment-setup-0d56
+5d3f848|2026-05-13|Merge pull request #8 from DamianMalenta/projektx/release-bundle-asd
+0ae99c7|2026-05-13|Merge pull request #3 from DamianMalenta/projektx/raport-load-mgmt-elastycznosc-21ac
+79b7c5a|2026-05-13|fix(studio+hosting): default publication_status='Live' dla NEW items + komplet .htaccess template
+7f97264|2026-05-13|feat(demo): SQL fixture do nagrywania video SPARK 3.0
+e06a8c5|2026-05-13|docs(demo_seed): dodaj wyrazne info o tenant_id
+b86d806|2026-05-13|fix(studio_item): zagniezdzone backticki w template literal ÔÇö SyntaxError
+018b5e7|2026-05-13|feat(docs): dodaj materialy SPARK 3.0 (cherry-pick z all-agents-merged-local)
+75f5429|2026-05-13|feat(docs): dolacz brakujace materialy wniosku SPARK 3.0
+fdf3eb2|2026-05-13|fix(pwa): polskie znaki w SVG screenshotach manifestow PWA
+870692a|2026-05-13|fix(migrations): usun hardcoded USE slicehub_pro_v2 z 17 migracji
+c89e19a|2026-05-13|docs: pre-deploy checklist po pelnym audicie 13.05.2026
+6599be6|2026-05-13|fix(tenant): auto-discovery tenant_id w tenant_config.php
+79adcf0|2026-05-13|feat(htaccess): gotowy template pod uti.pl (DB_NAME, DB_USER, TENANT_ID wypelnione)
+289785d|2026-05-13|docs(spark): prompt do nowego agenta na produkcje materialow prezentacyjnych
+d0535c5|2026-05-13|docs(spark): czysty prompt do nowego okna ÔÇö wniosek od zera
+e2aac1e|2026-05-13|docs(spark): minimalny prompt ÔÇö tylko wideo demo + 6 screenshotow
+6ef8ada|2026-05-13|docs(spark): pelen pakiet promptow + instrukcja uzycia materialow
+b69fa23|2026-05-13|fix(spark prompts): slicehub.pro -> slicehub.net (poprawna domena)
+25826e3|2026-05-13|fix(pitchdeck): @page size 1920x1080 dla prawidlowego print-to-pdf
+778c344|2026-05-13|fix(pos-pwa): dynamiczny BASE_PATH zamiast hardcoded /slicehub/
+cc937d7|2026-05-13|fix(pos): variant ambassador click handler ÔÇö idx-based identification
+299bea8|2026-05-13|Add .htaccess_local configuration file
+1e414ca|2026-05-13|docs(prompt): naprawa variant modal w POS i Online ÔÇö dla nowego cloud agent
+e74e70b|2026-05-13|feat(seed): demo_seed_dynamic_data.sql ÔÇö wypelnij puste POS/Courses/KSeF
+ef601b9|2026-05-13|fix(variants): naprawa widocznosci modali wariantow w POS i Online (F-S1)
+e200581|2026-05-13|Merge branch 'projektx/fix-variant-modal-8186': fix(variants) POS modal + Online storefront
+c62ee5e|2026-05-13|docs(spark): prompt do reworku materialow bez video
+1bac65c|2026-05-14|fix(menu-studio): friendly error przy duplicate SKU + global rollback
+d7f7f96|2026-05-14|feat(seed): projekt + prompt na full produkcyjny seed Pizza Forno
+4c550fe|2026-05-14|feat(seed): pelne menu Pizza Forno ÔÇö 229 items + 275 modifierow + magazyn + KSeF + zamowienia
+2209c40|2026-05-14|feat(seed): merge pelne menu Pizza Forno ÔÇö 229 items + magazyn + KSeF + zamowienia
+2d57580|2026-05-14|fix(seed): publication_status 'active' Ôćĺ 'Live' ÔÇö itemy widoczne w POS
+555c869|2026-05-14|fix(settings): hide ksef integration row from Integrations tab
+3971356|2026-05-14|refactor(settings): show KSeF integration with dedicated card, not hidden
+409906b|2026-05-14|feat(ksef): switch Client to official API v2 (JWT + NIP context)
+b0a0469|2026-05-14|fix(ksef): probe live connection with GET /rate-limits
+f7828dd|2026-05-14|docs(ksef): point NIP errors to Backoffice Profil firmy
+84df3e5|2026-05-14|docs(sessions): note KSeF v2 + Settings merge to main
+3ca3622|2026-05-14|fix(ksef): omit buyerIdentifier for Subject2 metadata query
+82f86d9|2026-05-14|fix(ksef): widen metadata window, paginate, longer HTTP timeout
+f682415|2026-05-14|fix(ksef): query metadata by Issue date, newest first
+e333e03|2026-05-14|fix(ksef): correct pageOffset semantics, merge Issue+Invoicing metadata
+b3ac191|2026-05-14|feat(procurement): detect duplicate invoice on XML upload, offer replace
+3d8f3da|2026-05-14|perf(ksef): fewer metadata POSTs per inbox poll
+adb7721|2026-05-14|fix(ksef): audit remediation ÔÇö is_active, 429 retry, shared inbox insert
+2712b38|2026-05-14|fix(ksef): restore Issue+Invoicing metadata merge, UTC from, wider poll window
+9b77a77|2026-05-14|docs(ksef): session note for Issue+Invoicing restore and UTC from
+7907470|2026-05-14|docs(ksef): align session with Issue+Invoicing restore
+77f8473|2026-05-14|fix(ksef): FA(3)-safe XML parsing and clarify poll is read-only
+872a9a9|2026-05-14|feat(procurement): save SKU line edits without changing invoice status
+7779c2d|2026-05-14|merge(procurement): save SKU changes button in KSeF modal
+4285b68|2026-05-14|feat(procurement): searchable SKU combobox and visible save feedback
+694a9d4|2026-05-14|feat(procurement): KSeF inbox Polish status labels, sort, cost categories
+71a0e3f|2026-05-14|feat(procurement): KSeF OPEX per linia (INVENTORY vs EXPENSE) + s┼éownik kategorii
+a9be567|2026-05-14|docs: indeks sesji 2026-05-14, OPEX m057 vs m056, architektura + sh_orders
+83abd8f|2026-05-14|feat(install_panel): list migrations and run selected files from chain
+ac03f61|2026-05-14|fix(install_panel): migration picker layout and checkbox width
+919dfab|2026-05-14|feat(install_panel): tag migrations outside chain; agent checklist doc
+de66a48|2026-05-14|fix(install_panel): split 015 as OPCJA CLI vs true chain orphans
+7f4f239|2026-05-14|procurement: bulk KSeF line edit by OPEX tag and SKU
+4a726e8|2026-05-14|docs: audyt fundament├│w BI (P&L foundation) (#19)
+d7c6fa9|2026-05-14|docs(audit): COGS z magazynu ÔÇö typy DECIMAL, order_id WZ, *100 i MIN(id)
+b2af743|2026-05-14|feat(bi): P&L dashboard engine, API wrapper, and Hub UI
+db0cab4|2026-05-14|fix(bi): P&L order window uses created_at, not updated_at
+4146973|2026-05-14|Merge branch 'projektx/bi-pl-dashboard-c669' into main (BI P&L + created_at fix)
+ede04ed|2026-05-14|feat(bi): frozen capital (stock AVCO) + harden KSeF accept Ôćĺ PzEngine
+4c9d3f7|2026-05-20|docs(spark): kanoniczny prompt idealnej prezentacji slicehub.net
+65f0017|2026-05-20|feat(spark): prezentacja od zera ÔÇö ludzkie opisy, nowe screeny, PDF v2
+a19f11b|2026-05-20|docs(spark): prompt nagrania proces├│w Pizza Forno + timelapse
+83652d0|2026-05-20|feat(spark): nagranie demo Forno + prep KDS/kierowca przed pustk─ů
+43dc0c9|2026-05-20|docs(spark): prompt V2 ÔÇö ┼╝ywe RecordScreen, anty-slideshow
+31f86c0|2026-05-20|docs(spark): V2.1 prompt ÔÇö 7 proces├│w, klik-po-kliku, max 3s freeze
+d6cae34|2026-05-20|feat(spark): localhost bootstrap tenant + prompt V2.2 VM
+8f95896|2026-05-20|docs: pierwsza wiadomo┼Ť─ç do wklejenia ÔÇö SPARK nagranie localhost
+a2c3996|2026-05-21|Resolve merge conflict in AGENTS.md: adopt 62-test count from main
+a8cc8ee|2026-05-21|Add AGENTS.md and technical architecture report (wniosek.md) (#1)
+6659761|2026-05-21|feat(spark): nagranie 7 proces├│w Forno na localhost + monta┼╝
+817da10|2026-05-21|assets(spark): wideo 7 proces├│w Forno + env example w repo
+0253c07|2026-05-21|fix(procurement): getApiBase jak Hub/POS ÔÇö zapis KSeF na localhost i produkcji
+235c0c0|2026-05-21|assets(spark): paczka SPARK_Forno_Pakiet.zip + START.html
+db36d67|2026-05-21|fix(spark): ci─ůg┼ée wideo P1ÔÇôP7 zamiast sklejki xfade
+6457d4b|2026-05-21|Merge pull request #29: getApiBase w Procurement (KSeF zapis)
+695182e|2026-05-21|feat(bi): OPEX wg kategorii, capital flow i % mar┼╝y (z PR #28 na main)
+ab4b0f3|2026-05-21|Merge pull request #31 from DamianMalenta/cursor/bi-pl-opex-flow-85da
+22a4efc|2026-05-22|feat(frontend): SSOT API base paths across modules (Tier 1-4)
+ad57f8e|2026-05-22|fix(bi): SSOT API base in dashboard UI and robust T62 auth retry
+8eac5fc|2026-05-22|chore(scripts): add meal packages audit helper
+d5a9d24|2026-05-22|fix(seed): align Pizza Forno demo orders with current POS state machine
+c05a70d|2026-05-22|feat(frontend): SSOT API base in settings, marketing and HR (Tier 5)
+9dfb4b4|2026-05-22|docs: KSeF invoice qty normalization audit and architecture proposal
+85c8f20|2026-05-22|feat(procurement): normalizacja ilo┼Ťci KSeF do base_unit przy accept PZ
+e13a2cc|2026-05-22|fix(ksef): P_7A w gramaturze + audyt xml_blob vs baza (200G)
+db90285|2026-05-22|fix(ksef): warstwy walidacji Parser + jeden parse na import
+74209f7|2026-05-22|docs: handoff KSeF inbox do kontynuacji w nowym czacie
+a68e314|2026-05-22|feat(procurement): UI b┼é─Ödu importu KSeF + Audyt XML + reassess
+0397cf1|2026-05-22|fix(procurement): accept PZ ÔÇö pola P_7A w SELECT linii
+323b639|2026-05-22|Merge pull request #32 from DamianMalenta/cursor/ksef-qty-normalization-b255
+450b942|2026-05-22|feat(ksef): P3 inbox ÔÇö mapping per NIP, reparse, KOR, pack UI
+27babdc|2026-05-22|fix(seed): recipes FK ÔÇö aktualizuj ascii_key przy upsercie menu
+58f30fe|2026-05-22|fix(seed): sync demo seed with KSeF, aliases, and migration chain
+c4fdbf6|2026-05-22|feat(seed): Studio + Online heroes, scenes, and Scene Kit in demo seed
+e92b095|2026-05-23|fix(auth): poprawne wykrywanie tenanta i logowanie PIN w dev
+7ac8c25|2026-06-05|docs(f6s): add Spark 3.0 update screenshots and capture script
+fcbc485|2026-06-05|docs(f6s): add AI ecommerce collage
+e7cd7d0|2026-06-06|docs(f6s): add AI factory backend screenshot
+287fb06|2026-06-06|docs(f6s): move landing page to public root spark_update
+2106c97|2026-06-06|docs(f6s): soften tone and clarify AI factory as a prototype
+655eb20|2026-06-17|Add Deno workflow for linting and testing - czytaj Extended description!
+1f2c894|2026-07-06|docs: session audits for API SSOT and tenant discovery (Prawo X)
+d402622|2026-07-06|docs(ksef): zsynchronizuj proposal qty normalization z main
+d207805|2026-07-07|docs(sessions): pe┼ény indeks audytu Prawo X i naprawa drift-u
+dbdde62|2026-07-06|docs: START_TUTAJ, weryfikacja golden path i fix CI drift
+e6c9b00|2026-07-07|feat(settlement): SettlementEngine Phase 1 ÔÇö single tender SSOT
+d2f49cd|2026-07-07|feat(settlement): F2 split-tender UI + F3 tables via SettlementEngine
+d32e1a7|2026-07-07|feat(settlement): F4 driver collect_payment via SettlementEngine
+293bcb8|2026-07-07|fix(studio/warehouse): Etap 1 ÔÇö kontrakty menuTree, clone, waste, stock filter
+84e412a|2026-07-07|Merge remote-tracking branch 'origin/main' into cursor/magazyn-studio-phase1-d950
+7b6f7b1|2026-07-07|feat(studio): Etap 2 ÔÇö studio_api.js, subrecipe margin, save_recipe SKU guard
+8f82792|2026-07-07|Merge branch 'cursor/docs-start-tutaj-verify-d950' ÔÇö START_TUTAJ, golden path verify, CI drift fix
+3bb7489|2026-07-23|docs(sessions): audyt gotowo┼Ťci produkcyjnej + wpis do indeksu
+632eb80|2026-07-25|feat(hr): payroll_report action - team payroll report with advance repayments
+8e82464|2026-07-25|feat(hr-ui): zakladka Wyplaty - raport payroll_report w module HR
+f94248a|2026-07-25|Merge pull request #40 from DamianMalenta/devin/1784765163-audyt-produkcyjny
+d47e144|2026-07-25|Merge pull request #41 from DamianMalenta/devin/1784987964-hr-payroll-report
+96798ab|2026-07-25|Merge pull request #42 from DamianMalenta/devin/1784990048-hr-payroll-ui
+1d7255c|2026-07-26|feat(marketing): Wachlarz A5  deck engine, migracja 060, UI
+22bfb46|2026-07-26|chore: gitignore  dodany __pycache__ i *.pyc
+5207754|2026-07-25|feat(hr): Faza 4 ÔÇö PayrollEngine rewrite in-place na sh_payroll_ledger
+7f2bcf3|2026-07-26|fix(hr): reversal dziedziczy semantyk─Ö odwracanego wpisu w agregacie ledgera
+b259943|2026-07-26|Merge pull request #43 from DamianMalenta/devin/1785006406-hr-faza4-payroll-ledger
+a9d95f9|2026-07-28|POS variant switcher + recipe inheritance + seed completeness
+dae23b1|2026-07-28|Fix cart name for variants + Studio tree grouping
+1f50b4e|2026-07-29|feat: Driver App 2.0, Studio Menu Fazy 2-5, HR hardening, quick wins
+877ea16|2026-07-29|docs: audit fiskalizacji  aktualualizacja o infrastruktur─Ö integracji POS
+eb4e1bf|2026-07-29|feat: ChoiceQR POS integration, Elzab fiscal engine, KDS tickets, PanicEngine, Driver App PWA, SLA monitor, dead code audits
+b6d8772|2026-07-29|fix(choiceqr): compliance fix ÔÇö webhook 200 OK, table_orders schema, table posID alignment
+248403d|2026-07-29|fix(choiceqr): NC1/NC12 ÔÇö delivery.status + paymentCustomerDetails fallback
+aa915a6|2026-07-29|docs(choiceqr): stan gotowo┼Ťci do go-live + priorytetyzacja backlogu
+7a7e0e6|2026-07-29|docs(choiceqr): Prawo X ÔÇö audyt sesji P2.3 (_docs/sessions/)
+4956448|2026-07-29|docs(choiceqr): w┼éa┼Ťciciel akceptuje ┼Ťwiadomy wyj─ůtek Prawa IV (totaly ChoiceQR bez CartEngine)
+4b5e3cb|2026-07-29|feat(sla): Faza A ÔÇö ujednolicenie prog├│w SLA w frontendach (Snajper, DRY SlaThresholds)
+b1feee2|2026-07-29|feat(sla): Faza C ÔÇö SLA breach panel w Dispatcher (Prawo VIII: sla_monitor DOMKNI─śTE)
+fcb6bb1|2026-07-30|feat(sla): Faza B ÔÇö Wpi─Öcie PromisedTimeEngine w 4 ┼Ťcie┼╝ki ASAP (Prawo VIII: engine DOMKNI─śTE)
+34e5b26|2026-07-30|feat(reports): Faza D ÔÇö Food Cost Report w backoffice (Prawo VIII: food_cost.php DOMKNI─śTE)
+de13674|2026-07-30|feat(orders): Faza E ÔÇö Edytuj zam├│wienie + DeltaEngine w KDS (Prawo VIII: edit.php DOMKNI─śTE)
+50e54a8|2026-07-30|docs: rekomendacje po Fazach AÔćĺE (SLA/PromisedTime/FoodCost/OrderEdit) ÔÇö wszystkie 5 DOMKNI─śTE
+995d435|2026-07-30|fix(vault): enable sodium + bootstrap vault key + relax CHECK constraint (migracja 063)
+ecffa56|2026-07-30|feat(choiceqr): P2.1 ÔÇö inbound przez OrderStateMachine + dedykowane endpointy events/pay
+b07652e|2026-07-30|feat(pos): inteligentne przepi─Öcie druku fiskalnyÔćĺniefiskalny + guard podw├│jnej fiskalizacji
+17d2621|2026-07-30|docs: aktualizacja AGENTS.md + 00_PAMIEC_SYSTEMU po P2.1/ChoiceQR/fiskalizacji
+f11bfd9|2026-07-30|docs: aktualizacja 00_PAMIEC_SYSTEMU + 02_ARCHITEKTURA po Fazach AÔćĺE (podpi─Öcia silnik├│w)
+bd7e5f7|2026-07-30|fix(r1r2): SKU consistency w testach + edited_since_print reset przy bump do ready
+26db9e9|2026-07-30|fix(checkout): 3 bugi online checkout + POS empty cart + KDS routing
