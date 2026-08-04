@@ -53,6 +53,7 @@ final class OrderEventPublisher
         'order.cancelled',
         'order.edited',
         'order.recalled',
+        'order.fiscalized',
         'payment.settled',
         'payment.refunded',
     ];

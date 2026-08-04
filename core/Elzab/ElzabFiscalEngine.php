@@ -469,17 +469,40 @@ final class ElzabFiscalEngine
      */
     private static function saveFiscalReceiptNumber(\PDO $pdo, string $orderId, int $tenantId, string $receiptNumber): void
     {
-        $stmt = $pdo->prepare(
-            "UPDATE sh_orders
-             SET fiscal_receipt_number = :num,
-                 receipt_printed = 1,
-                 updated_at = NOW()
-             WHERE id = :oid AND tenant_id = :tid"
-        );
-        $stmt->execute([
-            ':num' => $receiptNumber,
-            ':oid' => $orderId,
-            ':tid' => $tenantId,
-        ]);
+        require_once dirname(__DIR__) . '/OrderEventPublisher.php';
+
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare(
+                "UPDATE sh_orders
+                 SET fiscal_receipt_number = :num,
+                     receipt_printed = 1,
+                     updated_at = NOW()
+                 WHERE id = :oid AND tenant_id = :tid"
+            );
+            $stmt->execute([
+                ':num' => $receiptNumber,
+                ':oid' => $orderId,
+                ':tid' => $tenantId,
+            ]);
+
+            \OrderEventPublisher::publishOrderLifecycle(
+                $pdo,
+                $tenantId,
+                'order.fiscalized',
+                $orderId,
+                [
+                    'source'                => 'elzab_fiscal',
+                    'fiscal_receipt_number' => $receiptNumber,
+                ]
+            );
+
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
     }
 }
