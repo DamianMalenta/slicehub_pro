@@ -50,6 +50,7 @@ try {
     require_once __DIR__ . '/../../core/DriverFleetHelper.php';
     require_once __DIR__ . '/../../core/StaffFleetPresence.php';
     require_once __DIR__ . '/../../core/SlaThresholds.php';
+    require_once __DIR__ . '/../../core/OrderEventPublisher.php';
 
     if (!isset($pdo)) {
         throw new RuntimeException('Database connection unavailable.');
@@ -519,6 +520,8 @@ try {
                     throw new RuntimeException("Concurrent status change on order {$oid}.");
                 }
                 $stmtAudit->execute([':oid'=>$oid, ':uid'=>$user_id, ':now'=>$now]);
+                OrderEventPublisher::publishOrderLifecycle($pdo, $tenant_id, 'order.dispatched', $oid,
+                    ['source'=>'create_course', 'course_id'=>$courseId, 'stop'=>$stop]);
                 $stops[] = ['order_id'=>$oid, 'stop'=>$stop, 'address'=>$addrMap[$oid] ?? null];
             }
 
@@ -598,6 +601,8 @@ try {
             );
             foreach ($queuedOrders as $oid) {
                 $stmtAudit->execute([':oid'=>$oid, ':uid'=>$user_id, ':now'=>$now]);
+                OrderEventPublisher::publishOrderLifecycle($pdo, $tenant_id, 'order.in_delivery', $oid,
+                    ['source'=>'assign_driver_to_course', 'course_id'=>$courseId, 'driver_id'=>$driverId]);
             }
 
             $pdo->prepare("UPDATE sh_drivers SET status='busy' WHERE user_id=:did AND tenant_id=:tid")
@@ -695,6 +700,8 @@ try {
                 $stopNum = 'L' . ($maxStop + $idx + 1);
                 $stmtUp->execute([':did'=>$driverId, ':cid'=>$courseId, ':stop'=>$stopNum, ':oid'=>$oid, ':tid'=>$tenant_id, ':now'=>$now]);
                 $stmtAudit->execute([':oid'=>$oid, ':uid'=>$user_id, ':now'=>$now]);
+                OrderEventPublisher::publishOrderLifecycle($pdo, $tenant_id, 'order.in_delivery', $oid,
+                    ['source'=>'append_to_course', 'course_id'=>$courseId, 'driver_id'=>$driverId, 'stop'=>$stopNum]);
                 $stops[] = ['order_id'=>$oid, 'stop'=>$stopNum, 'address'=>$addrMap[$oid] ?? null];
             }
 
@@ -888,6 +895,9 @@ try {
                 "INSERT INTO sh_order_audit (order_id, user_id, old_status, new_status, timestamp)
                  VALUES (:oid, :uid, :os, 'unassigned', :now)"
             )->execute([':oid'=>$orderId, ':uid'=>$user_id, ':os'=>$order['delivery_status'] ?? 'in_delivery', ':now'=>$now]);
+
+            OrderEventPublisher::publishOrderLifecycle($pdo, $tenant_id, 'order.recalled', $orderId,
+                ['source'=>'cancel_stop', 'previous_delivery_status'=>$order['delivery_status'] ?? 'in_delivery']);
 
             $pdo->commit();
         } catch (\Throwable $e) {
