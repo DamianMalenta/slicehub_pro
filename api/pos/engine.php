@@ -1127,35 +1127,9 @@ try {
 
             // --- Papu.io integration (fire-and-forget, post-commit) ---
             if ($editId === '' || $editId === '0') {
-                try {
-                    $stmtPapu = $pdo->prepare(
-                        "SELECT setting_value FROM sh_tenant_settings
-                         WHERE tenant_id = ? AND setting_key = 'papu_api_key' LIMIT 1"
-                    );
-                    $stmtPapu->execute([$tenant_id]);
-                    $papuKey = $stmtPapu->fetchColumn();
-
-                    if (is_string($papuKey) && $papuKey !== '') {
-                        require_once __DIR__ . '/../../core/Integrations/PapuClient.php';
-                        $papuOrderData = [
-                            'id'               => $orderId,
-                            'order_number'     => $orderNumber,
-                            'order_type'       => $orderType,
-                            'channel'          => $channel,
-                            'payment_method'   => $payMethod,
-                            'payment_status'   => $payStatus,
-                            'grand_total'      => $totalGrosze,
-                            'customer_name'    => $custName,
-                            'customer_phone'   => $phone,
-                            'delivery_address' => $address,
-                            'promised_time'    => $promised,
-                        ];
-                        (new PapuClient($pdo, (int)$tenant_id))
-                            ->pushOrder($papuOrderData, $cart, $papuKey);
-                    }
-                } catch (\Throwable $papuEx) {
-                    error_log('[POS Engine] Papu integration error (non-fatal): ' . $papuEx->getMessage());
-                }
+                // Papu.io sync push removed (D2 drift fix).
+                // POS already publishes order.created to outbox (above).
+                // PapuAdapter (async, via worker_integrations.php) handles push.
             }
 
             posResponse(true, ['order_id' => $orderId]);
