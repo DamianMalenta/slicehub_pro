@@ -1710,6 +1710,7 @@ try {
     // be bypassed and settle_and_close / fast_complete used directly.
     // =========================================================================
     if ($action === 'assign_route') {
+        require_once __DIR__ . '/../../core/OrderEventPublisher.php';
         $driverId = inputStr($input, 'driver_id');
         $orderIds = $input['order_ids'] ?? [];
 
@@ -1786,10 +1787,13 @@ try {
             $lNum = 1;
             foreach ($orderIds as $oid) {
                 $trimmedOid = trim((string)$oid);
-                $stmtUpdate->execute([$driverId, $courseId, 'L' . $lNum, $trimmedOid, $tenant_id]);
+                $stopNum = 'L' . $lNum;
+                $stmtUpdate->execute([$driverId, $courseId, $stopNum, $trimmedOid, $tenant_id]);
                 try {
                     $stmtAudit->execute([$trimmedOid, $user_id, $statusMap[$trimmedOid] ?? 'ready']);
                 } catch (\Throwable $ignore) {}
+                OrderEventPublisher::publishOrderLifecycle($pdo, $tenant_id, 'order.in_delivery', $trimmedOid,
+                    ['source'=>'pos_assign_route', 'course_id'=>$courseId, 'driver_id'=>$driverId, 'stop'=>$stopNum]);
                 $lNum++;
             }
 
