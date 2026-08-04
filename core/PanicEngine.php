@@ -8,6 +8,12 @@ declare(strict_types=1);
  * Includes a 2-minute debounce guard to prevent panic stacking from
  * double-clicks or network lag.
  *
+ * @planned (Prawo VIII) Outbox publish per-order zamowienia nie dodany celowo:
+ *   Panic to bulk admin override (rzadko, 1x/kryzys), nie individual lifecycle.
+ *   Publish per-order przy 50+ zamowieniach wydluzyby transakcje znaczaco.
+ *   Alternatywa na przyszlosc: nowy event_type 'tenant.panic_triggered' (1 event,
+ *   nie per-order) z payload {affected_count, delay_minutes}. Do decyzji wlasciciela.
+ *
  * @see api/pos/engine.php#panic_mode (sole consumer)
  */
 final class PanicEngine
