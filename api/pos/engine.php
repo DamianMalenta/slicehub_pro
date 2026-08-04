@@ -35,6 +35,7 @@ try {
     require_once __DIR__ . '/../../core/AssetResolver.php';
     require_once __DIR__ . '/../../core/StaffFleetPresence.php';
     require_once __DIR__ . '/../../core/SlaThresholds.php';
+    require_once __DIR__ . '/../../core/Uuid.php';
 
     $raw   = file_get_contents('php://input');
     $input = json_decode($raw ?: '{}', true) ?? [];
@@ -884,12 +885,7 @@ try {
                 $seq = (int)$pdo->lastInsertId();
                 $orderNumber = sprintf('ORD/%s/%04d', date('Ymd'), $seq);
 
-                $orderId = sprintf(
-                    '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
-                    mt_rand(0,0xffff), mt_rand(0,0xffff), mt_rand(0,0xffff),
-                    mt_rand(0,0x0fff)|0x4000, mt_rand(0,0x3fff)|0x8000,
-                    mt_rand(0,0xffff), mt_rand(0,0xffff), mt_rand(0,0xffff)
-                );
+                $orderId = Uuid::v4();
 
                 $deliveryStatus = ($orderType === 'delivery') ? 'unassigned' : null;
 
@@ -1031,12 +1027,7 @@ try {
             } catch (\Throwable $ignore) {}
 
             foreach ($cart as $item) {
-                $lineId = sprintf(
-                    '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
-                    mt_rand(0,0xffff), mt_rand(0,0xffff), mt_rand(0,0xffff),
-                    mt_rand(0,0x0fff)|0x4000, mt_rand(0,0x3fff)|0x8000,
-                    mt_rand(0,0xffff), mt_rand(0,0xffff), mt_rand(0,0xffff)
-                );
+                $lineId = Uuid::v4();
                 $qty = (int)($item['qty'] ?? $item['quantity'] ?? 1);
                 $clientPrice = (int)round(((float)($item['price'] ?? 0)) * 100);
                 // F5-B: użyj serwerowej ceny jeśli CartEngine policzył, inaczej fallback do payloadu.
@@ -1777,12 +1768,7 @@ try {
             )->execute([$driverId, $tenant_id]);
 
             // Dispatch log
-            $dispatchId = sprintf(
-                '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
-                mt_rand(0,0xffff), mt_rand(0,0xffff), mt_rand(0,0xffff),
-                mt_rand(0,0x0fff)|0x4000, mt_rand(0,0x3fff)|0x8000,
-                mt_rand(0,0xffff), mt_rand(0,0xffff), mt_rand(0,0xffff)
-            );
+            $dispatchId = Uuid::v4();
             $pdo->prepare(
                 "INSERT INTO sh_dispatch_log (id, tenant_id, course_id, driver_id, order_ids_json, dispatched_by)
                  VALUES (?,?,?,?,?,?)"
