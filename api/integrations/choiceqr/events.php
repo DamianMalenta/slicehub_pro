@@ -59,6 +59,7 @@ function cqr_ev_fail(int $code, string $msg): never
 try {
     require_once __DIR__ . '/../../../core/db_config.php';
     require_once __DIR__ . '/../../../core/GatewayAuth.php';
+    require_once __DIR__ . '/../../../core/CredentialVault.php';
     require_once __DIR__ . '/../../../core/Integrations/BaseAdapter.php';
     require_once __DIR__ . '/../../../core/Integrations/ChoiceQRAdapter.php';
     require_once __DIR__ . '/../../../core/OrderStateMachine.php';
@@ -113,7 +114,9 @@ try {
     $credentials = [];
 
     foreach ($integrations as $ti) {
-        $creds = json_decode((string)$ti['credentials'], true);
+        $credRaw = (string)$ti['credentials'];
+        $credJson = CredentialVault::isEncrypted($credRaw) ? (CredentialVault::decrypt($credRaw) ?? '') : $credRaw;
+        $creds = json_decode($credJson, true);
         if (!is_array($creds)) {
             $creds = [];
         }

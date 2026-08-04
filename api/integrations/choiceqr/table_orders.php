@@ -55,6 +55,7 @@ function cqr_to_error(int $code, string $msg): never
 
 try {
     require_once __DIR__ . '/../../../core/db_config.php';
+    require_once __DIR__ . '/../../../core/CredentialVault.php';
 
     if (!isset($pdo)) {
         cqr_to_error(500, 'Database connection unavailable');
@@ -86,7 +87,9 @@ try {
     $webhookToken = null;
 
     foreach ($integrations as $ti) {
-        $creds = json_decode((string)$ti['credentials'], true);
+        $credRaw = (string)$ti['credentials'];
+        $credJson = CredentialVault::isEncrypted($credRaw) ? (CredentialVault::decrypt($credRaw) ?? '') : $credRaw;
+        $creds = json_decode($credJson, true);
         if (!is_array($creds)) {
             $creds = [];
         }

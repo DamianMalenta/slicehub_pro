@@ -68,6 +68,7 @@ function cqr_pay_update_callback(PDO $pdo, ?int $callbackLogId, array $fields): 
 try {
     require_once __DIR__ . '/../../../core/db_config.php';
     require_once __DIR__ . '/../../../core/GatewayAuth.php';
+    require_once __DIR__ . '/../../../core/CredentialVault.php';
 
     if (!isset($pdo)) {
         cqr_pay_fail(500, 'Database connection unavailable');
@@ -126,7 +127,9 @@ try {
     $webhookToken = null;
 
     foreach ($integrations as $ti) {
-        $creds = json_decode((string)$ti['credentials'], true);
+        $credRaw = (string)$ti['credentials'];
+        $credJson = CredentialVault::isEncrypted($credRaw) ? (CredentialVault::decrypt($credRaw) ?? '') : $credRaw;
+        $creds = json_decode($credJson, true);
         if (!is_array($creds)) {
             $creds = [];
         }
