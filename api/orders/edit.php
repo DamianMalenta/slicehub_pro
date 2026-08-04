@@ -40,6 +40,7 @@ try {
     require_once __DIR__ . '/../../core/db_config.php';
     require_once __DIR__ . '/../../core/auth_guard.php';
     require_once __DIR__ . '/../../core/Uuid.php';
+    require_once __DIR__ . '/../../core/OrderEventPublisher.php';
     require_once __DIR__ . '/../cart/CartEngine.php';
     require_once __DIR__ . '/DeltaEngine.php';
 
@@ -313,7 +314,20 @@ try {
             ':now' => $now,
         ]);
 
-        // — 7f. COMMIT ———————————————————————————————————————————————————
+        // — 7f. Publish outbox event (in transaction) —————————————————————
+        OrderEventPublisher::publishOrderLifecycle(
+            $pdo,
+            $tenant_id,
+            'order.edited',
+            $orderId,
+            [
+                'source'        => 'order_edit',
+                'user_id'       => $user_id,
+                'kitchen_delta' => $delta,
+            ]
+        );
+
+        // — 7g. COMMIT ———————————————————————————————————————————————————
         $pdo->commit();
 
     } catch (Throwable $txErr) {
