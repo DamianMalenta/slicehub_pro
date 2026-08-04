@@ -502,28 +502,95 @@ const PosUI = (() => {
             const borderClass = elapsed > 3 ? 'pulse-card-urgent' : '';
             const total = o.grand_total_formatted || (parseInt(o.grand_total) / 100).toFixed(2);
 
+            // Customer info line
+            const custName = o.customer_name ? _e(o.customer_name) : '';
+            const custPhone = o.customer_phone ? _e(o.customer_phone) : '';
+            const custAddr = (o.order_type === 'delivery' && o.delivery_address) ? _e(o.delivery_address) : '';
+            const custRequestedTime = o.promised_time && o.status === 'pending'
+                ? new Date(o.promised_time).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })
+                : '';
+
             let expandHtml = '';
             if (expandedId === o.id) {
                 const lines = (o.lines || []).map(l => `<div class="pulse-line">${l.quantity}x ${l.snapshot_name} — ${(parseInt(l.line_total)/100).toFixed(2)}zł</div>`).join('');
-                expandHtml = `<div class="pulse-expand"><div class="pulse-items">${lines}</div><div class="pulse-accept-btns"><button data-accept="${o.id}" data-min="15">+15m</button><button data-accept="${o.id}" data-min="30">+30m</button><button data-accept="${o.id}" data-min="45">+45m</button></div><button class="pulse-accept-now" data-accept-now="${o.id}">✓ ZAAKCEPTUJ</button></div>`;
+
+                // Customer details section
+                let custSection = '';
+                if (custAddr || custPhone || custName) {
+                    custSection = '<div class="pulse-cust">';
+                    if (custName) custSection += `<div class="pulse-cust-row">${custName}</div>`;
+                    if (custPhone) custSection += `<div class="pulse-cust-row">${custPhone}</div>`;
+                    if (custAddr) custSection += `<div class="pulse-cust-row pulse-cust-addr">${custAddr}</div>`;
+                    custSection += '</div>';
+                }
+
+                // Client requested time
+                let requestedSection = '';
+                if (custRequestedTime) {
+                    requestedSection = `<div class="pulse-requested">Klient wybrał: ${custRequestedTime}</div>`;
+                }
+
+                // Time selection pills — more options for delivery
+                const isDelivery = o.order_type === 'delivery';
+                const pills = isDelivery
+                    ? [20, 30, 45, 60, 90, 120]
+                    : [10, 15, 20, 30, 45, 60];
+                const pillsHtml = pills.map(m => `<button data-accept="${o.id}" data-min="${m}">+${m}m</button>`).join('');
+
+                // Time slot picker (next 6 slots at 15-min intervals)
+                const slotsHtml = _generateTimeSlots(o.id, isDelivery ? 30 : 15);
+
+                expandHtml = `<div class="pulse-expand">${custSection}<div class="pulse-items">${lines}</div>${requestedSection}<div class="pulse-time-section"><div class="pulse-section-label">Czas realizacji</div><div class="pulse-accept-btns">${pillsHtml}</div><div class="pulse-section-label pulse-section-label-slots">Lub wybierz godzinę</div><div class="pulse-slots">${slotsHtml}</div></div><div class="pulse-actions"><button class="pulse-accept-now" data-accept-now="${o.id}">ASAP</button><button class="pulse-reject" data-reject="${o.id}">Odrzuć</button></div></div>`;
             }
 
-            target.insertAdjacentHTML('beforeend', `<div class="pulse-card ${borderClass}" data-pulse-id="${o.id}"><div class="pulse-card-top"><span class="pulse-num">#${num}</span><span class="pulse-total">${total}zł</span></div><div class="pulse-card-bottom"><span class="pulse-source">${o.source || 'online'}</span><span class="pulse-time">${elapsed}m temu</span></div>${expandHtml}</div>`);
+            target.insertAdjacentHTML('beforeend', `<div class="pulse-card ${borderClass}" data-pulse-id="${o.id}"><div class="pulse-card-top"><span class="pulse-num">#${num}</span><span class="pulse-total">${total}zł</span></div><div class="pulse-card-meta">${custAddr ? `<span class="pulse-addr">${custAddr}</span>` : (custName || '')}</div><div class="pulse-card-bottom"><span class="pulse-source">${_e(o.source || 'online')}</span><span class="pulse-time">${elapsed}m</span></div>${expandHtml}</div>`);
         });
 
         // Wire events
         document.querySelectorAll('.pulse-card').forEach(card => {
             card.addEventListener('click', e => {
-                if (e.target.closest('[data-accept]') || e.target.closest('[data-accept-now]')) return;
+                if (e.target.closest('[data-accept]') || e.target.closest('[data-accept-now]') || e.target.closest('[data-slot]') || e.target.closest('[data-reject]')) return;
                 callbacks.onToggle(card.dataset.pulseId);
             });
         });
-        document.querySelectorAll('[data-accept]').forEach(btn => btn.addEventListener('click', e => {
+        document.querySelectorAll('.pulse-accept-btns [data-accept]').forEach(btn => btn.addEventListener('click', e => {
             e.stopPropagation(); callbacks.onAccept(btn.dataset.accept, parseInt(btn.dataset.min));
         }));
         document.querySelectorAll('[data-accept-now]').forEach(btn => btn.addEventListener('click', e => {
             e.stopPropagation(); callbacks.onAccept(btn.dataset.acceptNow, 0);
         }));
+        document.querySelectorAll('[data-slot]').forEach(btn => btn.addEventListener('click', e => {
+            e.stopPropagation();
+            if (callbacks.onAcceptDate) callbacks.onAcceptDate(btn.dataset.slot, btn.dataset.slotTime);
+        }));
+        document.querySelectorAll('[data-reject]').forEach(btn => btn.addEventListener('click', e => {
+            e.stopPropagation();
+            if (callbacks.onReject) callbacks.onReject(btn.dataset.reject);
+        }));
+    }
+
+    // Generate time slots starting from now, rounded up to next interval
+    function _generateTimeSlots(orderId, intervalMin = 15, count = 8) {
+        const now = new Date();
+        // Round up to next interval
+        const mins = now.getMinutes();
+        const nextSlot = Math.ceil(mins / intervalMin) * intervalMin;
+        const start = new Date(now);
+        start.setMinutes(nextSlot, 0, 0);
+        // First slot should be at least 15 min from now
+        if (start.getTime() - now.getTime() < 15 * 60000) {
+            start.setMinutes(start.getMinutes() + intervalMin);
+        }
+
+        let html = '';
+        for (let i = 0; i < count; i++) {
+            const slot = new Date(start.getTime() + i * intervalMin * 60000);
+            const hh = String(slot.getHours()).padStart(2, '0');
+            const mm = String(slot.getMinutes()).padStart(2, '0');
+            const iso = slot.toISOString().slice(0, 16);
+            html += `<button data-slot="${orderId}" data-slot-time="${iso}">${hh}:${mm}</button>`;
+        }
+        return html;
     }
 
     // === KANBAN BATTLEFIELD ===
@@ -534,10 +601,12 @@ const PosUI = (() => {
         function fmtTime(dateStr, type) {
             if (!dateStr) return { text: '<span class="time-indicator">ASAP</span>', cls: 'sla-white' };
             const d = new Date(dateStr), diff = Math.ceil((d - now) / 60000);
-            const sign = diff >= 0 ? '+' : '-';
-            const text = `<span class="time-indicator">${sign}${Math.abs(diff)}min</span>`;
-            // Phase A — single-boundary SLA (zgodne z courses/kds/driver):
-            // red<0, yellow≤yellow_min, green>yellow_min. Progi z sh_tenant_settings.
+            const hh = String(d.getHours()).padStart(2, '0');
+            const mm = String(d.getMinutes()).padStart(2, '0');
+            const absTime = `${hh}:${mm}`;
+            const sign = diff >= 0 ? '+' : '';
+            const relText = `${sign}${diff}m`;
+            const text = `<span class="time-clock">${absTime}</span><span class="time-rel">${relText}</span>`;
             let cls = 'sla-green';
             if (diff < 0) cls = 'sla-red';
             else if (diff <= _slaThresholds.yellow_min) cls = 'sla-yellow';

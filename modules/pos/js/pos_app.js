@@ -1057,7 +1057,18 @@ const PosApp = (() => {
                     PosUI.toast(r.message || 'Nie udało się przyjąć zamówienia', 'error');
                     return;
                 }
-                PosUI.toast('Zamówienie przyjęte', 'success');
+                const time = new Date(dateStr).toLocaleTimeString('pl-PL', { hour:'2-digit', minute:'2-digit' });
+                PosUI.toast(`Przyjęte na ${time}`, 'success');
+                _expandedOnlineId = null; _fetchOrders();
+            },
+            onReject: async (id) => {
+                if (!confirm('Odrzucić zamówienie?')) return;
+                const r = await PosAPI.updateStatus(id, 'cancelled');
+                if (!r.success) {
+                    PosUI.toast(r.message || 'Nie udało się odrzucić', 'error');
+                    return;
+                }
+                PosUI.toast('Zamówienie odrzucone', 'info');
                 _expandedOnlineId = null; _fetchOrders();
             },
         });
