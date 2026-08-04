@@ -1,0 +1,1644 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Maciuś — Prototyp Conversational Surface</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Fraunces:wght@600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --bg: #0a0806;
+            --card: rgba(255,255,255,0.05);
+            --card-border: rgba(255,255,255,0.08);
+            --gold: #e8b04b;
+            --gold-dim: rgba(232,176,75,0.12);
+            --gold-glow: rgba(232,176,75,0.35);
+            --orange: #c2410c;
+            --green: #15803d;
+            --text: #f3efe8;
+            --muted: #a0988d;
+            --font: "DM Sans", system-ui, sans-serif;
+            --serif: "Fraunces", serif;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html, body {
+            font-family: var(--font);
+            background: radial-gradient(ellipse at 50% 0%, #2a1f17 0%, #0f0b08 55%, #050302 100%);
+            color: var(--text);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ── TOPBAR ── */
+        .topbar {
+            position: sticky; top: 0; z-index: 40;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 20px;
+            background: linear-gradient(180deg, rgba(10,8,6,.95), rgba(10,8,6,.8));
+            backdrop-filter: blur(14px);
+            border-bottom: 1px solid rgba(232,176,75,.08);
+            box-shadow: 0 12px 32px rgba(0,0,0,.35);
+        }
+        .topbar__brand { display: flex; align-items: center; gap: 10px; }
+        .topbar__mark {
+            width: 40px; height: 40px; border-radius: 10px;
+            display: grid; place-items: center;
+            background: linear-gradient(135deg, #e8b04b, #c2410c 85%);
+            color: #1a0f07; font-size: 16px;
+            box-shadow: 0 6px 18px rgba(194,65,12,.4);
+        }
+        .topbar__name { font-family: var(--serif); font-weight: 800; font-size: 16px; color: #fff; }
+        .topbar__sub { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+        .topbar__sub i { color: var(--gold); font-size: 9px; }
+
+        .topbar__center { display: flex; align-items: center; gap: 12px; }
+        .ch-switch {
+            display: inline-flex; background: rgba(255,255,255,.06);
+            border: 1px solid rgba(255,255,255,.08); border-radius: 999px; padding: 3px;
+        }
+        .ch-btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 8px 14px; border: 0; background: transparent;
+            color: var(--muted); font-size: 12px; font-weight: 700;
+            border-radius: 999px; cursor: pointer; font-family: inherit;
+        }
+        .ch-btn.active {
+            background: linear-gradient(135deg, #e8b04b, #d97706);
+            color: #1a0f07;
+            box-shadow: 0 4px 14px rgba(217,119,6,.45);
+        }
+        .topbar__cart {
+            position: relative; width: 44px; height: 44px; border-radius: 12px;
+            border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.05);
+            color: #fff; font-size: 17px; cursor: pointer;
+            display: grid; place-items: center;
+        }
+        .topbar__cart-badge {
+            position: absolute; top: -5px; right: -5px;
+            min-width: 18px; height: 18px; padding: 0 5px;
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            color: #fff; font-size: 10px; font-weight: 800;
+            border-radius: 999px; display: grid; place-items: center;
+            border: 2px solid var(--bg);
+        }
+
+        /* ── HERO ── */
+        .hero {
+            text-align: center; padding: 36px 20px 16px;
+            animation: fadeUp .7s cubic-bezier(.2,.9,.3,1) both;
+        }
+        .hero__eyebrow {
+            font-size: 10.5px; letter-spacing: .28em; text-transform: uppercase;
+            color: var(--gold); font-weight: 700; margin-bottom: 8px;
+        }
+        .hero__title {
+            font-family: var(--serif); font-size: clamp(28px, 5.5vw, 48px);
+            font-weight: 800; line-height: 1.05; color: #fff;
+            text-shadow: 0 4px 20px rgba(0,0,0,.5);
+        }
+        .hero__title em {
+            font-style: italic; font-weight: 700;
+            background: linear-gradient(135deg, #f4c678, #e8b04b 60%, #d97706);
+            -webkit-background-clip: text; background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .hero__lead {
+            margin: 10px auto 16px; color: var(--muted);
+            font-size: 14px; line-height: 1.5; max-width: 460px;
+        }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── MENU SURFACE ── */
+        .surface { max-width: 720px; margin: 0 auto; padding: 20px 18px 220px; }
+
+        .section-head {
+            display: flex; justify-content: space-between; align-items: flex-end;
+            margin: 0 0 14px; gap: 10px;
+        }
+        .section-kicker {
+            font-size: 10px; letter-spacing: .22em; text-transform: uppercase;
+            color: var(--gold); font-weight: 700;
+        }
+        .section-title {
+            font-family: var(--serif); font-size: 22px; font-weight: 800;
+            color: #fff; letter-spacing: -.015em;
+        }
+        .section-hint { color: #8b8477; font-size: 11px; }
+
+        /* Popular carousel */
+        .popular-track {
+            display: flex; gap: 12px; overflow-x: auto;
+            padding: 4px 0 16px; scroll-snap-type: x mandatory;
+            scrollbar-width: none;
+        }
+        .popular-track::-webkit-scrollbar { display: none; }
+
+        .pop-card {
+            flex: 0 0 160px; border: 1px solid var(--card-border);
+            border-radius: 16px; background: var(--card);
+            overflow: hidden; cursor: pointer; color: var(--text);
+            font-family: inherit; text-align: left;
+            transition: all .25s cubic-bezier(.2,.9,.3,1);
+            scroll-snap-align: start;
+            box-shadow: 0 8px 20px rgba(0,0,0,.3);
+            position: relative;
+        }
+        .pop-card:hover { transform: translateY(-3px); border-color: var(--gold-glow); }
+
+        /* GLOW effect for Macius recommendations */
+        .pop-card.macius-glow {
+            border-color: var(--gold) !important;
+            box-shadow: 0 0 24px rgba(232,176,75,.3), 0 8px 20px rgba(0,0,0,.3) !important;
+            animation: glowPulse 2s ease-in-out infinite;
+        }
+        .pop-card.macius-glow::after {
+            content: 'Maciuś poleca';
+            position: absolute; top: 8px; right: 8px; z-index: 2;
+            padding: 3px 8px; border-radius: 999px;
+            background: linear-gradient(135deg, #e8b04b, #d97706);
+            color: #1a0f07; font-size: 9px; font-weight: 800;
+            letter-spacing: .04em;
+        }
+        @keyframes glowPulse {
+            0%, 100% { box-shadow: 0 0 24px rgba(232,176,75,.25), 0 8px 20px rgba(0,0,0,.3); }
+            50% { box-shadow: 0 0 36px rgba(232,176,75,.45), 0 8px 20px rgba(0,0,0,.3); }
+        }
+
+        .pop-card__media {
+            width: 100%; aspect-ratio: 4/3;
+            background: radial-gradient(ellipse at 50% 35%, rgba(232,176,75,.1), transparent 70%), #161310;
+            display: grid; place-items: center; font-size: 32px; color: rgba(232,176,75,.3);
+            position: relative; overflow: hidden;
+        }
+        .pop-card__media img {
+            width: 100%; height: 100%; object-fit: cover;
+        }
+        .pop-card__rank {
+            position: absolute; top: 8px; left: 8px;
+            padding: 3px 8px; border-radius: 999px;
+            background: rgba(0,0,0,.6); color: var(--gold);
+            font-size: 10px; font-weight: 800; backdrop-filter: blur(4px);
+            border: 1px solid rgba(232,176,75,.25);
+        }
+        .pop-card__body { padding: 10px 12px; }
+        .pop-card__name {
+            font-family: var(--serif); font-weight: 700; font-size: 14px;
+            color: #fff; line-height: 1.15;
+        }
+        .pop-card__price {
+            margin-top: 4px; font-size: 14px; font-weight: 800;
+            color: var(--gold); font-variant-numeric: tabular-nums;
+        }
+
+        /* Menu tickets */
+        .menu-section { margin-bottom: 32px; }
+        .cat-head {
+            width: 100%; display: flex; align-items: center; gap: 12px;
+            padding: 14px 16px; border: 1px solid var(--card-border);
+            border-radius: 14px; background: var(--card);
+            cursor: pointer; color: #fff; font-family: inherit;
+            margin-bottom: 8px; transition: all .2s;
+        }
+        .cat-head:hover { border-color: rgba(232,176,75,.2); background: rgba(232,176,75,.04); }
+        .cat-head__icon {
+            width: 38px; height: 38px; border-radius: 10px;
+            background: var(--gold-dim); border: 1px solid rgba(232,176,75,.2);
+            color: var(--gold); display: grid; place-items: center; font-size: 16px;
+            flex-shrink: 0;
+        }
+        .cat-head__title { font-family: var(--serif); font-weight: 700; font-size: 16px; flex: 1; text-align: left; }
+        .cat-head__count {
+            font-size: 10px; font-weight: 800; color: var(--gold);
+            background: var(--gold-dim); border: 1px solid rgba(232,176,75,.2);
+            padding: 2px 8px; border-radius: 999px;
+        }
+        .cat-head__chev {
+            width: 8px; height: 8px; border-right: 2px solid var(--gold);
+            border-bottom: 2px solid var(--gold); transform: rotate(-45deg);
+            transition: transform .2s;
+        }
+        .cat-head.open .cat-head__chev { transform: rotate(45deg); }
+
+        .cat-body { display: flex; flex-direction: column; gap: 6px; padding: 0 0 6px; }
+        .cat-body.hidden { display: none; }
+
+        .ticket {
+            display: grid; grid-template-columns: 72px 1fr auto;
+            gap: 12px; align-items: center; padding: 10px;
+            border: 1px solid rgba(255,255,255,.05); border-radius: 12px;
+            background: rgba(255,255,255,.02); cursor: pointer;
+            transition: all .22s cubic-bezier(.2,.9,.3,1);
+            position: relative;
+        }
+        .ticket:hover {
+            background: rgba(255,255,255,.05); border-color: rgba(232,176,75,.3);
+            transform: translateX(2px);
+        }
+        .ticket.macius-glow {
+            border-color: var(--gold) !important;
+            background: rgba(232,176,75,.06) !important;
+            box-shadow: 0 0 20px rgba(232,176,75,.15);
+            animation: glowPulse 2s ease-in-out infinite;
+        }
+        .ticket.macius-glow::before {
+            content: '';
+            position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+            background: linear-gradient(180deg, #e8b04b, #d97706);
+        }
+
+        .ticket__thumb {
+            width: 72px; height: 72px; border-radius: 10px;
+            background: radial-gradient(ellipse at 50% 35%, rgba(232,176,75,.1), transparent 70%), #161310;
+            display: grid; place-items: center; font-size: 24px;
+            color: rgba(232,176,75,.25); overflow: hidden; flex-shrink: 0;
+        }
+        .ticket__thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .ticket__name { font-family: var(--serif); font-weight: 700; font-size: 15px; color: #fff; }
+        .ticket__desc { font-size: 11.5px; color: var(--muted); line-height: 1.35; margin-top: 2px; }
+        .ticket__price {
+            font-size: 14px; font-weight: 800; color: var(--gold);
+            padding: 5px 8px; background: var(--gold-dim);
+            border: 1px solid rgba(232,176,75,.15); border-radius: 8px;
+            white-space: nowrap;
+        }
+
+        /* ══════════════════════════════════════════════════════════════
+           MACIUŚ STRIP — the conversational surface
+           ══════════════════════════════════════════════════════════════ */
+
+        .macius-strip {
+            position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+            background: linear-gradient(180deg, rgba(10,8,6,.0) 0%, rgba(10,8,6,.95) 15%, rgba(10,8,6,.98) 100%);
+            padding: 12px 16px 16px;
+            transform: translateY(100%);
+            transition: transform .4s cubic-bezier(.2,.9,.3,1);
+        }
+        .macius-strip.visible { transform: translateY(0); }
+
+        .macius-strip__inner {
+            max-width: 720px; margin: 0 auto;
+        }
+
+        /* Message bubble */
+        .macius-msg {
+            background: rgba(255,255,255,.06);
+            border: 1px solid rgba(255,255,255,.1);
+            border-radius: 16px 16px 16px 4px;
+            padding: 12px 16px;
+            margin-bottom: 10px;
+            backdrop-filter: blur(12px);
+            animation: msgIn .35s cubic-bezier(.2,.9,.3,1) both;
+            position: relative;
+        }
+        .macius-msg::before {
+            content: '';
+            position: absolute; left: -1px; top: 0; bottom: 0; width: 3px;
+            background: linear-gradient(180deg, var(--gold), #d97706);
+            border-radius: 3px 0 0 3px;
+        }
+        @keyframes msgIn {
+            from { opacity: 0; transform: translateY(8px) scale(.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .macius-msg__head {
+            display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+        }
+        .macius-msg__avatar {
+            width: 24px; height: 24px; border-radius: 8px;
+            background: linear-gradient(135deg, #e8b04b, #d97706);
+            display: grid; place-items: center;
+            font-size: 12px; color: #1a0f07; font-weight: 800;
+        }
+        .macius-msg__label {
+            font-size: 11px; font-weight: 700; color: var(--gold);
+            letter-spacing: .04em;
+        }
+        .macius-msg__text {
+            font-size: 14px; line-height: 1.5; color: #e7e2d9;
+        }
+
+        /* Suggestion chips */
+        .macius-chips {
+            display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;
+            animation: msgIn .35s cubic-bezier(.2,.9,.3,1) both .1s;
+        }
+        .macius-chip {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 10px 14px; border-radius: 999px;
+            border: 1px solid rgba(232,176,75,.25);
+            background: rgba(232,176,75,.08);
+            color: var(--gold); font-size: 13px; font-weight: 700;
+            cursor: pointer; font-family: inherit;
+            transition: all .2s cubic-bezier(.2,.9,.3,1);
+            white-space: nowrap;
+        }
+        .macius-chip:hover {
+            background: rgba(232,176,75,.18);
+            border-color: rgba(232,176,75,.5);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(232,176,75,.2);
+        }
+        .macius-chip:active { transform: scale(.96); }
+        .macius-chip--primary {
+            background: linear-gradient(135deg, #e8b04b, #d97706);
+            color: #1a0f07; border-color: transparent;
+            box-shadow: 0 4px 14px rgba(217,119,6,.35);
+        }
+        .macius-chip--primary:hover {
+            box-shadow: 0 8px 24px rgba(217,119,6,.5);
+        }
+        .macius-chip--subtle {
+            border-color: rgba(255,255,255,.1);
+            color: var(--muted);
+            background: rgba(255,255,255,.04);
+        }
+        .macius-chip--subtle:hover { color: #fff; border-color: rgba(255,255,255,.2); }
+
+        /* Input bar */
+        .macius-input {
+            display: flex; align-items: center; gap: 8px;
+            background: rgba(255,255,255,.06);
+            border: 1px solid rgba(255,255,255,.1);
+            border-radius: 999px; padding: 4px 4px 4px 16px;
+            transition: border-color .2s;
+        }
+        .macius-input:focus-within { border-color: rgba(232,176,75,.4); }
+        .macius-input__field {
+            flex: 1; border: 0; background: transparent;
+            color: var(--text); font-size: 14px; font-family: inherit;
+            outline: none; min-width: 0;
+        }
+        .macius-input__field::placeholder { color: #6b6560; }
+        .macius-input__btn {
+            width: 36px; height: 36px; border-radius: 50%;
+            border: 0; cursor: pointer; font-size: 14px;
+            display: grid; place-items: center;
+            transition: all .2s;
+        }
+        .macius-input__mic {
+            background: rgba(232,176,75,.12); color: var(--gold);
+        }
+        .macius-input__mic:hover { background: rgba(232,176,75,.25); }
+        .macius-input__mic.listening {
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            color: #fff; animation: micPulse 1s ease-in-out infinite;
+        }
+        @keyframes micPulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,.4); }
+            50% { box-shadow: 0 0 0 8px rgba(239,68,68,0); }
+        }
+        .macius-input__send {
+            background: linear-gradient(135deg, #e8b04b, #d97706);
+            color: #1a0f07;
+        }
+        .macius-input__send:hover { box-shadow: 0 4px 12px rgba(217,119,6,.4); }
+
+        /* Minimize toggle */
+        .macius-toggle {
+            position: fixed; bottom: 16px; right: 16px; z-index: 51;
+            width: 48px; height: 48px; border-radius: 50%;
+            background: linear-gradient(135deg, #e8b04b, #d97706);
+            color: #1a0f07; border: 0; cursor: pointer;
+            font-size: 20px; display: grid; place-items: center;
+            box-shadow: 0 6px 24px rgba(217,119,6,.4);
+            transition: all .3s cubic-bezier(.2,.9,.3,1);
+        }
+        .macius-toggle:hover { transform: scale(1.08); }
+        .macius-toggle.hidden { display: none; }
+
+        /* Typing indicator */
+        .macius-typing {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 8px 14px; border-radius: 12px;
+            background: rgba(255,255,255,.06);
+            border: 1px solid rgba(255,255,255,.08);
+            margin-bottom: 10px;
+        }
+        .macius-typing span {
+            width: 6px; height: 6px; border-radius: 50%;
+            background: var(--gold); opacity: .4;
+            animation: typeDot 1.4s ease-in-out infinite;
+        }
+        .macius-typing span:nth-child(2) { animation-delay: .15s; }
+        .macius-typing span:nth-child(3) { animation-delay: .3s; }
+        @keyframes typeDot {
+            0%, 60%, 100% { opacity: .3; transform: scale(.8); }
+            30% { opacity: 1; transform: scale(1.1); }
+        }
+
+        /* Cart toast */
+        .cart-toast {
+            position: fixed; top: 72px; left: 50%; transform: translateX(-50%) translateY(-100px);
+            background: linear-gradient(135deg, var(--green), #166534);
+            color: #fff; padding: 10px 20px; border-radius: 12px;
+            font-size: 13px; font-weight: 700; z-index: 60;
+            box-shadow: 0 8px 24px rgba(21,128,61,.4);
+            transition: transform .3s cubic-bezier(.2,.9,.3,1);
+            display: flex; align-items: center; gap: 8px;
+        }
+        .cart-toast.show { transform: translateX(-50%) translateY(0); }
+
+        /* User message */
+        .macius-user-msg {
+            background: rgba(232,176,75,.1);
+            border: 1px solid rgba(232,176,75,.2);
+            border-radius: 16px 16px 4px 16px;
+            padding: 10px 14px;
+            margin-bottom: 10px;
+            font-size: 14px; color: #e7e2d9;
+            text-align: right;
+            animation: msgIn .3s cubic-bezier(.2,.9,.3,1) both;
+        }
+
+        /* Promo ambient banner */
+        .promo-banner {
+            text-align: center; padding: 8px 16px;
+            background: linear-gradient(90deg, rgba(232,176,75,.08), rgba(232,176,75,.15), rgba(232,176,75,.08));
+            border-top: 1px solid rgba(232,176,75,.15);
+            border-bottom: 1px solid rgba(232,176,75,.15);
+            font-size: 12px; font-weight: 700; color: var(--gold);
+            letter-spacing: .06em;
+            animation: fadeUp .5s both .3s;
+        }
+        .promo-banner.hidden { display: none; }
+
+        /* Scenario selector (prototype UI) */
+        .proto-bar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            padding: 8px 16px;
+            display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+            border-bottom: 2px solid #e8b04b;
+            font-size: 12px;
+        }
+        .proto-bar__label {
+            color: #e8b04b; font-weight: 800; font-size: 11px;
+            letter-spacing: .1em; text-transform: uppercase; margin-right: 8px;
+        }
+        .proto-btn {
+            padding: 5px 12px; border-radius: 6px;
+            border: 1px solid rgba(232,176,75,.3);
+            background: rgba(232,176,75,.08);
+            color: #e8b04b; font-size: 11px; font-weight: 700;
+            cursor: pointer; font-family: inherit;
+            transition: all .15s;
+        }
+        .proto-btn:hover { background: rgba(232,176,75,.2); }
+        .proto-btn.active { background: var(--gold); color: #1a0f07; border-color: var(--gold); }
+
+        /* Adjust layout for proto bar */
+        body { padding-top: 44px; }
+
+        /* ── RESPONSIVE ── */
+        @media (max-width: 500px) {
+            .hero__title { font-size: 26px; }
+            .topbar__center { display: none; }
+            .pop-card { flex: 0 0 140px; }
+            .macius-chip { font-size: 12px; padding: 8px 12px; }
+        }
+
+        /* ── Confirmation overlay ── */
+        .confirm-overlay {
+            position: fixed; inset: 0; z-index: 55;
+            background: rgba(0,0,0,.6); backdrop-filter: blur(6px);
+            display: grid; place-items: center;
+            animation: fadeUp .25s both;
+        }
+        .confirm-overlay.hidden { display: none; }
+        .confirm-card {
+            background: #1a1714; border: 1px solid rgba(232,176,75,.2);
+            border-radius: 20px; padding: 24px; width: min(92%, 380px);
+            box-shadow: 0 24px 60px rgba(0,0,0,.6);
+        }
+        .confirm-card h3 {
+            font-family: var(--serif); font-size: 18px; color: #fff;
+            margin-bottom: 14px;
+        }
+        .confirm-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.06);
+            font-size: 14px;
+        }
+        .confirm-item__name { color: #e7e2d9; }
+        .confirm-item__price { color: var(--gold); font-weight: 700; }
+        .confirm-total {
+            display: flex; justify-content: space-between; margin-top: 12px;
+            font-weight: 800; font-size: 16px;
+        }
+        .confirm-total span:last-child { color: var(--gold); }
+        .confirm-actions { display: flex; gap: 8px; margin-top: 18px; }
+        .confirm-actions button {
+            flex: 1; padding: 12px; border-radius: 12px;
+            font-family: inherit; font-size: 14px; font-weight: 700;
+            cursor: pointer; border: 0;
+        }
+        .confirm-actions .btn-yes {
+            background: linear-gradient(135deg, #e8b04b, #d97706);
+            color: #1a0f07;
+        }
+        .confirm-actions .btn-no {
+            background: rgba(255,255,255,.06);
+            border: 1px solid rgba(255,255,255,.1);
+            color: var(--muted);
+        }
+    </style>
+</head>
+<body>
+
+<!-- ── PROTOTYPE SCENARIO BAR ── -->
+<div class="proto-bar">
+    <span class="proto-bar__label">Prototyp Maciuś</span>
+    <button class="proto-btn active" onclick="loadScenario('new')">Nowy klient</button>
+    <button class="proto-btn" onclick="loadScenario('returning')">Staly klient</button>
+    <button class="proto-btn" onclick="loadScenario('voice')">Glos</button>
+    <button class="proto-btn" onclick="loadScenario('allergy')">Alergeny</button>
+    <button class="proto-btn" onclick="loadScenario('promo')">Promocja</button>
+    <button class="proto-btn" onclick="loadScenario('undecided')">Niezdecydowany</button>
+</div>
+
+<!-- ── PROMO BANNER (hidden by default) ── -->
+<div class="promo-banner hidden" id="promo-banner">
+    <i class="fa-solid fa-fire"></i> PIATKOWA PROMOCJA — DRUGA PIZZA ZA 1 ZL <i class="fa-solid fa-fire"></i>
+</div>
+
+<!-- ── TOPBAR ── -->
+<header class="topbar">
+    <div class="topbar__brand">
+        <div class="topbar__mark"><i class="fa-solid fa-pizza-slice"></i></div>
+        <div>
+            <div class="topbar__name">Pizza Forno</div>
+            <div class="topbar__sub"><i class="fa-solid fa-location-dot"></i> Opole</div>
+        </div>
+    </div>
+    <div class="topbar__center">
+        <div class="ch-switch">
+            <button class="ch-btn active"><i class="fa-solid fa-motorcycle"></i> Dowoz</button>
+            <button class="ch-btn"><i class="fa-solid fa-bag-shopping"></i> Odbior</button>
+        </div>
+    </div>
+    <button class="topbar__cart" id="cart-btn">
+        <i class="fa-solid fa-basket-shopping"></i>
+        <span class="topbar__cart-badge" id="cart-count">0</span>
+    </button>
+</header>
+
+<!-- ── HERO ── -->
+<section class="hero" id="hero">
+    <div class="hero__eyebrow">Witamy w Pizza Forno</div>
+    <h1 class="hero__title">Pizza prosto z <em>pieca</em>.</h1>
+    <p class="hero__lead">Zamow online, dostawa w 30-45 min. Swiezo pieczona, z najlepszych skladnikow.</p>
+</section>
+
+<!-- ── MAIN SURFACE ── -->
+<main class="surface">
+
+    <!-- Popular -->
+    <section class="menu-section">
+        <div class="section-head">
+            <div>
+                <div class="section-kicker">Popularne teraz</div>
+                <div class="section-title">Najczesciej zamawiane</div>
+            </div>
+            <div class="section-hint">przesun &rarr;</div>
+        </div>
+        <div class="popular-track" id="popular-track">
+            <button class="pop-card" data-sku="MARGHERITA" id="pop-margherita">
+                <div class="pop-card__media">
+                    <i class="fa-solid fa-pizza-slice"></i>
+                    <span class="pop-card__rank">#1</span>
+                </div>
+                <div class="pop-card__body">
+                    <div class="pop-card__name">Margherita</div>
+                    <div class="pop-card__price">28,00 zl</div>
+                </div>
+            </button>
+            <button class="pop-card" data-sku="PEPPERONI" id="pop-pepperoni">
+                <div class="pop-card__media">
+                    <i class="fa-solid fa-pepper-hot"></i>
+                    <span class="pop-card__rank">#2</span>
+                </div>
+                <div class="pop-card__body">
+                    <div class="pop-card__name">Pepperoni</div>
+                    <div class="pop-card__price">32,00 zl</div>
+                </div>
+            </button>
+            <button class="pop-card" data-sku="DIAVOLA" id="pop-diavola">
+                <div class="pop-card__media">
+                    <i class="fa-solid fa-fire-flame-curved"></i>
+                    <span class="pop-card__rank">#3</span>
+                </div>
+                <div class="pop-card__body">
+                    <div class="pop-card__name">Diavola</div>
+                    <div class="pop-card__price">34,00 zl</div>
+                </div>
+            </button>
+            <button class="pop-card" data-sku="HAWAII" id="pop-hawaii">
+                <div class="pop-card__media">
+                    <i class="fa-solid fa-umbrella-beach"></i>
+                    <span class="pop-card__rank">#4</span>
+                </div>
+                <div class="pop-card__body">
+                    <div class="pop-card__name">Hawajska</div>
+                    <div class="pop-card__price">30,00 zl</div>
+                </div>
+            </button>
+            <button class="pop-card" data-sku="CAPRICCIOSA" id="pop-capricciosa">
+                <div class="pop-card__media">
+                    <i class="fa-solid fa-leaf"></i>
+                    <span class="pop-card__rank">#5</span>
+                </div>
+                <div class="pop-card__body">
+                    <div class="pop-card__name">Capricciosa</div>
+                    <div class="pop-card__price">33,00 zl</div>
+                </div>
+            </button>
+        </div>
+    </section>
+
+    <!-- Categories -->
+    <section class="menu-section">
+        <div class="section-head">
+            <div>
+                <div class="section-kicker">Menu</div>
+                <div class="section-title">Wybierz kategorie</div>
+            </div>
+        </div>
+
+        <!-- Pizza -->
+        <div>
+            <button class="cat-head open" onclick="toggleCat(this)">
+                <div class="cat-head__icon"><i class="fa-solid fa-pizza-slice"></i></div>
+                <div class="cat-head__title">Pizza</div>
+                <span class="cat-head__count">8 dan</span>
+                <div class="cat-head__chev"></div>
+            </button>
+            <div class="cat-body" id="cat-pizza">
+                <button class="ticket" data-sku="MARGHERITA" id="t-margherita">
+                    <div class="ticket__thumb"><i class="fa-solid fa-pizza-slice"></i></div>
+                    <div>
+                        <div class="ticket__name">Margherita</div>
+                        <div class="ticket__desc">Sos pomidorowy, mozzarella, bazylia</div>
+                    </div>
+                    <div class="ticket__price">28,00 zl</div>
+                </button>
+                <button class="ticket" data-sku="PEPPERONI" id="t-pepperoni">
+                    <div class="ticket__thumb"><i class="fa-solid fa-pepper-hot"></i></div>
+                    <div>
+                        <div class="ticket__name">Pepperoni</div>
+                        <div class="ticket__desc">Sos, mozzarella, salami pepperoni</div>
+                    </div>
+                    <div class="ticket__price">32,00 zl</div>
+                </button>
+                <button class="ticket" data-sku="DIAVOLA" id="t-diavola">
+                    <div class="ticket__thumb"><i class="fa-solid fa-fire-flame-curved"></i></div>
+                    <div>
+                        <div class="ticket__name">Diavola</div>
+                        <div class="ticket__desc">Sos, mozzarella, salami pikante, jalapeno</div>
+                    </div>
+                    <div class="ticket__price">34,00 zl</div>
+                </button>
+                <button class="ticket" data-sku="HAWAII" id="t-hawaii">
+                    <div class="ticket__thumb"><i class="fa-solid fa-umbrella-beach"></i></div>
+                    <div>
+                        <div class="ticket__name">Hawajska</div>
+                        <div class="ticket__desc">Sos, mozzarella, szynka, ananas</div>
+                    </div>
+                    <div class="ticket__price">30,00 zl</div>
+                </button>
+                <button class="ticket" data-sku="CAPRICCIOSA" id="t-capricciosa">
+                    <div class="ticket__thumb"><i class="fa-solid fa-leaf"></i></div>
+                    <div>
+                        <div class="ticket__name">Capricciosa</div>
+                        <div class="ticket__desc">Sos, mozzarella, szynka, pieczarki, oliwki</div>
+                    </div>
+                    <div class="ticket__price">33,00 zl</div>
+                </button>
+                <button class="ticket" data-sku="BBQ-CHICKEN" id="t-bbq">
+                    <div class="ticket__thumb"><i class="fa-solid fa-drumstick-bite"></i></div>
+                    <div>
+                        <div class="ticket__name">BBQ Chicken</div>
+                        <div class="ticket__desc">Sos BBQ, kurczak, cebula, papryka</div>
+                    </div>
+                    <div class="ticket__price">36,00 zl</div>
+                </button>
+                <button class="ticket" data-sku="VEGANA" id="t-vegana">
+                    <div class="ticket__thumb"><i class="fa-solid fa-seedling"></i></div>
+                    <div>
+                        <div class="ticket__name">Vegana</div>
+                        <div class="ticket__desc">Sos, weganski ser, grillowane warzywa, rukola</div>
+                    </div>
+                    <div class="ticket__price">32,00 zl</div>
+                </button>
+                <button class="ticket" data-sku="INFERNO" id="t-inferno">
+                    <div class="ticket__thumb"><i class="fa-solid fa-fire"></i></div>
+                    <div>
+                        <div class="ticket__name">Inferno</div>
+                        <div class="ticket__desc">Sos sriracha, nduja, pepperoncino, chili</div>
+                    </div>
+                    <div class="ticket__price">38,00 zl</div>
+                </button>
+            </div>
+        </div>
+
+        <!-- Salatki -->
+        <div>
+            <button class="cat-head" onclick="toggleCat(this)">
+                <div class="cat-head__icon"><i class="fa-solid fa-bowl-food"></i></div>
+                <div class="cat-head__title">Salatki</div>
+                <span class="cat-head__count">3 dania</span>
+                <div class="cat-head__chev"></div>
+            </button>
+            <div class="cat-body hidden" id="cat-salads">
+                <button class="ticket" data-sku="CESARE" id="t-cesare">
+                    <div class="ticket__thumb"><i class="fa-solid fa-leaf"></i></div>
+                    <div>
+                        <div class="ticket__name">Salatka Cesare</div>
+                        <div class="ticket__desc">Kurczak, parmezan, grzanki, sos cesare. Bezglutenowa.</div>
+                    </div>
+                    <div class="ticket__price">24,00 zl</div>
+                </button>
+                <button class="ticket" data-sku="BOWL-CHICKEN" id="t-bowl">
+                    <div class="ticket__thumb"><i class="fa-solid fa-bowl-rice"></i></div>
+                    <div>
+                        <div class="ticket__name">Bowl z kurczakiem</div>
+                        <div class="ticket__desc">Ryz, kurczak, awokado, edamame. Bezglutenowy.</div>
+                    </div>
+                    <div class="ticket__price">28,00 zl</div>
+                </button>
+                <button class="ticket" data-sku="GREEK" id="t-greek">
+                    <div class="ticket__thumb"><i class="fa-solid fa-lemon"></i></div>
+                    <div>
+                        <div class="ticket__name">Salatka grecka</div>
+                        <div class="ticket__desc">Pomidor, ogorek, feta, oliwki, cebula</div>
+                    </div>
+                    <div class="ticket__price">22,00 zl</div>
+                </button>
+            </div>
+        </div>
+
+        <!-- Napoje -->
+        <div>
+            <button class="cat-head" onclick="toggleCat(this)">
+                <div class="cat-head__icon"><i class="fa-solid fa-glass-water"></i></div>
+                <div class="cat-head__title">Napoje</div>
+                <span class="cat-head__count">4 pozycje</span>
+                <div class="cat-head__chev"></div>
+            </button>
+            <div class="cat-body hidden" id="cat-drinks">
+                <button class="ticket" data-sku="COLA-500">
+                    <div class="ticket__thumb"><i class="fa-solid fa-bottle-water"></i></div>
+                    <div>
+                        <div class="ticket__name">Coca-Cola 500ml</div>
+                        <div class="ticket__desc">Klasyczna cola</div>
+                    </div>
+                    <div class="ticket__price">8,00 zl</div>
+                </button>
+                <button class="ticket" data-sku="PERONI">
+                    <div class="ticket__thumb"><i class="fa-solid fa-beer-mug-empty"></i></div>
+                    <div>
+                        <div class="ticket__name">Peroni 0.33l</div>
+                        <div class="ticket__desc">Wloskie piwo premium</div>
+                    </div>
+                    <div class="ticket__price">12,00 zl</div>
+                </button>
+            </div>
+        </div>
+    </section>
+</main>
+
+<!-- ── MACIUŚ STRIP ── -->
+<div class="macius-strip" id="macius-strip">
+    <div class="macius-strip__inner" id="macius-content">
+        <!-- Dynamic content inserted by JS -->
+    </div>
+</div>
+
+<!-- Minimized toggle -->
+<button class="macius-toggle hidden" id="macius-toggle" onclick="openStrip()">
+    <i class="fa-solid fa-wand-magic-sparkles"></i>
+</button>
+
+<!-- Cart toast -->
+<div class="cart-toast" id="cart-toast">
+    <i class="fa-solid fa-check-circle"></i>
+    <span id="cart-toast-text">Dodano do koszyka!</span>
+</div>
+
+<!-- Confirmation overlay -->
+<div class="confirm-overlay hidden" id="confirm-overlay">
+    <div class="confirm-card" id="confirm-card">
+        <!-- filled by JS -->
+    </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// MACIUŚ PROTOTYPE — interactive scenario engine
+// ═══════════════════════════════════════════════════════════════
+
+let cartItems = 0;
+let currentScenario = 'new';
+let stepIndex = 0;
+let conversationHistory = [];
+
+// ── Scenarios ──
+const SCENARIOS = {
+    new: {
+        name: 'Nowy klient',
+        steps: [
+            {
+                msg: 'Czesc! Pierwszy raz u nas? Chetnie pomoge Ci wybrac cos pysznego. Na co masz ochote?',
+                chips: [
+                    { label: 'Bestsellery', icon: 'fa-fire', action: 'next' },
+                    { label: 'Cos ostrego', icon: 'fa-pepper-hot', action: 'spicy' },
+                    { label: 'Cos lekkiego', icon: 'fa-feather', action: 'light' },
+                    { label: 'Pokaz menu', icon: 'fa-list', style: 'subtle', action: 'menu' },
+                ],
+                glow: [],
+            },
+            {
+                id: 'next',
+                userMsg: 'Bestsellery',
+                msg: 'Nasze hity to Margherita (klasyka!) i Pepperoni. Margherita jest najczesciej zamawiana — prosta i doskonala.',
+                chips: [
+                    { label: 'Margherita 28zl', icon: 'fa-pizza-slice', style: 'primary', action: 'add_margherita' },
+                    { label: 'Pepperoni 32zl', icon: 'fa-pepper-hot', action: 'add_pepperoni' },
+                    { label: 'Cos innego', icon: 'fa-rotate', style: 'subtle', action: 'reset' },
+                ],
+                glow: ['MARGHERITA', 'PEPPERONI'],
+            },
+            {
+                id: 'spicy',
+                userMsg: 'Cos ostrego',
+                msg: 'Na ostro mamy dwie bestie: Diavola (salami pikante + jalapeno) i Inferno (sriracha + nduja + chili). Inferno to naprawde mocna — dla odwaznych!',
+                chips: [
+                    { label: 'Diavola 34zl', icon: 'fa-pepper-hot', style: 'primary', action: 'add_diavola' },
+                    { label: 'Inferno 38zl', icon: 'fa-fire', action: 'add_inferno' },
+                    { label: 'Lagodniejsze', icon: 'fa-snowflake', style: 'subtle', action: 'reset' },
+                ],
+                glow: ['DIAVOLA', 'INFERNO'],
+            },
+            {
+                id: 'light',
+                userMsg: 'Cos lekkiego',
+                msg: 'Na lekki posilek polecam Salatke Cesare z grillowanym kurczakiem albo Bowl z awokado i edamame. Oba bezglutenowe!',
+                chips: [
+                    { label: 'Cesare 24zl', icon: 'fa-leaf', style: 'primary', action: 'add_cesare' },
+                    { label: 'Bowl 28zl', icon: 'fa-bowl-rice', action: 'add_bowl' },
+                    { label: 'Wole pizze', icon: 'fa-pizza-slice', style: 'subtle', action: 'next' },
+                ],
+                glow: ['CESARE', 'BOWL-CHICKEN'],
+                openCat: 'cat-salads',
+            },
+            {
+                id: 'add_margherita', userMsg: null,
+                addToCart: { name: 'Margherita', price: '28,00 zl' },
+                msg: 'Swietny wybor! Do Margherity pasuje sos czosnkowy. A moze napoj — cola albo wloskie piwo Peroni?',
+                chips: [
+                    { label: 'Cola 8zl', icon: 'fa-bottle-water', action: 'add_cola_done' },
+                    { label: 'Peroni 12zl', icon: 'fa-beer-mug-empty', action: 'add_peroni_done' },
+                    { label: 'Nie, dziekuje', icon: 'fa-check', style: 'subtle', action: 'done' },
+                ],
+                glow: [],
+            },
+            {
+                id: 'add_pepperoni', userMsg: null,
+                addToCart: { name: 'Pepperoni', price: '32,00 zl' },
+                msg: 'Pepperoni w koszyku! Napoj do tego? Piwo Peroni idealnie pasuje do pikantnego salami.',
+                chips: [
+                    { label: 'Peroni 12zl', icon: 'fa-beer-mug-empty', style: 'primary', action: 'add_peroni_done' },
+                    { label: 'Cola 8zl', icon: 'fa-bottle-water', action: 'add_cola_done' },
+                    { label: 'Zamawiam', icon: 'fa-check', style: 'subtle', action: 'done' },
+                ],
+                glow: [],
+            },
+            {
+                id: 'add_diavola', userMsg: null,
+                addToCart: { name: 'Diavola', price: '34,00 zl' },
+                msg: 'Diavola dodana! Pro tip: do ostrej pizzy pasuje zimna cola. Dodac?',
+                chips: [
+                    { label: 'Cola 8zl', icon: 'fa-bottle-water', style: 'primary', action: 'add_cola_done' },
+                    { label: 'Zamawiam', icon: 'fa-check', style: 'subtle', action: 'done' },
+                ],
+                glow: [],
+            },
+            {
+                id: 'add_inferno', userMsg: null,
+                addToCart: { name: 'Inferno', price: '38,00 zl' },
+                msg: 'Odwaga! Inferno w koszyku. Napij sie czegos zimnego po tym — polecam Peroni.',
+                chips: [
+                    { label: 'Peroni 12zl', icon: 'fa-beer-mug-empty', style: 'primary', action: 'add_peroni_done' },
+                    { label: 'Zamawiam', icon: 'fa-check', style: 'subtle', action: 'done' },
+                ],
+                glow: [],
+            },
+            {
+                id: 'add_cesare', userMsg: null,
+                addToCart: { name: 'Salatka Cesare', price: '24,00 zl' },
+                msg: 'Cesare w koszyku! Lekko i pysznie. Cos do picia?',
+                chips: [
+                    { label: 'Cola 8zl', icon: 'fa-bottle-water', action: 'add_cola_done' },
+                    { label: 'Zamawiam', icon: 'fa-check', style: 'primary', action: 'done' },
+                ],
+                glow: [],
+            },
+            {
+                id: 'add_bowl', userMsg: null,
+                addToCart: { name: 'Bowl z kurczakiem', price: '28,00 zl' },
+                msg: 'Bowl dodany! Cos jeszcze?',
+                chips: [
+                    { label: 'Zamawiam', icon: 'fa-check', style: 'primary', action: 'done' },
+                    { label: 'Cos jeszcze', icon: 'fa-plus', style: 'subtle', action: 'reset' },
+                ],
+                glow: [],
+            },
+            {
+                id: 'add_cola_done', userMsg: null,
+                addToCart: { name: 'Coca-Cola', price: '8,00 zl' },
+                msg: 'Gotowe! Masz wszystko w koszyku. Kliknij koszyk zeby zamowic.',
+                chips: [
+                    { label: 'Przejdz do koszyka', icon: 'fa-basket-shopping', style: 'primary', action: 'cart' },
+                    { label: 'Cos jeszcze', icon: 'fa-plus', style: 'subtle', action: 'reset' },
+                ],
+                glow: [],
+            },
+            {
+                id: 'add_peroni_done', userMsg: null,
+                addToCart: { name: 'Peroni', price: '12,00 zl' },
+                msg: 'Peroni dodane! Zamowienie gotowe do finalizacji.',
+                chips: [
+                    { label: 'Przejdz do koszyka', icon: 'fa-basket-shopping', style: 'primary', action: 'cart' },
+                    { label: 'Cos jeszcze', icon: 'fa-plus', style: 'subtle', action: 'reset' },
+                ],
+                glow: [],
+            },
+            {
+                id: 'done',
+                msg: 'Swietnie! Kliknij koszyk w prawym gornym rogu zeby sfinalizowac zamowienie. Smacznego!',
+                chips: [
+                    { label: 'Przejdz do koszyka', icon: 'fa-basket-shopping', style: 'primary', action: 'cart' },
+                ],
+                glow: [],
+            },
+            {
+                id: 'menu',
+                msg: 'Oczywiscie! Cale menu jest powyzej — przegladaj i klikaj. Jesli potrzebujesz pomocy, jestem tutaj.',
+                chips: [
+                    { label: 'Co polecasz?', icon: 'fa-star', action: 'next' },
+                    { label: 'Minimalizuj', icon: 'fa-minus', style: 'subtle', action: 'minimize' },
+                ],
+                glow: [],
+            },
+            {
+                id: 'reset',
+                msg: 'Jasne! Na co masz ochote? Moge polecic cos z kazdej kategorii.',
+                chips: [
+                    { label: 'Bestsellery', icon: 'fa-fire', action: 'next' },
+                    { label: 'Cos ostrego', icon: 'fa-pepper-hot', action: 'spicy' },
+                    { label: 'Cos lekkiego', icon: 'fa-feather', action: 'light' },
+                ],
+                glow: [],
+            },
+        ],
+    },
+
+    returning: {
+        name: 'Staly klient',
+        steps: [
+            {
+                msg: 'Hej, miło Cie znow widziec! Ostatnio bral(a)s Margherite duza + Cola (36,00 zl). To samo, czy cos nowego?',
+                chips: [
+                    { label: 'Powtorz zamowienie 36zl', icon: 'fa-rotate-right', style: 'primary', action: 'repeat' },
+                    { label: 'Co nowego?', icon: 'fa-sparkles', action: 'new_items' },
+                    { label: 'Pokaz menu', icon: 'fa-list', style: 'subtle', action: 'menu_r' },
+                ],
+                glow: ['MARGHERITA'],
+            },
+            {
+                id: 'repeat',
+                userMsg: 'Powtorz zamowienie',
+                addToCart: { name: 'Margherita + Cola', price: '36,00 zl', count: 2 },
+                msg: 'Dodane! Margherita duza + Cola — jak ostatnio. Gotowe do zamowienia w 2 klikniecia!',
+                chips: [
+                    { label: 'Zamawiam 36zl', icon: 'fa-check', style: 'primary', action: 'done_r' },
+                    { label: 'Dodaj cos', icon: 'fa-plus', style: 'subtle', action: 'new_items' },
+                ],
+                glow: [],
+            },
+            {
+                id: 'new_items',
+                userMsg: 'Co nowego?',
+                msg: 'Mamy nowos! BBQ Chicken z sosem BBQ, kurczakiem i grillowana papryka. Nasi klienci ja uwielbiaja — warto sprobowac!',
+                chips: [
+                    { label: 'BBQ Chicken 36zl', icon: 'fa-drumstick-bite', style: 'primary', action: 'add_bbq' },
+                    { label: 'Zostane przy klasyce', icon: 'fa-pizza-slice', action: 'repeat' },
+                ],
+                glow: ['BBQ-CHICKEN'],
+            },
+            {
+                id: 'add_bbq', userMsg: null,
+                addToCart: { name: 'BBQ Chicken', price: '36,00 zl' },
+                msg: 'BBQ Chicken w koszyku! Cos do picia?',
+                chips: [
+                    { label: 'Cola 8zl', icon: 'fa-bottle-water', action: 'add_cola_r' },
+                    { label: 'Zamawiam', icon: 'fa-check', style: 'primary', action: 'done_r' },
+                ],
+                glow: [],
+            },
+            {
+                id: 'add_cola_r', userMsg: null,
+                addToCart: { name: 'Cola', price: '8,00 zl' },
+                msg: 'Gotowe! Smacznego!',
+                chips: [{ label: 'Przejdz do koszyka', icon: 'fa-basket-shopping', style: 'primary', action: 'done_r' }],
+                glow: [],
+            },
+            {
+                id: 'done_r',
+                msg: 'Zamowienie czeka w koszyku. Smacznego i do zobaczenia!',
+                chips: [{ label: 'Koszyk', icon: 'fa-basket-shopping', style: 'primary', action: 'cart' }],
+                glow: [],
+            },
+            { id: 'menu_r', msg: 'Cale menu powyzej — przegladaj!', chips: [{ label: 'Co polecasz?', icon: 'fa-star', action: 'new_items' }], glow: [] },
+        ],
+    },
+
+    voice: {
+        name: 'Glos',
+        steps: [
+            {
+                msg: 'Czesc! Mozesz tez powiedziec co chcesz zamowic — kliknij mikrofon. Lub wpisz ponizej.',
+                chips: [
+                    { label: 'Uzyj mikrofonu', icon: 'fa-microphone', style: 'primary', action: 'mic_demo' },
+                    { label: 'Wole pisac', icon: 'fa-keyboard', style: 'subtle', action: 'type_demo' },
+                ],
+                glow: [],
+            },
+            {
+                id: 'mic_demo',
+                voiceDemo: true,
+                userMsg: '"Chce dwie duze pizze, jedna pepperoni druga hawajska, i dwie cole"',
+                msg: null, chips: [], glow: [],
+            },
+            {
+                id: 'voice_result',
+                msg: 'Rozumiem! Oto co zamowiles:',
+                confirm: {
+                    items: [
+                        { name: 'Pizza Pepperoni duza', price: '32,00 zl' },
+                        { name: 'Pizza Hawajska duza', price: '30,00 zl' },
+                        { name: 'Coca-Cola 500ml x2', price: '16,00 zl' },
+                    ],
+                    total: '78,00 zl',
+                },
+                chips: [],
+                glow: ['PEPPERONI', 'HAWAII'],
+            },
+            {
+                id: 'voice_confirmed',
+                addToCart: { name: '3 pozycje', price: '78,00 zl', count: 4 },
+                msg: 'Wszystko dodane! 4 pozycje, 78 zl. Jedno zdanie glosem zamiast 8 klikniec!',
+                chips: [{ label: 'Przejdz do koszyka', icon: 'fa-basket-shopping', style: 'primary', action: 'cart' }],
+                glow: [],
+            },
+            {
+                id: 'type_demo',
+                msg: 'Jasne! Wpisz czego szukasz — np. "cos ostrego" albo "pizza dla 2 osob".',
+                chips: [
+                    { label: 'Cos ostrego', icon: 'fa-pepper-hot', action: 'spicy_v' },
+                    { label: 'Dla 2 osob', icon: 'fa-users', action: 'for_two' },
+                ],
+                glow: [],
+            },
+            {
+                id: 'spicy_v', userMsg: 'Cos ostrego',
+                msg: 'Diavola albo Inferno — obie ogniste!',
+                chips: [
+                    { label: 'Diavola 34zl', icon: 'fa-pepper-hot', style: 'primary', action: 'done_v' },
+                    { label: 'Inferno 38zl', icon: 'fa-fire', action: 'done_v' },
+                ],
+                glow: ['DIAVOLA', 'INFERNO'],
+            },
+            {
+                id: 'for_two', userMsg: 'Dla 2 osob',
+                msg: 'Dla dwojga polecam: dwie rozne pizze + napoje. Margherita + Pepperoni to klasyczny duet!',
+                chips: [
+                    { label: 'Margherita + Pepperoni', icon: 'fa-heart', style: 'primary', action: 'done_v' },
+                ],
+                glow: ['MARGHERITA', 'PEPPERONI'],
+            },
+            { id: 'done_v', msg: 'Smacznego!', chips: [], glow: [] },
+        ],
+    },
+
+    allergy: {
+        name: 'Alergeny',
+        steps: [
+            {
+                msg: 'Czesc! Jak moge pomoc?',
+                chips: [
+                    { label: 'Bez glutenu', icon: 'fa-wheat-awn-circle-exclamation', action: 'gf' },
+                    { label: 'Wegańskie', icon: 'fa-seedling', action: 'vegan' },
+                    { label: 'Bez laktozy', icon: 'fa-droplet-slash', action: 'nolactose' },
+                ],
+                glow: [],
+            },
+            {
+                id: 'gf', userMsg: 'Macie cos bez glutenu?',
+                msg: 'Mamy 3 pozycje bezglutenowe: Salatka Cesare, Bowl z kurczakiem i Salatka grecka. Kazda pizza moze byc na ciescie GF (+5 zl). Uwaga: kuchnia przetwarza tez gluten.',
+                chips: [
+                    { label: 'Cesare 24zl', icon: 'fa-leaf', style: 'primary', action: 'add_cesare_a' },
+                    { label: 'Bowl 28zl', icon: 'fa-bowl-rice', action: 'add_bowl_a' },
+                    { label: 'Pizza GF +5zl', icon: 'fa-pizza-slice', action: 'pizza_gf' },
+                ],
+                glow: ['CESARE', 'BOWL-CHICKEN', 'GREEK'],
+                openCat: 'cat-salads',
+            },
+            {
+                id: 'vegan', userMsg: 'Cos weganskiego',
+                msg: 'Mamy Vegane — pizza z weganskim serem, grillowanymi warzywami i rukola. Oraz Salatka grecka bez fety (popros w komentarzu).',
+                chips: [
+                    { label: 'Vegana 32zl', icon: 'fa-seedling', style: 'primary', action: 'add_vegana' },
+                    { label: 'Grecka 22zl', icon: 'fa-lemon', action: 'add_greek' },
+                ],
+                glow: ['VEGANA', 'GREEK'],
+            },
+            {
+                id: 'nolactose', userMsg: 'Bez laktozy',
+                msg: 'Salatki (Cesare, Bowl, Grecka bez fety) sa bezlaktozowe. Pizze standardowo maja mozzarelle, ale mozemy podmienic na ser weganski — zaznacz w komentarzu do zamowienia.',
+                chips: [
+                    { label: 'Cesare 24zl', icon: 'fa-leaf', style: 'primary', action: 'add_cesare_a' },
+                    { label: 'Bowl 28zl', icon: 'fa-bowl-rice', action: 'add_bowl_a' },
+                ],
+                glow: ['CESARE', 'BOWL-CHICKEN'],
+                openCat: 'cat-salads',
+            },
+            {
+                id: 'add_cesare_a', addToCart: { name: 'Cesare', price: '24,00 zl' },
+                msg: 'Cesare dodana! Bezglutenowa i lekka. Smacznego!',
+                chips: [{ label: 'Koszyk', icon: 'fa-basket-shopping', style: 'primary', action: 'cart' }],
+                glow: [],
+            },
+            {
+                id: 'add_bowl_a', addToCart: { name: 'Bowl', price: '28,00 zl' },
+                msg: 'Bowl w koszyku!',
+                chips: [{ label: 'Koszyk', icon: 'fa-basket-shopping', style: 'primary', action: 'cart' }],
+                glow: [],
+            },
+            {
+                id: 'pizza_gf',
+                msg: 'Kazda pizza moze byc na ciescie bezglutenowym za +5 zl. Ktora Cie interesuje?',
+                chips: [
+                    { label: 'Margherita GF 33zl', icon: 'fa-pizza-slice', style: 'primary', action: 'add_cesare_a' },
+                    { label: 'Pepperoni GF 37zl', icon: 'fa-pepper-hot', action: 'add_cesare_a' },
+                ],
+                glow: ['MARGHERITA', 'PEPPERONI'],
+            },
+            {
+                id: 'add_vegana', addToCart: { name: 'Vegana', price: '32,00 zl' },
+                msg: 'Vegana w koszyku! 100% roslinna.',
+                chips: [{ label: 'Koszyk', icon: 'fa-basket-shopping', style: 'primary', action: 'cart' }],
+                glow: [],
+            },
+            {
+                id: 'add_greek', addToCart: { name: 'Grecka', price: '22,00 zl' },
+                msg: 'Grecka dodana!',
+                chips: [{ label: 'Koszyk', icon: 'fa-basket-shopping', style: 'primary', action: 'cart' }],
+                glow: [],
+            },
+        ],
+    },
+
+    promo: {
+        name: 'Promocja',
+        steps: [
+            {
+                showPromo: true,
+                msg: 'Piatkowa promocja! Druga pizza za 1 zl przy zamowieniu powyzej 30 zl. Ktora pizze chcesz jako baze?',
+                chips: [
+                    { label: 'Margherita 28zl', icon: 'fa-pizza-slice', action: 'promo_base_m' },
+                    { label: 'Pepperoni 32zl', icon: 'fa-pepper-hot', style: 'primary', action: 'promo_base_p' },
+                    { label: 'Inna pizza', icon: 'fa-list', style: 'subtle', action: 'promo_list' },
+                ],
+                glow: ['MARGHERITA', 'PEPPERONI'],
+            },
+            {
+                id: 'promo_base_p', userMsg: 'Pepperoni',
+                addToCart: { name: 'Pepperoni', price: '32,00 zl' },
+                msg: 'Pepperoni dodana! Teraz wybierz druga pizze za 1 zl. Jaka Ci smakuje?',
+                chips: [
+                    { label: 'Margherita za 1zl!', icon: 'fa-pizza-slice', style: 'primary', action: 'promo_second' },
+                    { label: 'Hawajska za 1zl!', icon: 'fa-umbrella-beach', action: 'promo_second' },
+                    { label: 'Diavola za 1zl!', icon: 'fa-fire', action: 'promo_second' },
+                ],
+                glow: ['MARGHERITA', 'HAWAII', 'DIAVOLA'],
+            },
+            {
+                id: 'promo_base_m', userMsg: 'Margherita',
+                addToCart: { name: 'Margherita', price: '28,00 zl' },
+                msg: 'Margherita w koszyku! Minimalna kwota to 30 zl — dodaj napoj (8 zl) i masz druga pizze za 1 zl!',
+                chips: [
+                    { label: 'Cola 8zl (odblokuje promo!)', icon: 'fa-bottle-water', style: 'primary', action: 'promo_unlock' },
+                    { label: 'Pepperoni 32zl (juz powyzej 30zl)', icon: 'fa-pepper-hot', action: 'promo_second' },
+                ],
+                glow: [],
+            },
+            {
+                id: 'promo_unlock', userMsg: null,
+                addToCart: { name: 'Cola', price: '8,00 zl' },
+                msg: 'Super! Jestes powyzej 30 zl. Teraz wybierz druga pizze za 1 zl!',
+                chips: [
+                    { label: 'Pepperoni za 1zl!', icon: 'fa-pepper-hot', style: 'primary', action: 'promo_second' },
+                    { label: 'Hawajska za 1zl!', icon: 'fa-umbrella-beach', action: 'promo_second' },
+                ],
+                glow: ['PEPPERONI', 'HAWAII'],
+            },
+            {
+                id: 'promo_second',
+                addToCart: { name: 'Druga pizza (PROMO)', price: '1,00 zl' },
+                msg: 'BOOM! Druga pizza za 1 zl dodana! To jest deal. Smacznego!',
+                chips: [{ label: 'Przejdz do koszyka', icon: 'fa-basket-shopping', style: 'primary', action: 'cart' }],
+                glow: [],
+            },
+            {
+                id: 'promo_list',
+                msg: 'Kazda pizza moze byc baza! Wybierz dowolna powyzej 30 zl i druga dostaniesz za 1 zl.',
+                chips: [
+                    { label: 'Pepperoni 32zl', icon: 'fa-pepper-hot', style: 'primary', action: 'promo_base_p' },
+                    { label: 'Diavola 34zl', icon: 'fa-fire', action: 'promo_base_p' },
+                    { label: 'BBQ Chicken 36zl', icon: 'fa-drumstick-bite', action: 'promo_base_p' },
+                ],
+                glow: ['PEPPERONI', 'DIAVOLA', 'BBQ-CHICKEN'],
+            },
+        ],
+    },
+
+    undecided: {
+        name: 'Niezdecydowany',
+        steps: [
+            {
+                msg: 'Czesc! Nie wiesz co wybrac? Pomoge! Powiedz mi — wolisz cos miesnego czy raczej lekkie?',
+                chips: [
+                    { label: 'Miesne', icon: 'fa-drumstick-bite', action: 'meat' },
+                    { label: 'Lekkie / Wege', icon: 'fa-seedling', action: 'vege' },
+                    { label: 'Zaskocz mnie!', icon: 'fa-dice', style: 'primary', action: 'random' },
+                ],
+                glow: [],
+            },
+            {
+                id: 'meat', userMsg: 'Cos miesnego',
+                msg: 'Swietnie! A ostre czy lagodne?',
+                chips: [
+                    { label: 'Ostre!', icon: 'fa-pepper-hot', action: 'meat_spicy' },
+                    { label: 'Lagodne', icon: 'fa-cheese', action: 'meat_mild' },
+                ],
+                glow: [],
+            },
+            {
+                id: 'meat_spicy',
+                msg: 'Twoja pizza to Diavola — salami pikante z jalapeno. Ostra, aromatyczna, z charakterem!',
+                chips: [
+                    { label: 'Diavola 34zl', icon: 'fa-fire', style: 'primary', action: 'add_diavola_u' },
+                    { label: 'Jeszcze ostrzejsza', icon: 'fa-fire-flame-curved', action: 'inferno_u' },
+                ],
+                glow: ['DIAVOLA'],
+            },
+            {
+                id: 'meat_mild',
+                msg: 'Polecam Capricciosę — szynka, pieczarki, oliwki. Klasyka wloska, pyszna i wyrazista bez ostrosci.',
+                chips: [
+                    { label: 'Capricciosa 33zl', icon: 'fa-pizza-slice', style: 'primary', action: 'add_capri_u' },
+                    { label: 'Pepperoni 32zl', icon: 'fa-pepper-hot', action: 'add_pepperoni_u' },
+                ],
+                glow: ['CAPRICCIOSA', 'PEPPERONI'],
+            },
+            {
+                id: 'vege', userMsg: 'Cos lekkiego / wege',
+                msg: 'Vegana to grillowane warzywa z weganskim serem i rukola. A jesli chcesz cos bez pizzy — Bowl z kurczakiem i awokado jest swietny!',
+                chips: [
+                    { label: 'Vegana 32zl', icon: 'fa-seedling', style: 'primary', action: 'add_vegana_u' },
+                    { label: 'Bowl 28zl', icon: 'fa-bowl-rice', action: 'add_bowl_u' },
+                ],
+                glow: ['VEGANA', 'BOWL-CHICKEN'],
+            },
+            {
+                id: 'random',
+                msg: 'Losuje... Dzisiaj Twoja pizza to Capricciosa — szynka, pieczarki, oliwki! Wloska klasyka, nigdy nie zawodzi.',
+                chips: [
+                    { label: 'Biore! 33zl', icon: 'fa-check', style: 'primary', action: 'add_capri_u' },
+                    { label: 'Losuj jeszcze raz', icon: 'fa-dice', action: 'random2' },
+                ],
+                glow: ['CAPRICCIOSA'],
+            },
+            {
+                id: 'random2',
+                msg: 'Drugie losowanie... BBQ Chicken! Sos BBQ, kurczak, grillowana papryka i cebula. Nowos w menu!',
+                chips: [
+                    { label: 'BBQ Chicken 36zl', icon: 'fa-drumstick-bite', style: 'primary', action: 'add_bbq_u' },
+                    { label: 'Wracam do menu', icon: 'fa-list', style: 'subtle', action: 'menu_u' },
+                ],
+                glow: ['BBQ-CHICKEN'],
+            },
+            {
+                id: 'add_diavola_u', addToCart: { name: 'Diavola', price: '34,00 zl' }, msg: 'Diavola w koszyku!', chips: [{ label: 'Koszyk', icon: 'fa-basket-shopping', style: 'primary', action: 'cart' }], glow: [],
+            },
+            {
+                id: 'inferno_u', msg: 'Inferno to nasza najostriejsza — sriracha, nduja, chili. Nie dla kazdego!', chips: [{ label: 'Inferno 38zl', icon: 'fa-fire', style: 'primary', action: 'add_inf_u' }], glow: ['INFERNO'],
+            },
+            { id: 'add_inf_u', addToCart: { name: 'Inferno', price: '38,00 zl' }, msg: 'Inferno dodane! Odwaga!', chips: [{ label: 'Koszyk', icon: 'fa-basket-shopping', style: 'primary', action: 'cart' }], glow: [] },
+            { id: 'add_capri_u', addToCart: { name: 'Capricciosa', price: '33,00 zl' }, msg: 'Capricciosa w koszyku!', chips: [{ label: 'Koszyk', icon: 'fa-basket-shopping', style: 'primary', action: 'cart' }], glow: [] },
+            { id: 'add_pepperoni_u', addToCart: { name: 'Pepperoni', price: '32,00 zl' }, msg: 'Pepperoni dodana!', chips: [{ label: 'Koszyk', icon: 'fa-basket-shopping', style: 'primary', action: 'cart' }], glow: [] },
+            { id: 'add_vegana_u', addToCart: { name: 'Vegana', price: '32,00 zl' }, msg: 'Vegana w koszyku!', chips: [{ label: 'Koszyk', icon: 'fa-basket-shopping', style: 'primary', action: 'cart' }], glow: [] },
+            { id: 'add_bowl_u', addToCart: { name: 'Bowl', price: '28,00 zl' }, msg: 'Bowl dodany!', chips: [{ label: 'Koszyk', icon: 'fa-basket-shopping', style: 'primary', action: 'cart' }], glow: [] },
+            { id: 'add_bbq_u', addToCart: { name: 'BBQ Chicken', price: '36,00 zl' }, msg: 'BBQ Chicken w koszyku!', chips: [{ label: 'Koszyk', icon: 'fa-basket-shopping', style: 'primary', action: 'cart' }], glow: [] },
+            { id: 'menu_u', msg: 'Menu jest powyzej — przegladaj!', chips: [{ label: 'Co polecasz?', icon: 'fa-star', action: 'random' }], glow: [] },
+        ],
+    },
+};
+
+// ── Helpers ──
+
+function clearGlow() {
+    document.querySelectorAll('.macius-glow').forEach(el => el.classList.remove('macius-glow'));
+}
+
+function setGlow(skus) {
+    clearGlow();
+    skus.forEach(sku => {
+        document.querySelectorAll(`[data-sku="${sku}"]`).forEach(el => {
+            el.classList.add('macius-glow');
+            el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+        });
+    });
+}
+
+function showToast(text) {
+    const toast = document.getElementById('cart-toast');
+    document.getElementById('cart-toast-text').textContent = text;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2200);
+}
+
+function updateCart(count) {
+    cartItems += (count || 1);
+    document.getElementById('cart-count').textContent = cartItems;
+    const badge = document.getElementById('cart-count');
+    badge.style.transform = 'scale(1.3)';
+    setTimeout(() => badge.style.transform = 'scale(1)', 200);
+}
+
+function toggleCat(btn) {
+    btn.classList.toggle('open');
+    const body = btn.nextElementSibling;
+    body.classList.toggle('hidden');
+}
+
+function openCat(id) {
+    const body = document.getElementById(id);
+    if (body && body.classList.contains('hidden')) {
+        body.classList.remove('hidden');
+        const head = body.previousElementSibling;
+        if (head) head.classList.add('open');
+        setTimeout(() => body.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
+    }
+}
+
+function openStrip() {
+    document.getElementById('macius-strip').classList.add('visible');
+    document.getElementById('macius-toggle').classList.add('hidden');
+}
+
+function minimizeStrip() {
+    document.getElementById('macius-strip').classList.remove('visible');
+    document.getElementById('macius-toggle').classList.remove('hidden');
+}
+
+// ── Render step ──
+
+function findStep(scenario, actionId) {
+    return scenario.steps.find(s => s.id === actionId);
+}
+
+function renderStep(step, scenario) {
+    const content = document.getElementById('macius-content');
+    let html = '';
+
+    // User message (if any)
+    if (step.userMsg) {
+        html += `<div class="macius-user-msg">${step.userMsg}</div>`;
+    }
+
+    // Add to cart
+    if (step.addToCart) {
+        updateCart(step.addToCart.count || 1);
+        showToast(`${step.addToCart.name} — ${step.addToCart.price}`);
+    }
+
+    // Show promo banner
+    if (step.showPromo) {
+        document.getElementById('promo-banner').classList.remove('hidden');
+    }
+
+    // Confirmation overlay (voice)
+    if (step.confirm) {
+        const overlay = document.getElementById('confirm-overlay');
+        const card = document.getElementById('confirm-card');
+        card.innerHTML = `
+            <h3><i class="fa-solid fa-wand-magic-sparkles" style="color:var(--gold);margin-right:8px"></i>Macius rozumie</h3>
+            ${step.confirm.items.map(i => `<div class="confirm-item"><span class="confirm-item__name">${i.name}</span><span class="confirm-item__price">${i.price}</span></div>`).join('')}
+            <div class="confirm-total"><span>Razem</span><span>${step.confirm.total}</span></div>
+            <div class="confirm-actions">
+                <button class="btn-no" onclick="document.getElementById('confirm-overlay').classList.add('hidden')">Popraw</button>
+                <button class="btn-yes" onclick="document.getElementById('confirm-overlay').classList.add('hidden'); executeAction('voice_confirmed', SCENARIOS['${currentScenario}'])">Dodaj wszystko ${step.confirm.total}</button>
+            </div>
+        `;
+        overlay.classList.remove('hidden');
+    }
+
+    // Voice demo (simulate listening)
+    if (step.voiceDemo) {
+        html += `<div class="macius-typing"><span></span><span></span><span></span></div>`;
+        content.innerHTML = html;
+        // Simulate mic listening
+        const micBtn = document.querySelector('.macius-input__mic');
+        if (micBtn) { micBtn.classList.add('listening'); }
+
+        setTimeout(() => {
+            if (micBtn) micBtn.classList.remove('listening');
+            const resultStep = findStep(scenario, 'voice_result');
+            if (resultStep) renderStep(resultStep, scenario);
+        }, 2000);
+        return;
+    }
+
+    // Bot message
+    if (step.msg) {
+        html += `
+            <div class="macius-msg">
+                <div class="macius-msg__head">
+                    <div class="macius-msg__avatar">M</div>
+                    <span class="macius-msg__label">Macius</span>
+                </div>
+                <div class="macius-msg__text">${step.msg}</div>
+            </div>
+        `;
+    }
+
+    // Chips
+    if (step.chips && step.chips.length > 0) {
+        html += '<div class="macius-chips">';
+        step.chips.forEach(chip => {
+            const cls = chip.style === 'primary' ? 'macius-chip--primary' :
+                        chip.style === 'subtle' ? 'macius-chip--subtle' : '';
+            html += `<button class="macius-chip ${cls}" onclick="executeAction('${chip.action}', SCENARIOS['${currentScenario}'])">
+                <i class="fa-solid ${chip.icon}"></i> ${chip.label}
+            </button>`;
+        });
+        html += '</div>';
+    }
+
+    // Input bar
+    html += `
+        <div class="macius-input">
+            <input class="macius-input__field" type="text" placeholder="Wpisz lub powiedz czego szukasz..." 
+                   onkeydown="if(event.key==='Enter'){handleTextInput(this.value, SCENARIOS['${currentScenario}']); this.value='';}" />
+            <button class="macius-input__btn macius-input__mic" title="Mow do Maciusia" onclick="simulateMic()"><i class="fa-solid fa-microphone"></i></button>
+            <button class="macius-input__btn macius-input__send" title="Wyslij"><i class="fa-solid fa-paper-plane"></i></button>
+        </div>
+    `;
+
+    content.innerHTML = html;
+
+    // Glow
+    if (step.glow && step.glow.length > 0) {
+        setGlow(step.glow);
+    } else {
+        clearGlow();
+    }
+
+    // Open category if needed
+    if (step.openCat) {
+        openCat(step.openCat);
+    }
+}
+
+function executeAction(actionId, scenario) {
+    if (actionId === 'minimize') {
+        minimizeStrip();
+        return;
+    }
+    if (actionId === 'cart') {
+        showToast('Otwieram koszyk...');
+        return;
+    }
+    const step = findStep(scenario, actionId);
+    if (step) {
+        renderStep(step, scenario);
+    }
+}
+
+function handleTextInput(text, scenario) {
+    if (!text.trim()) return;
+    const lower = text.toLowerCase();
+    // Simple keyword matching for prototype
+    let targetId = null;
+    if (lower.includes('ostr') || lower.includes('pikant') || lower.includes('spicy')) targetId = 'spicy';
+    else if (lower.includes('lekk') || lower.includes('salat') || lower.includes('diet')) targetId = 'light';
+    else if (lower.includes('gluten')) targetId = 'gf';
+    else if (lower.includes('wegan') || lower.includes('vegan') || lower.includes('roslin')) targetId = 'vegan';
+
+    const content = document.getElementById('macius-content');
+    const userHtml = `<div class="macius-user-msg">${text}</div>`;
+
+    if (targetId) {
+        const step = findStep(scenario, targetId);
+        if (step) {
+            const modStep = { ...step, userMsg: null };
+            content.innerHTML = userHtml + content.innerHTML;
+            setTimeout(() => renderStep(modStep, scenario), 400);
+            return;
+        }
+    }
+
+    // Fallback
+    content.innerHTML = userHtml;
+    setTimeout(() => {
+        renderStep({
+            msg: 'Hmm, nie znalazlem dokladnego dopasowania. Sprobuj kliknac kategorie powyzej albo powiedz inaczej — np. "cos ostrego" lub "bez glutenu".',
+            chips: [
+                { label: 'Bestsellery', icon: 'fa-fire', action: 'next' },
+                { label: 'Pokaz menu', icon: 'fa-list', style: 'subtle', action: 'menu' },
+            ],
+            glow: [],
+        }, scenario);
+    }, 500);
+}
+
+function simulateMic() {
+    const micBtn = document.querySelector('.macius-input__mic');
+    if (!micBtn) return;
+    micBtn.classList.add('listening');
+    setTimeout(() => {
+        micBtn.classList.remove('listening');
+        showToast('Rozpoznawanie mowy wymaga HTTPS + mikrofon');
+    }, 2000);
+}
+
+// ── Scenario loader ──
+
+function loadScenario(name) {
+    currentScenario = name;
+    cartItems = 0;
+    document.getElementById('cart-count').textContent = '0';
+    document.getElementById('promo-banner').classList.add('hidden');
+    document.getElementById('confirm-overlay').classList.add('hidden');
+    clearGlow();
+
+    // Update proto bar buttons
+    document.querySelectorAll('.proto-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+
+    const scenario = SCENARIOS[name];
+    if (!scenario) return;
+
+    // Show strip
+    document.getElementById('macius-strip').classList.add('visible');
+    document.getElementById('macius-toggle').classList.add('hidden');
+
+    // Render initial step (always first)
+    const content = document.getElementById('macius-content');
+    content.innerHTML = '<div class="macius-typing"><span></span><span></span><span></span></div>';
+
+    setTimeout(() => {
+        renderStep(scenario.steps[0], scenario);
+    }, 600);
+}
+
+// ── Init ──
+window.addEventListener('DOMContentLoaded', () => {
+    const strip = document.getElementById('macius-strip');
+    const content = document.getElementById('macius-content');
+
+    // Initial load — typing then greeting
+    content.innerHTML = '<div class="macius-typing"><span></span><span></span><span></span></div>';
+
+    setTimeout(() => {
+        strip.classList.add('visible');
+    }, 300);
+
+    setTimeout(() => {
+        renderStep(SCENARIOS.new.steps[0], SCENARIOS.new);
+    }, 1200);
+});
+</script>
+</body>
+</html>
