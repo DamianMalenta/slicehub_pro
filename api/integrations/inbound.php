@@ -457,6 +457,7 @@ $didBumpStatus = false;
 $didBumpDelivery = false;
 $didBumpPayment = false;
 
+$outboxEventId = null;
 if ($externalRef !== null && $externalRef !== '') {
     try {
         $pdo->beginTransaction();
@@ -518,6 +519,30 @@ if ($externalRef !== null && $externalRef !== '') {
             }
         }
 
+        // ── Publish internal event IN transaction (outbox pattern) ──
+        // Must be BEFORE commit so snapshotOrder() sees uncommitted changes.
+        if ($orderUuid !== null && $eventType !== null && ($didBumpStatus || $didBumpDelivery || $didBumpPayment)) {
+            $outboxEventId = OrderEventPublisher::publishOrderLifecycle(
+                $pdo,
+                $tenantId,
+                $eventType,
+                $orderUuid,
+                [
+                    'source'        => 'inbound_callback',
+                    'provider'      => $provider,
+                    'callback_id'   => $callbackId,
+                    'remote_ip'     => $remoteIp,
+                    'external_ref'  => $externalRef,
+                    'provider_payload' => $result['payload'] ?? null,
+                ],
+                [
+                    'actor_type' => 'external_api',
+                    'actor_id'   => $provider,
+                    'source'     => 'inbound_callback',
+                ]
+            );
+        }
+
         $pdo->commit();
 
     } catch (\Throwable $e) {
@@ -526,33 +551,6 @@ if ($externalRef !== null && $externalRef !== '') {
         }
         error_log('[inbound.php] DB error matching order: ' . $e->getMessage());
     }
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// Publish internal event → KDS, Driver, notifications get notified
-// ─────────────────────────────────────────────────────────────────────────
-
-$outboxEventId = null;
-if ($orderUuid !== null && $eventType !== null && ($didBumpStatus || $didBumpDelivery || $didBumpPayment)) {
-    $outboxEventId = OrderEventPublisher::publishOrderLifecycle(
-        $pdo,
-        $tenantId,
-        $eventType,
-        $orderUuid,
-        [
-            'source'        => 'inbound_callback',
-            'provider'      => $provider,
-            'callback_id'   => $callbackId,
-            'remote_ip'     => $remoteIp,
-            'external_ref'  => $externalRef,
-            'provider_payload' => $result['payload'] ?? null,
-        ],
-        [
-            'actor_type' => 'external_api',
-            'actor_id'   => $provider,
-            'source'     => 'inbound_callback',
-        ]
-    );
 }
 
 // ─────────────────────────────────────────────────────────────────────────
