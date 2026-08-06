@@ -2,6 +2,8 @@
  * SLICEHUB POS V2 — UI Rendering Engine
  * All rendering: battlefield, pulse, fleet, dish card, checkout, payment, cancel, print.
  */
+import PosAPI from './pos_api.js';
+
 const PosUI = (() => {
     const $ = sel => document.querySelector(sel);
     const $$ = sel => document.querySelectorAll(sel);
@@ -537,8 +539,8 @@ const PosUI = (() => {
                     : [10, 15, 20, 30, 45, 60];
                 const pillsHtml = pills.map(m => `<button data-accept="${o.id}" data-min="${m}">+${m}m</button>`).join('');
 
-                // Time slot picker (next 6 slots at 15-min intervals)
-                const slotsHtml = _generateTimeSlots(o.id, isDelivery ? 30 : 15);
+                // Time slot picker — loaded from backend PromisedTimeEngine
+                const slotsHtml = `<div class="pulse-slots-loading" data-slots-for="${o.id}" data-channel="${o.order_type}">Ładuję sloty...</div>`;
 
                 expandHtml = `<div class="pulse-expand">${custSection}<div class="pulse-items">${lines}</div>${requestedSection}<div class="pulse-time-section"><div class="pulse-section-label">Czas realizacji</div><div class="pulse-accept-btns">${pillsHtml}</div><div class="pulse-section-label pulse-section-label-slots">Lub wybierz godzinę</div><div class="pulse-slots">${slotsHtml}</div></div><div class="pulse-actions"><button class="pulse-accept-now" data-accept-now="${o.id}">ASAP</button><button class="pulse-reject" data-reject="${o.id}">Odrzuć</button></div></div>`;
             }
@@ -567,30 +569,39 @@ const PosUI = (() => {
             e.stopPropagation();
             if (callbacks.onReject) callbacks.onReject(btn.dataset.reject);
         }));
+
+        // Async: load time slots from backend for expanded card
+        document.querySelectorAll('.pulse-slots-loading').forEach(el => {
+            _loadSlotsFromBackend(el.dataset.slotsFor, el.dataset.channel, el, callbacks);
+        });
     }
 
-    // Generate time slots starting from now, rounded up to next interval
-    function _generateTimeSlots(orderId, intervalMin = 15, count = 8) {
-        const now = new Date();
-        // Round up to next interval
-        const mins = now.getMinutes();
-        const nextSlot = Math.ceil(mins / intervalMin) * intervalMin;
-        const start = new Date(now);
-        start.setMinutes(nextSlot, 0, 0);
-        // First slot should be at least 15 min from now
-        if (start.getTime() - now.getTime() < 15 * 60000) {
-            start.setMinutes(start.getMinutes() + intervalMin);
+    // Load time slots from backend (PromisedTimeEngine via estimate.php)
+    async function _loadSlotsFromBackend(orderId, channel, container, callbacks) {
+        if (!container) return;
+        const interval = (channel === 'delivery') ? 15 : 15;
+        const res = await PosAPI.estimateSlots(channel, interval, 10);
+        if (!res.success || !res.data || !res.data.slots) {
+            container.innerHTML = '<span style="color:var(--text-muted);font-size:8px">Nie można załadować slotów</span>';
+            return;
         }
-
+        const { slots, asap_estimate } = res.data;
+        const asapMin = asap_estimate ? asap_estimate.estimated_minutes : '?';
         let html = '';
-        for (let i = 0; i < count; i++) {
-            const slot = new Date(start.getTime() + i * intervalMin * 60000);
-            const hh = String(slot.getHours()).padStart(2, '0');
-            const mm = String(slot.getMinutes()).padStart(2, '0');
-            const iso = slot.toISOString().slice(0, 16);
-            html += `<button data-slot="${orderId}" data-slot-time="${iso}">${hh}:${mm}</button>`;
-        }
-        return html;
+        slots.forEach(s => {
+            html += `<button data-slot="${orderId}" data-slot-time="${s.iso}">${s.label}</button>`;
+        });
+        container.outerHTML = `<div class="pulse-slots">${html}</div>`;
+
+        // Update ASAP button label with estimate
+        const asapBtn = document.querySelector(`[data-accept-now="${orderId}"]`);
+        if (asapBtn) asapBtn.textContent = `ASAP (~${asapMin}min)`;
+
+        // Re-wire slot click events
+        document.querySelectorAll(`[data-slot="${orderId}"]`).forEach(btn => btn.addEventListener('click', e => {
+            e.stopPropagation();
+            if (callbacks.onAcceptDate) callbacks.onAcceptDate(btn.dataset.slot, btn.dataset.slotTime);
+        }));
     }
 
     // === KANBAN BATTLEFIELD ===

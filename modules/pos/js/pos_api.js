@@ -91,6 +91,20 @@ const PosAPI = (() => {
         createCourse:           (orderIds) => _post('/courses/engine.php', { action: 'create_course', order_ids: orderIds }),
         assignDriverToCourse:   (courseId, driverId) => _post('/courses/engine.php', { action: 'assign_driver_to_course', course_id: courseId, driver_id: driverId }),
 
+        // Time estimate — slots for order acceptance
+        estimateSlots: async (channel, interval = 15, count = 10) => {
+            const headers = {};
+            if (_token) headers['Authorization'] = `Bearer ${_token}`;
+            try {
+                const url = `${posApiBase()}/orders/estimate.php?mode=slots&channel=${encodeURIComponent(channel)}&interval=${interval}&count=${count}`;
+                const res = await fetch(url, { method: 'GET', headers });
+                const json = await res.json();
+                return { success: json.success === true, data: json.data || null, message: json.message || '' };
+            } catch (e) {
+                return { success: false, data: null, message: 'Network error' };
+            }
+        },
+
         // Tables — fetch available tables for Dine-In selector
         getAvailableTables:     () => _post('/tables/engine.php', { action: 'get_floor_status' }),
 

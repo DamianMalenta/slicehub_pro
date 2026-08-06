@@ -1,20 +1,22 @@
 <?php
 // =============================================================================
-// STATUS: ORPHAN (audit 2026-04-19) — not wired from any frontend module.
-// Planned consumer: storefront "Zaplanuj na później" flow + online scheduled
-// order picker. Thin HTTP wrapper around PromisedTimeEngine::calculate().
-// Keep until scheduled-order UI ships in modules/online/.
-// =============================================================================
 // SliceHub Enterprise — Promised Time Estimate Endpoint
 // GET /api/orders/estimate.php
 //
 // Returns estimated/validated promised_time for a given mode & channel.
 // Wraps PromisedTimeEngine::calculate() with HTTP error handling.
 //
+// Modes:
+//   asap           — returns estimated time (prep × load + channel buffer)
+//   scheduled      — validates requested_time (lead-time + business hours)
+//   slots          — returns array of available time slots from earliest possible
+//
 // Params (query string):
-//   mode           — "asap" | "scheduled"
+//   mode           — "asap" | "scheduled" | "slots"
 //   channel        — "dine_in" | "takeaway" | "delivery"
 //   requested_time — ISO 8601 string (required when mode=scheduled)
+//   interval       — slot interval in minutes (default: 15, for mode=slots)
+//   count          — number of slots to return (default: 12, for mode=slots)
 //
 // Schema: sh_tenant_settings, sh_orders
 // =============================================================================
@@ -66,15 +68,46 @@ try {
     // =========================================================================
     // 2. CALCULATE
     // =========================================================================
-    $result = PromisedTimeEngine::calculate($pdo, $tenant_id, $mode, $channel, $requestedTime);
+    if ($mode === 'slots') {
+        // Generate available time slots starting from ASAP estimate
+        $interval = max(5, min(60, (int)($_GET['interval'] ?? 15)));
+        $count    = max(4, min(24, (int)($_GET['count'] ?? 12)));
 
-    // =========================================================================
-    // 3. SUCCESS
-    // =========================================================================
-    echo json_encode([
-        'success' => true,
-        'data'    => $result,
-    ]);
+        $asap = PromisedTimeEngine::calculate($pdo, $tenant_id, 'asap', $channel);
+        $tz   = new DateTimeZone('Europe/Warsaw');
+        $earliest = new DateTime($asap['promised_time'], $tz);
+
+        // Round up to next interval boundary
+        $mins = (int)$earliest->format('i');
+        $nextSlot = (int)ceil($mins / $interval) * $interval;
+        $earliest->setTime((int)$earliest->format('H'), $nextSlot, 0);
+
+        $slots = [];
+        for ($i = 0; $i < $count; $i++) {
+            $slotTime = (clone $earliest)->modify("+".($i * $interval)." minutes");
+            $slots[] = [
+                'time'  => $slotTime->format('H:i'),
+                'iso'   => $slotTime->format('Y-m-d\TH:i'),
+                'label' => $slotTime->format('H:i'),
+            ];
+        }
+
+        echo json_encode([
+            'success' => true,
+            'data'    => [
+                'asap_estimate'    => $asap,
+                'slots'            => $slots,
+                'interval_minutes' => $interval,
+            ],
+        ]);
+    } else {
+        $result = PromisedTimeEngine::calculate($pdo, $tenant_id, $mode, $channel, $requestedTime);
+
+        echo json_encode([
+            'success' => true,
+            'data'    => $result,
+        ]);
+    }
 
 } catch (InvalidArgumentException $e) {
     http_response_code(400);
