@@ -1724,9 +1724,12 @@ try {
                         ':wid' => $pzMeta['warehouse_id'], ':sku' => $sku,
                     ]);
                     // Log
-                    $currentQty = (float) ($pdo->query("SELECT quantity FROM wh_stock WHERE tenant_id={$tenant_id}
-                        AND warehouse_id='" . addslashes($pzMeta['warehouse_id']) . "' AND sku='" . addslashes($sku) . "'")
-                        ->fetchColumn() ?: 0);
+                    $stmtQty = $pdo->prepare(
+                        "SELECT quantity FROM wh_stock
+                         WHERE tenant_id = ? AND warehouse_id = ? AND sku = ?"
+                    );
+                    $stmtQty->execute([$tenant_id, $pzMeta['warehouse_id'], $sku]);
+                    $currentQty = (float)($stmtQty->fetchColumn() ?: 0);
                     $stockLog->execute([
                         ':tid' => $tenant_id, ':wid' => $pzMeta['warehouse_id'], ':sku' => $sku,
                         ':chg' => -$qty, ':after' => $currentQty, ':did' => $korId, ':uid' => $user_id,

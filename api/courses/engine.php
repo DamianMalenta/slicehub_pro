@@ -1099,7 +1099,8 @@ try {
         if (count($oids) > 0) {
             $p2 = []; $prm2 = [];
             foreach ($oids as $i => $oid) { $k=":x{$i}"; $p2[]=$k; $prm2[$k]=$oid; }
-            $s2 = $pdo->prepare("SELECT order_id, snapshot_name, quantity, comment, modifiers_json, COALESCE(driver_action_type,'none') AS driver_action_type FROM sh_order_lines WHERE order_id IN (" . implode(',',$p2) . ")");
+            $s2 = $pdo->prepare("SELECT order_id, snapshot_name, quantity, comment, modifiers_json, COALESCE(driver_action_type,'none') AS driver_action_type FROM sh_order_lines WHERE order_id IN (" . implode(',',$p2) . ") AND order_id IN (SELECT id FROM sh_orders WHERE tenant_id = :tid)");
+            $prm2[':tid'] = $tenant_id;
             $s2->execute($prm2);
             foreach ($s2->fetchAll(PDO::FETCH_ASSOC) as $l) { $lmap[$l['order_id']][] = $l; }
         }

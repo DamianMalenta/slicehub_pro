@@ -537,9 +537,10 @@ try {
             $stmtLines = $pdo->prepare(
                 "SELECT item_sku, snapshot_name, quantity, unit_price, line_total,
                         modifiers_json, removed_ingredients_json, comment
-                 FROM sh_order_lines WHERE order_id = ?"
+                 FROM sh_order_lines
+                 WHERE order_id = ? AND order_id IN (SELECT id FROM sh_orders WHERE tenant_id = ?)"
             );
-            $stmtLines->execute([$o['id']]);
+            $stmtLines->execute([$o['id'], $tenant_id]);
             $o['lines'] = $stmtLines->fetchAll(PDO::FETCH_ASSOC);
             $o['grand_total_formatted'] = number_format(((int)$o['grand_total']) / 100, 2, '.', '');
         }
@@ -826,28 +827,35 @@ try {
 
                     $pdo->prepare(
                         "UPDATE sh_order_lines SET line_status = 'cancelled', quantity = 0
-                         WHERE order_id = ? AND fired_at IS NOT NULL AND line_status != 'cancelled'"
-                    )->execute([$editId]);
+                         WHERE order_id = ? AND fired_at IS NOT NULL AND line_status != 'cancelled'
+                         AND order_id IN (SELECT id FROM sh_orders WHERE tenant_id = ?)"
+                    )->execute([$editId, $tenant_id]);
 
                     try {
                         $pdo->prepare(
                             "DELETE oim FROM sh_order_item_modifiers oim
                              JOIN sh_order_lines ol ON oim.order_item_id = ol.id
-                             WHERE ol.order_id = ? AND ol.fired_at IS NULL"
-                        )->execute([$editId]);
+                             WHERE ol.order_id = ? AND ol.fired_at IS NULL
+                             AND ol.order_id IN (SELECT id FROM sh_orders WHERE tenant_id = ?)"
+                        )->execute([$editId, $tenant_id]);
                     } catch (\PDOException $e) {}
                     $pdo->prepare(
-                        "DELETE FROM sh_order_lines WHERE order_id = ? AND fired_at IS NULL"
-                    )->execute([$editId]);
+                        "DELETE FROM sh_order_lines WHERE order_id = ? AND fired_at IS NULL
+                         AND order_id IN (SELECT id FROM sh_orders WHERE tenant_id = ?)"
+                    )->execute([$editId, $tenant_id]);
                 } else {
                     try {
                         $pdo->prepare(
                             "DELETE oim FROM sh_order_item_modifiers oim
                              JOIN sh_order_lines ol ON oim.order_item_id = ol.id
-                             WHERE ol.order_id = ?"
-                        )->execute([$editId]);
+                             WHERE ol.order_id = ?
+                             AND ol.order_id IN (SELECT id FROM sh_orders WHERE tenant_id = ?)"
+                        )->execute([$editId, $tenant_id]);
                     } catch (\PDOException $e) {}
-                    $pdo->prepare("DELETE FROM sh_order_lines WHERE order_id = ?")->execute([$editId]);
+                    $pdo->prepare(
+                        "DELETE FROM sh_order_lines WHERE order_id = ?
+                         AND order_id IN (SELECT id FROM sh_orders WHERE tenant_id = ?)"
+                    )->execute([$editId, $tenant_id]);
                 }
 
                 $pdo->prepare(

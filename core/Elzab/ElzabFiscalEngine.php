@@ -72,7 +72,7 @@ final class ElzabFiscalEngine
         $payments = self::fetchPayments($pdo, $orderId, $tenantId);
 
         // 5. Pobierz imię kasjera
-        $cashier = self::fetchCashierName($pdo, $userId) ?: 'POS';
+        $cashier = self::fetchCashierName($pdo, $userId, $tenantId) ?: 'POS';
 
         // 6. Mapuj linie na format Thermal
         $thermalLines = self::mapOrderLines($lines);
@@ -386,10 +386,10 @@ final class ElzabFiscalEngine
         return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     }
 
-    private static function fetchCashierName(\PDO $pdo, int $userId): string
+    private static function fetchCashierName(\PDO $pdo, int $userId, int $tenantId): string
     {
-        $stmt = $pdo->prepare("SELECT name FROM sh_users WHERE id = :uid");
-        $stmt->execute([':uid' => $userId]);
+        $stmt = $pdo->prepare("SELECT name FROM sh_users WHERE id = :uid AND tenant_id = :tid");
+        $stmt->execute([':uid' => $userId, ':tid' => $tenantId]);
         return (string)($stmt->fetchColumn() ?: '');
     }
 

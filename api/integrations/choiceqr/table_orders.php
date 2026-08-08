@@ -233,9 +233,10 @@ try {
             "SELECT id, order_id, item_sku, snapshot_name, unit_price,
                     quantity, line_total, vat_rate, modifiers_json
              FROM sh_order_lines
-             WHERE order_id IN ({$placeholders})"
+             WHERE order_id IN ({$placeholders})
+             AND order_id IN (SELECT id FROM sh_orders WHERE tenant_id = ?)"
         );
-        $stmtLines->execute($orderIds);
+        $stmtLines->execute(array_merge($orderIds, [$tenantId]));
         foreach ($stmtLines->fetchAll(PDO::FETCH_ASSOC) as $l) {
             $linesByOrder[(string)$l['order_id']][] = $l;
         }
