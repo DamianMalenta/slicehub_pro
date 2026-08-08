@@ -20,7 +20,9 @@ Decyzja użytkownika: **nie cofać** do backupu z 21 maja (`backup-local-main-20
 
 | Problem | Fix |
 |---------|-----|
-| Commit `789dd9a` uszkodził kodowanie: UTF-8 z BOM → cp1250, polskie znaki zepsute (`ó` = `F3` zamiast `C3 B3`), logika biznesowa zmieniona (`½ + ½` → `1 + 1`) | Przywrócony z `backup-local-main-2026-05-21` (13553 bajty, UTF-8 z BOM, `ó` = `C3 B3`) |
+| Commit `789dd9a` uszkodził kodowanie: UTF-8 z BOM → cp1250, polskie znaki zepsute (`ó` = `F3` zamiast `C3 B3`), logika biznesowa zmieniona (`½ + ½` → `1 + 1`) | Wzięty `index.html` z HEAD~1 (poprawne script tagi, cp1250) i przekonwertowany na UTF-8 z BOM (`ISO-8859-2 → UTF-8` via `mb_convert_encoding`). Struktura HTML zachowana, encoding naprawiony. |
+
+**Uwaga — pierwsza próba (commit `cb098f2`, potem amend `3073506`):** Początkowo przywrócono cały plik z `backup-local-main-2026-05-21`. To cofnęło strukturę HTML — usunęło `<script src="../../core/js/sh_api_base.js">` (SSOT API base, dodany w commit `22a4efc`). Bez tego `pos_app.js` nie miał dostępu do `SliceHub.apiUrl()` — POS nie ładował dań. Naprawiono w amendzie: konwersja encoding-only z HEAD~1, zachowując obecne script tagi.
 
 ### S1 — Brak `tenant_id` w `sh_order_lines` (Prawo II: Multi-Tenancy)
 
@@ -81,9 +83,13 @@ pass: 61, fail: 0, warn: 1, total: 62
 ### Encoding `index.html`
 
 ```
-Size: 13553 bytes, BOM: True (EF BB BF)
+Size: 13791 bytes, BOM: True (EF BB BF)
 Zamów → ó = C3 B3 (UTF-8) ✓
+cp1250 ó (0xF3): N (good) ✓
+Script tags: ../../tenant_config.php, ../../core/js/sh_api_base.js, pos_app.js ✓
 ```
+
+**Service Worker cache:** Po deployu na produkcji stary SW serwuje zcache'owaną wersję `index.html` (cp1250). Wymagane: F12 → Application → Service Workers → Unregister + Storage → Clear site data. Albo bump `CACHE_VERSION` w `modules/pos/sw.js`.
 
 ---
 
@@ -91,7 +97,7 @@ Zamów → ó = C3 B3 (UTF-8) ✓
 
 | Plik | Typ zmiany |
 |------|-----------|
-| `modules/pos/index.html` | Przywrócony z backup (encoding) |
+| `modules/pos/index.html` | Konwersja cp1250 → UTF-8 z BOM (encoding-only, struktura HTML zachowana z HEAD~1) |
 | `api/pos/engine.php` | 5× dodany tenant_id subquery |
 | `api/courses/engine.php` | 1× dodany tenant_id subquery |
 | `api/integrations/choiceqr/table_orders.php` | 1× dodany tenant_id subquery |
