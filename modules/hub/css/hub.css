@@ -357,6 +357,33 @@ html, body {
     gap: 8px;
     margin-bottom: 14px;
 }
+.hoe-type-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    font-size: 13px;
+    color: var(--hub-muted);
+}
+.hoe-type-row select {
+    flex: 1;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--hub-border);
+    background: var(--hub-surface);
+    color: var(--hub-text);
+    font-size: 13px;
+}
+.hoe-address {
+    width: 100%;
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--hub-border);
+    background: var(--hub-surface);
+    color: var(--hub-text);
+    font-size: 13px;
+}
 .hoe-add-row select { flex: 1; max-width: none; font-size: 14px; padding: 10px; }
 .hoe-add-btn {
     padding: 10px 14px;

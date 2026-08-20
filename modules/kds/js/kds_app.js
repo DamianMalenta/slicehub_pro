@@ -106,10 +106,15 @@ const KdsApp = (() => {
             if (ch.comment) parts.push('komentarz');
             rows.push(`<div class="kds-delta-row kds-delta-mod">~ ${_esc(l.snapshot_name)}: ${_esc(parts.join(', '))}</div>`);
         });
+        if (delta.order_type && delta.order_type.old !== delta.order_type.new) {
+            const tl = (t) => TYPE_LABELS[t] || t;
+            rows.push(`<div class="kds-delta-row kds-delta-mod">~ TYP: ${_esc(tl(delta.order_type.old))} → ${_esc(tl(delta.order_type.new))}</div>`);
+        }
         if (!rows.length) return '';
         return `<div class="kds-delta">
             <div class="kds-delta-title"><i class="fa-solid fa-triangle-exclamation"></i> ZMIANY OD OSTATNIEGO WYDRUKU</div>
             ${rows.join('')}
+            <button type="button" class="kds-delta-ack" onclick="KdsApp.ackChanges('${_esc(o.id)}')"><i class="fa-solid fa-check"></i> OK, widziałem</button>
         </div>`;
     }
 
@@ -283,6 +288,16 @@ const KdsApp = (() => {
         }
     }
 
+    async function ackChanges(orderId) {
+        const r = await _post('ack_changes', { order_id: orderId });
+        if (r.success) {
+            toast('Zmiany potwierdzone', 'success');
+            refresh();
+        } else {
+            toast(r.message || 'Błąd', 'error');
+        }
+    }
+
     async function recall(orderId) {
         if (!confirm('Cofnąć status zamówienia na "Przygotowanie"?')) return;
         const r = await _post('recall_order', { order_id: orderId });
@@ -330,5 +345,5 @@ const KdsApp = (() => {
         setInterval(updateClock, 15000);
     });
 
-    return Object.freeze({ refresh, bump, recall, setStation });
+    return Object.freeze({ refresh, bump, recall, ackChanges, setStation });
 })();

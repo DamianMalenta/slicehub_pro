@@ -68,7 +68,7 @@ try {
     // 2. LOAD EXISTING ORDER (status guard + tenant isolation)
     // =========================================================================
     $stmtOrder = $pdo->prepare(
-        "SELECT id, status, channel, order_type
+        "SELECT id, status, channel, order_type, delivery_address
          FROM sh_orders
          WHERE id = :id AND tenant_id = :tid
          LIMIT 1"
@@ -111,6 +111,24 @@ try {
     $editInput['channel']    = $editInput['channel']    ?? $order['channel'];
     $editInput['order_type'] = $editInput['order_type'] ?? $order['order_type'];
 
+    $newOrderType     = (string)$editInput['order_type'];
+    $orderTypeChanged = $newOrderType !== $order['order_type'];
+
+    $deliveryAddress = array_key_exists('delivery_address', $input)
+        ? trim((string)$input['delivery_address'])
+        : null;
+
+    if ($newOrderType === 'delivery') {
+        $effectiveAddress = $deliveryAddress !== null
+            ? $deliveryAddress
+            : trim((string)($order['delivery_address'] ?? ''));
+        if ($effectiveAddress === '') {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Zamówienie z dostawą wymaga adresu (delivery_address).'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+    }
+
     $calc = CartEngine::calculate($pdo, $tenant_id, $editInput);
 
     // =========================================================================
@@ -118,13 +136,17 @@ try {
     // =========================================================================
     $delta = DeltaEngine::computeDelta($oldLines, $calc['lines_raw']);
 
-    if (empty($delta)) {
+    if (empty($delta) && !$orderTypeChanged) {
         echo json_encode([
             'success' => true,
             'message' => 'No changes detected.',
             'data'    => ['order_id' => $orderId, 'delta' => null],
         ]);
         exit;
+    }
+
+    if ($orderTypeChanged) {
+        $delta['order_type'] = ['old' => $order['order_type'], 'new' => $newOrderType];
     }
 
     $deltaJson = json_encode($delta, JSON_UNESCAPED_UNICODE);
@@ -153,12 +175,16 @@ try {
                  delivery_fee      = :delivery,
                  grand_total       = :grand,
                  loyalty_points_earned = :points,
+                 order_type        = :otype,
+                 delivery_address  = COALESCE(:addr, delivery_address),
                  edited_since_print = 1,
                  kitchen_delta     = :delta,
                  updated_at        = :now
              WHERE id = :id AND tenant_id = :tid"
         );
         $stmtUpdateOrder->execute([
+            ':otype'    => $newOrderType,
+            ':addr'     => $deliveryAddress,
             ':subtotal' => $calc['subtotal_grosze'],
             ':discount' => $calc['discount_grosze'],
             ':delivery' => $calc['delivery_fee_grosze'],

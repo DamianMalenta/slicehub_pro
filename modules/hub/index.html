@@ -193,6 +193,16 @@
                 <button type="button" id="hoe-btn-back" class="hoe-back"><i class="fa-solid fa-arrow-left"></i> Lista</button>
                 <span id="hoe-edit-title" class="hoe-edit-title"></span>
             </div>
+            <div class="hoe-type-row">
+                <label for="hoe-order-type">Typ zamówienia:</label>
+                <select id="hoe-order-type">
+                    <option value="dine_in">Sala</option>
+                    <option value="takeaway">Wynos</option>
+                    <option value="delivery">Dostawa</option>
+                </select>
+            </div>
+            <input type="text" id="hoe-delivery-address" class="hoe-address hub-hidden"
+                   placeholder="Adres dostawy (wymagany)">
             <div id="hoe-lines" class="hoe-lines"></div>
             <div class="hoe-add-row">
                 <select id="hoe-add-item"></select>

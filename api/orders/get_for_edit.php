@@ -60,7 +60,7 @@ try {
 
         $stmtOrder = $pdo->prepare(
             "SELECT id, order_number, status, order_type, channel, grand_total,
-                    subtotal, discount_amount, delivery_fee, customer_name
+                    subtotal, discount_amount, delivery_fee, customer_name, delivery_address
              FROM sh_orders
              WHERE id = :id AND tenant_id = :tid
              LIMIT 1"

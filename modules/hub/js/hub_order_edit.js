@@ -114,8 +114,18 @@ const HubOrderEdit = (() => {
         }));
         $('hoe-edit-title').textContent =
             'Zamówienie #' + ((_ctx.order.order_number || '').split('/').pop());
+        const typeSel = $('hoe-order-type');
+        if (typeSel) typeSel.value = _ctx.order.order_type || 'dine_in';
+        const addr = $('hoe-delivery-address');
+        if (addr) addr.value = _ctx.order.delivery_address || '';
+        _syncAddressVisibility();
         _fillAddSelect();
         renderLines();
+    }
+
+    function _syncAddressVisibility() {
+        const isDelivery = ($('hoe-order-type')?.value || '') === 'delivery';
+        $('hoe-delivery-address')?.classList.toggle('hub-hidden', !isDelivery);
     }
 
     function _skusFromJson(raw) {
@@ -256,23 +266,40 @@ const HubOrderEdit = (() => {
             _setError('Zamówienie musi mieć co najmniej jedną pozycję.');
             return;
         }
+        const orderType = $('hoe-order-type')?.value || _ctx.order.order_type;
+        const address = ($('hoe-delivery-address')?.value || '').trim();
+        if (orderType === 'delivery' && !address) {
+            _setError('Zamówienie z dostawą wymaga adresu.');
+            return;
+        }
         const btn = $('hoe-btn-save');
         btn.disabled = true;
         _setError('');
-        const r = await _post('/orders/edit.php', {
+        const payload = {
             order_id: _ctx.order.id,
             channel: _canonChannel(_ctx.order.channel),
+            order_type: orderType,
             lines: _draft.map(_lineToPayload),
-        });
+        };
+        if (orderType === 'delivery') payload.delivery_address = address;
+        const r = await _post('/orders/edit.php', payload);
         btn.disabled = false;
         if (!r.success) {
             _setError(r.message || 'Nie udało się zapisać zmian.');
             return;
         }
         const delta = r.data && r.data.delta;
-        const info = delta
-            ? `Zapisano. Zmiany: +${(delta.added || []).length} / −${(delta.removed || []).length} / ~${(delta.modified || []).length}. KDS zobaczy różnice na bilecie.`
-            : (r.message || 'Brak zmian.');
+        const TYPE_LABELS = { dine_in: 'Sala', takeaway: 'Wynos', delivery: 'Dostawa' };
+        let info;
+        if (delta) {
+            info = `Zapisano. Zmiany: +${(delta.added || []).length} / −${(delta.removed || []).length} / ~${(delta.modified || []).length}.`;
+            if (delta.order_type) {
+                info += ` Typ: ${TYPE_LABELS[delta.order_type.old] || delta.order_type.old} → ${TYPE_LABELS[delta.order_type.new] || delta.order_type.new}.`;
+            }
+            info += ' KDS zobaczy różnice na bilecie.';
+        } else {
+            info = r.message || 'Brak zmian.';
+        }
         alert(info);
         close();
     }
@@ -285,6 +312,7 @@ const HubOrderEdit = (() => {
         $('hoe-btn-close')?.addEventListener('click', close);
         $('hoe-btn-back')?.addEventListener('click', () => { void open(); });
         $('hoe-btn-add')?.addEventListener('click', addLine);
+        $('hoe-order-type')?.addEventListener('change', _syncAddressVisibility);
         $('hoe-btn-save')?.addEventListener('click', () => { void save(); });
         $('hoe-overlay')?.addEventListener('click', (ev) => {
             if (ev.target === $('hoe-overlay')) close();
