@@ -265,8 +265,8 @@ try {
             // Idempotency check — jeśli op_id już istnieje jako 'applied',
             // zwracamy tamtą odpowiedź (bez ponownego apply).
             try {
-                $check = $pdo->prepare("SELECT status, server_ref, error_text FROM sh_pos_op_log WHERE op_id = ? LIMIT 1");
-                $check->execute([$opId]);
+                $check = $pdo->prepare("SELECT status, server_ref, error_text FROM sh_pos_op_log WHERE op_id = ? AND tenant_id = ? LIMIT 1");
+                $check->execute([$opId, $tenantId]);
                 $existing = $check->fetch(\PDO::FETCH_ASSOC);
                 if ($existing) {
                     $results[] = [
