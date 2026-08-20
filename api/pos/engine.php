@@ -842,7 +842,7 @@ try {
                         order_type=?, channel=?, payment_method=?, payment_status=?,
                         grand_total=?, subtotal=?, delivery_address=?, customer_phone=?,
                         customer_name=?, nip=?, cart_json=?, promised_time=?,
-                        edited_since_print=?, kitchen_changes=?,
+                        edited_since_print=?, kitchen_changes=?, kitchen_delta=NULL,
                         kitchen_ticket_printed = IF(? = 1, 1, kitchen_ticket_printed),
                         receipt_printed = IF(? = 1, 1, receipt_printed),
                         table_id = COALESCE(?, table_id),
@@ -1303,7 +1303,7 @@ try {
     if ($action === 'print_kitchen') {
         $oid = inputStr($input, 'order_id');
         $pdo->prepare(
-            "UPDATE sh_orders SET kitchen_ticket_printed=1, edited_since_print=0, kitchen_changes=NULL, updated_at=NOW()
+            "UPDATE sh_orders SET kitchen_ticket_printed=1, edited_since_print=0, kitchen_changes=NULL, kitchen_delta=NULL, updated_at=NOW()
              WHERE id=? AND tenant_id=?"
         )->execute([$oid, $tenant_id]);
         posResponse(true);
