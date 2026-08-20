@@ -242,7 +242,8 @@ Shared CSS dla wszystkich modułów: safe-area-inset, viewport-fit, mobilne nawi
 | `cart/calculate.php` | Endpoint kalkulacji koszyka |
 | ~~`orders/checkout.php`~~ | **USUNIĘTY 2026-07-28.** Duplikat `online/engine.php#guest_checkout` + `pos/engine.php#process_order`. `WzEngine::checkAvailability()` wchłonięte do obu. |
 | ~~`orders/accept.php`~~ | **USUNIĘTY 2026-07-28.** Duplikat `pos/engine.php#accept_order`. `canTransition()` pre-check wchłonięty. |
-| `orders/edit.php` | 🟡 PLANNED — edycja zamówienia + DeltaEngine (dla admin_hub) |
+| `orders/edit.php` | ✅ WIRED 2026-08-20 — edycja zamówienia + DeltaEngine; consumer: modal "Edytuj zamówienie" w `modules/hub/` |
+| `orders/get_for_edit.php` | Dane dla modala edycji (lista aktywnych zamówień, linie z id, katalog dań/modyfikatorów) |
 | `orders/estimate.php` | 🟡 PLANNED — estymacja promised_time (dla scheduled orders) |
 | ~~`orders/panic.php`~~ | **USUNIĘTY 2026-07-28.** Duplikat `pos/engine.php#panic_mode`. Logika wchłonięta do `core/PanicEngine.php` (debounce + configurable delay). |
 | `orders/sla_monitor.php` | 🟡 PLANNED — aggregate SLA monitor (dla admin_hub + cron) |

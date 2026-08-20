@@ -78,6 +78,7 @@ try {
                     o.delivery_address, o.customer_name, o.customer_phone,
                     o.payment_method, o.payment_status, o.grand_total,
                     o.promised_time, o.created_at,
+                    o.kitchen_delta, o.edited_since_print,
                     COALESCE(o.kitchen_ticket_printed, 0) AS kitchen_ticket_printed
              FROM sh_orders o
              WHERE o.tenant_id = :tid
