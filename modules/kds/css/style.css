@@ -252,3 +252,18 @@ html, body { height: 100%; font-family: var(--font); background: var(--bg-root);
 .kds-delta-add { color: #4ade80; }
 .kds-delta-rem { color: #f87171; text-decoration: line-through; }
 .kds-delta-mod { color: #fbbf24; }
+.kds-delta-ack {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(251, 191, 36, 0.55);
+    background: rgba(251, 191, 36, 0.18);
+    color: #fbbf24;
+    font-weight: 800;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+}
+.kds-delta-ack:hover { background: rgba(251, 191, 36, 0.3); }

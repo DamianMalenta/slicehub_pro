@@ -226,7 +226,7 @@ Shared CSS dla wszystkich modułów: safe-area-inset, viewport-fit, mobilne nawi
 | `pos/engine.php` | Router POS (menu, koszyk, checkout, accept, settle, panic) |
 | `tables/engine.php` | Router Stolików + Waiter (plany sali, rachunki, transfery) |
 | `courses/engine.php` | Router logistyki (dispatch, GPS, reconcile, payment lock, recall) |
-| `kds/engine.php` | Router KDS (`get_board` z opcjonalnym `station` — filtr linii wg `sh_kds_tickets` / menu; `bump_order`; `bump_ticket` — per-ticket state machine via `core/KdsTicketEngine.php`; `recall_order`) |
+| `kds/engine.php` | Router KDS (`get_board` z opcjonalnym `station` — filtr linii wg `sh_kds_tickets` / menu; `bump_order`; `bump_ticket` — per-ticket state machine via `core/KdsTicketEngine.php`; `recall_order`; `ack_changes` — potwierdzenie zmian przez kuchnię: czyści `kitchen_delta` + `edited_since_print`, tenant-scoped) |
 | `online/engine.php` | Router publicznej witryny (storefront, `delivery_zones`, `init_checkout`, `guest_checkout`, `track_order`) |
 | `online_studio/engine.php` | Router Studio Online (director, composer, style presets, scene) |
 | `online_studio/library_upload.php` | Multipart upload biblioteki assetów |
@@ -242,7 +242,7 @@ Shared CSS dla wszystkich modułów: safe-area-inset, viewport-fit, mobilne nawi
 | `cart/calculate.php` | Endpoint kalkulacji koszyka |
 | ~~`orders/checkout.php`~~ | **USUNIĘTY 2026-07-28.** Duplikat `online/engine.php#guest_checkout` + `pos/engine.php#process_order`. `WzEngine::checkAvailability()` wchłonięte do obu. |
 | ~~`orders/accept.php`~~ | **USUNIĘTY 2026-07-28.** Duplikat `pos/engine.php#accept_order`. `canTransition()` pre-check wchłonięty. |
-| `orders/edit.php` | ✅ WIRED 2026-08-20 — edycja zamówienia + DeltaEngine; consumer: modal "Edytuj zamówienie" w `modules/hub/` |
+| `orders/edit.php` | ✅ WIRED 2026-08-20 — edycja zamówienia + DeltaEngine; consumer: modal "Edytuj zamówienie" w `modules/hub/`. Przyjmuje też `order_type` (dine_in/takeaway/delivery; delivery wymaga `delivery_address` — z payloadu lub istniejącego na nagłówku) i zapisuje zmianę typu w `kitchen_delta.order_type {old,new}` |
 | `orders/get_for_edit.php` | Dane dla modala edycji (lista aktywnych zamówień, linie z id, katalog dań/modyfikatorów) |
 | `orders/estimate.php` | 🟡 PLANNED — estymacja promised_time (dla scheduled orders) |
 | ~~`orders/panic.php`~~ | **USUNIĘTY 2026-07-28.** Duplikat `pos/engine.php#panic_mode`. Logika wchłonięta do `core/PanicEngine.php` (debounce + configurable delay). |
