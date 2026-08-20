@@ -40,7 +40,11 @@ const HubOrderEdit = (() => {
         }
     }
 
-    function _esc(s) { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
+    function _esc(s) {
+        return String(s ?? '').replace(/[&<>"']/g, (c) => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+        }[c]));
+    }
 
     function _setError(msg) {
         const el = $('hoe-error');
