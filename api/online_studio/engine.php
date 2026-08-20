@@ -1786,11 +1786,11 @@ try {
                 }
                 $newVer = (int)$existing['version'] + 1;
                 if ($activeCamera !== null) {
-                    $up = $pdo->prepare("UPDATE sh_atelier_scenes SET spec_json=:spec, version=:ver, active_camera_preset=:cam WHERE id=:id");
-                    $up->execute([':spec' => $specJson, ':ver' => $newVer, ':cam' => $activeCamera, ':id' => $existing['id']]);
+                    $up = $pdo->prepare("UPDATE sh_atelier_scenes SET spec_json=:spec, version=:ver, active_camera_preset=:cam WHERE id=:id AND tenant_id=:tid");
+                    $up->execute([':spec' => $specJson, ':ver' => $newVer, ':cam' => $activeCamera, ':id' => $existing['id'], ':tid' => $tenant_id]);
                 } else {
-                    $up = $pdo->prepare("UPDATE sh_atelier_scenes SET spec_json=:spec, version=:ver WHERE id=:id");
-                    $up->execute([':spec' => $specJson, ':ver' => $newVer, ':id' => $existing['id']]);
+                    $up = $pdo->prepare("UPDATE sh_atelier_scenes SET spec_json=:spec, version=:ver WHERE id=:id AND tenant_id=:tid");
+                    $up->execute([':spec' => $specJson, ':ver' => $newVer, ':id' => $existing['id'], ':tid' => $tenant_id]);
                 }
                 $sceneId = (int)$existing['id'];
             } else {
@@ -2042,8 +2042,8 @@ try {
                     $spec = json_decode((string)$row['spec_json'], true) ?: [];
                     $spec = $applyStyleToSpec($spec, $preset);
                     $newJson = json_encode($spec, JSON_UNESCAPED_UNICODE);
-                    $up = $pdo->prepare('UPDATE sh_atelier_scenes SET spec_json = :spec, version = version + 1 WHERE id = :id');
-                    $up->execute([':spec' => $newJson, ':id' => (int)$row['id']]);
+                    $up = $pdo->prepare('UPDATE sh_atelier_scenes SET spec_json = :spec, version = version + 1 WHERE id = :id AND tenant_id = :tid');
+                    $up->execute([':spec' => $newJson, ':id' => (int)$row['id'], ':tid' => $tenantId]);
                     $hist = $pdo->prepare('INSERT INTO sh_atelier_scene_history (scene_id, spec_json, snapshot_label) VALUES (:sid, :spec, :lbl)');
                     $hist->execute([':sid' => (int)$row['id'], ':spec' => $newJson, ':lbl' => 'Styl: ' . ($preset['name'] ?? $preset['ascii_key'])]);
                     $updated++;
