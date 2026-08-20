@@ -79,6 +79,40 @@ const KdsApp = (() => {
 
     function _esc(s) { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
 
+    /**
+     * Blok "ZMIANY" na bilecie — sh_orders.kitchen_delta (DeltaEngine):
+     * co się zmieniło od ostatniego wydruku (dodane / usunięte / zmienione linie).
+     */
+    function _deltaHtml(o) {
+        if (!o.edited_since_print || Number(o.edited_since_print) !== 1) return '';
+        let delta = o.kitchen_delta;
+        if (!delta) return '';
+        if (typeof delta === 'string') {
+            try { delta = JSON.parse(delta); } catch { return ''; }
+        }
+        const rows = [];
+        (delta.added || []).forEach((l) => {
+            rows.push(`<div class="kds-delta-row kds-delta-add">+ ${l.quantity}x ${_esc(l.snapshot_name)}</div>`);
+        });
+        (delta.removed || []).forEach((l) => {
+            rows.push(`<div class="kds-delta-row kds-delta-rem">− ${l.quantity}x ${_esc(l.snapshot_name)}</div>`);
+        });
+        (delta.modified || []).forEach((l) => {
+            const ch = l.changes || {};
+            const parts = [];
+            if (ch.quantity) parts.push(`ilość ${ch.quantity.old} → ${ch.quantity.new}`);
+            if (ch.modifiers_json) parts.push('modyfikatory');
+            if (ch.removed_ingredients_json) parts.push('składniki');
+            if (ch.comment) parts.push('komentarz');
+            rows.push(`<div class="kds-delta-row kds-delta-mod">~ ${_esc(l.snapshot_name)}: ${_esc(parts.join(', '))}</div>`);
+        });
+        if (!rows.length) return '';
+        return `<div class="kds-delta">
+            <div class="kds-delta-title"><i class="fa-solid fa-triangle-exclamation"></i> ZMIANY OD OSTATNIEGO WYDRUKU</div>
+            ${rows.join('')}
+        </div>`;
+    }
+
     function _timerInfo(promisedTime) {
         if (!promisedTime) return { text: 'ASAP', cls: 'ok' };
         const diff = Math.floor((new Date(promisedTime) - new Date()) / 60000);
@@ -224,6 +258,7 @@ const KdsApp = (() => {
                 </div>
                 ${customerLine}
                 ${deliveryBar}
+                ${_deltaHtml(o)}
                 <div class="kds-lines">${linesHtml}</div>
                 <div class="kds-ticket-foot">
                     <button class="kds-bump ${cfg.cls}" onclick="KdsApp.bump('${o.id}','${cfg.next}')">${cfg.label}</button>

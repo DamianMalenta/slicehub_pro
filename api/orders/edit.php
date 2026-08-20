@@ -1,7 +1,7 @@
 <?php
 // =============================================================================
-// STATUS: PLANNED (audit 2026-04-19) — not yet wired, waiting for admin_hub.
-// Consumer: admin_hub "Edytuj zamówienie" modal (Faza 3). Uses DeltaEngine to
+// STATUS: WIRED (2026-08-20) — consumer: modules/hub/ modal "Edytuj zamówienie"
+// (hub_order_edit.js) + api/orders/get_for_edit.php (dane). Uses DeltaEngine to
 // detect kitchen changes and write structured sh_orders.kitchen_delta JSON.
 // Do NOT delete — referenced historically in _docs/ARCHIWUM/06_WIZJA_MODULU_ONLINE.md §541.
 // =============================================================================
