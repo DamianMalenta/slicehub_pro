@@ -36,6 +36,7 @@ try {
     require_once __DIR__ . '/../../core/StaffFleetPresence.php';
     require_once __DIR__ . '/../../core/SlaThresholds.php';
     require_once __DIR__ . '/../../core/Uuid.php';
+    require_once __DIR__ . '/../orders/DeltaEngine.php';
 
     $raw   = file_get_contents('php://input');
     $input = json_decode($raw ?: '{}', true) ?? [];
@@ -84,6 +85,12 @@ try {
     // Auto-migration: fiscal_receipt_number (migration 062)
     try { $pdo->query("SELECT fiscal_receipt_number FROM sh_orders LIMIT 0"); } catch (\PDOException $e) {
         try { $pdo->exec("ALTER TABLE sh_orders ADD COLUMN fiscal_receipt_number VARCHAR(20) DEFAULT NULL"); } catch (\Throwable) {}
+    }
+
+    // Auto-migration: kitchen_delta JSON (initial schema 001 — probe for safety
+    // on databases that may have been bootstrapped from an older partial schema).
+    try { $pdo->query("SELECT kitchen_delta FROM sh_orders LIMIT 0"); } catch (\PDOException $e) {
+        try { $pdo->exec("ALTER TABLE sh_orders ADD COLUMN kitchen_delta JSON NULL"); } catch (\Throwable) {}
     }
 
     // =========================================================================
@@ -770,6 +777,7 @@ try {
                 $printKitchen = 0;
             }
             $orderId = '';
+            $kitchenDeltaJson = null;
 
             if ($editId !== '' && $editId !== '0') {
                 // ---- EDIT existing order ----
@@ -809,9 +817,71 @@ try {
                     }
                 }
 
+                // — DeltaEngine: structured kitchen delta (added/removed/modified) —
+                // POS frontend regenerates line_id on every edit-load (_genLineId),
+                // so DeltaEngine can't match by line_id directly. We greedy-match
+                // old DB lines to new CartEngine lines by item_sku, assigning the
+                // old DB id as the new line_id so DeltaEngine produces a meaningful
+                // diff. Unmatched new lines → added; unmatched old lines → removed;
+                // matched lines with changed qty/modifiers/comment → modified.
+                $oldLinesForDelta = [];
+                try {
+                    $stmtOldLines = $pdo->prepare(
+                        "SELECT id, item_sku, snapshot_name, quantity, modifiers_json,
+                                removed_ingredients_json, comment
+                         FROM sh_order_lines
+                         WHERE order_id = ? AND tenant_id = ?"
+                    );
+                    $stmtOldLines->execute([$editId, $tenant_id]);
+                    $oldLinesForDelta = $stmtOldLines->fetchAll(PDO::FETCH_ASSOC);
+                } catch (\Throwable $deltaLoadErr) {
+                    error_log('[POS process_order] Load old lines for delta failed: ' . $deltaLoadErr->getMessage());
+                }
+
+                if (!empty($oldLinesForDelta) && isset($ceResult['lines_raw']) && is_array($ceResult['lines_raw'])) {
+                    $newLinesForDelta = $ceResult['lines_raw'];
+
+                    // Greedy first-match by item_sku: assign old DB id as line_id
+                    $oldBySku = [];
+                    foreach ($oldLinesForDelta as $ol) {
+                        $sku = (string)($ol['item_sku'] ?? '');
+                        if ($sku !== '') {
+                            $oldBySku[$sku][] = $ol;
+                        }
+                    }
+                    $claimedOldIds = [];
+                    foreach ($newLinesForDelta as &$nlRef) {
+                        $sku = (string)($nlRef['item_sku'] ?? '');
+                        if (isset($oldBySku[$sku])) {
+                            foreach ($oldBySku[$sku] as $ol) {
+                                if (!isset($claimedOldIds[$ol['id']])) {
+                                    $nlRef['line_id'] = $ol['id'];
+                                    $claimedOldIds[$ol['id']] = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    unset($nlRef);
+
+                    try {
+                        $delta = DeltaEngine::computeDelta($oldLinesForDelta, $newLinesForDelta);
+                        if (!empty($delta)) {
+                            $kitchenDeltaJson = json_encode($delta, JSON_UNESCAPED_UNICODE);
+                            // Ensure edited flag is set when there are kitchen changes
+                            if ($editedFlag === 0) {
+                                $editedFlag = 1;
+                            }
+                        }
+                    } catch (\Throwable $deltaComputeErr) {
+                        error_log('[POS process_order] DeltaEngine::computeDelta failed: ' . $deltaComputeErr->getMessage());
+                    }
+                }
+
                 if ($printKitchen === 1 && $source === 'local') {
                     $editedFlag = 0;
                     $kitchenChanges = '';
+                    $kitchenDeltaJson = null;
                 }
 
                 // Soft-delete fired items: items already sent to KDS (fired_at IS NOT NULL)
@@ -863,7 +933,7 @@ try {
                         order_type=?, channel=?, payment_method=?, payment_status=?,
                         grand_total=?, subtotal=?, delivery_address=?, customer_phone=?,
                         customer_name=?, nip=?, cart_json=?, promised_time=?,
-                        edited_since_print=?, kitchen_changes=?, kitchen_delta=NULL,
+                        edited_since_print=?, kitchen_changes=?, kitchen_delta=?,
                         kitchen_ticket_printed = IF(? = 1, 1, kitchen_ticket_printed),
                         receipt_printed = IF(? = 1, 1, receipt_printed),
                         table_id = COALESCE(?, table_id),
@@ -875,7 +945,7 @@ try {
                     $orderType, $channel, $payMethod, $payStatus,
                     $totalGrosze, $totalGrosze, $address, $phone,
                     $custName, $nip, $cartJson, $promised,
-                    $editedFlag, $kitchenChanges,
+                    $editedFlag, $kitchenChanges, $kitchenDeltaJson,
                     $printKitchen, $printReceipt,
                     $tableIdParam, $waiterIdParam, $guestCount,
                     $editId, $tenant_id
@@ -1116,6 +1186,9 @@ try {
                             'payment_method'  => $payMethod,
                             'payment_status'  => $payStatus,
                             'kitchen_changes' => $isEdit ? $kitchenChanges : null,
+                            'kitchen_delta'   => $isEdit && $kitchenDeltaJson
+                                ? json_decode($kitchenDeltaJson, true)
+                                : null,
                         ],
                         ['source' => 'pos', 'actorType' => 'staff', 'actorId' => (string)$user_id]
                     );
