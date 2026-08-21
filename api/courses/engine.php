@@ -716,8 +716,8 @@ try {
             if ($logRow) {
                 $existingIds = json_decode($logRow['order_ids_json'], true) ?: [];
                 $mergedIds = array_values(array_unique(array_merge($existingIds, $orderIds)));
-                $pdo->prepare("UPDATE sh_dispatch_log SET order_ids_json = :oj WHERE id = :lid")
-                    ->execute([':oj' => json_encode($mergedIds), ':lid' => $logRow['id']]);
+                $pdo->prepare("UPDATE sh_dispatch_log SET order_ids_json = :oj WHERE id = :lid AND tenant_id = :tid")
+                    ->execute([':oj' => json_encode($mergedIds), ':lid' => $logRow['id'], ':tid' => $tenant_id]);
             }
 
             $pdo->commit();
@@ -1276,9 +1276,9 @@ try {
         $pdo->beginTransaction();
         try {
             $stmtClose = $pdo->prepare(
-                "UPDATE sh_driver_shifts SET counted_cash=:cc, variance=:v, status='closed' WHERE id=:sid AND status='active'"
+                "UPDATE sh_driver_shifts SET counted_cash=:cc, variance=:v, status='closed' WHERE id=:sid AND tenant_id=:tid AND status='active'"
             );
-            $stmtClose->execute([':cc'=>$countedGrosze, ':v'=>$variance, ':sid'=>$shift['id']]);
+            $stmtClose->execute([':cc'=>$countedGrosze, ':v'=>$variance, ':sid'=>$shift['id'], ':tid'=>$tenant_id]);
 
             if ($stmtClose->rowCount() === 0) {
                 throw new RuntimeException('Shift could not be closed — concurrent reconciliation detected.');

@@ -232,7 +232,7 @@ html, body { height: 100%; font-family: var(--font); background: var(--bg-root);
     }
 }
 
-/* ===== Phase E — kitchen_delta highlight ===== */
+/* ===== Phase E — kitchen_delta highlight (linia-level: banner + tagi na liniach) ===== */
 .kds-edited-banner {
     background: #713f12;
     color: #fde68a;
@@ -272,50 +272,43 @@ html, body { height: 100%; font-family: var(--font); background: var(--bg-root);
     margin-left: 6px;
     text-transform: uppercase;
 }
-.kds-delta-add { background: #14532d; color: #bbf7d0; }
-.kds-delta-mod { background: #713f12; color: #fde68a; }
-.kds-delta-rem { background: #7f1d1d; color: #fecaca; }
+.kds-delta-tag.kds-delta-add { background: #14532d; color: #bbf7d0; }
+.kds-delta-tag.kds-delta-mod { background: #713f12; color: #fde68a; }
+.kds-delta-tag.kds-delta-rem { background: #7f1d1d; color: #fecaca; }
 
-/* ===== Phase E � kitchen_delta highlight ===== */
-.kds-edited-banner {
-    background: #713f12;
-    color: #fde68a;
-    padding: 6px 10px;
-    border-radius: 6px;
-    margin: 6px 0;
+/* ===== Kitchen delta — blok ZMIANY (osobny panel + przycisk ACK) ===== */
+/* Kitchen delta — zmiany od ostatniego wydruku (sh_orders.kitchen_delta) */
+.kds-delta {
+    margin: 6px 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(251, 191, 36, 0.55);
+    background: rgba(251, 191, 36, 0.12);
     font-size: 12px;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    border: 1px solid #92400e;
 }
-.kds-line.delta-added {
-    border-left: 3px solid #22c55e;
-    background: rgba(34, 197, 94, 0.08);
+.kds-delta-title {
+    font-weight: 800;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    color: #fbbf24;
+    margin-bottom: 4px;
 }
-.kds-line.delta-modified {
-    border-left: 3px solid #eab308;
-    background: rgba(234, 179, 8, 0.08);
+.kds-delta-row { line-height: 1.5; font-weight: 600; }
+.kds-delta-add { color: #4ade80; }
+.kds-delta-rem { color: #f87171; text-decoration: line-through; }
+.kds-delta-mod { color: #fbbf24; }
+.kds-delta-ack {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(251, 191, 36, 0.55);
+    background: rgba(251, 191, 36, 0.18);
+    color: #fbbf24;
+    font-weight: 800;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    cursor: pointer;
 }
-.kds-line.delta-removed {
-    border-left: 3px solid #ef4444;
-    background: rgba(239, 68, 68, 0.08);
-    opacity: 0.7;
-}
-.kds-line.delta-removed .kds-line-name {
-    text-decoration: line-through;
-    color: #94a3b8;
-}
-.kds-delta-tag {
-    display: inline-block;
-    font-size: 10px;
-    font-weight: 700;
-    padding: 1px 6px;
-    border-radius: 4px;
-    margin-left: 6px;
-    text-transform: uppercase;
-}
-.kds-delta-add { background: #14532d; color: #bbf7d0; }
-.kds-delta-mod { background: #713f12; color: #fde68a; }
-.kds-delta-rem { background: #7f1d1d; color: #fecaca; }
+.kds-delta-ack:hover { background: rgba(251, 191, 36, 0.3); }

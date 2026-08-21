@@ -153,7 +153,7 @@ final class HrClockEngine
 
             $pdo->commit();
 
-            $startIso = self::fetchSessionStartIso($pdo, $sessionUuid);
+            $startIso = self::fetchSessionStartIso($pdo, $sessionUuid, $tenantId);
 
             return [
                 'session_uuid'          => $sessionUuid,
@@ -641,10 +641,10 @@ final class HrClockEngine
         return $source;
     }
 
-    private static function fetchSessionStartIso(PDO $pdo, string $sessionUuid): string
+    private static function fetchSessionStartIso(PDO $pdo, string $sessionUuid, int $tenantId): string
     {
-        $stmt = $pdo->prepare("SELECT start_time FROM sh_work_sessions WHERE session_uuid = :sid LIMIT 1");
-        $stmt->execute([':sid' => $sessionUuid]);
+        $stmt = $pdo->prepare("SELECT start_time FROM sh_work_sessions WHERE session_uuid = :sid AND tenant_id = :tid LIMIT 1");
+        $stmt->execute([':sid' => $sessionUuid, ':tid' => $tenantId]);
         $start = (string)$stmt->fetchColumn();
         return self::formatUtcIso($start);
     }

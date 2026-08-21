@@ -121,7 +121,8 @@ Szczegóły: [`AGENTS.md`](../AGENTS.md) w root.
 | ~~`api/kds/update_ticket.php`~~ | **USUNIĘTY 2026-07-28** — per-ticket state machine w `core/KdsTicketEngine.php` → `kds/engine.php#bump_ticket` |
 | ~~`api/staff/payroll.php`~~ | **USUNIĘTY 2026-07-28** — martwy wrapper, logika w `hr/engine.php#payroll_report` |
 | ~~`api/dashboard/team_payroll.php`~~ | **USUNIĘTY 2026-07-28** — martwy wrapper, logika w `hr/engine.php#payroll_report` |
-| `api/orders/edit.php`, `estimate.php`, `sla_monitor.php` | @planned (unikalna logika — zostawione) |
+| ~~`api/orders/edit.php`~~ | **DOMKNIĘTY 2026-08-20** — modal "Edytuj zamówienie" w `modules/hub/` + kitchen_delta na KDS |
+| `api/orders/estimate.php`, `sla_monitor.php` | @planned (unikalna logika — zostawione) |
 | `tables/split_payment`, `complete_dine_in` (UI) | backend bez pełnego podpięcia frontend |
 | `core/PromisedTimeEngine.php` (tryb `scheduled`) | ⚠️ **AUDYT 2026-08-03**: tryb scheduled = martwy kod (0 call-site'ów); ASAP częściowo wpięte (POS "ZAAKCEPTUJ" wysyła `now` zamiast pustego → silnik nie odpala). Szczegóły: [`sessions/2026-08-03_promised_time_wiring_audit.md`](sessions/2026-08-03_promised_time_wiring_audit.md) |
 | Offline POS P4.5–P8 | FREEZE do 2026-08-23 — [`17_OFFLINE_POS_BACKLOG.md`](17_OFFLINE_POS_BACKLOG.md) |

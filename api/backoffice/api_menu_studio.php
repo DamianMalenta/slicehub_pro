@@ -1399,6 +1399,11 @@ try {
         case 'add_item':
         case 'update_item_full':
             $itemId = intval($input['itemId'] ?? 0);
+            if ($itemId > 0) {
+                $stmtOwn = $pdo->prepare("SELECT id FROM sh_menu_items WHERE id = ? AND tenant_id = ? AND is_deleted = 0");
+                $stmtOwn->execute([$itemId, $tenant_id]);
+                if (!$stmtOwn->fetchColumn()) throw new Exception("Danie nie istnieje.");
+            }
             $categoryId = intval($input['categoryId'] ?? 0);
             $name = trim($input['name'] ?? ''); 
             $asciiKey = preg_replace('/[^a-zA-Z0-9_-]/', '', $input['asciiKey'] ?? '');

@@ -199,3 +199,199 @@ html, body {
     font-size: 18px;
     color: var(--hub-muted);
 }
+
+/* Modal "Edytuj zamówienie" — Dark Glass */
+.hoe-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(4, 8, 16, 0.6);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+.hoe-modal {
+    width: 100%;
+    max-width: 560px;
+    max-height: 88vh;
+    overflow-y: auto;
+    padding: 20px;
+    border-radius: var(--hub-radius);
+    border: 1px solid var(--hub-border);
+    background: rgba(17, 24, 39, 0.82);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+.hoe-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+.hoe-head h2 { margin: 0; font-size: 17px; font-weight: 700; }
+.hoe-close {
+    border: none;
+    background: transparent;
+    color: var(--hub-muted);
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+}
+.hoe-muted { color: var(--hub-muted); font-size: 13px; }
+.hoe-order-list { display: flex; flex-direction: column; gap: 8px; }
+.hoe-order-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--hub-border);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--hub-text);
+    font-size: 14px;
+    text-align: left;
+    cursor: pointer;
+}
+.hoe-order-row:hover { border-color: rgba(59, 130, 246, 0.4); }
+.hoe-order-num { font-weight: 700; }
+.hoe-order-meta { flex: 1; color: var(--hub-muted); font-size: 12px; }
+.hoe-order-total { font-weight: 600; }
+.hoe-edit-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+.hoe-back {
+    border: 1px solid var(--hub-border);
+    background: transparent;
+    color: var(--hub-text);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+    cursor: pointer;
+}
+.hoe-edit-title { font-weight: 700; font-size: 14px; }
+.hoe-lines { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.hoe-line {
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid var(--hub-border);
+    background: rgba(255, 255, 255, 0.03);
+}
+.hoe-line--new { border-color: rgba(34, 197, 94, 0.4); }
+.hoe-line-head { display: flex; align-items: center; gap: 10px; }
+.hoe-line-name { flex: 1; font-size: 14px; font-weight: 600; }
+.hoe-line-name em { color: #4ade80; font-style: normal; font-size: 11px; }
+.hoe-qty { display: flex; align-items: center; gap: 8px; }
+.hoe-qty button {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    border: 1px solid var(--hub-border);
+    background: var(--hub-surface);
+    color: var(--hub-text);
+    font-size: 15px;
+    cursor: pointer;
+}
+.hoe-qty span { min-width: 20px; text-align: center; font-weight: 700; }
+.hoe-line-del {
+    border: none;
+    background: transparent;
+    color: #f87171;
+    font-size: 14px;
+    cursor: pointer;
+}
+.hoe-line-mods {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+}
+.hoe-mod-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: rgba(59, 130, 246, 0.15);
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    font-size: 12px;
+}
+.hoe-mod-chip button {
+    border: none;
+    background: transparent;
+    color: var(--hub-muted);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 0;
+}
+.hoe-line-mods select,
+.hoe-add-row select {
+    padding: 6px 8px;
+    border-radius: 8px;
+    border: 1px solid var(--hub-border);
+    background: var(--hub-surface);
+    color: var(--hub-text);
+    font-size: 12px;
+    max-width: 200px;
+}
+.hoe-line-comment {
+    width: 100%;
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--hub-border);
+    background: var(--hub-surface);
+    color: var(--hub-text);
+    font-size: 13px;
+}
+.hoe-add-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+.hoe-type-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    font-size: 13px;
+    color: var(--hub-muted);
+}
+.hoe-type-row select {
+    flex: 1;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--hub-border);
+    background: var(--hub-surface);
+    color: var(--hub-text);
+    font-size: 13px;
+}
+.hoe-address {
+    width: 100%;
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--hub-border);
+    background: var(--hub-surface);
+    color: var(--hub-text);
+    font-size: 13px;
+}
+.hoe-add-row select { flex: 1; max-width: none; font-size: 14px; padding: 10px; }
+.hoe-add-btn {
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(34, 197, 94, 0.4);
+    background: rgba(34, 197, 94, 0.12);
+    color: #4ade80;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}

@@ -84,6 +84,11 @@
                 <h3>Dispatch</h3>
                 <p>Kursy i flota</p>
             </a>
+            <a class="hub-card" href="#" id="hub-card-order-edit">
+                <span class="hub-card-icon"><i class="fa-solid fa-pen-to-square"></i></span>
+                <h3>Edycja zamówień</h3>
+                <p>Zmień pozycje aktywnego zamówienia — KDS zobaczy różnice</p>
+            </a>
         </div>
 
         <p class="hub-section-title" style="margin-top:28px">Administracja</p>
@@ -170,7 +175,46 @@
     </main>
 </section>
 
+<div id="hoe-overlay" class="hoe-overlay hub-hidden">
+    <div class="hoe-modal">
+        <header class="hoe-head">
+            <h2 id="hoe-title">Edytuj zamówienie</h2>
+            <button type="button" id="hoe-btn-close" class="hoe-close" title="Zamknij">&times;</button>
+        </header>
+        <p id="hoe-error" class="hub-err" aria-live="polite"></p>
+
+        <div id="hoe-view-list">
+            <p class="hoe-muted" style="margin-top:0">Wybierz aktywne zamówienie do edycji:</p>
+            <div id="hoe-order-list" class="hoe-order-list"></div>
+        </div>
+
+        <div id="hoe-view-edit" class="hub-hidden">
+            <div class="hoe-edit-top">
+                <button type="button" id="hoe-btn-back" class="hoe-back"><i class="fa-solid fa-arrow-left"></i> Lista</button>
+                <span id="hoe-edit-title" class="hoe-edit-title"></span>
+            </div>
+            <div class="hoe-type-row">
+                <label for="hoe-order-type">Typ zamówienia:</label>
+                <select id="hoe-order-type">
+                    <option value="dine_in">Sala</option>
+                    <option value="takeaway">Wynos</option>
+                    <option value="delivery">Dostawa</option>
+                </select>
+            </div>
+            <input type="text" id="hoe-delivery-address" class="hoe-address hub-hidden"
+                   placeholder="Adres dostawy (wymagany)">
+            <div id="hoe-lines" class="hoe-lines"></div>
+            <div class="hoe-add-row">
+                <select id="hoe-add-item"></select>
+                <button type="button" id="hoe-btn-add" class="hoe-add-btn"><i class="fa-solid fa-plus"></i> Dodaj</button>
+            </div>
+            <button type="button" id="hoe-btn-save" class="hub-btn" style="width:100%">Zapisz zmiany</button>
+        </div>
+    </div>
+</div>
+
 <script src="../../core/js/sh_api_base.js"></script>
 <script src="js/hub_app.js" defer></script>
+<script src="js/hub_order_edit.js" defer></script>
 </body>
 </html>

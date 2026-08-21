@@ -329,6 +329,29 @@ try {
     // Per-ticket state machine was in core/KdsTicketEngine.php (also removed).
     // See: _docs/sessions/2026-08-02_audit_plan_vs_actual_drift.md §D3.
 
+    // =========================================================================
+    // ACTION: ack_changes — Kitchen confirms it has seen the edit delta.
+    // Clears sh_orders.kitchen_delta + edited_since_print (tenant-scoped).
+    // =========================================================================
+    if ($action === 'ack_changes') {
+        $orderId = trim((string)($input['order_id'] ?? ''));
+        if (!$orderId) kdsResponse(false, null, 'Invalid order_id');
+
+        $cur = $pdo->prepare("SELECT id FROM sh_orders WHERE id = :oid AND tenant_id = :tid");
+        $cur->execute([':oid' => $orderId, ':tid' => $tenant_id]);
+        if (!$cur->fetchColumn()) {
+            kdsResponse(false, null, 'Order not found');
+        }
+
+        $pdo->prepare(
+            "UPDATE sh_orders
+             SET kitchen_delta = NULL, edited_since_print = 0, updated_at = NOW()
+             WHERE id = :oid AND tenant_id = :tid"
+        )->execute([':oid' => $orderId, ':tid' => $tenant_id]);
+
+        kdsResponse(true, ['order_id' => $orderId]);
+    }
+
     kdsResponse(false, null, "Unknown action: {$action}");
 
 } catch (\Throwable $e) {
