@@ -813,9 +813,9 @@ const PosUI = (() => {
     function printTemplate(orderData, isKitchen) {
         const cart = orderData.cart || [];
         const itemsHtml = cart.map(item => {
-            const addedList = (item.added || []).map(a => `+ ${typeof a === 'object' ? a.name : a}`).join(', ');
+            const addedList = (item.added || []).map(a => `+ ${_e(typeof a === 'object' ? a.name : a)}`).join(', ');
             const addedHtml = addedList ? `<br><small><b>${addedList}</b></small>` : '';
-            const removedList = (item.removed || []).map(r => `BEZ ${typeof r === 'object' ? r.name : r}`).join(', ');
+            const removedList = (item.removed || []).map(r => `BEZ ${_e(typeof r === 'object' ? r.name : r)}`).join(', ');
             const removedHtml = removedList ? `<br><small>${removedList}</small>` : '';
             const comment = item.comment ? `<br><small style="border:1px solid #000;padding:2px">UWAGA: ${_e(item.comment)}</small>` : '';
             return `<tr><td style="padding:5px 0;font-weight:bold;width:15%">${item.qty || item.quantity || 1}x</td><td style="padding:5px 0;width:60%">${_e(item.name)}${addedHtml}${removedHtml}${comment}</td>${!isKitchen ? `<td style="text-align:right;padding:5px 0">${((item.price || 0) * (item.qty || item.quantity || 1)).toFixed(2)}</td>` : ''}</tr>`;
@@ -828,7 +828,7 @@ const PosUI = (() => {
         const waiterName = orderData.waiter_name || '';
         const waiterHtml = waiterName ? `<div style="font-weight:bold;font-size:13px;margin:4px 0">Przyjął: ${_e(waiterName)}</div>` : '';
 
-        const html = `<html><head><style>body{font-family:'Courier New',monospace;width:300px;margin:0;padding:0;font-size:12px}h2,h3{text-align:center;margin:5px 0}table{width:100%;border-collapse:collapse}.divider{border-top:2px dashed #000;margin:10px 0}</style></head><body><h2>SLICEHUB POS</h2><h3>${title}</h3><div class="divider"></div><div style="display:flex;justify-content:space-between;font-weight:bold;font-size:14px"><span>#${orderData.order_number || 'NEW'}</span><span>${new Date(orderData.created_at || Date.now()).toLocaleTimeString('pl',{hour:'2-digit',minute:'2-digit'})}</span></div>${waiterHtml}<div style="text-align:center;font-size:18px;font-weight:bold;margin:5px 0;border:2px solid #000;padding:5px">${typeStr}</div>${editFlag}${clientHtml}<table>${itemsHtml}</table><div class="divider"></div>${!isKitchen ? `<h2 style="text-align:right;font-size:20px">SUMA: ${orderData.total || 0} PLN</h2>` : ''}<div style="text-align:center;margin-top:20px;font-size:10px">Wygenerowano: ${new Date().toLocaleString()}</div></body></html>`;
+        const html = `<html><head><meta charset="UTF-8"><style>body{font-family:'Courier New',monospace;width:300px;margin:0;padding:0;font-size:12px}h2,h3{text-align:center;margin:5px 0}table{width:100%;border-collapse:collapse}.divider{border-top:2px dashed #000;margin:10px 0}</style></head><body><h2>SLICEHUB POS</h2><h3>${title}</h3><div class="divider"></div><div style="display:flex;justify-content:space-between;font-weight:bold;font-size:14px"><span>#${orderData.order_number || 'NEW'}</span><span>${new Date(orderData.created_at || Date.now()).toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'})}</span></div>${waiterHtml}<div style="text-align:center;font-size:18px;font-weight:bold;margin:5px 0;border:2px solid #000;padding:5px">${typeStr}</div>${editFlag}${clientHtml}<table>${itemsHtml}</table><div class="divider"></div>${!isKitchen ? `<h2 style="text-align:right;font-size:20px">SUMA: ${orderData.total || 0} PLN</h2>` : ''}<div style="text-align:center;margin-top:20px;font-size:10px">Wygenerowano: ${new Date().toLocaleString('pl-PL')}</div></body></html>`;
         _doPrint(html);
     }
 

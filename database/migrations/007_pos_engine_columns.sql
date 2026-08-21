@@ -19,13 +19,6 @@ SET @sql = IF(@col_exists = 0,
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 SELECT COUNT(*) INTO @col_exists FROM information_schema.COLUMNS
-  WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'sh_orders' AND COLUMN_NAME = 'kitchen_changes';
-SET @sql = IF(@col_exists = 0,
-  'ALTER TABLE sh_orders ADD COLUMN kitchen_changes TEXT NULL',
-  'SELECT 1');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
-SELECT COUNT(*) INTO @col_exists FROM information_schema.COLUMNS
   WHERE TABLE_SCHEMA = @dbname AND TABLE_NAME = 'sh_orders' AND COLUMN_NAME = 'cart_json';
 SET @sql = IF(@col_exists = 0,
   'ALTER TABLE sh_orders ADD COLUMN cart_json JSON NULL',

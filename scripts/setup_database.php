@@ -72,7 +72,6 @@ $results['Migration 006 — Studio Mission Control'] = runMigration($pdo, '006',
 $results['Migration 007 — POS Engine Columns'] = runMigration($pdo, '007', [
     "ALTER TABLE sh_orders ADD COLUMN receipt_printed TINYINT(1) NOT NULL DEFAULT 0",
     "ALTER TABLE sh_orders ADD COLUMN kitchen_ticket_printed TINYINT(1) NOT NULL DEFAULT 0",
-    "ALTER TABLE sh_orders ADD COLUMN kitchen_changes TEXT NULL",
     "ALTER TABLE sh_orders ADD COLUMN cart_json JSON NULL",
     "ALTER TABLE sh_orders ADD COLUMN nip VARCHAR(32) NULL",
 ]);
