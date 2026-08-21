@@ -47,6 +47,8 @@ node /workspace/scripts/run_test_runner_headless.cjs
 # Oczekiwany wynik: "pass": "62", "fail": "0"
 ```
 
+> **⚠️ ŻELAZNA REGUŁA WERYFIKACJI (od 2026-08-21):** Domyślna weryfikacja po zmianach kodu to **WYŁĄCZNIE** headless test runner (`node scripts/run_test_runner_headless.cjs`). **ZABRONIONE** jest odpalanie wirtualnej przeglądarki interaktywnej, testów UI przez skill `testing-slicehub-ui`, Puppeteer screenshot-walków ani jakichkolwiek testów klikalnych w przeglądarce — **chyba że prompt użytkownika wprost o to poprosi**. Headless runner jest jedynym kanonically-correct kanałem weryfikacji: deterministyczny, bezstanowy, nie wymaga GUI, działa w CI i na Cloud Agent. Skill `testing-slicehub-ui` (`.agents/skills/`) pozostaje dostępny ale **nie jest domyślnym narzędziem weryfikacji** — używaj tylko na wyraźne żądanie.
+
 Test runner **auto-discovery:** przed suite'ami skanuje tenant 1–10 i typowe PIN-y (`0000`…`6666`); nie zakłada `tenant_id=1`. Po `seed_demo_all.php` loguje się jako waiter PIN `1111` na tenant 1. Po instalacji przez `install_panel.php` (tylko tenant 2) — PIN ownera ustawiony przy `create_owner` lub ręcznie w HR.
 
 ### API authentication
