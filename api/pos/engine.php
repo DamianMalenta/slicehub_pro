@@ -109,6 +109,12 @@ try {
         try { $pdo->exec("ALTER TABLE sh_orders ADD COLUMN fiscal_receipt_number VARCHAR(20) DEFAULT NULL"); } catch (\Throwable) {}
     }
 
+    // Auto-migration: kitchen_delta JSON (initial schema 001 — probe for safety
+    // on databases that may have been bootstrapped from an older partial schema).
+    try { $pdo->query("SELECT kitchen_delta FROM sh_orders LIMIT 0"); } catch (\PDOException $e) {
+        try { $pdo->exec("ALTER TABLE sh_orders ADD COLUMN kitchen_delta JSON NULL"); } catch (\Throwable) {}
+    }
+
     // =========================================================================
     // GET_INIT_DATA — Categories, items+prices, ingredients, drivers, waiters
     // =========================================================================
