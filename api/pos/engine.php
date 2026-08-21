@@ -27,6 +27,29 @@ function inputStr(array $input, string $key, string $default = ''): string {
     return trim((string)$v);
 }
 
+/**
+ * Helper: insert order_item_modifiers rows for a cart item's added/removed modifiers.
+ * Used by the atomic line sync in process_order (EDIT branch).
+ */
+function _posInsertOim(\PDOStatement $stmtOIM, string $lineId, array $item): void {
+    if (!empty($item['added']) && is_array($item['added'])) {
+        foreach ($item['added'] as $mod) {
+            $modSku = is_array($mod) ? ($mod['ascii_key'] ?? $mod['sku'] ?? (string)$mod) : (string)$mod;
+            if ($modSku !== '') {
+                $stmtOIM->execute([$lineId, 'ADDED', $modSku]);
+            }
+        }
+    }
+    if (!empty($item['removed']) && is_array($item['removed'])) {
+        foreach ($item['removed'] as $rem) {
+            $remSku = is_array($rem) ? ($rem['sku'] ?? (string)$rem) : (string)$rem;
+            if ($remSku !== '') {
+                $stmtOIM->execute([$lineId, 'REMOVED', $remSku]);
+            }
+        }
+    }
+}
+
 try {
     require_once __DIR__ . '/../../core/db_config.php';
     require_once __DIR__ . '/../../core/auth_guard.php';
@@ -73,7 +96,6 @@ try {
         $ddls = [
             "ALTER TABLE sh_orders ADD COLUMN receipt_printed TINYINT(1) NOT NULL DEFAULT 0",
             "ALTER TABLE sh_orders ADD COLUMN kitchen_ticket_printed TINYINT(1) NOT NULL DEFAULT 0",
-            "ALTER TABLE sh_orders ADD COLUMN kitchen_changes TEXT NULL",
             "ALTER TABLE sh_orders ADD COLUMN cart_json JSON NULL",
             "ALTER TABLE sh_orders ADD COLUMN nip VARCHAR(32) NULL",
         ];
@@ -777,163 +799,307 @@ try {
                 $printKitchen = 0;
             }
             $orderId = '';
-            $kitchenDeltaJson = null;
+            $isEdit = ($editId !== '' && $editId !== '0');
+            $delta  = null; // kitchen delta (parsed structure) — null for new orders
 
-            if ($editId !== '' && $editId !== '0') {
-                // ---- EDIT existing order ----
+            if ($isEdit) {
+                // ---- EDIT existing order ---- (DeltaEngine-unified, atomic line sync)
+                //
+                // Legacy kitchen_changes (TEXT diff string) has been retired. The
+                // structured kitchen_delta JSON is now the SSOT for KDS highlight.
+                // Line sync is atomic: UPDATE modified, INSERT added, DELETE removed
+                // (soft-delete fired lines), preserving line_id continuity via
+                // greedy DB-id matching by item_sku.
+
+                // Load old order header (kitchen_changes column is dead — not selected)
                 $stmtOld = $pdo->prepare(
-                    "SELECT cart_json, edited_since_print, kitchen_changes FROM sh_orders WHERE id = ? AND tenant_id = ?"
+                    "SELECT cart_json, edited_since_print, order_type FROM sh_orders WHERE id = ? AND tenant_id = ?"
                 );
                 $stmtOld->execute([$editId, $tenant_id]);
                 $oldOrder = $stmtOld->fetch(PDO::FETCH_ASSOC);
 
-                $editedFlag     = (int)($oldOrder['edited_since_print'] ?? 0);
-                $kitchenChanges = $oldOrder['kitchen_changes'] ?? '';
+                $oldOrderType     = $oldOrder['order_type'] ?? $orderType;
+                $orderTypeChanged = ($oldOrderType !== $orderType);
 
-                if ($oldOrder && !empty($oldOrder['cart_json'])) {
-                    $oldCart = json_decode($oldOrder['cart_json'], true) ?: [];
-                    if ($oldOrder['cart_json'] !== $cartJson && !empty($oldCart)) {
-                        $editedFlag = 1;
-                        $diffArr = [];
-                        $oldMap = []; foreach ($oldCart as $c) { $key = $c['cart_id'] ?? $c['line_id'] ?? ''; $oldMap[$key] = $c; }
-                        $newMap = []; foreach ($cart  as $c) { $key = $c['cart_id'] ?? $c['line_id'] ?? ''; $newMap[$key] = $c; }
-
-                        foreach ($newMap as $cid => $c) {
-                            if (!isset($oldMap[$cid])) {
-                                $diffArr[] = "DODANO: " . ($c['qty'] ?? $c['quantity'] ?? 1) . "x " . $c['name'];
-                            } else {
-                                $oq = $oldMap[$cid]['qty'] ?? $oldMap[$cid]['quantity'] ?? 1;
-                                $nq = $c['qty'] ?? $c['quantity'] ?? 1;
-                                if ($oq != $nq) $diffArr[] = "ZMIENIONO ILOŚĆ: " . $c['name'] . " ($oq -> $nq)";
-                                if (($oldMap[$cid]['comment'] ?? '') !== ($c['comment'] ?? ''))
-                                    $diffArr[] = "ZMIENIONO UWAGI: " . $c['name'];
-                            }
-                        }
-                        foreach ($oldMap as $cid => $oc) {
-                            if (!isset($newMap[$cid]))
-                                $diffArr[] = "USUNIĘTO: " . ($oc['qty'] ?? $oc['quantity'] ?? 1) . "x " . $oc['name'];
-                        }
-                        $kitchenChanges = implode(' | ', $diffArr);
-                    }
-                }
-
-                // — DeltaEngine: structured kitchen delta (added/removed/modified) —
-                // POS frontend regenerates line_id on every edit-load (_genLineId),
-                // so DeltaEngine can't match by line_id directly. We greedy-match
-                // old DB lines to new CartEngine lines by item_sku, assigning the
-                // old DB id as the new line_id so DeltaEngine produces a meaningful
-                // diff. Unmatched new lines → added; unmatched old lines → removed;
-                // matched lines with changed qty/modifiers/comment → modified.
-                $oldLinesForDelta = [];
-                try {
-                    $stmtOldLines = $pdo->prepare(
-                        "SELECT id, item_sku, snapshot_name, quantity, modifiers_json,
-                                removed_ingredients_json, comment
-                         FROM sh_order_lines
-                         WHERE order_id = ? AND tenant_id = ?"
-                    );
-                    $stmtOldLines->execute([$editId, $tenant_id]);
-                    $oldLinesForDelta = $stmtOldLines->fetchAll(PDO::FETCH_ASSOC);
-                } catch (\Throwable $deltaLoadErr) {
-                    error_log('[POS process_order] Load old lines for delta failed: ' . $deltaLoadErr->getMessage());
-                }
-
-                if (!empty($oldLinesForDelta) && isset($ceResult['lines_raw']) && is_array($ceResult['lines_raw'])) {
-                    $newLinesForDelta = $ceResult['lines_raw'];
-
-                    // Greedy first-match by item_sku: assign old DB id as line_id
-                    $oldBySku = [];
-                    foreach ($oldLinesForDelta as $ol) {
-                        $sku = (string)($ol['item_sku'] ?? '');
-                        if ($sku !== '') {
-                            $oldBySku[$sku][] = $ol;
-                        }
-                    }
-                    $claimedOldIds = [];
-                    foreach ($newLinesForDelta as &$nlRef) {
-                        $sku = (string)($nlRef['item_sku'] ?? '');
-                        if (isset($oldBySku[$sku])) {
-                            foreach ($oldBySku[$sku] as $ol) {
-                                if (!isset($claimedOldIds[$ol['id']])) {
-                                    $nlRef['line_id'] = $ol['id'];
-                                    $claimedOldIds[$ol['id']] = true;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    unset($nlRef);
-
-                    try {
-                        $delta = DeltaEngine::computeDelta($oldLinesForDelta, $newLinesForDelta);
-                        if (!empty($delta)) {
-                            $kitchenDeltaJson = json_encode($delta, JSON_UNESCAPED_UNICODE);
-                            // Ensure edited flag is set when there are kitchen changes
-                            if ($editedFlag === 0) {
-                                $editedFlag = 1;
-                            }
-                        }
-                    } catch (\Throwable $deltaComputeErr) {
-                        error_log('[POS process_order] DeltaEngine::computeDelta failed: ' . $deltaComputeErr->getMessage());
-                    }
-                }
-
-                if ($printKitchen === 1 && $source === 'local') {
-                    $editedFlag = 0;
-                    $kitchenChanges = '';
-                    $kitchenDeltaJson = null;
-                }
-
-                // Soft-delete fired items: items already sent to KDS (fired_at IS NOT NULL)
-                // get marked as cancelled instead of being hard-deleted, so the KDS
-                // can display the cancellation strike-through.
+                // Schema detection for fired_at + line_status
                 $hasFiredAt = false;
                 try { $pdo->query("SELECT fired_at FROM sh_order_lines LIMIT 0"); $hasFiredAt = true; } catch (\Throwable $ignore) {}
-
                 if ($hasFiredAt) {
                     try { $pdo->query("SELECT line_status FROM sh_order_lines LIMIT 0"); } catch (\Throwable $ignore) {
                         try { $pdo->exec("ALTER TABLE sh_order_lines ADD COLUMN line_status VARCHAR(16) NOT NULL DEFAULT 'active'"); } catch (\Throwable $ignore2) {}
                     }
-
-                    $pdo->prepare(
-                        "UPDATE sh_order_lines SET line_status = 'cancelled', quantity = 0
-                         WHERE order_id = ? AND fired_at IS NOT NULL AND line_status != 'cancelled'
-                         AND order_id IN (SELECT id FROM sh_orders WHERE tenant_id = ?)"
-                    )->execute([$editId, $tenant_id]);
-
-                    try {
-                        $pdo->prepare(
-                            "DELETE oim FROM sh_order_item_modifiers oim
-                             JOIN sh_order_lines ol ON oim.order_item_id = ol.id
-                             WHERE ol.order_id = ? AND ol.fired_at IS NULL
-                             AND ol.order_id IN (SELECT id FROM sh_orders WHERE tenant_id = ?)"
-                        )->execute([$editId, $tenant_id]);
-                    } catch (\PDOException $e) {}
-                    $pdo->prepare(
-                        "DELETE FROM sh_order_lines WHERE order_id = ? AND fired_at IS NULL
-                         AND order_id IN (SELECT id FROM sh_orders WHERE tenant_id = ?)"
-                    )->execute([$editId, $tenant_id]);
-                } else {
-                    try {
-                        $pdo->prepare(
-                            "DELETE oim FROM sh_order_item_modifiers oim
-                             JOIN sh_order_lines ol ON oim.order_item_id = ol.id
-                             WHERE ol.order_id = ?
-                             AND ol.order_id IN (SELECT id FROM sh_orders WHERE tenant_id = ?)"
-                        )->execute([$editId, $tenant_id]);
-                    } catch (\PDOException $e) {}
-                    $pdo->prepare(
-                        "DELETE FROM sh_order_lines WHERE order_id = ?
-                         AND order_id IN (SELECT id FROM sh_orders WHERE tenant_id = ?)"
-                    )->execute([$editId, $tenant_id]);
                 }
 
+                // Load old DB lines for DeltaEngine comparison
+                $firedSelect = $hasFiredAt ? ', fired_at' : '';
+                $stmtOldLines = $pdo->prepare(
+                    "SELECT id, item_sku, snapshot_name, quantity, unit_price, line_total,
+                            vat_rate, vat_amount, modifiers_json, removed_ingredients_json, comment{$firedSelect}
+                     FROM sh_order_lines
+                     WHERE order_id = ? AND order_id IN (SELECT id FROM sh_orders WHERE tenant_id = ?)"
+                );
+                $stmtOldLines->execute([$editId, $tenant_id]);
+                $oldLines = $stmtOldLines->fetchAll(PDO::FETCH_ASSOC);
+
+                // Build newLinesRaw from cart (server-authoritative prices when available)
+                $newLinesRaw = [];
+                foreach ($cart as $idx => $item) {
+                    $qty = (int)($item['qty'] ?? $item['quantity'] ?? 1);
+                    $clientPrice = (int)round(((float)($item['price'] ?? 0)) * 100);
+                    $price = ($serverPrices !== null && isset($serverPrices[$idx]) && $serverPrices[$idx] > 0)
+                        ? (int)$serverPrices[$idx]
+                        : $clientPrice;
+                    $lineTotal = $price * $qty;
+                    $sku = (string)($item['ascii_key'] ?? $item['id'] ?? '');
+                    $vatRate = (float)($item['vat_rate'] ?? ($orderType === 'dine_in' ? 8.00 : 5.00));
+                    $newLinesRaw[] = [
+                        '_cart_idx'                => $idx,
+                        'line_id'                  => $item['line_id'] ?? $item['cart_id'] ?? null,
+                        'item_sku'                 => $sku,
+                        'snapshot_name'            => $item['name'] ?? '',
+                        'unit_price_grosze'        => $price,
+                        'quantity'                 => $qty,
+                        'line_total_grosze'        => $lineTotal,
+                        'vat_rate'                 => $vatRate,
+                        'vat_amount_grosze'        => (int)round($lineTotal * $vatRate / (100 + $vatRate)),
+                        'modifiers_json'           => !empty($item['added']) ? json_encode($item['added'], JSON_UNESCAPED_UNICODE) : null,
+                        'removed_ingredients_json' => !empty($item['removed']) ? json_encode($item['removed'], JSON_UNESCAPED_UNICODE) : null,
+                        'comment'                  => $item['comment'] ?? null,
+                    ];
+                }
+
+                // Greedy-match: assign DB line ids to new lines by item_sku to preserve
+                // line_id continuity. Frontend generates its own lineId on load; we match
+                // back to DB ids so DeltaEngine identifies true adds/removes/modifications
+                // instead of treating everything as changed.
+                $oldLinesById = [];
+                $oldLinesBySku = [];
+                foreach ($oldLines as $ol) {
+                    $oldLinesById[$ol['id']] = $ol;
+                    $sku = $ol['item_sku'];
+                    if (!isset($oldLinesBySku[$sku])) $oldLinesBySku[$sku] = [];
+                    $oldLinesBySku[$sku][] = $ol['id'];
+                }
+                $usedOldIds = [];
+                foreach ($newLinesRaw as &$nlRef) {
+                    $lid = $nlRef['line_id'] ?? null;
+                    if ($lid !== null && isset($oldLinesById[$lid]) && !isset($usedOldIds[$lid])) {
+                        $usedOldIds[$lid] = true;
+                    } else {
+                        $sku = $nlRef['item_sku'] ?? '';
+                        $matched = false;
+                        if (isset($oldLinesBySku[$sku])) {
+                            foreach ($oldLinesBySku[$sku] as $oldId) {
+                                if (!isset($usedOldIds[$oldId])) {
+                                    $nlRef['line_id'] = $oldId;
+                                    $usedOldIds[$oldId] = true;
+                                    $matched = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (!$matched) {
+                            $nlRef['line_id'] = Uuid::v4();
+                        }
+                    }
+                }
+                unset($nlRef);
+
+                // Compute kitchen delta via DeltaEngine
+                $delta = DeltaEngine::computeDelta($oldLines, $newLinesRaw);
+                if ($orderTypeChanged) {
+                    $delta['order_type'] = ['old' => $oldOrderType, 'new' => $orderType];
+                }
+
+                $hasChanges = !empty($delta);
+                $editedFlag = $hasChanges ? 1 : (int)($oldOrder['edited_since_print'] ?? 0);
+
+                // Printing kitchen ticket = kitchen has seen current state → reset flags
+                if ($printKitchen === 1 && $source === 'local') {
+                    $editedFlag = 0;
+                    $delta = [];
+                }
+
+                $deltaJson = !empty($delta) ? json_encode($delta, JSON_UNESCAPED_UNICODE) : null;
+
+                // Build lookup for new lines by id
+                $newLinesById = [];
+                foreach ($newLinesRaw as $nl) {
+                    $lid = $nl['line_id'] ?? null;
+                    if ($lid !== null) $newLinesById[$lid] = $nl;
+                }
+
+                // --- Atomic line sync: DELETE removed, UPDATE modified, INSERT added ---
+
+                // Schema detection for combo_meta_json + OIM
+                $hasComboMetaInsert = false;
+                try { $pdo->query("SELECT combo_meta_json FROM sh_order_lines LIMIT 0"); $hasComboMetaInsert = true; }
+                catch (\PDOException $e) {}
+
+                $hasOIM = false;
+                $stmtOIM = null;
+                try {
+                    $pdo->query("SELECT 1 FROM sh_order_item_modifiers LIMIT 0");
+                    $stmtOIM = $pdo->prepare(
+                        "INSERT INTO sh_order_item_modifiers (order_item_id, modifier_type, modifier_sku) VALUES (?,?,?)"
+                    );
+                    $hasOIM = true;
+                } catch (\PDOException $e) {}
+
+                // Pre-fetch driver_action_type for all menu items in this cart
+                $driverActionMap = [];
+                try {
+                    $cartSkus = array_filter(array_map(fn($c) => (string)($c['ascii_key'] ?? $c['id'] ?? ''), $cart));
+                    if (count($cartSkus) > 0) {
+                        $skuPh = []; $skuPrm = [':tid' => $tenant_id];
+                        foreach (array_values(array_unique($cartSkus)) as $si => $sv) {
+                            $k = ":sk{$si}"; $skuPh[] = $k; $skuPrm[$k] = $sv;
+                        }
+                        $stmtDat = $pdo->prepare(
+                            "SELECT ascii_key, COALESCE(driver_action_type, 'none') AS driver_action_type
+                             FROM sh_menu_items WHERE ascii_key IN (" . implode(',', $skuPh) . ") AND tenant_id = :tid"
+                        );
+                        $stmtDat->execute($skuPrm);
+                        foreach ($stmtDat->fetchAll(PDO::FETCH_ASSOC) as $datRow) {
+                            $driverActionMap[$datRow['ascii_key']] = $datRow['driver_action_type'];
+                        }
+                    }
+                } catch (\Throwable $ignore) {}
+
+                // DELETE removed lines (soft-delete fired, hard-delete unfired)
+                if (!empty($delta['removed'])) {
+                    foreach ($delta['removed'] as $rem) {
+                        $remId = $rem['line_id'];
+                        $oldLine = $oldLinesById[$remId] ?? null;
+                        $wasFired = $hasFiredAt && $oldLine && !empty($oldLine['fired_at']);
+
+                        if ($wasFired) {
+                            // Soft-delete: mark as cancelled so KDS shows strike-through
+                            $pdo->prepare(
+                                "UPDATE sh_order_lines SET line_status = 'cancelled', quantity = 0
+                                 WHERE id = ? AND order_id = ?
+                                 AND order_id IN (SELECT id FROM sh_orders WHERE tenant_id = ?)"
+                            )->execute([$remId, $editId, $tenant_id]);
+                        } else {
+                            // Hard delete: remove OIM then line
+                            if ($hasOIM) {
+                                try {
+                                    $pdo->prepare("DELETE FROM sh_order_item_modifiers WHERE order_item_id = ?")
+                                        ->execute([$remId]);
+                                } catch (\PDOException $e) {}
+                            }
+                            $pdo->prepare(
+                                "DELETE FROM sh_order_lines WHERE id = ? AND order_id = ?
+                                 AND order_id IN (SELECT id FROM sh_orders WHERE tenant_id = ?)"
+                            )->execute([$remId, $editId, $tenant_id]);
+                        }
+                    }
+                }
+
+                // UPDATE modified lines (+ replace OIM)
+                if (!empty($delta['modified'])) {
+                    $stmtUpdLine = $pdo->prepare(
+                        "UPDATE sh_order_lines
+                         SET unit_price = ?, quantity = ?, line_total = ?,
+                             vat_rate = ?, vat_amount = ?,
+                             modifiers_json = ?, removed_ingredients_json = ?, comment = ?
+                         WHERE id = ? AND order_id = ?
+                         AND order_id IN (SELECT id FROM sh_orders WHERE tenant_id = ?)"
+                    );
+                    foreach ($delta['modified'] as $mod) {
+                        $lid = $mod['line_id'];
+                        $nl = $newLinesById[$lid] ?? null;
+                        if (!$nl) continue;
+
+                        $stmtUpdLine->execute([
+                            $nl['unit_price_grosze'], $nl['quantity'], $nl['line_total_grosze'],
+                            $nl['vat_rate'], $nl['vat_amount_grosze'],
+                            $nl['modifiers_json'], $nl['removed_ingredients_json'], $nl['comment'],
+                            $lid, $editId, $tenant_id
+                        ]);
+
+                        // Replace OIM for modified line
+                        if ($hasOIM && $stmtOIM) {
+                            try {
+                                $pdo->prepare("DELETE FROM sh_order_item_modifiers WHERE order_item_id = ?")
+                                    ->execute([$lid]);
+                            } catch (\PDOException $e) {}
+                            $cartItem = $cart[$nl['_cart_idx'] ?? -1] ?? null;
+                            if ($cartItem) {
+                                _posInsertOim($stmtOIM, $lid, $cartItem);
+                            }
+                        }
+                    }
+                }
+
+                // INSERT added lines (with full handling: driver_action_type, combo_meta, OIM)
+                if (!empty($delta['added'])) {
+                    if ($hasComboMetaInsert) {
+                        $stmtInsLine = $pdo->prepare(
+                            "INSERT INTO sh_order_lines
+                                (id, order_id, item_sku, snapshot_name, unit_price, quantity, line_total,
+                                 vat_rate, vat_amount, modifiers_json, removed_ingredients_json, comment,
+                                 driver_action_type, combo_meta_json)
+                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+                        );
+                    } else {
+                        $stmtInsLine = $pdo->prepare(
+                            "INSERT INTO sh_order_lines
+                                (id, order_id, item_sku, snapshot_name, unit_price, quantity, line_total,
+                                 vat_rate, vat_amount, modifiers_json, removed_ingredients_json, comment, driver_action_type)
+                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
+                        );
+                    }
+
+                    foreach ($delta['added'] as $add) {
+                        $lid = $add['line_id'];
+                        $nl = $newLinesById[$lid] ?? null;
+                        if (!$nl) continue;
+
+                        $cartItem = $cart[$nl['_cart_idx'] ?? -1] ?? null;
+
+                        $itemSku = (string)($nl['item_sku'] ?? '');
+                        $driverActionType = $driverActionMap[$itemSku] ?? ($cartItem['driver_action_type'] ?? 'none');
+                        if (!in_array($driverActionType, ['none','pack_cold','pack_separate','check_id'], true)) {
+                            $driverActionType = 'none';
+                        }
+
+                        $comboMetaJson = null;
+                        if ($cartItem && !empty($cartItem['combo_meta']) && is_array($cartItem['combo_meta']) && isset($cartItem['combo_meta']['meal_id'])) {
+                            $comboMetaJson = json_encode($cartItem['combo_meta'], JSON_UNESCAPED_UNICODE);
+                        }
+
+                        if ($hasComboMetaInsert) {
+                            $stmtInsLine->execute([
+                                $lid, $editId, $itemSku,
+                                $nl['snapshot_name'], $nl['unit_price_grosze'], $nl['quantity'], $nl['line_total_grosze'],
+                                $nl['vat_rate'], $nl['vat_amount_grosze'],
+                                $nl['modifiers_json'], $nl['removed_ingredients_json'], $nl['comment'],
+                                $driverActionType, $comboMetaJson
+                            ]);
+                        } else {
+                            $stmtInsLine->execute([
+                                $lid, $editId, $itemSku,
+                                $nl['snapshot_name'], $nl['unit_price_grosze'], $nl['quantity'], $nl['line_total_grosze'],
+                                $nl['vat_rate'], $nl['vat_amount_grosze'],
+                                $nl['modifiers_json'], $nl['removed_ingredients_json'], $nl['comment'],
+                                $driverActionType
+                            ]);
+                        }
+
+                        if ($hasOIM && $stmtOIM && $cartItem) {
+                            _posInsertOim($stmtOIM, $lid, $cartItem);
+                        }
+                    }
+                }
+
+                // UPDATE order header with kitchen_delta JSON (no more kitchen_changes)
                 $pdo->prepare(
                     "UPDATE sh_orders SET
                         order_type=?, channel=?, payment_method=?, payment_status=?,
                         grand_total=?, subtotal=?, delivery_address=?, customer_phone=?,
                         customer_name=?, nip=?, cart_json=?, promised_time=?,
-                        edited_since_print=?, kitchen_changes=?, kitchen_delta=?,
+                        edited_since_print=?, kitchen_delta=?,
                         kitchen_ticket_printed = IF(? = 1, 1, kitchen_ticket_printed),
                         receipt_printed = IF(? = 1, 1, receipt_printed),
                         table_id = COALESCE(?, table_id),
@@ -945,7 +1111,7 @@ try {
                     $orderType, $channel, $payMethod, $payStatus,
                     $totalGrosze, $totalGrosze, $address, $phone,
                     $custName, $nip, $cartJson, $promised,
-                    $editedFlag, $kitchenChanges, $kitchenDeltaJson,
+                    $editedFlag, $deltaJson,
                     $printKitchen, $printReceipt,
                     $tableIdParam, $waiterIdParam, $guestCount,
                     $editId, $tenant_id
@@ -1052,8 +1218,9 @@ try {
                 }
             }
 
-            // Insert order lines from cart
+            // Insert order lines from cart (NEW orders only — EDIT branch does atomic sync above)
             // F-S3.2 (2026-05-11): schema-aware INSERT — z combo_meta_json gdy migracja 054 zaaplikowana.
+            if (!$isEdit) {
             $hasComboMetaInsert = false;
             try { $pdo->query("SELECT combo_meta_json FROM sh_order_lines LIMIT 0"); $hasComboMetaInsert = true; }
             catch (\PDOException $e) {}
@@ -1170,13 +1337,13 @@ try {
                     }
                 }
             }
+            } // end if (!$isEdit) — INSERT loop for NEW orders only
 
             // --- [m026] Publish order.created / order.edited do outboxu ---
             $publisherPath = __DIR__ . '/../../core/OrderEventPublisher.php';
             if (file_exists($publisherPath)) {
                 require_once $publisherPath;
                 if (class_exists('OrderEventPublisher')) {
-                    $isEdit = ($editId !== '' && $editId !== '0');
                     $eventType = $isEdit ? 'order.edited' : 'order.created';
                     OrderEventPublisher::publishOrderLifecycle(
                         $pdo, $tenant_id, $eventType, $orderId,
@@ -1185,10 +1352,7 @@ try {
                             'order_type'      => $orderType,
                             'payment_method'  => $payMethod,
                             'payment_status'  => $payStatus,
-                            'kitchen_changes' => $isEdit ? $kitchenChanges : null,
-                            'kitchen_delta'   => $isEdit && $kitchenDeltaJson
-                                ? json_decode($kitchenDeltaJson, true)
-                                : null,
+                            'kitchen_delta'   => $isEdit ? $delta : null,
                         ],
                         ['source' => 'pos', 'actorType' => 'staff', 'actorId' => (string)$user_id]
                     );
@@ -1378,7 +1542,7 @@ try {
     if ($action === 'print_kitchen') {
         $oid = inputStr($input, 'order_id');
         $pdo->prepare(
-            "UPDATE sh_orders SET kitchen_ticket_printed=1, edited_since_print=0, kitchen_changes=NULL, kitchen_delta=NULL, updated_at=NOW()
+            "UPDATE sh_orders SET kitchen_ticket_printed=1, edited_since_print=0, kitchen_delta=NULL, updated_at=NOW()
              WHERE id=? AND tenant_id=?"
         )->execute([$oid, $tenant_id]);
         posResponse(true);

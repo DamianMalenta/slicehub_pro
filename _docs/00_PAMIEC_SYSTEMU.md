@@ -484,9 +484,9 @@ Prosty wrapper fetch POST → JSON, obsługa błędów i auth header. Powinien b
 - **POS single-boundary** — decyzja użytkownika: POS traci per-type różnicę (delivery 15/59 → unified), zyskując spójność z courses/kds/driver. Przy default `yellow_min=5` żółty przy ≤5 min dla wszystkich typów.
 - Szczegóły: `_docs/sessions/2026-07-29_phase_a_sla_thresholds.md`.
 
-### `core/DeltaEngine.php` — diff linii zamówienia → kitchen_delta (Faza E · 2026-07-30 DOMKNIĘTE)
+### `api/orders/DeltaEngine.php` — diff linii zamówienia → kitchen_delta (Faza E · 2026-07-30 DOMKNIĘTE)
 - **Cel:** wykrywanie różnic w liniach zamówienia po edycji → `kitchen_delta` JSON na order header, konsumowany przez KDS do highlightu zmian (zielony=dodane, żółty=zmienione, czerwony=usunięte) + banner "ZAMÓWIENIE EDYTOWANE".
-- **Flow:** manager edytuje zamówienie w `modules/backoffice/order_edit/` → `POST api/orders/edit.php` (CartEngine przelicza, DeltaEngine diffuje stare vs nowe linie po `line_id`) → `kitchen_delta` JSON zapisany na `sh_orders` + flaga `edited_since_print=1` → KDS `get_board` zwraca delta → `kds_app.js` highlightuje.
+- **Flow:** manager edytuje zamówienie w `modules/backoffice/order_edit/` → `POST api/orders/edit.php` (CartEngine przelicza, DeltaEngine diffuje stare vs nowe linie po `line_id`) → `kitchen_delta` JSON zapisany na `sh_orders` + flaga `edited_since_print=1` → KDS `get_board` zwraca delta → `kds_app.js` highlightuje. Od 2026-08-22 POS `process_order` (edycja) również używa DeltaEngine — unifikacja przepływu (patrz `sessions/2026-08-22_pos_delta_engine_unification.md`).
 - **Matching:** po `sh_order_lines.id` (`line_id`), nie po SKU (bo SKU może się powtarzać). Delta zawiera `added`/`modified`/`removed` z qty before/after.
 - **`api/orders/get.php`** — nowy endpoint read-only (order header + lines z `line_id`) dla UI edycji. Tenant isolation.
 - **Otwarte (R2):** flaga `edited_since_print` nie jest resetowana — KDS pokazuje banner permanentnie. Fix: akcja `confirm_changes` w KDS (reset po bumpie).
