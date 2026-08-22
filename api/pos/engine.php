@@ -646,9 +646,9 @@ try {
             // F5-B / F-S7 (2026-05-11): SERVER-AUTHORITATIVE CART REVALIDATION.
             // Konstytucja v5 § Prawo IV (Zero Zaufania) — frontend NIGDY nie wysyła cen
             // jako autorytatywne. Przeliczamy przez CartEngine::calculate i nadpisujemy
-            // ceny + total. Soft override: jeśli różnica > 1 grosz, logujemy warning ale
-            // używamy serwerowych wartości. Hard fail (PRICE_MISMATCH) zostawiamy na
-            // później po sandbox testach (planowane F5.5).
+            // ceny + total. Jeśli CartEngine rzuci wyjątek LUB nie zwróci poprawnych cen
+            // serwera — BLOCKujemy utworzenie/edycję zamówienia (HTTP 409 Conflict).
+            // Nie ufamy danym z przeglądarki (Prawo IV: Zero Zaufania).
             $serverPrices = null; // map: cart_index → unit_price_grosze (serwerowe)
             $serverTotal = null;
             try {
@@ -721,8 +721,10 @@ try {
                     $totalGrosze = $authoritativeTotal;
                     $serverTotal = $authoritativeTotal;
                 }
-                // Per-line override
-                $ceLines = $ceResult['response']['lines'] ?? $ceResult['lines'] ?? [];
+                // Per-line override — czytaj z `lines_raw` (integer grosze).
+                // `response.lines` ma tylko sformatowane stringi ("24.00"), nie nadają się
+                // do weryfikacji autorytatywnej. `lines_raw` jest SSOT dla cen serwerowych.
+                $ceLines = $ceResult['lines_raw'] ?? [];
                 if (is_array($ceLines) && $ceLines !== []) {
                     $serverPrices = [];
                     foreach ($ceLines as $i => $ceL) {
@@ -734,9 +736,25 @@ try {
                     }
                 }
             } catch (\Throwable $ceErr) {
-                // CartEngine failure NIE blokuje zamówienia — używamy cen z payloadu (legacy fallback).
-                // Loggujemy: na produkcji warning pojawi się w error_log uti.pl.
-                error_log('[POS process_order] CartEngine revalidation failed (using client prices): ' . $ceErr->getMessage());
+                // Prawo IV (Zero Zaufania): CartEngine failure = BLOCK order creation/edit.
+                // Nie ufamy cenom z przeglądarki — wymagamy serwerowych cen autorytatywnych.
+                error_log('[POS process_order] CartEngine revalidation failed (BLOCKING order): ' . $ceErr->getMessage());
+                $pdo->rollBack();
+                http_response_code(409);
+                posResponse(false, [
+                    'error_code' => 'CART_ENGINE_FAILED',
+                    'detail'     => $ceErr->getMessage(),
+                ], 'Nie można zweryfikować cen po stronie serwera (CartEngine). Odśwież menu i spróbuj ponownie.');
+            }
+
+            // Prawo IV (Zero Zaufania): CartEngine musi zwrócić poprawne ceny serwera.
+            // Brak $serverPrices = nie ufamy payloadowi z przeglądarki → BLOCK.
+            if ($serverPrices === null || $serverPrices === []) {
+                $pdo->rollBack();
+                http_response_code(409);
+                posResponse(false, [
+                    'error_code' => 'CART_ENGINE_NO_PRICES',
+                ], 'CartEngine nie zwrócił cen serwerowych. Nie można utworzyć zamówienia bez autorytatywnej wyceny.');
             }
 
             // Warehouse preflight — block order creation if stock is insufficient.
@@ -845,10 +863,18 @@ try {
                 $newLinesRaw = [];
                 foreach ($cart as $idx => $item) {
                     $qty = (int)($item['qty'] ?? $item['quantity'] ?? 1);
-                    $clientPrice = (int)round(((float)($item['price'] ?? 0)) * 100);
-                    $price = ($serverPrices !== null && isset($serverPrices[$idx]) && $serverPrices[$idx] > 0)
-                        ? (int)$serverPrices[$idx]
-                        : $clientPrice;
+                    // Prawo IV (Zero Zaufania): używamy WYŁĄCZNIE cen serwerowych z CartEngine.
+                    // Brak ceny serwerowej dla linii = blokada (nie ufamy $clientPrice z przeglądarki).
+                    if (!isset($serverPrices[$idx]) || $serverPrices[$idx] <= 0) {
+                        $pdo->rollBack();
+                        http_response_code(409);
+                        posResponse(false, [
+                            'error_code' => 'CART_ENGINE_LINE_PRICE_MISSING',
+                            'cart_index' => $idx,
+                            'item_sku'   => (string)($item['ascii_key'] ?? $item['id'] ?? ''),
+                        ], 'Brak serwerowej ceny dla pozycji koszyka. Odśwież menu i spróbuj ponownie.');
+                    }
+                    $price = (int)$serverPrices[$idx];
                     $lineTotal = $price * $qty;
                     $sku = (string)($item['ascii_key'] ?? $item['id'] ?? '');
                     $vatRate = (float)($item['vat_rate'] ?? ($orderType === 'dine_in' ? 8.00 : 5.00));
@@ -1274,12 +1300,18 @@ try {
             foreach ($cart as $item) {
                 $lineId = Uuid::v4();
                 $qty = (int)($item['qty'] ?? $item['quantity'] ?? 1);
-                $clientPrice = (int)round(((float)($item['price'] ?? 0)) * 100);
-                // F5-B: użyj serwerowej ceny jeśli CartEngine policzył, inaczej fallback do payloadu.
+                // Prawo IV (Zero Zaufania): używamy WYŁĄCZNIE cen serwerowych z CartEngine.
+                // Brak ceny serwerowej dla linii = blokada (nie ufamy $clientPrice z przeglądarki).
                 $cartIdx = array_search($item, $cart, true);
-                $price = ($serverPrices !== null && isset($serverPrices[$cartIdx]) && $serverPrices[$cartIdx] > 0)
-                    ? (int)$serverPrices[$cartIdx]
-                    : $clientPrice;
+                if ($cartIdx === false || !isset($serverPrices[$cartIdx]) || $serverPrices[$cartIdx] <= 0) {
+                    $pdo->rollBack();
+                    http_response_code(409);
+                    posResponse(false, [
+                        'error_code' => 'CART_ENGINE_LINE_PRICE_MISSING',
+                        'item_sku'   => (string)($item['ascii_key'] ?? $item['id'] ?? ''),
+                    ], 'Brak serwerowej ceny dla pozycji koszyka. Odśwież menu i spróbuj ponownie.');
+                }
+                $price = (int)$serverPrices[$cartIdx];
                 $lineTotal = $price * $qty;
                 $sku = $item['ascii_key'] ?? $item['id'] ?? '';
 
@@ -1388,10 +1420,11 @@ try {
     if ($action === 'accept_order') {
         $oid  = inputStr($input, 'order_id');
         $time = inputStr($input, 'custom_time');
-        $ts = ($time !== '') ? strtotime($time) : false;
-        // Faza B — gdy kasjer nie poda custom_time: PromisedTimeEngine (inteligentny default)
-        // zamiast now(). Ręczny input nadal wygrywa. Poniżej: $parsedTime ustawiane po SELECT
-        // (potrzebny order_type dla kanału silnika).
+        // Faza B — rozróżnij 'now'/'asap'/empty (→ PromisedTimeEngine inteligentny default)
+        // od jawnie wybranej przez kasjera godziny (np. '18:30'). 'now' i 'asap' to sygnały
+        // "jak najszybciej" — nie traktujemy ich jako jawnego czasu, tylko wyzwalamy silnik.
+        $asapMode = in_array(strtolower($time), ['', 'now', 'asap'], true);
+        $ts = (!$asapMode && $time !== '') ? strtotime($time) : false;
         $parsedTime = ($ts !== false) ? date('Y-m-d H:i:s', $ts) : null;
 
         if ($oid === '') {

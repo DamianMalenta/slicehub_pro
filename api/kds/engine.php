@@ -17,6 +17,7 @@ try {
     require_once __DIR__ . '/../../core/db_config.php';
     require_once __DIR__ . '/../../core/auth_guard.php';
     require_once __DIR__ . '/../../core/SlaThresholds.php';
+    require_once __DIR__ . '/../../core/OrderStateMachine.php';
 
     $raw   = file_get_contents('php://input');
     $input = json_decode($raw ?: '{}', true) ?? [];
@@ -186,60 +187,44 @@ try {
     //   new       → accepted
     //   accepted  → preparing
     //   preparing → ready
-    // Also writes sh_order_audit row (old/new status, user_id).
+    // Routed through OrderStateMachine (single source of truth). Audit trail +
+    // sh_order_logs are written by the state machine; outbox event is published
+    // here in the same transaction.
     // =========================================================================
     if ($action === 'bump_order') {
         $orderId   = trim((string)($input['order_id'] ?? ''));
         $newStatus = trim((string)($input['new_status'] ?? ''));
 
-        $validTransitions = [
-            'new'       => ['accepted'],
-            'accepted'  => ['preparing'],
-            'preparing' => ['ready'],
-        ];
-
         if (!$orderId || !in_array($newStatus, ['accepted','preparing','ready'], true)) {
             kdsResponse(false, null, 'Invalid order_id or new_status (expected: accepted|preparing|ready)');
         }
 
-        $cur = $pdo->prepare("SELECT status FROM sh_orders WHERE id = :oid AND tenant_id = :tid");
-        $cur->execute([':oid' => $orderId, ':tid' => $tenant_id]);
-        $currentStatus = $cur->fetchColumn();
-
-        if (!$currentStatus) {
-            kdsResponse(false, null, 'Order not found');
+        // Build extra columns for the transition:
+        //  - lifecycle timestamp (accepted_at / ready_at)
+        //  - on 'ready': clear kitchen_delta + edited_since_print (order leaves KDS board)
+        $extraCols = [];
+        if ($newStatus === 'accepted') {
+            $extraCols['accepted_at'] = date('Y-m-d H:i:s');
+        } elseif ($newStatus === 'ready') {
+            $extraCols['ready_at']            = date('Y-m-d H:i:s');
+            $extraCols['edited_since_print']  = 0;
+            $extraCols['kitchen_delta']       = null;
         }
 
-        if (!in_array($newStatus, $validTransitions[$currentStatus] ?? [], true)) {
-            kdsResponse(false, null, "Cannot transition from '{$currentStatus}' to '{$newStatus}'");
-        }
+        $tenantFlags = OrderStateMachine::loadTenantFlags($pdo, (int)$tenant_id);
 
         try {
             $pdo->beginTransaction();
 
-            // Ustaw timestamp lifecycle dla danego przejścia
-            $tsExtra = '';
-            if ($newStatus === 'accepted') $tsExtra = ', accepted_at = NOW()';
-            elseif ($newStatus === 'ready')    $tsExtra = ', ready_at = NOW()';
+            $result = OrderStateMachine::transitionOrder(
+                $pdo, $orderId, (int)$tenant_id, (int)($user_id ?? 0),
+                $newStatus, $tenantFlags, $extraCols
+            );
 
-            // R2 (2026-07-30): przejście do 'ready' = kuchnia zakończyła → reset flagi
-            // edycji i kitchen_delta. Order opuszcza tablicę KDS, banner nie ma już sensu.
-            if ($newStatus === 'ready') $tsExtra .= ', edited_since_print = 0, kitchen_delta = NULL';
-
-            $pdo->prepare(
-                "UPDATE sh_orders SET status = :ns, updated_at = NOW() {$tsExtra}
-                 WHERE id = :oid AND tenant_id = :tid"
-            )->execute([':ns' => $newStatus, ':oid' => $orderId, ':tid' => $tenant_id]);
-
-            $pdo->prepare(
-                "INSERT INTO sh_order_audit (order_id, user_id, old_status, new_status, timestamp)
-                 VALUES (:oid, :uid, :os, :ns, NOW())"
-            )->execute([
-                ':oid' => $orderId,
-                ':uid' => $user_id ?? null,
-                ':os'  => $currentStatus,
-                ':ns'  => $newStatus,
-            ]);
+            if (!$result['success']) {
+                $pdo->rollBack();
+                kdsResponse(false, null, $result['message']);
+            }
 
             // [m026] Publish lifecycle event przed commitem.
             $publisherPath = __DIR__ . '/../../core/OrderEventPublisher.php';
@@ -255,12 +240,12 @@ try {
                     if ($eventType) {
                         OrderEventPublisher::publishOrderLifecycle(
                             $pdo, $tenant_id, $eventType, $orderId,
-                            ['from_status' => $currentStatus, 'to_status' => $newStatus],
+                            ['from_status' => $result['old_status'], 'to_status' => $newStatus],
                             [
                                 'source'         => 'kds',
                                 'actorType'      => 'staff',
                                 'actorId'        => (string)($user_id ?? ''),
-                                'idempotencyKey' => $orderId . ':' . $eventType . ':' . $currentStatus,
+                                'idempotencyKey' => $orderId . ':' . $eventType . ':' . $result['old_status'],
                             ]
                         );
                     }
@@ -274,30 +259,29 @@ try {
             kdsResponse(false, null, 'Transition failed');
         }
 
-        kdsResponse(true, ['order_id' => $orderId, 'status' => $newStatus, 'previous' => $currentStatus]);
+        kdsResponse(true, ['order_id' => $orderId, 'status' => $newStatus, 'previous' => $result['old_status']]);
     }
 
     // =========================================================================
     // ACTION: recall_order — rollback ready→preparing (mistake recovery).
     // Used e.g. gdy kucharz kliknął "GOTOWE" przedwcześnie.
+    // Routed through OrderStateMachine::recallOrder() (dedicated rollback edge).
     // =========================================================================
     if ($action === 'recall_order') {
         $orderId = trim((string)($input['order_id'] ?? ''));
         if (!$orderId) kdsResponse(false, null, 'Invalid order_id');
 
-        $cur = $pdo->prepare("SELECT status FROM sh_orders WHERE id = :oid AND tenant_id = :tid");
-        $cur->execute([':oid' => $orderId, ':tid' => $tenant_id]);
-        $currentStatus = $cur->fetchColumn();
-        if ($currentStatus !== 'ready') {
-            kdsResponse(false, null, "Cannot recall from '{$currentStatus}'. Only 'ready' may be recalled.");
-        }
-
         try {
             $pdo->beginTransaction();
-            $pdo->prepare("UPDATE sh_orders SET status='preparing', updated_at=NOW() WHERE id=:oid AND tenant_id=:tid")
-                ->execute([':oid'=>$orderId,':tid'=>$tenant_id]);
-            $pdo->prepare("INSERT INTO sh_order_audit (order_id, user_id, old_status, new_status, timestamp) VALUES (:oid,:uid,'ready','preparing',NOW())")
-                ->execute([':oid'=>$orderId,':uid'=>$user_id ?? null]);
+
+            $result = OrderStateMachine::recallOrder(
+                $pdo, $orderId, (int)$tenant_id, (int)($user_id ?? 0)
+            );
+
+            if (!$result['success']) {
+                $pdo->rollBack();
+                kdsResponse(false, null, $result['message']);
+            }
 
             $publisherPath = __DIR__ . '/../../core/OrderEventPublisher.php';
             if (file_exists($publisherPath)) {
@@ -305,7 +289,7 @@ try {
                 if (class_exists('OrderEventPublisher')) {
                     OrderEventPublisher::publishOrderLifecycle(
                         $pdo, $tenant_id, 'order.recalled', $orderId,
-                        ['from_status' => 'ready', 'to_status' => 'preparing'],
+                        ['from_status' => $result['old_status'], 'to_status' => 'preparing'],
                         [
                             'source'         => 'kds',
                             'actorType'      => 'staff',
@@ -319,6 +303,7 @@ try {
             $pdo->commit();
         } catch (\Throwable $tx) {
             if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('[KDS recall] ' . $tx->getMessage());
             kdsResponse(false, null, 'Recall failed');
         }
 
