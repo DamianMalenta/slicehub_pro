@@ -90,20 +90,29 @@ try {
         // UWAGA: NIE zmieniamy kanonicznych statusów new/accepted. Canonical status flow
         // (Faza 6.2 repair): new → accepted → preparing → ready → completed (+ cancelled).
         // delivery_status jest ORTOGONALNY: unassigned | queued | in_delivery | delivered.
-        $migTid = (int)$tenant_id;
-        $pdo->exec("UPDATE sh_orders SET delivery_status='in_delivery', status='ready' WHERE status='in_delivery' AND tenant_id = {$migTid}");
-        $pdo->exec("UPDATE sh_orders SET delivery_status='delivered' WHERE status='completed' AND order_type='delivery' AND driver_id IS NOT NULL AND delivery_status IS NULL AND tenant_id = {$migTid}");
-        $pdo->exec("UPDATE sh_orders SET delivery_status='unassigned' WHERE order_type='delivery' AND status NOT IN ('completed','cancelled') AND delivery_status IS NULL AND tenant_id = {$migTid}");
+        // [Audit 2026-08-22] Eliminacja interpolacji stringów — prepared statements z :tid.
+        $migStmt = $pdo->prepare("UPDATE sh_orders SET delivery_status='in_delivery', status='ready' WHERE status='in_delivery' AND tenant_id = :tid");
+        $migStmt->execute([':tid' => $tenant_id]);
+        $migStmt = $pdo->prepare("UPDATE sh_orders SET delivery_status='delivered' WHERE status='completed' AND order_type='delivery' AND driver_id IS NOT NULL AND delivery_status IS NULL AND tenant_id = :tid");
+        $migStmt->execute([':tid' => $tenant_id]);
+        $migStmt = $pdo->prepare("UPDATE sh_orders SET delivery_status='unassigned' WHERE order_type='delivery' AND status NOT IN ('completed','cancelled') AND delivery_status IS NULL AND tenant_id = :tid");
+        $migStmt->execute([':tid' => $tenant_id]);
         // [REMOVED 2026-04-18] destrukcyjny UPDATE status='pending' WHERE status IN ('new','accepted') —
         // konflikt z kanonicznym słownikiem (zjadał nowe zamówienia z guest_checkout/KDS).
 
-        // Payment status migration — tenant-scoped
-        $pdo->exec("UPDATE sh_orders SET payment_status='to_pay' WHERE payment_status='unpaid' AND (payment_method IS NULL OR payment_method NOT IN ('online')) AND tenant_id = {$migTid}");
-        $pdo->exec("UPDATE sh_orders SET payment_status='online_unpaid' WHERE payment_status='unpaid' AND payment_method='online' AND tenant_id = {$migTid}");
-        $pdo->exec("UPDATE sh_orders SET payment_status='cash' WHERE payment_status='paid' AND payment_method='cash' AND tenant_id = {$migTid}");
-        $pdo->exec("UPDATE sh_orders SET payment_status='card' WHERE payment_status='paid' AND payment_method='card' AND tenant_id = {$migTid}");
-        $pdo->exec("UPDATE sh_orders SET payment_status='online_paid' WHERE payment_status='paid' AND payment_method='online' AND tenant_id = {$migTid}");
-        $pdo->exec("UPDATE sh_orders SET payment_status='cash' WHERE payment_status='paid' AND tenant_id = {$migTid}");
+        // Payment status migration — tenant-scoped (prepared statements)
+        $migStmt = $pdo->prepare("UPDATE sh_orders SET payment_status='to_pay' WHERE payment_status='unpaid' AND (payment_method IS NULL OR payment_method NOT IN ('online')) AND tenant_id = :tid");
+        $migStmt->execute([':tid' => $tenant_id]);
+        $migStmt = $pdo->prepare("UPDATE sh_orders SET payment_status='online_unpaid' WHERE payment_status='unpaid' AND payment_method='online' AND tenant_id = :tid");
+        $migStmt->execute([':tid' => $tenant_id]);
+        $migStmt = $pdo->prepare("UPDATE sh_orders SET payment_status='cash' WHERE payment_status='paid' AND payment_method='cash' AND tenant_id = :tid");
+        $migStmt->execute([':tid' => $tenant_id]);
+        $migStmt = $pdo->prepare("UPDATE sh_orders SET payment_status='card' WHERE payment_status='paid' AND payment_method='card' AND tenant_id = :tid");
+        $migStmt->execute([':tid' => $tenant_id]);
+        $migStmt = $pdo->prepare("UPDATE sh_orders SET payment_status='online_paid' WHERE payment_status='paid' AND payment_method='online' AND tenant_id = :tid");
+        $migStmt->execute([':tid' => $tenant_id]);
+        $migStmt = $pdo->prepare("UPDATE sh_orders SET payment_status='cash' WHERE payment_status='paid' AND tenant_id = :tid");
+        $migStmt->execute([':tid' => $tenant_id]);
 
         try { $pdo->exec("CREATE INDEX idx_orders_delivery_status ON sh_orders (tenant_id, delivery_status)"); } catch (\Throwable $ignore) {}
         $hasDeliveryStatus = true;
@@ -112,7 +121,8 @@ try {
     // Backfill: ensure delivery orders have delivery_status set (handles seed data / manual inserts)
     if ($hasDeliveryStatus) {
         try {
-            $pdo->exec("UPDATE sh_orders SET delivery_status='unassigned' WHERE order_type='delivery' AND status NOT IN ('completed','cancelled') AND delivery_status IS NULL AND tenant_id = " . (int)$tenant_id);
+            $bfStmt = $pdo->prepare("UPDATE sh_orders SET delivery_status='unassigned' WHERE order_type='delivery' AND status NOT IN ('completed','cancelled') AND delivery_status IS NULL AND tenant_id = :tid");
+            $bfStmt->execute([':tid' => $tenant_id]);
         } catch (\Throwable $ignore) {}
     }
 
@@ -166,15 +176,16 @@ try {
     if ($action === 'get_dashboard') {
 
         // Auto-heal: reset "busy" drivers with zero active delivery orders
-        $pdo->exec(
+        $healStmt = $pdo->prepare(
             "UPDATE sh_drivers d SET d.status = 'available'
-             WHERE d.tenant_id = {$tenant_id} AND d.status = 'busy'
+             WHERE d.tenant_id = :tid AND d.status = 'busy'
                AND NOT EXISTS (
                    SELECT 1 FROM sh_orders o
                    WHERE o.driver_id = d.user_id AND o.tenant_id = d.tenant_id
                      AND o.delivery_status = 'in_delivery'
                )"
         );
+        $healStmt->execute([':tid' => $tenant_id]);
 
         $stmtOrders = $pdo->prepare(
             "SELECT o.id, o.order_number, o.status, o.order_type, o.channel, o.source,

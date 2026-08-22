@@ -79,9 +79,10 @@ try {
                 removed_ingredients_json, comment
          FROM sh_order_lines
          WHERE order_id = :oid
+           AND order_id IN (SELECT id FROM sh_orders WHERE tenant_id = :tid)
          ORDER BY id ASC"
     );
-    $stmtLines->execute([':oid' => $orderId]);
+    $stmtLines->execute([':oid' => $orderId, ':tid' => $tenant_id]);
     $lines = $stmtLines->fetchAll(PDO::FETCH_ASSOC);
 
     // Decode JSON fields to native structures for the frontend.

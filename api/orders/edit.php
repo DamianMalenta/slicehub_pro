@@ -108,9 +108,10 @@ try {
         "SELECT id, item_sku, snapshot_name, unit_price, quantity, line_total,
                 vat_rate, vat_amount, modifiers_json, removed_ingredients_json, comment
          FROM sh_order_lines
-         WHERE order_id = :oid"
+         WHERE order_id = :oid
+           AND order_id IN (SELECT id FROM sh_orders WHERE tenant_id = :tid)"
     );
-    $stmtOldLines->execute([':oid' => $orderId]);
+    $stmtOldLines->execute([':oid' => $orderId, ':tid' => $tenant_id]);
     $oldLines = $stmtOldLines->fetchAll(PDO::FETCH_ASSOC);
 
     // =========================================================================
@@ -208,7 +209,9 @@ try {
         // — 7b. DELETE removed lines —————————————————————————————————————
         if (!empty($delta['removed'])) {
             $stmtDel = $pdo->prepare(
-                "DELETE FROM sh_order_lines WHERE id = :id AND order_id = :oid"
+                "DELETE FROM sh_order_lines
+                 WHERE id = :id AND order_id = :oid
+                   AND order_id IN (SELECT id FROM sh_orders WHERE tenant_id = :tid)"
             );
             foreach ($delta['removed'] as $rem) {
                 $stmtDel->execute([':id' => $rem['line_id'], ':oid' => $orderId]);
@@ -238,7 +241,8 @@ try {
                      modifiers_json          = :mods,
                      removed_ingredients_json = :removed,
                      comment                 = :comment
-                 WHERE id = :id AND order_id = :oid"
+                 WHERE id = :id AND order_id = :oid
+                   AND order_id IN (SELECT id FROM sh_orders WHERE tenant_id = :tid)"
             );
 
             foreach ($delta['modified'] as $mod) {

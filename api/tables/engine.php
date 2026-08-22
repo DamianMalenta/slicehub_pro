@@ -54,6 +54,7 @@ try {
     require_once __DIR__ . '/../../core/Uuid.php';
     require_once __DIR__ . '/../../core/OrderStateMachine.php';
     require_once __DIR__ . '/../../core/SettlementEngine.php';
+    require_once __DIR__ . '/../../core/OrderEventPublisher.php';
     require_once __DIR__ . '/../../core/StaffFleetPresence.php';
 
     $raw    = file_get_contents('php://input');
@@ -249,7 +250,18 @@ try {
             )->execute([':pid' => $parentId, ':id' => $childId, ':tid' => $tenant_id]);
 
             $movedOrders = 0;
+            $movedOrderIds = [];
             if ($childHasOrders) {
+                // Pobierz ID zamówień przed przeniesieniem — do publikacji outbox.
+                $stmtFetchMoved = $pdo->prepare(
+                    "SELECT id FROM sh_orders
+                     WHERE table_id = :cid AND tenant_id = :tid
+                       AND status NOT IN ('completed', 'cancelled')"
+                );
+                $stmtFetchMoved->execute([':cid' => $childId, ':tid' => $tenant_id]);
+                $movedOrderIds = $stmtFetchMoved->fetchAll(\PDO::FETCH_COLUMN);
+                $stmtFetchMoved->closeCursor();
+
                 $stmtMove = $pdo->prepare(
                     "UPDATE sh_orders SET table_id = :pid, updated_at = NOW()
                      WHERE table_id = :cid AND tenant_id = :tid
@@ -267,6 +279,33 @@ try {
                 'orders_moved'      => $movedOrders,
                 'consolidate_flag'  => $consolidate,
             ]);
+
+            // [Outbox] Publikuj lifecycle każdego przeniesionego zamówienia —
+            // integracje (Papu/Dotykacka) muszą wiedzieć o zmianie stolika.
+            // Używamy order.edited z kontekstem merge.
+            // Idempotency key jest per-order + merge-scoped (zawiera parent_table_id),
+            // dzięki czemu nie koliduje z order.edited z edit.php ani z innym merge'em.
+            foreach ($movedOrderIds as $movedOid) {
+                OrderEventPublisher::publishOrderLifecycle(
+                    $pdo, $tenant_id, 'order.edited', $movedOid,
+                    [
+                        'tenant_id'       => $tenant_id,
+                        'user_id'         => $user_id,
+                        'source'          => 'merge_tables',
+                        'reason'          => 'order_moved_to_parent_table',
+                        'old_table_id'    => $childId,
+                        'new_table_id'    => $parentId,
+                        'parent_table_id' => $parentId,
+                        'child_table_id'  => $childId,
+                    ],
+                    [
+                        'source'         => 'pos',
+                        'actorType'      => 'staff',
+                        'actorId'        => (string)$user_id,
+                        'idempotencyKey' => $movedOid . ':order.edited:merge_tables:' . $parentId,
+                    ]
+                );
+            }
 
             $pdo->commit();
             tableResponse(true, [
@@ -457,6 +496,24 @@ try {
                 'fired_at'      => $now,
             ]);
 
+            // [Outbox] Publikuj order.preparing — kuchnia zaczyna przygotowanie
+            // (tylko gdy status był pre-kuchenny; idempotency key chroni przed duplikatem).
+            if (in_array($order['status'], ['pending', 'new', 'accepted'], true)) {
+                OrderEventPublisher::publishOrderLifecycle(
+                    $pdo, $tenant_id, 'order.preparing', $orderId,
+                    [
+                        'tenant_id'     => $tenant_id,
+                        'user_id'       => $user_id,
+                        'source'        => 'fire_course',
+                        'course_number' => $courseNumber,
+                        'fired_count'   => $firedCount,
+                        'old_status'    => $order['status'],
+                        'new_status'    => 'preparing',
+                    ],
+                    ['source' => 'pos', 'actorType' => 'staff', 'actorId' => (string)$user_id]
+                );
+            }
+
             $pdo->commit();
 
             tableResponse(true, [
@@ -521,6 +578,19 @@ try {
                  WHERE id = (SELECT table_id FROM sh_orders WHERE id = :oid AND tenant_id = :tid)
                    AND tenant_id = :tid2"
             )->execute([':oid' => $orderId, ':tid' => $tenant_id, ':tid2' => $tenant_id]);
+
+            // [Outbox] Publikuj order.completed — dine-in zamknięte po pełnej zapłacie.
+            OrderEventPublisher::publishOrderLifecycle(
+                $pdo, $tenant_id, 'order.completed', $orderId,
+                [
+                    'tenant_id'   => $tenant_id,
+                    'user_id'     => $user_id,
+                    'source'      => 'complete_dine_in',
+                    'old_status'  => $result['old_status'],
+                    'new_status'  => $result['new_status'],
+                ],
+                ['source' => 'pos', 'actorType' => 'staff', 'actorId' => (string)$user_id]
+            );
 
             $pdo->commit();
             tableResponse(true, [
@@ -729,6 +799,26 @@ try {
                 'table_number' => $table['table_number'],
                 'guest_count'  => $guestCount,
             ]);
+
+            // [Outbox] Publikuj order.created — shell dine-in zamówienie utworzone.
+            OrderEventPublisher::publishOrderLifecycle(
+                $pdo, $tenant_id, 'order.created', $orderId,
+                [
+                    'tenant_id'      => $tenant_id,
+                    'user_id'        => $user_id,
+                    'source'         => 'open_table',
+                    'table_id'       => $tableId,
+                    'table_number'   => $table['table_number'],
+                    'old_table_status' => 'free',
+                    'new_table_status' => 'occupied',
+                    'guest_count'    => $guestCount,
+                    'order_number'   => $orderNumber,
+                    'channel'        => 'dine_in',
+                    'order_type'     => 'dine_in',
+                    'new_status'     => 'pending',
+                ],
+                ['source' => 'pos', 'actorType' => 'staff', 'actorId' => (string)$user_id]
+            );
 
             $pdo->commit();
             tableResponse(true, [

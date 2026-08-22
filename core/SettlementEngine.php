@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/Uuid.php';
+require_once __DIR__ . '/OrderEventPublisher.php';
 
 /**
  * SettlementEngine — canonical payment settlement for SliceHub.
@@ -143,6 +144,27 @@ final class SettlementEngine
             'payments'      => $inserted,
         ]);
 
+        // [Outbox] Publish payment.settled wewnątrz trwającej transakcji.
+        // applyPartialPayments nie zamyka zamówienia — to zdarzenie płatnościowe.
+        $newPayStatus = ($payCheck['fully_paid'] && $header !== null)
+            ? (string)$header['payment_status']
+            : (string)$order['payment_status'];
+        OrderEventPublisher::publishOrderLifecycle(
+            $pdo, $tenantId, 'payment.settled', $orderId,
+            [
+                'tenant_id'         => $tenantId,
+                'user_id'           => $userId,
+                'source'            => 'dine_in_split',
+                'payments_added'    => count($inserted),
+                'fully_paid'        => $payCheck['fully_paid'],
+                'paid_grosze'       => $payCheck['paid_grosze'],
+                'remaining_grosze'  => $payCheck['remaining_grosze'],
+                'old_payment_status'=> (string)$order['payment_status'],
+                'new_payment_status'=> $newPayStatus,
+            ],
+            ['source' => 'pos', 'actorType' => 'staff', 'actorId' => (string)$userId]
+        );
+
         return [
             'success'          => true,
             'fully_paid'       => $payCheck['fully_paid'],
@@ -217,6 +239,22 @@ final class SettlementEngine
             ':ns'  => "payment_{$method}",
             ':now' => $now,
         ]);
+
+        // [Outbox] Publish payment.settled — driver zebrał pełną kwotę przy drzwiach.
+        OrderEventPublisher::publishOrderLifecycle(
+            $pdo, $tenantId, 'payment.settled', $orderId,
+            [
+                'tenant_id'         => $tenantId,
+                'user_id'           => $actorUserId,
+                'source'            => 'driver_collection',
+                'collector_id'      => $collector,
+                'method'            => $method,
+                'amount_grosze'     => $grandTotal,
+                'old_payment_status'=> (string)$order['payment_status'],
+                'new_payment_status'=> $method,
+            ],
+            ['source' => 'delivery', 'actorType' => 'staff', 'actorId' => (string)$actorUserId]
+        );
 
         return [
             'success'        => true,
@@ -381,7 +419,7 @@ final class SettlementEngine
         }
 
         return self::paymentOnlyResult(
-            $pdo, $orderId, $tenantId, $method, $printReceipt, $tipGrosze,
+            $pdo, $orderId, $tenantId, $userId, $method, $printReceipt, $tipGrosze,
             $oldStatus, $changeDueGrosze, $paymentInserted
         );
     }
@@ -607,6 +645,7 @@ final class SettlementEngine
         \PDO $pdo,
         string $orderId,
         int $tenantId,
+        int $userId,
         string $method,
         bool $printReceipt,
         int $tipGrosze,
@@ -627,6 +666,24 @@ final class SettlementEngine
         $pdo->prepare(
             'UPDATE sh_orders SET ' . implode(', ', $sets) . ' WHERE id = :oid AND tenant_id = :tid'
         )->execute($params);
+
+        // [Outbox] Publish payment.settled — rozliczenie bez zamykania zamówienia
+        // (np. split tender / płatność częściowa). Zamykające ścieżki (completeAfterPayments)
+        // publikują order.completed u callerów (idempotency key chroni przed duplikatem).
+        OrderEventPublisher::publishOrderLifecycle(
+            $pdo, $tenantId, 'payment.settled', $orderId,
+            [
+                'tenant_id'         => $tenantId,
+                'user_id'           => $userId,
+                'source'            => 'settle_payment_only',
+                'payment_method'    => $method,
+                'old_order_status'  => $oldStatus,
+                'new_payment_status'=> $newPayStatus,
+                'tip_grosze'        => $tipGrosze,
+                'change_due_grosze' => $changeDueGrosze,
+            ],
+            ['source' => 'pos', 'actorType' => 'staff', 'actorId' => (string)$userId]
+        );
 
         return [
             'success'           => true,
