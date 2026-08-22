@@ -989,17 +989,19 @@ seed('Restaurant zones + tables (10)', function ($pdo, $T) {
         (3, {$T}, 'Loft', 3, 1)
         ON DUPLICATE KEY UPDATE name=VALUES(name), display_order=VALUES(display_order), is_active=1");
 
+    // pos_x / pos_y are PERCENTAGES (0-100) of the floor canvas — NOT pixels.
+    // UI applies them as el.style.left = pos_x + '%' (tables_ui.js renderFloor).
     $tables = [
-        [1,  1, '1',  4, 'square',    120,  80],
-        [2,  1, '2',  4, 'square',    220,  80],
-        [3,  1, '3',  6, 'rectangle', 120, 180],
-        [4,  1, '4',  2, 'round',     220, 180],
-        [5,  1, '5',  4, 'square',    120, 280],
-        [6,  1, '6',  8, 'rectangle', 220, 280],
-        [7,  2, 'T1', 4, 'square',     400,  80],
-        [8,  2, 'T2', 4, 'square',     500,  80],
-        [9,  3, 'L1', 2, 'round',      400, 280],
-        [10, 3, 'L2', 6, 'rectangle',  500, 280],
+        [1,  1, '1',  4, 'square',    15, 20],
+        [2,  1, '2',  4, 'square',    35, 20],
+        [3,  1, '3',  6, 'rectangle', 15, 45],
+        [4,  1, '4',  2, 'round',     35, 45],
+        [5,  1, '5',  4, 'square',    15, 70],
+        [6,  1, '6',  8, 'rectangle', 35, 70],
+        [7,  2, 'T1', 4, 'square',    60, 20],
+        [8,  2, 'T2', 4, 'square',    80, 20],
+        [9,  3, 'L1', 2, 'round',      60, 70],
+        [10, 3, 'L2', 6, 'rectangle',  80, 70],
     ];
     $stmt = $pdo->prepare(
         "INSERT INTO sh_tables (id, tenant_id, zone_id, table_number, seats, shape, pos_x, pos_y, physical_status, is_active)
