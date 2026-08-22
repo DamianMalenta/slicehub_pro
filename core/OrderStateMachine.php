@@ -279,6 +279,112 @@ class OrderStateMachine
     }
 
     /**
+     * Recall an order from 'ready' back to 'preparing' (kitchen mistake recovery).
+     *
+     * This is an explicit ROLLBACK transition (ready → preparing) that bypasses
+     * the strict forward-only transition map. It is the ONLY sanctioned reverse
+     * edge in the system and is gated to the single 'ready' → 'preparing' pair.
+     *
+     * The caller MUST have already called $pdo->beginTransaction().
+     *
+     * @param \PDO   $pdo
+     * @param string $orderId
+     * @param int    $tenantId
+     * @param int    $userId
+     * @param array  $extraCols Optional extra columns to SET (col => value)
+     *
+     * @return array ['success' => bool, 'old_status' => string, 'new_status' => string, 'message' => ?string]
+     */
+    public static function recallOrder(
+        \PDO $pdo,
+        string $orderId,
+        int $tenantId,
+        int $userId,
+        array $extraCols = []
+    ): array {
+        $stmt = $pdo->prepare(
+            "SELECT status, order_type FROM sh_orders WHERE id = :oid AND tenant_id = :tid FOR UPDATE"
+        );
+        $stmt->execute([':oid' => $orderId, ':tid' => $tenantId]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $stmt->closeCursor();
+
+        if (!$row) {
+            return [
+                'success'    => false,
+                'old_status' => '',
+                'new_status' => 'preparing',
+                'message'    => 'Order not found.',
+            ];
+        }
+
+        $oldStatus = (string)$row['status'];
+        $orderType = (string)($row['order_type'] ?? '');
+
+        if ($oldStatus !== 'ready') {
+            return [
+                'success'    => false,
+                'old_status' => $oldStatus,
+                'new_status' => 'preparing',
+                'message'    => "Cannot recall from '{$oldStatus}'. Only 'ready' may be recalled.",
+            ];
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $setClauses = ['status = :ns', 'updated_at = :now'];
+        $params = [
+            ':ns'  => 'preparing',
+            ':now' => $now,
+            ':oid' => $orderId,
+            ':tid' => $tenantId,
+        ];
+
+        $i = 0;
+        foreach ($extraCols as $col => $val) {
+            $safeCol = preg_replace('/[^a-zA-Z0-9_]/', '', $col);
+            $paramKey = ":xc{$i}";
+            $setClauses[] = "`{$safeCol}` = {$paramKey}";
+            $params[$paramKey] = $val;
+            $i++;
+        }
+
+        $sql = "UPDATE sh_orders SET " . implode(', ', $setClauses)
+             . " WHERE id = :oid AND tenant_id = :tid";
+        $upd = $pdo->prepare($sql);
+        $upd->execute($params);
+
+        if ($upd->rowCount() === 0) {
+            throw new \RuntimeException("Concurrent modification on order {$orderId}.");
+        }
+
+        $pdo->prepare(
+            "INSERT INTO sh_order_audit (order_id, user_id, old_status, new_status, timestamp)
+             VALUES (:oid, :uid, :os, :ns, :now)"
+        )->execute([
+            ':oid' => $orderId,
+            ':uid' => $userId,
+            ':os'  => $oldStatus,
+            ':ns'  => 'preparing',
+            ':now' => $now,
+        ]);
+
+        self::writeLog($pdo, $orderId, $tenantId, $userId, 'state_change', [
+            'old_status'  => $oldStatus,
+            'new_status'  => 'preparing',
+            'order_type'  => $orderType,
+            'is_rollback' => true,
+            'extra_cols'  => array_keys($extraCols),
+        ]);
+
+        return [
+            'success'    => true,
+            'old_status' => $oldStatus,
+            'new_status' => 'preparing',
+            'message'    => null,
+        ];
+    }
+
+    /**
      * Fast-track completion: settle payment + transition to completed in one
      * atomic step. Designed for POS "one-click close" workflows.
      *
