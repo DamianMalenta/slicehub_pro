@@ -741,18 +741,57 @@ function action_create_tenant(array $body): void
         $st->execute($params);
         $id = (int) $pdo->lastInsertId();
 
+        // ── Domyślne ustawienia tenanta (główny rekord + klucze KV) ──────────
+        // Bez tego POS/online działają na defaults, ale SLA/prep time/currency
+        // są nieustawione. Tworzymy kompletny zestaw jak w seed_demo_all.php.
+        $hasSettingsTable = panel_table_exists($pdo, 'sh_tenant_settings');
+        $settingsCreated = 0;
+        if ($hasSettingsTable) {
+            // Główny rekord ustawień (setting_key='') — SLA, prep time, min order
+            $pdo->prepare(
+                "INSERT INTO sh_tenant_settings
+                    (tenant_id, setting_key, is_active, min_order_value,
+                     min_prep_time_minutes, sla_green_min, sla_yellow_min,
+                     base_prep_minutes, min_lead_time_minutes, setting_value)
+                 VALUES (?, '', 1, 0, 30, 10, 5, 25, 30, NULL)
+                 ON DUPLICATE KEY UPDATE is_active = 1"
+            )->execute([$id]);
+            $settingsCreated++;
+
+            // Klucze KV — currency, domyślne stawki VAT, dopłata half/half
+            $kvDefaults = [
+                'currency'             => 'PLN',
+                'default_vat_dine_in'  => '8',
+                'default_vat_takeaway' => '5',
+                'half_half_surcharge'  => '200',
+            ];
+            $kvSt = $pdo->prepare(
+                "INSERT INTO sh_tenant_settings (tenant_id, setting_key, setting_value)
+                 VALUES (?, ?, ?)
+                 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)"
+            );
+            foreach ($kvDefaults as $k => $v) {
+                $kvSt->execute([$id, $k, $v]);
+                $settingsCreated++;
+            }
+        }
+
         $note = '';
         if ($slug !== '' && !$hasSlugCol) {
             $note = ' (slug pominięty — brak kolumny, uruchom migrację 045)';
         } elseif ($nip !== '' && !$hasNipCol) {
             $note = ' (NIP pominięty — brak kolumny, uruchom migrację 045)';
         }
+        if (!$hasSettingsTable) {
+            $note .= ' (ustawienia tenanta pominięte — brak tabeli sh_tenant_settings)';
+        }
 
-        panel_json(true, "Tenant utworzony (id={$id}).{$note}", [
-            'tenant_id' => $id,
-            'name'      => $name,
-            'slug'      => $hasSlugCol ? $slug : null,
-            'nip'       => $hasNipCol  ? $nip  : null,
+        panel_json(true, "Tenant utworzony (id={$id}, ustawienia: {$settingsCreated}).{$note}", [
+            'tenant_id'        => $id,
+            'name'             => $name,
+            'slug'             => $hasSlugCol ? $slug : null,
+            'nip'              => $hasNipCol  ? $nip  : null,
+            'settings_created' => $settingsCreated,
         ]);
     } catch (Throwable $e) {
         $msg = $e->getMessage();

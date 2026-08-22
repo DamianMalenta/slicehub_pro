@@ -30,6 +30,7 @@ BASE_DIR     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MENU_FILE    = os.path.join(BASE_DIR, '_docs', 'menu_pizzaforno', 'menu (14).xlsx')
 ADD_FILE     = os.path.join(BASE_DIR, '_docs', 'menu_pizzaforno', 'additions.xlsx')
 OUTPUT_FILE  = os.path.join(BASE_DIR, 'scripts', 'seed_pizzaforno.sql')
+MENU_OUTPUT_FILE = os.path.join(BASE_DIR, 'scripts', 'seed_pizzaforno_menu.sql')
 DEFAULT_TID  = 2
 WAREHOUSE_ID = 'MAIN'
 
@@ -954,7 +955,7 @@ ORDERS_DATA = [
 # SQL BUILDER
 # ──────────────────────────────────────────────────────────────────────────────
 
-def build_sql(menu_items, additions):
+def build_sql(menu_items, additions, menu_only=False):
     lines_out = []
     W = lines_out.append
 
@@ -971,16 +972,21 @@ def build_sql(menu_items, additions):
     n_panini  = len(panini_families)
     n_singles = len(singles)
 
+    seed_name = 'seed_pizzaforno_menu.sql' if menu_only else 'seed_pizzaforno.sql'
+    mode_label = 'MENU-ONLY (katalog jedzenia: sys_items, menu, modyfikatory, receptury)' if menu_only else 'FULL (menu + wh_stock + PZ + KSeF + zamówienia)'
+
     W(f"""-- =============================================================================
--- seed_pizzaforno.sql — SliceHub Pro
+-- {seed_name} — SliceHub Pro
 -- Wygenerowane: {now_str}
 -- Źródło: _docs/menu_pizzaforno/menu (14).xlsx + additions.xlsx
+-- Tryb: {mode_label}
 -- Rodzin pizzy: {n_pizzas} | Panini: {n_panini} | Pojedyncze: {n_singles}
 -- Składniki sys_items: {len(SYS_ITEMS)} SKU
 -- Modifier groups: {len(mod_groups)}
 -- =============================================================================
 -- IDEMPOTENTNY — można uruchamiać wielokrotnie (cleanup na początku).
 -- Zmień @tid przed uruchomieniem jeśli inny tenant.
+-- Wymaga: istniejącego tenant w sh_tenant (np. utworzonego przez install_panel.php)
 -- =============================================================================
 
 SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -996,27 +1002,30 @@ SET @wh  := {esc(WAREHOUSE_ID)};
     W("SET FOREIGN_KEY_CHECKS = 0;")
     W("")
 
-    # Orders
-    W("DELETE FROM sh_order_payments WHERE order_id IN")
-    W("  (SELECT id FROM sh_orders WHERE tenant_id=@tid AND order_number LIKE 'FORNO-%');")
-    W("DELETE FROM sh_order_audit WHERE order_id IN")
-    W("  (SELECT id FROM sh_orders WHERE tenant_id=@tid AND order_number LIKE 'FORNO-%');")
-    W("DELETE FROM sh_order_lines WHERE order_id IN")
-    W("  (SELECT id FROM sh_orders WHERE tenant_id=@tid AND order_number LIKE 'FORNO-%');")
-    W("DELETE FROM sh_orders WHERE tenant_id=@tid AND order_number LIKE 'FORNO-%';")
-    W("")
+    # Orders (only in full mode — menu-only seed doesn't create orders)
+    if not menu_only:
+        W("DELETE FROM sh_order_payments WHERE order_id IN")
+        W("  (SELECT id FROM sh_orders WHERE tenant_id=@tid AND order_number LIKE 'FORNO-%');")
+        W("DELETE FROM sh_order_audit WHERE order_id IN")
+        W("  (SELECT id FROM sh_orders WHERE tenant_id=@tid AND order_number LIKE 'FORNO-%');")
+        W("DELETE FROM sh_order_lines WHERE order_id IN")
+        W("  (SELECT id FROM sh_orders WHERE tenant_id=@tid AND order_number LIKE 'FORNO-%');")
+        W("DELETE FROM sh_orders WHERE tenant_id=@tid AND order_number LIKE 'FORNO-%';")
+        W("")
 
-    # KSeF
-    W("DELETE FROM sh_ksef_invoice_lines WHERE ksef_invoice_id IN")
-    W("  (SELECT id FROM sh_ksef_invoices WHERE tenant_id=@tid AND invoice_number LIKE 'FA/FORNO/%');")
-    W("DELETE FROM sh_ksef_invoices WHERE tenant_id=@tid AND invoice_number LIKE 'FA/FORNO/%';")
-    W("")
+    # KSeF (only in full mode)
+    if not menu_only:
+        W("DELETE FROM sh_ksef_invoice_lines WHERE ksef_invoice_id IN")
+        W("  (SELECT id FROM sh_ksef_invoices WHERE tenant_id=@tid AND invoice_number LIKE 'FA/FORNO/%');")
+        W("DELETE FROM sh_ksef_invoices WHERE tenant_id=@tid AND invoice_number LIKE 'FA/FORNO/%';")
+        W("")
 
-    # WH documents
-    W("DELETE FROM wh_document_lines WHERE document_id IN")
-    W("  (SELECT id FROM wh_documents WHERE tenant_id=@tid AND doc_number LIKE 'PZ-2026/%/FORNO%');")
-    W("DELETE FROM wh_documents WHERE tenant_id=@tid AND doc_number LIKE 'PZ-2026/%/FORNO%';")
-    W("")
+    # WH documents (only in full mode)
+    if not menu_only:
+        W("DELETE FROM wh_document_lines WHERE document_id IN")
+        W("  (SELECT id FROM wh_documents WHERE tenant_id=@tid AND doc_number LIKE 'PZ-2026/%/FORNO%');")
+        W("DELETE FROM wh_documents WHERE tenant_id=@tid AND doc_number LIKE 'PZ-2026/%/FORNO%';")
+        W("")
 
     # modifier_pricing for our groups
     grp_keys_quoted = ', '.join(esc(k) for k in mod_groups.keys())
@@ -1072,10 +1081,11 @@ SET @wh  := {esc(WAREHOUSE_ID)};
     W("  'SAŁATKI','SOSY','DESERY','DLA DZIECI','NAPOJE','PIWA','POZOSTAŁE','NOWOŚCI','ZIMOWE MENU');")
     W("")
 
-    # wh_stock for our SKUs
+    # wh_stock for our SKUs (only in full mode — menu-only doesn't manage stock)
     sys_skus_quoted = ', '.join(esc(r[0]) for r in SYS_ITEMS)
-    W(f"DELETE FROM wh_stock WHERE tenant_id=@tid AND sku IN ({sys_skus_quoted});")
-    W("")
+    if not menu_only:
+        W(f"DELETE FROM wh_stock WHERE tenant_id=@tid AND sku IN ({sys_skus_quoted});")
+        W("")
 
     # sys_items
     W(f"DELETE FROM sys_items WHERE tenant_id=@tid AND sku IN ({sys_skus_quoted});")
@@ -1511,225 +1521,226 @@ SET @wh  := {esc(WAREHOUSE_ID)};
         W(",\n".join(recipe_rows) + ";")
     W("")
 
-    # ── WH_STOCK (initial) ───────────────────────────────────────────────────
-    W("-- ── 2.15 wh_stock (stany początkowe) ──────────────────────────────────")
+    if not menu_only:
+        # ── WH_STOCK (initial) ───────────────────────────────────────────────────
+        W("-- ── 2.15 wh_stock (stany początkowe) ──────────────────────────────────")
 
-    # Realistic starting stock levels (qty, avco_price_grosze)
-    STOCK_LEVELS = {
-        'MAKA_TYP_00':      (120.000, 350),
-        'MAKA_SEZAMOWA':    (15.000,  800),
-        'SOS_POMIDOROWY':   (45.000,  420),
-        'SOS_SMIETANKOWY':  (10.000,  620),
-        'SOS_CZOSNKOWY':    (8.000,   580),
-        'SOS_BBQ':          (6.000,   750),
-        'SOS_MEKSYKANSKI':  (5.000,   750),
-        'SOS_1000_WYSP':    (5.000,   690),
-        'TABASCO':          (2.000,   2400),
-        'MAJONEZ':          (8.000,   480),
-        'KETCHUP':          (8.000,   380),
-        'KREM_BALSAMICZNY': (3.000,   2800),
-        'MOZZ_FIOR':        (30.000,  2850),
-        'MOZZ_BUFFALO':     (8.000,   5200),
-        'RICOTTA':          (10.000,  1800),
-        'PARMEZAN':         (6.000,   6500),
-        'GORGONZOLA':       (3.000,   4800),
-        'FETA':             (4.000,   3200),
-        'EDAMSKI':          (5.000,   2800),
-        'SALAMI_PICANTE':   (10.000,  4200),
-        'SALAMI':           (8.000,   3800),
-        'NDUJA':            (5.000,   5500),
-        'KIELB_WLOSKA':     (7.000,   3800),
-        'SZYNKA_PARM':      (4.000,   8900),
-        'SZYNKA':           (8.000,   2800),
-        'KURCZAK':          (10.000,  1850),
-        'STEK_WOLOWY':      (5.000,   4800),
-        'BOCZEK':           (6.000,   2400),
-        'RWANA_WIEPRZ':     (4.000,   2800),
-        'KEBAB_DROBIOWY':   (5.000,   1950),
-        'MIESO_WOLOWE':     (4.000,   3500),
-        'ANCHOIS':          (2.000,   4500),
-        'TUNCZYK':          (6.000,   2200),
-        'GYROS_MIESO':      (8.000,   2200),
-        'PIECZARKI':        (15.000,  750),
-        'PIECZARKI_SMAZONE':(5.000,   950),
-        'CEBULA_CZERW':     (10.000,  320),
-        'PAPRYKA':          (8.000,   600),
-        'OLIWKI':           (5.000,   1200),
-        'POMIDORKI_KOKAT':  (12.000,  850),
-        'POMIDORKI_SUSZE':  (4.000,   3500),
-        'KUKURYDZA':        (6.000,   380),
-        'RUKOLA':           (10.000,  1400),
-        'SZPINAK':          (6.000,   900),
-        'CHILLI':           (2.000,   1800),
-        'JALAPENO':         (2.000,   2200),
-        'KAP_PEKINSKA':     (4.000,   480),
-        'OGUREK_KONS':      (3.000,   480),
-        'SALATA':           (5.000,   800),
-        'CUKINIA':          (4.000,   520),
-        'BRUKOLY':          (3.000,   680),
-        'BAZYLIA':          (2.000,   2500),
-        'GRUSZKA':          (5.000,   650),
-        'ANANAS':           (5.000,   780),
-        'FRYTKI':           (8.000,   450),
-        'CHIPSY_ZIEMN':     (6.000,   800),
-        'OREGANO':          (3.000,   2200),
-        'OLIWA':            (10.000,  1890),
-        'MAKARON':          (10.000,  480),
-        'CIASTO_GYROS':     (8.000,   580),
-        'BUŁKA_PANINI':     (250.0,   85),
-        'COCA_COLA':        (120.0,   220),
-        'SPRITE':           (60.0,    220),
-        'WODA_NIEGAZ':      (60.0,    110),
-        'WODA_GAZ':         (60.0,    110),
-        'PIWO_BUTELKA':     (180.0,   350),
-        'LODY_GALKA':       (100.0,   150),
-    }
+        # Realistic starting stock levels (qty, avco_price_grosze)
+        STOCK_LEVELS = {
+            'MAKA_TYP_00':      (120.000, 350),
+            'MAKA_SEZAMOWA':    (15.000,  800),
+            'SOS_POMIDOROWY':   (45.000,  420),
+            'SOS_SMIETANKOWY':  (10.000,  620),
+            'SOS_CZOSNKOWY':    (8.000,   580),
+            'SOS_BBQ':          (6.000,   750),
+            'SOS_MEKSYKANSKI':  (5.000,   750),
+            'SOS_1000_WYSP':    (5.000,   690),
+            'TABASCO':          (2.000,   2400),
+            'MAJONEZ':          (8.000,   480),
+            'KETCHUP':          (8.000,   380),
+            'KREM_BALSAMICZNY': (3.000,   2800),
+            'MOZZ_FIOR':        (30.000,  2850),
+            'MOZZ_BUFFALO':     (8.000,   5200),
+            'RICOTTA':          (10.000,  1800),
+            'PARMEZAN':         (6.000,   6500),
+            'GORGONZOLA':       (3.000,   4800),
+            'FETA':             (4.000,   3200),
+            'EDAMSKI':          (5.000,   2800),
+            'SALAMI_PICANTE':   (10.000,  4200),
+            'SALAMI':           (8.000,   3800),
+            'NDUJA':            (5.000,   5500),
+            'KIELB_WLOSKA':     (7.000,   3800),
+            'SZYNKA_PARM':      (4.000,   8900),
+            'SZYNKA':           (8.000,   2800),
+            'KURCZAK':          (10.000,  1850),
+            'STEK_WOLOWY':      (5.000,   4800),
+            'BOCZEK':           (6.000,   2400),
+            'RWANA_WIEPRZ':     (4.000,   2800),
+            'KEBAB_DROBIOWY':   (5.000,   1950),
+            'MIESO_WOLOWE':     (4.000,   3500),
+            'ANCHOIS':          (2.000,   4500),
+            'TUNCZYK':          (6.000,   2200),
+            'GYROS_MIESO':      (8.000,   2200),
+            'PIECZARKI':        (15.000,  750),
+            'PIECZARKI_SMAZONE':(5.000,   950),
+            'CEBULA_CZERW':     (10.000,  320),
+            'PAPRYKA':          (8.000,   600),
+            'OLIWKI':           (5.000,   1200),
+            'POMIDORKI_KOKAT':  (12.000,  850),
+            'POMIDORKI_SUSZE':  (4.000,   3500),
+            'KUKURYDZA':        (6.000,   380),
+            'RUKOLA':           (10.000,  1400),
+            'SZPINAK':          (6.000,   900),
+            'CHILLI':           (2.000,   1800),
+            'JALAPENO':         (2.000,   2200),
+            'KAP_PEKINSKA':     (4.000,   480),
+            'OGUREK_KONS':      (3.000,   480),
+            'SALATA':           (5.000,   800),
+            'CUKINIA':          (4.000,   520),
+            'BRUKOLY':          (3.000,   680),
+            'BAZYLIA':          (2.000,   2500),
+            'GRUSZKA':          (5.000,   650),
+            'ANANAS':           (5.000,   780),
+            'FRYTKI':           (8.000,   450),
+            'CHIPSY_ZIEMN':     (6.000,   800),
+            'OREGANO':          (3.000,   2200),
+            'OLIWA':            (10.000,  1890),
+            'MAKARON':          (10.000,  480),
+            'CIASTO_GYROS':     (8.000,   580),
+            'BUŁKA_PANINI':     (250.0,   85),
+            'COCA_COLA':        (120.0,   220),
+            'SPRITE':           (60.0,    220),
+            'WODA_NIEGAZ':      (60.0,    110),
+            'WODA_GAZ':         (60.0,    110),
+            'PIWO_BUTELKA':     (180.0,   350),
+            'LODY_GALKA':       (100.0,   150),
+        }
 
-    stock_rows = []
-    for sku, name, unit, cat in SYS_ITEMS:
-        qty, avco = STOCK_LEVELS.get(sku, (10.000, 500))
-        avco_dec  = round(avco / 100, 4)
-        stock_rows.append(
-            f"(@tid, @wh, {esc(sku)}, {qty}, {avco_dec}, {avco_dec})"
-        )
-
-    W("INSERT INTO wh_stock (tenant_id, warehouse_id, sku, quantity, current_avco_price, unit_net_cost) VALUES")
-    W(",\n".join(stock_rows) + ";")
-    W("")
-
-    # ── WH_DOCUMENTS + LINES (PZ) ────────────────────────────────────────────
-    W("-- ── 2.16 wh_documents + wh_document_lines (PZ receipts) ───────────────")
-
-    for pz in PZ_DATA:
-        supplier = SUPPLIERS[pz['supplier']]
-        created  = days_ago(pz['days_ago'])
-        W(f"INSERT INTO wh_documents (tenant_id, doc_number, type, warehouse_id, status,")
-        W(f"  supplier_name, supplier_invoice, notes, created_at)")
-        W(f"VALUES (@tid, {esc(pz['doc_number'])}, 'PZ', @wh, 'completed',")
-        W(f"  {esc(supplier[0])}, {esc(pz['doc_number'])},")
-        W(f"  {esc(f'NIP: {supplier[1]}')}, {esc(created)});")
-        W(f"SET @pz_id = LAST_INSERT_ID();")
-        W("")
-
-        line_rows = []
-        for sku, qty, unit_net, vat in pz['lines']:
-            line_net  = round(qty * unit_net, 2)
-            line_rows.append(
-                f"(@pz_id, {esc(sku)}, {qty}, {unit_net}, {line_net}, {vat}, 0, 0)"
+        stock_rows = []
+        for sku, name, unit, cat in SYS_ITEMS:
+            qty, avco = STOCK_LEVELS.get(sku, (10.000, 500))
+            avco_dec  = round(avco / 100, 4)
+            stock_rows.append(
+                f"(@tid, @wh, {esc(sku)}, {qty}, {avco_dec}, {avco_dec})"
             )
 
-        W("INSERT INTO wh_document_lines (document_id, sku, quantity, unit_net_cost, line_net_value, vat_rate, system_qty, counted_qty)")
-        W("VALUES")
-        W(",\n".join(line_rows) + ";")
+        W("INSERT INTO wh_stock (tenant_id, warehouse_id, sku, quantity, current_avco_price, unit_net_cost) VALUES")
+        W(",\n".join(stock_rows) + ";")
         W("")
 
-        # Update wh_stock
-        for sku, qty, unit_net, vat in pz['lines']:
-            avco_dec = round(unit_net, 4)
-            W(f"UPDATE wh_stock SET")
-            W(f"  quantity = quantity + {qty},")
-            W(f"  current_avco_price = (current_avco_price * quantity + {qty} * {avco_dec}) / (quantity + {qty}),")
-            W(f"  unit_net_cost = {avco_dec}")
-            W(f"WHERE tenant_id=@tid AND warehouse_id=@wh AND sku={esc(sku)};")
-        W("")
+        # ── WH_DOCUMENTS + LINES (PZ) ────────────────────────────────────────────
+        W("-- ── 2.16 wh_documents + wh_document_lines (PZ receipts) ───────────────")
 
-    # ── KSeF INVOICES ─────────────────────────────────────────────────────────
-    W("-- ── 2.17 sh_ksef_invoices + sh_ksef_invoice_lines ─────────────────────")
+        for pz in PZ_DATA:
+            supplier = SUPPLIERS[pz['supplier']]
+            created  = days_ago(pz['days_ago'])
+            W(f"INSERT INTO wh_documents (tenant_id, doc_number, type, warehouse_id, status,")
+            W(f"  supplier_name, supplier_invoice, notes, created_at)")
+            W(f"VALUES (@tid, {esc(pz['doc_number'])}, 'PZ', @wh, 'completed',")
+            W(f"  {esc(supplier[0])}, {esc(pz['doc_number'])},")
+            W(f"  {esc(f'NIP: {supplier[1]}')}, {esc(created)});")
+            W(f"SET @pz_id = LAST_INSERT_ID();")
+            W("")
 
-    for inv in KSEF_INVOICES:
-        total_net = sum(
-            int(round(l[3] * l[4] * 100))
-            for l in inv['lines']
-        )
-        total_vat = sum(
-            int(round(l[3] * l[4] * (l[5] / 100) * 100))
-            for l in inv['lines']
-        )
-        total_gross = total_net + total_vat
+            line_rows = []
+            for sku, qty, unit_net, vat in pz['lines']:
+                line_net  = round(qty * unit_net, 2)
+                line_rows.append(
+                    f"(@pz_id, {esc(sku)}, {qty}, {unit_net}, {line_net}, {vat}, 0, 0)"
+                )
 
-        linked_wh = 'NULL'
-        if inv.get('linked_pz'):
-            linked_wh = f"(SELECT id FROM wh_documents WHERE tenant_id=@tid AND doc_number={esc(inv['linked_pz'])})"
+            W("INSERT INTO wh_document_lines (document_id, sku, quantity, unit_net_cost, line_net_value, vat_rate, system_qty, counted_qty)")
+            W("VALUES")
+            W(",\n".join(line_rows) + ";")
+            W("")
 
-        proc_at = f"'{inv['issue_date']}'" if inv['status'] == 'accepted' else 'NULL'
+            # Update wh_stock
+            for sku, qty, unit_net, vat in pz['lines']:
+                avco_dec = round(unit_net, 4)
+                W(f"UPDATE wh_stock SET")
+                W(f"  quantity = quantity + {qty},")
+                W(f"  current_avco_price = (current_avco_price * quantity + {qty} * {avco_dec}) / (quantity + {qty}),")
+                W(f"  unit_net_cost = {avco_dec}")
+                W(f"WHERE tenant_id=@tid AND warehouse_id=@wh AND sku={esc(sku)};")
+            W("")
 
-        W(f"INSERT INTO sh_ksef_invoices (tenant_id, supplier_nip, supplier_name, supplier_address,")
-        W(f"  buyer_nip, buyer_name, invoice_number, issue_date, sale_date, payment_due_date,")
-        W(f"  total_net_minor, total_vat_minor, total_gross_minor, status, linked_wh_document_id,")
-        W(f"  fetched_at, processed_at)")
-        W(f"VALUES (@tid, {esc(inv['supplier_nip'])}, {esc(inv['supplier_name'])}, {esc(inv['supplier_address'])},")
-        W(f"  NULL, {esc('Pizzeria Forno')}, {esc(inv['invoice_number'])},")
-        W(f"  {esc(inv['issue_date'])}, {esc(inv['sale_date'])}, {esc(inv['payment_due_date'])},")
-        W(f"  {total_net}, {total_vat}, {total_gross},")
-        W(f"  {esc(inv['status'])}, {linked_wh},")
-        W(f"  {esc(days_ago(abs(int(inv['issue_date'].split('-')[2])-28) + 2))}, {proc_at});")
-        W(f"SET @ksef_id = LAST_INSERT_ID();")
-        W("")
+        # ── KSeF INVOICES ─────────────────────────────────────────────────────────
+        W("-- ── 2.17 sh_ksef_invoices + sh_ksef_invoice_lines ─────────────────────")
 
-        line_rows = []
-        for lno, ext_name, unit, qty, unit_net, vat_rate, res_sku, match_type, confidence in inv['lines']:
-            line_net  = int(round(qty * unit_net * 100))
-            res_sku_s = esc(res_sku) if res_sku else 'NULL'
-            mt_s      = esc(match_type) if match_type else 'NULL'
-            conf_s    = str(confidence) if confidence else 'NULL'
-            line_rows.append(
-                f"(@ksef_id, {lno}, {esc(ext_name)}, NULL, {esc(unit)}, {qty}, {unit_net}, {line_net}, {vat_rate},\n"
-                f"   {res_sku_s}, {mt_s}, {conf_s})"
+        for inv in KSEF_INVOICES:
+            total_net = sum(
+                int(round(l[3] * l[4] * 100))
+                for l in inv['lines']
+            )
+            total_vat = sum(
+                int(round(l[3] * l[4] * (l[5] / 100) * 100))
+                for l in inv['lines']
+            )
+            total_gross = total_net + total_vat
+
+            linked_wh = 'NULL'
+            if inv.get('linked_pz'):
+                linked_wh = f"(SELECT id FROM wh_documents WHERE tenant_id=@tid AND doc_number={esc(inv['linked_pz'])})"
+
+            proc_at = f"'{inv['issue_date']}'" if inv['status'] == 'accepted' else 'NULL'
+
+            W(f"INSERT INTO sh_ksef_invoices (tenant_id, supplier_nip, supplier_name, supplier_address,")
+            W(f"  buyer_nip, buyer_name, invoice_number, issue_date, sale_date, payment_due_date,")
+            W(f"  total_net_minor, total_vat_minor, total_gross_minor, status, linked_wh_document_id,")
+            W(f"  fetched_at, processed_at)")
+            W(f"VALUES (@tid, {esc(inv['supplier_nip'])}, {esc(inv['supplier_name'])}, {esc(inv['supplier_address'])},")
+            W(f"  NULL, {esc('Pizzeria Forno')}, {esc(inv['invoice_number'])},")
+            W(f"  {esc(inv['issue_date'])}, {esc(inv['sale_date'])}, {esc(inv['payment_due_date'])},")
+            W(f"  {total_net}, {total_vat}, {total_gross},")
+            W(f"  {esc(inv['status'])}, {linked_wh},")
+            W(f"  {esc(days_ago(abs(int(inv['issue_date'].split('-')[2])-28) + 2))}, {proc_at});")
+            W(f"SET @ksef_id = LAST_INSERT_ID();")
+            W("")
+
+            line_rows = []
+            for lno, ext_name, unit, qty, unit_net, vat_rate, res_sku, match_type, confidence in inv['lines']:
+                line_net  = int(round(qty * unit_net * 100))
+                res_sku_s = esc(res_sku) if res_sku else 'NULL'
+                mt_s      = esc(match_type) if match_type else 'NULL'
+                conf_s    = str(confidence) if confidence else 'NULL'
+                line_rows.append(
+                    f"(@ksef_id, {lno}, {esc(ext_name)}, NULL, {esc(unit)}, {qty}, {unit_net}, {line_net}, {vat_rate},\n"
+                    f"   {res_sku_s}, {mt_s}, {conf_s})"
+                )
+
+            W("INSERT INTO sh_ksef_invoice_lines (ksef_invoice_id, line_no, external_name, external_description,")
+            W("  unit, qty, unit_net, line_net_minor, vat_rate, resolved_sku, match_type, match_confidence)")
+            W("VALUES")
+            W(",\n".join(line_rows) + ";")
+            W("")
+
+        # ── ORDERS ────────────────────────────────────────────────────────────────
+        W("-- ── 2.18 sh_orders + sh_order_lines ───────────────────────────────────")
+
+        for order in ORDERS_DATA:
+            order_id  = gen_uuid()
+            created_sql = sql_hours_ago(order['hours_ago'])
+            subtotal  = sum(l[2] * l[3] for l in order['lines'])
+            grand_tot = subtotal + order.get('delivery_fee', 0)
+            order_type = canonical_order_type(order['order_type'])
+            pay_status = canonical_payment_status(order['payment_status'], order.get('payment_method'))
+            status, delivery_status = canonical_status_pair(
+                order['status'], order['order_type'], order.get('delivery_status')
+            )
+            pm        = esc(order['payment_method']) if order.get('payment_method') else 'NULL'
+            lat       = str(order['lat']) if order.get('lat') else 'NULL'
+            lng       = str(order['lng']) if order.get('lng') else 'NULL'
+            addr      = esc(order['delivery_address']) if order.get('delivery_address') else 'NULL'
+            phone     = esc(order['customer_phone']) if order.get('customer_phone') else 'NULL'
+            ds        = esc(delivery_status) if delivery_status else 'NULL'
+            promised  = f"DATE_ADD({created_sql}, INTERVAL 35 MINUTE)" if order_type == 'delivery' else 'NULL'
+            track_tok = (
+                f"LOWER(SUBSTRING(REPLACE({esc(order_id)},'-',''), 1, 16))"
+                if order.get('tracking_token') else 'NULL'
             )
 
-        W("INSERT INTO sh_ksef_invoice_lines (ksef_invoice_id, line_no, external_name, external_description,")
-        W("  unit, qty, unit_net, line_net_minor, vat_rate, resolved_sku, match_type, match_confidence)")
-        W("VALUES")
-        W(",\n".join(line_rows) + ";")
-        W("")
+            W(f"INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,")
+            W(f"  subtotal, delivery_fee, grand_total, status, payment_status, payment_method,")
+            W(f"  delivery_status, customer_name, customer_phone, delivery_address, lat, lng,")
+            W(f"  promised_time, tracking_token, created_at)")
+            W(f"VALUES ({esc(order_id)}, @tid, {esc(order['order_number'])},")
+            W(f"  {esc(order['channel'])}, {esc(order_type)}, {esc('seed')},")
+            W(f"  {subtotal}, {order.get('delivery_fee',0)}, {grand_tot},")
+            W(f"  {esc(status)}, {esc(pay_status)}, {pm},")
+            W(f"  {ds}, {esc(order['customer_name'])}, {phone}, {addr}, {lat}, {lng},")
+            W(f"  {promised}, {track_tok}, {created_sql});")
+            W("")
 
-    # ── ORDERS ────────────────────────────────────────────────────────────────
-    W("-- ── 2.18 sh_orders + sh_order_lines ───────────────────────────────────")
-
-    for order in ORDERS_DATA:
-        order_id  = gen_uuid()
-        created_sql = sql_hours_ago(order['hours_ago'])
-        subtotal  = sum(l[2] * l[3] for l in order['lines'])
-        grand_tot = subtotal + order.get('delivery_fee', 0)
-        order_type = canonical_order_type(order['order_type'])
-        pay_status = canonical_payment_status(order['payment_status'], order.get('payment_method'))
-        status, delivery_status = canonical_status_pair(
-            order['status'], order['order_type'], order.get('delivery_status')
-        )
-        pm        = esc(order['payment_method']) if order.get('payment_method') else 'NULL'
-        lat       = str(order['lat']) if order.get('lat') else 'NULL'
-        lng       = str(order['lng']) if order.get('lng') else 'NULL'
-        addr      = esc(order['delivery_address']) if order.get('delivery_address') else 'NULL'
-        phone     = esc(order['customer_phone']) if order.get('customer_phone') else 'NULL'
-        ds        = esc(delivery_status) if delivery_status else 'NULL'
-        promised  = f"DATE_ADD({created_sql}, INTERVAL 35 MINUTE)" if order_type == 'delivery' else 'NULL'
-        track_tok = (
-            f"LOWER(SUBSTRING(REPLACE({esc(order_id)},'-',''), 1, 16))"
-            if order.get('tracking_token') else 'NULL'
-        )
-
-        W(f"INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,")
-        W(f"  subtotal, delivery_fee, grand_total, status, payment_status, payment_method,")
-        W(f"  delivery_status, customer_name, customer_phone, delivery_address, lat, lng,")
-        W(f"  promised_time, tracking_token, created_at)")
-        W(f"VALUES ({esc(order_id)}, @tid, {esc(order['order_number'])},")
-        W(f"  {esc(order['channel'])}, {esc(order_type)}, {esc('seed')},")
-        W(f"  {subtotal}, {order.get('delivery_fee',0)}, {grand_tot},")
-        W(f"  {esc(status)}, {esc(pay_status)}, {pm},")
-        W(f"  {ds}, {esc(order['customer_name'])}, {phone}, {addr}, {lat}, {lng},")
-        W(f"  {promised}, {track_tok}, {created_sql});")
-        W("")
-
-        for item_sku, snap_name, unit_price, qty, vat_rate, mods in order['lines']:
-            line_id   = gen_uuid()
-            line_tot  = unit_price * qty
-            vat_amt   = int(round(line_tot * vat_rate / (100 + vat_rate)))
-            mods_json = 'NULL'
-            W(f"INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,")
-            W(f"  unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)")
-            W(f"VALUES ({esc(line_id)}, {esc(order_id)}, {esc(item_sku)}, {esc(snap_name)},")
-            W(f"  {unit_price}, {qty}, {line_tot}, {vat_rate}, {vat_amt}, {mods_json});")
-        W("")
+            for item_sku, snap_name, unit_price, qty, vat_rate, mods in order['lines']:
+                line_id   = gen_uuid()
+                line_tot  = unit_price * qty
+                vat_amt   = int(round(line_tot * vat_rate / (100 + vat_rate)))
+                mods_json = 'NULL'
+                W(f"INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,")
+                W(f"  unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)")
+                W(f"VALUES ({esc(line_id)}, {esc(order_id)}, {esc(item_sku)}, {esc(snap_name)},")
+                W(f"  {unit_price}, {qty}, {line_tot}, {vat_rate}, {vat_amt}, {mods_json});")
+            W("")
 
     # ── COMMIT ────────────────────────────────────────────────────────────────
     W("COMMIT;")
@@ -1752,16 +1763,22 @@ SET @wh  := {esc(WAREHOUSE_ID)};
     W("SELECT 'recipes',     COUNT(*) FROM sh_recipes WHERE tenant_id=@tid")
     W("UNION ALL")
     W("SELECT 'sys_items',   COUNT(*) FROM sys_items WHERE tenant_id=@tid")
-    W("UNION ALL")
-    W("SELECT 'wh_stock',    COUNT(*) FROM wh_stock WHERE tenant_id=@tid")
-    W("UNION ALL")
-    W("SELECT 'pz_docs',     COUNT(*) FROM wh_documents WHERE tenant_id=@tid AND doc_number LIKE 'PZ-2026/%/FORNO%'")
-    W("UNION ALL")
-    W("SELECT 'ksef_invoices',COUNT(*) FROM sh_ksef_invoices WHERE tenant_id=@tid AND invoice_number LIKE 'FA/FORNO/%'")
-    W("UNION ALL")
-    W("SELECT 'orders',      COUNT(*) FROM sh_orders WHERE tenant_id=@tid AND order_number LIKE 'FORNO-%';")
+    if not menu_only:
+        W("UNION ALL")
+        W("SELECT 'wh_stock',    COUNT(*) FROM wh_stock WHERE tenant_id=@tid")
+        W("UNION ALL")
+        W("SELECT 'pz_docs',     COUNT(*) FROM wh_documents WHERE tenant_id=@tid AND doc_number LIKE 'PZ-2026/%/FORNO%'")
+        W("UNION ALL")
+        W("SELECT 'ksef_invoices',COUNT(*) FROM sh_ksef_invoices WHERE tenant_id=@tid AND invoice_number LIKE 'FA/FORNO/%'")
+        W("UNION ALL")
+        W("SELECT 'orders',      COUNT(*) FROM sh_orders WHERE tenant_id=@tid AND order_number LIKE 'FORNO-%';")
+    else:
+        W(";")
     W("")
-    W("-- ✅ Seed Pizza Forno załadowany pomyślnie!")
+    if menu_only:
+        W("-- ✅ Seed Pizza Forno MENU załadowany pomyślnie (katalog jedzenia)!")
+    else:
+        W("-- ✅ Seed Pizza Forno FULL załadowany pomyślnie!")
     W("")
 
     return '\n'.join(lines_out), {
@@ -1779,10 +1796,21 @@ SET @wh  := {esc(WAREHOUSE_ID)};
 # ──────────────────────────────────────────────────────────────────────────────
 
 def main():
-    print("🍕 SliceHub Seed Builder — Pizza Forno", file=sys.stderr)
+    import argparse
+    parser = argparse.ArgumentParser(description='SliceHub Seed Builder — Pizza Forno')
+    parser.add_argument('--menu-only', action='store_true',
+                        help='Generuj tylko katalog jedzenia (sys_items, menu, modyfikatory, receptury). '
+                             'Bez wh_stock, PZ, KSeF, zamówień. Output: seed_pizzaforno_menu.sql')
+    args = parser.parse_args()
+
+    menu_only = args.menu_only
+    output_file = MENU_OUTPUT_FILE if menu_only else OUTPUT_FILE
+
+    mode_label = 'MENU-ONLY' if menu_only else 'FULL'
+    print(f"🍕 SliceHub Seed Builder — Pizza Forno [{mode_label}]", file=sys.stderr)
     print(f"   Menu file:      {MENU_FILE}", file=sys.stderr)
     print(f"   Additions file: {ADD_FILE}", file=sys.stderr)
-    print(f"   Output:         {OUTPUT_FILE}", file=sys.stderr)
+    print(f"   Output:         {output_file}", file=sys.stderr)
     print("", file=sys.stderr)
 
     print("  [1/4] Parsing menu xlsx...", file=sys.stderr)
@@ -1794,7 +1822,7 @@ def main():
     print(f"        → {len(additions)} modifiers loaded", file=sys.stderr)
 
     print("  [3/4] Building SQL...", file=sys.stderr)
-    sql, stats = build_sql(menu_items, additions)
+    sql, stats = build_sql(menu_items, additions, menu_only=menu_only)
     print(f"        → Pizza families:  {stats['pizza_families']}", file=sys.stderr)
     print(f"          Panini families: {stats['panini_families']}", file=sys.stderr)
     print(f"          Single items:    {stats['singles']}", file=sys.stderr)
@@ -1802,15 +1830,15 @@ def main():
     print(f"          Modifier groups: {stats['modifier_groups']}", file=sys.stderr)
     print(f"          Recipe lines:    {stats['recipe_count']}", file=sys.stderr)
 
-    print(f"  [4/4] Writing {OUTPUT_FILE}...", file=sys.stderr)
-    os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
-    with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
+    print(f"  [4/4] Writing {output_file}...", file=sys.stderr)
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    with open(output_file, 'w', encoding='utf-8') as f:
         f.write(sql)
 
-    size_kb = os.path.getsize(OUTPUT_FILE) / 1024
+    size_kb = os.path.getsize(output_file) / 1024
     print(f"        → {size_kb:.1f} KB written", file=sys.stderr)
     print("", file=sys.stderr)
-    print("✅ Done! Import scripts/seed_pizzaforno.sql into phpMyAdmin.", file=sys.stderr)
+    print(f"✅ Done! Import {output_file} into phpMyAdmin.", file=sys.stderr)
 
 
 if __name__ == '__main__':
