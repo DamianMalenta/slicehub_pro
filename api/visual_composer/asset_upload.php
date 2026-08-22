@@ -3,7 +3,7 @@
 // SliceHub Visual Composer — Asset Upload (with auto-detect & DB insert)
 // api/visual_composer/asset_upload.php
 //
-// Smarter wrapper over api_visual_studio.php:
+// Asset upload handler (multipart/form-data):
 //   - Validates files per type (layer/hero/surface/companion/thumbnail)
 //   - Auto-detects sub_type from filename (tomato → tomato_veg, salami → meat)
 //   - Inserts/updates sh_global_assets record (for layer/hero)

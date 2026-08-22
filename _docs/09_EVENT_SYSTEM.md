@@ -83,7 +83,7 @@ W 1:1 z [`_docs/08_ORDER_STATUS_DICTIONARY.md`](./08_ORDER_STATUS_DICTIONARY.md)
 | `order.delivered` | Driver dostarczył (`delivery_status='delivered'`) | `courses`, `driver_app` | course_id, driver_id |
 | `order.completed` | Zamówienie zamknięte (`status='completed'`) | `courses`, `pos`, `payments` | from_status, to_status |
 | `order.cancelled` | Anulowane (`status='cancelled'`) | `courses`, `pos`, `admin` | reason, actor_id |
-| `order.edited` | Edytowane po przyjęciu (kuchnia już wie) | `pos` | kitchen_changes |
+| `order.edited` | Edytowane po przyjęciu (kuchnia już wie) | `pos` | kitchen_delta |
 | `order.recalled` | KDS rollback (`ready → preparing`) | `kds` | actor_id (kucharz) |
 | `payment.settled` | Płatność zaksięgowana (bez przejścia na `completed`, np. delivery + zapłata przy kasie) | `payments` (`settle.php`) | `_context`: split tender (`payment_lines`, `payment_method_aggregate`, `tip_grosze`, …) |
 | `payment.refunded` | Zwrot wykonany | `payments` | amount, reason |
