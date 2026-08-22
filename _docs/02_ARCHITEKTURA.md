@@ -43,8 +43,6 @@
 | `js/studio_bulk.js` | Edycja Masowa (ceny, publikacja temporalna) |
 | `js/studio_margin.js` | Kalkulator marży |
 
-> ⚠ **DŁUG TECHNICZNY:** Studio NIE posiada dedykowanego `studio_api.js`. Każdy plik wywołuje `window.ApiClient.post('api/backoffice/api_menu_studio.php', …)` bezpośrednio. Planowany refactor do spójnego wrappera.
-
 ### B. POS — Strefa Operacyjna (Dark Battlefield)
 `/modules/pos/`
 
@@ -244,7 +242,7 @@ Shared CSS dla wszystkich modułów: safe-area-inset, viewport-fit, mobilne nawi
 | ~~`orders/accept.php`~~ | **USUNIĘTY 2026-07-28.** Duplikat `pos/engine.php#accept_order`. `canTransition()` pre-check wchłonięty. |
 | `orders/edit.php` | ✅ **DOMKNIĘTE 2026-07-30 (Faza E)** + rozszerzenie 2026-08-20 — edycja zamówienia + DeltaEngine (kitchen_delta JSON). Konsumenci: `modules/backoffice/order_edit/` (`order_edit_app.js` → `POST edit.php`) oraz modal "Edytuj zamówienie" w `modules/hub/` (`hub_order_edit.js`). Od 2026-08-20 przyjmuje też `order_type` (dine_in/takeaway/delivery; delivery wymaga `delivery_address` — z payloadu lub istniejącego na nagłówku) i zapisuje zmianę typu w `kitchen_delta.order_type {old,new}`. KDS consumer: `kds/engine.php#get_board` zwraca `kitchen_delta` + `edited_since_print`; `kds_app.js` highlightuje linie (zielony/żółty/czerwony) + blok ZMIANY z przyciskiem ACK. |
 | `orders/get_for_edit.php` | Dane dla modala edycji w `modules/hub/` (lista aktywnych zamówień, linie z id, katalog dań/modyfikatorów) |
-| `orders/estimate.php` | 🟡 PLANNED — estymacja promised_time (dla scheduled orders). Wrapper na `PromisedTimeEngine::calculate()`. Zero call-site'ów (silnik wpięty bezpośrednio w 4 ścieżki — wrapper dla future scheduled-picker UI). |
+| `orders/estimate.php` | ✅ **DOMKNIĘTE** — estymacja promised_time (tryb `slots`). Wrapper na `PromisedTimeEngine::calculate()`. Aktywny konsument: `modules/pos/js/pos_api.js:99` (`estimateSlots` → `GET …/estimate.php?mode=slots&channel=…`). Silnik wpięty również bezpośrednio w 4 ścieżki ASAP. |
 | ~~`orders/panic.php`~~ | **USUNIĘTY 2026-07-28.** Duplikat `pos/engine.php#panic_mode`. Logika wchłonięta do `core/PanicEngine.php` (debounce + configurable delay). |
 | `orders/sla_monitor.php` | ✅ **DOMKNIĘTE 2026-07-29 (Faza C)** — SLA breach monitor (4-tier klasyfikacja, zapis do `sh_sla_breaches`). Wpięte end-to-end: `worker_sla_monitor.php` (cron CLI) + `courses/engine.php#get_sla_breaches` (backend) + `courses_api.js#getSlaBreaches` + `courses_app.js` (poll 30s) + `courses_ui.js#renderSlaBreachesPanel` (Dispatcher sidebar). |
 | `orders/DeltaEngine.php` | ✅ **DOMKNIĘTE 2026-07-30 (Faza E)** — diff linii zamówienia → `kitchen_delta` JSON. Konsument: `edit.php` → KDS `get_board` (highlight zielony/żółty/czerwony + banner "ZAMÓWIENIE EDYTOWANE"). |

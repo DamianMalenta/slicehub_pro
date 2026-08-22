@@ -823,13 +823,12 @@ try {
             if ($isEdit) {
                 // ---- EDIT existing order ---- (DeltaEngine-unified, atomic line sync)
                 //
-                // Legacy kitchen_changes (TEXT diff string) has been retired. The
-                // structured kitchen_delta JSON is now the SSOT for KDS highlight.
+                // The structured kitchen_delta JSON is the SSOT for KDS highlight.
                 // Line sync is atomic: UPDATE modified, INSERT added, DELETE removed
                 // (soft-delete fired lines), preserving line_id continuity via
                 // greedy DB-id matching by item_sku.
 
-                // Load old order header (kitchen_changes column is dead — not selected)
+                // Load old order header
                 $stmtOld = $pdo->prepare(
                     "SELECT cart_json, edited_since_print, order_type FROM sh_orders WHERE id = ? AND tenant_id = ?"
                 );
@@ -1119,7 +1118,7 @@ try {
                     }
                 }
 
-                // UPDATE order header with kitchen_delta JSON (no more kitchen_changes)
+                // UPDATE order header with kitchen_delta JSON
                 $pdo->prepare(
                     "UPDATE sh_orders SET
                         order_type=?, channel=?, payment_method=?, payment_status=?,

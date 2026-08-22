@@ -507,30 +507,12 @@ class OrderStateMachine
     // =========================================================================
     // TENANT SETTINGS LOADER
     //
-    // [FF-HOOK] This is where the Global Settings Matrix will be read.
-    // Currently returns empty flags (strict mode for all tenants).
-    // Future implementation will query sh_tenant_settings for a JSON
-    // feature_flags column or multiple KV rows.
-    //
-    // Example future implementation:
-    //
-    //   $stmt = $pdo->prepare(
-    //       "SELECT setting_value FROM sh_tenant_settings
-    //        WHERE tenant_id = :tid AND setting_key = 'feature_flags'"
-    //   );
-    //   $stmt->execute([':tid' => $tenantId]);
-    //   $raw = $stmt->fetchColumn();
-    //   return $raw ? (json_decode($raw, true) ?: []) : [];
-    //
-    // This will return something like:
-    //   { "skip_kitchen": true, "auto_complete": false, "disable_kds": true }
+    // Reads the Global Settings Matrix (feature_flags JSON) from
+    // sh_tenant_settings. Falls back to strict mode (no flags) when the
+    // row/table is absent or the JSON is unreadable.
     // =========================================================================
     public static function loadTenantFlags(\PDO $pdo, int $tenantId): array
     {
-        // [FF-HOOK] Placeholder — returns strict-mode (no flags) for now.
-        // When the Settings Matrix UI is built, replace this with:
-        //   SELECT setting_value FROM sh_tenant_settings
-        //   WHERE tenant_id = ? AND setting_key = 'feature_flags'
         try {
             $stmt = $pdo->prepare(
                 "SELECT setting_value FROM sh_tenant_settings
