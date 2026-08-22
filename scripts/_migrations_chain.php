@@ -75,4 +75,5 @@ return [
     '061_drop_users_hourly_rate.sql',
     '062_fiscal_receipt_number.sql',
     '063_relax_credentials_check_constraint.sql',
+    '064_drop_kitchen_changes.sql',
 ];

@@ -20,6 +20,13 @@ const TablesAPI = (function () {
             : apiFallback() + '/tables/engine.php';
     }
 
+    function _tenantId() {
+        if (typeof window !== 'undefined' && window.__SH_TENANT_ID__) return window.__SH_TENANT_ID__;
+        const meta = document.querySelector('meta[name="sh-tenant-id"]');
+        if (meta && meta.content) return parseInt(meta.content, 10) || 1;
+        return 1;
+    }
+
     function _token() { return localStorage.getItem('sh_token'); }
 
     function _headers() {
@@ -78,7 +85,7 @@ const TablesAPI = (function () {
     }
 
     return Object.freeze({
-        login(pin) { return _post(authUrl(), { pin_code: pin }); },
+        login(pin) { return _post(authUrl(), { mode: 'kiosk', tenant_id: _tenantId(), pin_code: pin }); },
 
         getFloorStatus(zoneId) {
             const p = {};
