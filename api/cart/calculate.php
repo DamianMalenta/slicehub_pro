@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
-    echo json_encode(['success' => false, 'message' => 'Method Not Allowed. Use POST.']);
+    echo json_encode(['success' => false, 'message' => 'Method Not Allowed. Use POST.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
 
@@ -37,24 +37,24 @@ try {
 
     if (!is_array($input)) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Invalid JSON payload.']);
+        echo json_encode(['success' => false, 'message' => 'Invalid JSON payload.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
 
     $result = CartEngine::calculate($pdo, $tenant_id, $input);
 
-    echo json_encode(['success' => true, 'data' => $result['response']]);
+    echo json_encode(['success' => true, 'data' => $result['response']], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
 } catch (CartEngineException $e) {
     http_response_code(400);
-    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'message' => $e->getMessage()], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Database error. Please try again later.']);
+    echo json_encode(['success' => false, 'message' => 'Database error. Please try again later.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     error_log('[CartEngine] PDOException: ' . $e->getMessage());
 } catch (Throwable $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Internal server error.']);
+    echo json_encode(['success' => false, 'message' => 'Internal server error.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     error_log('[CartEngine] ' . $e->getMessage());
 }
 

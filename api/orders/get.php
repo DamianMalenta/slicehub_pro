@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
-    echo json_encode(['success' => false, 'message' => 'Method Not Allowed. Use GET.']);
+    echo json_encode(['success' => false, 'message' => 'Method Not Allowed. Use GET.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
 
@@ -44,7 +44,7 @@ try {
     $orderId = trim($_GET['order_id'] ?? '');
     if ($orderId === '') {
         http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Missing required query parameter: order_id.']);
+        echo json_encode(['success' => false, 'message' => 'Missing required query parameter: order_id.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
 
@@ -66,7 +66,7 @@ try {
 
     if (!$order) {
         http_response_code(404);
-        echo json_encode(['success' => false, 'message' => 'Order not found.']);
+        echo json_encode(['success' => false, 'message' => 'Order not found.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
 
@@ -137,12 +137,12 @@ try {
 
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Database error. Please try again later.']);
+    echo json_encode(['success' => false, 'message' => 'Database error. Please try again later.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     error_log('[OrderGet] PDOException: ' . $e->getMessage());
 
 } catch (Throwable $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Internal server error.']);
+    echo json_encode(['success' => false, 'message' => 'Internal server error.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     error_log('[OrderGet] ' . $e->getMessage());
 }
 

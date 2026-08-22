@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
-    echo json_encode(['success' => false, 'message' => 'Method Not Allowed. Use GET.']);
+    echo json_encode(['success' => false, 'message' => 'Method Not Allowed. Use GET.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
 
@@ -158,15 +158,15 @@ try {
         'data'    => [
             'orders' => $slaReport,
         ],
-    ]);
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Database error. Please try again later.']);
+    echo json_encode(['success' => false, 'message' => 'Database error. Please try again later.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     error_log('[SLA Monitor] PDOException: ' . $e->getMessage());
 } catch (Throwable $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Internal server error.']);
+    echo json_encode(['success' => false, 'message' => 'Internal server error.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     error_log('[SLA Monitor] ' . $e->getMessage());
 }
 

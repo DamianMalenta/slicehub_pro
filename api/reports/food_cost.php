@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
-    echo json_encode(['success' => false, 'message' => 'Method Not Allowed. Use GET.']);
+    echo json_encode(['success' => false, 'message' => 'Method Not Allowed. Use GET.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
 
@@ -52,12 +52,12 @@ try {
 
     if ($itemSku === '') {
         http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Missing required query parameter: item_sku.']);
+        echo json_encode(['success' => false, 'message' => 'Missing required query parameter: item_sku.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
     if ($warehouseId === '') {
         http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Missing required query parameter: warehouse_id.']);
+        echo json_encode(['success' => false, 'message' => 'Missing required query parameter: warehouse_id.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
 
@@ -78,20 +78,20 @@ try {
 
 } catch (\InvalidArgumentException $e) {
     http_response_code(400);
-    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'message' => $e->getMessage()], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
 } catch (\RuntimeException $e) {
     http_response_code(404);
-    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'message' => $e->getMessage()], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Database error. Please try again.']);
+    echo json_encode(['success' => false, 'message' => 'Database error. Please try again.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     error_log('[Food Cost Report] PDOException: ' . $e->getMessage());
 
 } catch (Throwable $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Internal server error.']);
+    echo json_encode(['success' => false, 'message' => 'Internal server error.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     error_log('[Food Cost Report] ' . $e->getMessage());
 }
 

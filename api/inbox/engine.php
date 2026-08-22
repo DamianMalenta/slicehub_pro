@@ -27,8 +27,8 @@ $action = (string)($body['action'] ?? $_GET['action'] ?? '');
 $tid    = (int)($_SESSION['tenant_id'] ?? 1);
 $uid    = (int)($_SESSION['user_id']   ?? 0);
 
-function inbox_ok(array $data): void  { echo json_encode(['success' => true]  + $data); exit; }
-function inbox_err(string $e): void   { http_response_code(400); echo json_encode(['success' => false, 'error' => $e]); exit; }
+function inbox_ok(array $data): void  { echo json_encode(['success' => true]  + $data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); exit; }
+function inbox_err(string $e): void   { http_response_code(400); echo json_encode(['success' => false, 'error' => $e], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); exit; }
 
 switch ($action) {
 

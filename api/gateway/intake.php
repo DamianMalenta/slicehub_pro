@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
-    echo json_encode(['success' => false, 'error' => 'METHOD_NOT_ALLOWED', 'message' => 'Use POST.']);
+    echo json_encode(['success' => false, 'error' => 'METHOD_NOT_ALLOWED', 'message' => 'Use POST.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
 
@@ -45,14 +45,14 @@ function gw_reject(int $httpCode, string $errorCode, string $message, array $dat
     http_response_code($httpCode);
     $body = ['success' => false, 'error' => $errorCode, 'message' => $message];
     if (!empty($data)) $body['data'] = $data;
-    echo json_encode($body);
+    echo json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
 
 function gw_success(array $data, int $httpCode = 200): never
 {
     http_response_code($httpCode);
-    echo json_encode(['success' => true, 'data' => $data]);
+    echo json_encode(['success' => true, 'data' => $data], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
 
@@ -629,11 +629,11 @@ try {
 
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'DATABASE_ERROR', 'message' => 'Database error. Please try again later.']);
+    echo json_encode(['success' => false, 'error' => 'DATABASE_ERROR', 'message' => 'Database error. Please try again later.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     error_log('[GatewayV2] PDOException: ' . $e->getMessage());
 } catch (Throwable $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'INTERNAL_ERROR', 'message' => 'Internal server error.']);
+    echo json_encode(['success' => false, 'error' => 'INTERNAL_ERROR', 'message' => 'Internal server error.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     error_log('[GatewayV2] ' . $e->getMessage());
 }
 

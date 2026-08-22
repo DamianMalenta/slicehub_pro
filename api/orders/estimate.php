@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
-    echo json_encode(['success' => false, 'message' => 'Method Not Allowed. Use GET.']);
+    echo json_encode(['success' => false, 'message' => 'Method Not Allowed. Use GET.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
 
@@ -55,13 +55,13 @@ try {
 
     if ($mode === '') {
         http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Missing required parameter: mode.']);
+        echo json_encode(['success' => false, 'message' => 'Missing required parameter: mode.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
 
     if ($channel === '') {
         http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Missing required parameter: channel.']);
+        echo json_encode(['success' => false, 'message' => 'Missing required parameter: channel.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
 
@@ -99,26 +99,26 @@ try {
                 'slots'            => $slots,
                 'interval_minutes' => $interval,
             ],
-        ]);
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     } else {
         $result = PromisedTimeEngine::calculate($pdo, $tenant_id, $mode, $channel, $requestedTime);
 
         echo json_encode([
             'success' => true,
             'data'    => $result,
-        ]);
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     }
 
 } catch (InvalidArgumentException $e) {
     http_response_code(400);
-    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'message' => $e->getMessage()], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Database error. Please try again later.']);
+    echo json_encode(['success' => false, 'message' => 'Database error. Please try again later.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     error_log('[Estimate] PDOException: ' . $e->getMessage());
 } catch (Throwable $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Internal server error.']);
+    echo json_encode(['success' => false, 'message' => 'Internal server error.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     error_log('[Estimate] ' . $e->getMessage());
 }
 
