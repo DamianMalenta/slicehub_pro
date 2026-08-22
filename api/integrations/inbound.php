@@ -61,7 +61,7 @@ use SliceHub\Integrations\BaseAdapter;
 function inbound_respond(int $code, array $data): void
 {
     http_response_code($code);
-    echo json_encode($data);
+    echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
 

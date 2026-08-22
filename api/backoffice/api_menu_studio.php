@@ -15,6 +15,7 @@ try {
     require_once '../../core/db_config.php';
     require_once '../../core/auth_guard.php';
     require_once '../../core/AssetResolver.php';
+    require_once '../../core/AsciiKeyEngine.php';
     if (!isset($pdo)) {
         throw new Exception("Brak połączenia z bazą danych.");
     }
@@ -1405,8 +1406,8 @@ try {
                 if (!$stmtOwn->fetchColumn()) throw new Exception("Danie nie istnieje.");
             }
             $categoryId = intval($input['categoryId'] ?? 0);
-            $name = trim($input['name'] ?? ''); 
-            $asciiKey = preg_replace('/[^a-zA-Z0-9_-]/', '', $input['asciiKey'] ?? '');
+            $name = trim($input['name'] ?? '');
+            $asciiKey = AsciiKeyEngine::transliterate((string)($input['asciiKey'] ?? ''), true);
             
             $vatRateDineIn = floatval($input['vatRateDineIn'] ?? $input['vatRate'] ?? 8);
             $vatRateTakeaway = floatval($input['vatRateTakeaway'] ?? $input['vatRate'] ?? 5);
@@ -1712,7 +1713,7 @@ try {
         case 'save_modifier_quick':
             $groupName  = trim($input['groupName'] ?? '');
             $name       = trim($input['name'] ?? '');
-            $asciiKey   = strtoupper(preg_replace('/[^a-zA-Z0-9_]/', '', $input['asciiKey'] ?? ''));
+            $asciiKey   = strtoupper(AsciiKeyEngine::transliterate((string)($input['asciiKey'] ?? '')));
             $priceTiers = $input['priceTiers'] ?? [];
             $wh         = $input['warehouseLink'] ?? [];
 
@@ -1794,7 +1795,7 @@ try {
         // ==============================================================================
         case 'save_modifier_group':
             $groupId = intval($input['groupId'] ?? 0);
-            $groupAsciiKey = preg_replace('/[^a-zA-Z0-9_-]/', '', $input['groupAsciiKey'] ?? '');
+            $groupAsciiKey = AsciiKeyEngine::transliterate((string)($input['groupAsciiKey'] ?? ''), true);
             $name = trim($input['name'] ?? ''); 
             $minSel = intval($input['minSelection'] ?? 0);
             $maxSel = intval($input['maxSelection'] ?? 1);
@@ -1865,7 +1866,7 @@ try {
                     foreach ($options as $opt) {
                         $optId = intval($opt['id'] ?? 0);
                         $optName = trim($opt['name'] ?? '');
-                        $optAsciiKey = preg_replace('/[^a-zA-Z0-9_-]/', '', $opt['asciiKey'] ?? '');
+                        $optAsciiKey = AsciiKeyEngine::transliterate((string)($opt['asciiKey'] ?? ''), true);
                         $actionType = in_array($opt['actionType'] ?? '', ['NONE','ADD','REMOVE']) ? $opt['actionType'] : 'NONE';
                         $linkedSku = $toNull($opt['linkedWarehouseSku'] ?? null);
                         $linkedQty = (float)($opt['linkedQuantity'] ?? 0);
@@ -2776,7 +2777,7 @@ try {
         case 'save_variant_scale':
             $scaleId  = (int)($input['id'] ?? 0);
             $name     = trim((string)($input['name'] ?? ''));
-            $keyAscii = strtoupper(preg_replace('/[^A-Za-z0-9_]/', '_', trim((string)($input['key_ascii'] ?? ''))));
+            $keyAscii = strtoupper(AsciiKeyEngine::transliterate(trim((string)($input['key_ascii'] ?? ''))));
             $desc     = trim((string)($input['description'] ?? ''));
             $options  = $input['options'] ?? [];
 
@@ -2808,7 +2809,7 @@ try {
                 // potem upsert per option.
                 $payloadKeys = [];
                 foreach ($options as $opt) {
-                    $optKey = strtoupper(preg_replace('/[^A-Za-z0-9_]/', '_', (string)($opt['key_ascii'] ?? '')));
+                    $optKey = strtoupper(AsciiKeyEngine::transliterate((string)($opt['key_ascii'] ?? '')));
                     if ($optKey !== '') $payloadKeys[] = $optKey;
                 }
                 if ($payloadKeys) {
@@ -2836,7 +2837,7 @@ try {
                 $ord = 0;
                 foreach ($options as $opt) {
                     $optName = trim((string)($opt['name'] ?? ''));
-                    $optKey  = strtoupper(preg_replace('/[^A-Za-z0-9_]/', '_', (string)($opt['key_ascii'] ?? '')));
+                    $optKey  = strtoupper(AsciiKeyEngine::transliterate((string)($opt['key_ascii'] ?? '')));
                     $optMult = (float)($opt['multiplier'] ?? 1.0);
                     $optDiam = isset($opt['diameter_cm']) && $opt['diameter_cm'] !== '' ? (int)$opt['diameter_cm'] : null;
                     $optDef  = !empty($opt['is_default']) ? 1 : 0;
@@ -3173,7 +3174,7 @@ try {
 
         case 'save_meal':
             $mealId      = (int)($input['id'] ?? 0);
-            $asciiKey    = strtoupper(preg_replace('/[^A-Za-z0-9_]/', '_', trim((string)($input['ascii_key'] ?? ''))));
+            $asciiKey    = strtoupper(AsciiKeyEngine::transliterate(trim((string)($input['ascii_key'] ?? ''))));
             $name        = trim((string)($input['name'] ?? ''));
             $desc        = trim((string)($input['description'] ?? ''));
             $categoryId  = isset($input['category_id']) && (int)$input['category_id'] > 0 ? (int)$input['category_id'] : null;
