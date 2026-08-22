@@ -719,6 +719,9 @@ seed('Orders (12 total)', function ($pdo, $T) use ($uuid4) {
         $pdo->prepare("UPDATE sh_order_sequences SET seq=LAST_INSERT_ID(seq+1) WHERE tenant_id=? AND `date`=CURDATE()")->execute([$T]);
         return (string)$pdo->lastInsertId();
     };
+    $fmtNum = function (string $prefix, string $seq): string {
+        return sprintf('%s/%s/%04d', $prefix, date('Ymd'), (int)$seq);
+    };
 
     $stmtO = $pdo->prepare(
         "INSERT INTO sh_orders (id,tenant_id,order_number,channel,order_type,source,subtotal,delivery_fee,grand_total,status,payment_status,payment_method,customer_name,customer_phone,delivery_address,lat,lng,promised_time,user_id,created_at)
@@ -746,7 +749,7 @@ seed('Orders (12 total)', function ($pdo, $T) use ($uuid4) {
         $oid = $uuid4();
         $seq = $bumpSeq();
         $sub = array_sum(array_map(fn($l) => $l[2] * $l[3], $lines));
-        $stmtO->execute([$oid, $T, 'S'.$seq, 'pos', 'dine_in', 'pos', $sub, 0, $sub, $status, $ps, $pm, null, null, null, null, null, null, $userId]);
+        $stmtO->execute([$oid, $T, $fmtNum('S', $seq), 'pos', 'dine_in', 'pos', $sub, 0, $sub, $status, $ps, $pm, null, null, null, null, null, null, $userId]);
         foreach ($lines as $l) $stmtL->execute([$uuid4(), $oid, $l[0], $l[1], $l[2], $l[3], $l[2]*$l[3], null]);
         $stmtA->execute([$oid, $userId, 'new', $status]);
         $count++;
@@ -761,7 +764,7 @@ seed('Orders (12 total)', function ($pdo, $T) use ($uuid4) {
         $oid = $uuid4();
         $seq = $bumpSeq();
         $sub = array_sum(array_map(fn($l) => $l[2] * $l[3], $lines));
-        $stmtO->execute([$oid, $T, 'T'.$seq, 'online', 'takeaway', 'web', $sub, 0, $sub, $status, $ps, $pm, 'Klient Online', '500-100-200', null, null, null, date('Y-m-d H:i:s', time()+1800), $userId]);
+        $stmtO->execute([$oid, $T, $fmtNum('T', $seq), 'online', 'takeaway', 'web', $sub, 0, $sub, $status, $ps, $pm, 'Klient Online', '500-100-200', null, null, null, date('Y-m-d H:i:s', time()+1800), $userId]);
         foreach ($lines as $l) $stmtL->execute([$uuid4(), $oid, $l[0], $l[1], $l[2], $l[3], $l[2]*$l[3], null]);
         $stmtA->execute([$oid, $userId, 'new', $status]);
         $count++;
@@ -788,7 +791,7 @@ seed('Orders (12 total)', function ($pdo, $T) use ($uuid4) {
         $total = $sub + $fee;
         $promised = date('Y-m-d H:i:s', time() + (20 + $idx * 8) * 60);
         $comment = $idx === 2 ? 'Bez cebuli, extra sos' : null;
-        $stmtO->execute([$oid, $T, 'D'.$seq, 'pos', 'delivery', 'pos', $sub, $fee, $total, 'ready', $d[6], $d[5], $d[4], $d[3], $d[0], $d[1], $d[2], $promised, 3]);
+        $stmtO->execute([$oid, $T, $fmtNum('D', $seq), 'pos', 'delivery', 'pos', $sub, $fee, $total, 'ready', $d[6], $d[5], $d[4], $d[3], $d[0], $d[1], $d[2], $promised, 3]);
         foreach ($d[7] as $li => $l) $stmtL->execute([$uuid4(), $oid, $l[0], $l[1], $l[2], $l[3], $l[2]*$l[3], ($li === 0 ? $comment : null)]);
         $stmtA->execute([$oid, null, 'preparing', 'ready']);
         $count++;
@@ -806,7 +809,7 @@ seed('Orders (12 total)', function ($pdo, $T) use ($uuid4) {
         $seq = $bumpSeq();
         $sub = array_sum(array_map(fn($l) => $l[2] * $l[3], $d[7]));
         $total = $sub + $fee;
-        $stmtO->execute([$oid, $T, 'D'.$seq, 'pos', 'delivery', 'pos', $sub, $fee, $total, 'completed', $d[6], $d[5], $d[4], $d[3], $d[0], $d[1], $d[2], date('Y-m-d H:i:s', time()-3600), $d[8]]);
+        $stmtO->execute([$oid, $T, $fmtNum('D', $seq), 'pos', 'delivery', 'pos', $sub, $fee, $total, 'completed', $d[6], $d[5], $d[4], $d[3], $d[0], $d[1], $d[2], date('Y-m-d H:i:s', time()-3600), $d[8]]);
         foreach ($d[7] as $l) $stmtL->execute([$uuid4(), $oid, $l[0], $l[1], $l[2], $l[3], $l[2]*$l[3], null]);
         $stmtA->execute([$oid, $d[8], 'in_delivery', 'completed']);
         $count++;

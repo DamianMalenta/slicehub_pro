@@ -768,7 +768,7 @@ try {
             );
             $stmtSeq->execute([':tid' => $tenant_id]);
             $seq = (int)$pdo->lastInsertId();
-            $orderNumber = sprintf('D/%s/%04d', date('Ymd'), $seq);
+            $orderNumber = sprintf('S/%s/%04d', date('Ymd'), $seq);
 
             $stmtO = $pdo->prepare(
                 "INSERT INTO sh_orders

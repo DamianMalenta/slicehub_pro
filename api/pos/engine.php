@@ -1152,7 +1152,14 @@ try {
                 );
                 $stmtSeq->execute([$tenant_id]);
                 $seq = (int)$pdo->lastInsertId();
-                $orderNumber = sprintf('ORD/%s/%04d', date('Ymd'), $seq);
+                // Order number prefix per type: S=Sala(dine_in), T=Takeaway, D=Delivery
+                $typePrefix = match ($orderType) {
+                    'dine_in'  => 'S',
+                    'takeaway' => 'T',
+                    'delivery' => 'D',
+                    default    => 'O',
+                };
+                $orderNumber = sprintf('%s/%s/%04d', $typePrefix, date('Ymd'), $seq);
 
                 $orderId = Uuid::v4();
 
