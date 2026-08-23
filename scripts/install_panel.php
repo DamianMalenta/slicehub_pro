@@ -860,6 +860,285 @@ function action_create_owner(array $body): void
     }
 }
 
+// =============================================================================
+// SEED MANAGER — dane demo / katalogi danych
+// =============================================================================
+
+/** Katalog seedów: hardcoded metadane + sprawdzanie pliku na dysku. */
+function action_list_seeds(): void
+{
+    $scriptsDir = __DIR__;
+    $seeds = [
+        [
+            'file'        => 'seed_pizzaforno.sql',
+            'type'        => 'full',
+            'tenant_id'   => 2,
+            'description' => 'Pełny seed Pizza Forno (menu + dane operacyjne)',
+            'requires'    => 'tenant istnieje w sh_tenants',
+            'format'      => 'sql',
+        ],
+        [
+            'file'        => 'seed_pizzaforno_menu.sql',
+            'type'        => 'menu',
+            'tenant_id'   => 2,
+            'description' => 'Katalog jedzenia Pizza Forno (sys_items, menu, modyfikatory, receptury)',
+            'requires'    => 'tenant istnieje w sh_tenants',
+            'format'      => 'sql',
+        ],
+        [
+            'file'        => 'seed_pizzaforno_ops.sql',
+            'type'        => 'ops',
+            'tenant_id'   => 2,
+            'description' => 'Dane operacyjne Pizza Forno (users, wh_stock, PZ, KSeF, zamówienia)',
+            'requires'    => 'tenant istnieje + menu wgrane (seed_pizzaforno_menu.sql)',
+            'format'      => 'sql',
+        ],
+        [
+            'file'        => 'seed_demo_all.php',
+            'type'        => 'demo',
+            'tenant_id'   => 1,
+            'description' => 'Demo data tenant 1 (users, orders, KSeF, menu) — skrypt PHP',
+            'requires'    => 'tenant 1 istnieje (tworzy go automatycznie jeśli brak)',
+            'format'      => 'php',
+        ],
+    ];
+
+    foreach ($seeds as &$s) {
+        $path = $scriptsDir . DIRECTORY_SEPARATOR . $s['file'];
+        $s['exists']   = is_file($path);
+        $s['size']     = $s['exists'] ? filesize($path) : 0;
+        $s['size_kb']  = $s['exists'] ? round(filesize($path) / 1024) : 0;
+    }
+    unset($s);
+
+    panel_json(true, 'Znaleziono ' . count($seeds) . ' seedów', ['seeds' => $seeds]);
+}
+
+/** Status danych w bazie dla wybranego tenanta — liczniki per tabela. */
+function action_seed_status(array $body): void
+{
+    $tenantId = (int) ($body['tenant_id'] ?? 0);
+    if ($tenantId <= 0) {
+        panel_json(false, 'Brak tenant_id.');
+        return;
+    }
+
+    try {
+        $pdo = panel_connect();
+        $counts = [];
+        $tables = [
+            'menu_items'      => 'sh_menu_items',
+            'users'           => 'sh_users',
+            'orders'          => 'sh_orders',
+            'ksef_invoices'   => 'sh_ksef_invoices',
+            'stock'           => 'wh_stock',
+            'categories'      => 'sh_categories',
+            'modifier_groups' => 'sh_modifier_groups',
+            'recipes'         => 'sh_recipes',
+        ];
+        foreach ($tables as $label => $table) {
+            if (!panel_table_exists($pdo, $table)) {
+                $counts[$label] = null;
+                continue;
+            }
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM {$table} WHERE tenant_id = ?");
+            $stmt->execute([$tenantId]);
+            $counts[$label] = (int) $stmt->fetchColumn();
+        }
+
+        // Czy tenant istnieje?
+        $stmt = $pdo->prepare("SELECT id, name FROM sh_tenants WHERE id = ?");
+        $stmt->execute([$tenantId]);
+        $tenant = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        panel_json(true, "Status danych dla tenant {$tenantId}", [
+            'tenant_id'    => $tenantId,
+            'tenant_exists'=> !empty($tenant),
+            'tenant_name'  => $tenant['name'] ?? null,
+            'counts'       => $counts,
+        ]);
+    } catch (Throwable $e) {
+        panel_json(false, panel_friendly_pdo_message('Seed status', $e));
+    }
+}
+
+/** Wgrywa seed z pre-flight checks + auto-remap tenant_id. */
+function action_run_seed(array $body): void
+{
+    $file       = trim((string) ($body['file'] ?? ''));
+    $targetTid  = (int) ($body['target_tenant_id'] ?? 0);
+    $force      = !empty($body['force']);
+
+    if ($file === '' || $targetTid <= 0) {
+        panel_json(false, 'Brak pliku seeda lub target_tenant_id.');
+        return;
+    }
+
+    // Whitelist dozwolonych plików (security: zapobiega path traversal)
+    $allowed = ['seed_pizzaforno.sql', 'seed_pizzaforno_menu.sql',
+                'seed_pizzaforno_ops.sql', 'seed_demo_all.php'];
+    if (!in_array($file, $allowed, true)) {
+        panel_json(false, "Niedozwolony plik seeda: {$file}");
+        return;
+    }
+
+    $path = __DIR__ . DIRECTORY_SEPARATOR . $file;
+    if (!is_file($path)) {
+        panel_json(false, "Plik nie istnieje: {$file}");
+        return;
+    }
+
+    // Metadane seeda
+    $seedMeta = [
+        'seed_pizzaforno.sql'        => ['type' => 'full', 'native_tid' => 2, 'format' => 'sql'],
+        'seed_pizzaforno_menu.sql'   => ['type' => 'menu', 'native_tid' => 2, 'format' => 'sql'],
+        'seed_pizzaforno_ops.sql'    => ['type' => 'ops',  'native_tid' => 2, 'format' => 'sql'],
+        'seed_demo_all.php'          => ['type' => 'demo', 'native_tid' => 1, 'format' => 'php'],
+    ][$file];
+
+    $remapped = ($targetTid !== $seedMeta['native_tid']);
+
+    try {
+        $pdo = panel_connect();
+
+        // --- PRE-FLIGHT ---
+        // 1. Tenant istnieje?
+        $stmt = $pdo->prepare("SELECT id, name FROM sh_tenants WHERE id = ?");
+        $stmt->execute([$targetTid]);
+        $tenant = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (empty($tenant)) {
+            panel_json(false, "Tenant {$targetTid} nie istnieje w sh_tenants. Utwórz go najpierw w sekcji 4.");
+            return;
+        }
+
+        // 2. Dla ops: czy menu wgrane?
+        $warnings = [];
+        if ($seedMeta['type'] === 'ops' && panel_table_exists($pdo, 'sh_menu_items')) {
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM sh_menu_items WHERE tenant_id = ?");
+            $stmt->execute([$targetTid]);
+            $menuCount = (int) $stmt->fetchColumn();
+            if ($menuCount === 0 && !$force) {
+                panel_json(false, "Ostrzeżenie: tenant {$targetTid} ma 0 pozycji menu. Seed ops wymaga wgranego menu (seed_pizzaforno_menu.sql). Aby wymusić, kliknij ponownie z zaznaczonym „Wymuś”.", [
+                    'warning' => 'no_menu',
+                    'menu_count' => 0,
+                ]);
+                return;
+            }
+            if ($menuCount === 0 && $force) {
+                $warnings[] = 'Wymuszono wgrywanie ops bez menu — zamówienia mogą się złamać (brak SKU).';
+            }
+        }
+
+        // --- WYKONANIE ---
+        $startTime = microtime(true);
+
+        if ($seedMeta['format'] === 'sql') {
+            $sql = file_get_contents($path);
+
+            // Auto-remap: podmień SET @tid := N; → SET @tid := <target>;
+            if ($remapped) {
+                $sql = preg_replace(
+                    '/SET\s+@tid\s*:=\s*\d+\s*;/',
+                    "SET @tid := {$targetTid};",
+                    $sql,
+                    1
+                );
+            }
+
+            // Split na statements (ignoruj komentarze -- i puste linie)
+            $statements = [];
+            $current = '';
+            foreach (preg_split('/\r?\n/', $sql) as $line) {
+                $trimmed = trim($line);
+                if ($trimmed === '' || str_starts_with($trimmed, '--')) {
+                    continue;
+                }
+                $current .= $line . "\n";
+                if (str_ends_with(rtrim($current), ';')) {
+                    $statements[] = $current;
+                    $current = '';
+                }
+            }
+            if (trim($current) !== '') {
+                $statements[] = $current;
+            }
+
+            $ok = 0;
+            $fail = 0;
+            $errors = [];
+            foreach ($statements as $stmt) {
+                try {
+                    $pdo->exec($stmt);
+                    $ok++;
+                } catch (Throwable $e) {
+                    $fail++;
+                    if (count($errors) < 10) {
+                        $errors[] = substr($e->getMessage(), 0, 200);
+                    }
+                }
+            }
+
+            $duration = round((microtime(true) - $startTime) * 1000);
+            $msg = "Seed wgrany: {$ok} OK, {$fail} błędów ({$duration}ms)";
+            if ($remapped) {
+                $msg .= " [remap tenant {$seedMeta['native_tid']} → {$targetTid}]";
+            }
+            if (!empty($warnings)) {
+                $msg .= ' ⚠ ' . implode('; ', $warnings);
+            }
+
+            panel_json($fail === 0 || ($fail < $ok && $force), $msg, [
+                'file'             => $file,
+                'tenant_id'        => $targetTid,
+                'remapped'         => $remapped,
+                'statements_total' => count($statements),
+                'statements_ok'    => $ok,
+                'statements_failed'=> $fail,
+                'errors'           => $errors,
+                'warnings'         => $warnings,
+                'duration_ms'      => $duration,
+            ]);
+        } else {
+            // PHP seed — wykonaj przez CLI z --tenant
+            $escPath = escapeshellarg($path);
+            $cmd = "php {$escPath} --tenant={$targetTid} 2>&1";
+            $output = [];
+            $exitCode = 0;
+            exec($cmd, $output, $exitCode);
+            $duration = round((microtime(true) - $startTime) * 1000);
+
+            $outputText = implode("\n", $output);
+            // seed_demo_all.php outputs JSON at the end
+            $json = null;
+            foreach ($output as $line) {
+                $decoded = json_decode($line, true);
+                if (is_array($decoded) && isset($decoded['success'])) {
+                    $json = $decoded;
+                    break;
+                }
+            }
+
+            $msg = $json
+                ? ($json['message'] ?? 'PHP seed wykonany')
+                : "PHP seed exit={$exitCode}: " . substr($outputText, 0, 300);
+            if ($remapped) {
+                $msg .= " [remap tenant {$seedMeta['native_tid']} → {$targetTid}]";
+            }
+
+            panel_json($exitCode === 0, $msg, [
+                'file'        => $file,
+                'tenant_id'   => $targetTid,
+                'remapped'    => $remapped,
+                'exit_code'   => $exitCode,
+                'output'      => substr($outputText, 0, 1000),
+                'duration_ms' => $duration,
+            ]);
+        }
+    } catch (Throwable $e) {
+        panel_json(false, panel_friendly_pdo_message('Run seed', $e));
+    }
+}
+
 function action_change_password(array $body): void
 {
     $tenantId = (int)    ($body['tenant_id'] ?? 0);
@@ -916,6 +1195,9 @@ if ($action !== '') {
             case 'create_tenant':    action_create_tenant($body); break;
             case 'create_owner':     action_create_owner($body); break;
             case 'change_password':  action_change_password($body); break;
+            case 'list_seeds':       action_list_seeds(); break;
+            case 'seed_status':      action_seed_status($body); break;
+            case 'run_seed':         action_run_seed($body); break;
             default:
                 panel_json(false, "Nieznana akcja: {$action}");
         }
@@ -1162,6 +1444,51 @@ define('SLICEHUB_SCRIPT_KEY', 'losowy_dlugi_string_min_32_znaki');</pre>
         <div id="migrations-out" class="mt-2"></div>
     </section>
 
+    <!-- SEED MANAGER — dane demo / katalogi danych -->
+    <section class="glass p-5">
+        <h2 class="font-semibold text-lg mb-1">2c. Dane demo / seed</h2>
+        <p class="text-sm text-slate-400 mb-3">
+            Wgrywa gotowe katalogi danych (menu, użytkownicy, zamówienia, KSeF) do wybranego tenanta.
+            Seedy są <strong>idempotentne</strong> — można wgrywać wielokrotnie (cleanup na początku pliku).
+            Auto-remap: jeśli seed ma <code>tenant_id=2</code> a wybierzesz innego tenanta, panel podmienia <code>SET @tid</code> automatycznie.
+        </p>
+
+        <!-- Status: co już w bazie -->
+        <div class="flex flex-wrap items-end gap-2 mb-3 pb-3 border-b border-white/10">
+            <div>
+                <span class="label">Tenant do sprawdzenia</span>
+                <select id="ss-tenant" class="!w-48"></select>
+            </div>
+            <button id="btn-seed-status" type="button" class="btn btn-soft text-sm">Pokaż status danych</button>
+            <div id="seed-status-out" class="text-sm text-slate-400 mt-2 w-full">—</div>
+        </div>
+
+        <!-- Picker seedów -->
+        <div class="flex flex-wrap gap-2 mb-2">
+            <button id="btn-seed-refresh" type="button" class="btn btn-soft text-sm">Odśwież listę seedów</button>
+            <button id="btn-seed-all" type="button" class="btn btn-soft text-sm">Zaznacz wszystkie</button>
+            <button id="btn-seed-none" type="button" class="btn btn-soft text-sm">Odznacz</button>
+        </div>
+        <div id="seeds-picker" class="text-sm text-slate-400 sh-mig-list">
+            Kliknij „Odśwież listę seedów” po zalogowaniu.
+        </div>
+
+        <!-- Opcje wgrywania -->
+        <div class="flex flex-wrap items-end gap-3 mt-3 pt-3 border-t border-white/10">
+            <div>
+                <span class="label">Wgraj dla tenanta</span>
+                <select id="s-target-tenant" class="!w-48">
+                    <option value="0">— wybierz —</option>
+                </select>
+            </div>
+            <label class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer pb-2">
+                <input type="checkbox" id="s-force"> Wymuś (ignoruj ostrzeżenia pre-flight)
+            </label>
+            <button id="btn-run-seed" type="button" class="btn btn-primary text-sm">Wgraj zaznaczone seedy</button>
+        </div>
+        <div id="seed-run-out" class="mt-3"></div>
+    </section>
+
     <!-- TENANT + OWNER -->
     <section class="grid-2">
         <div class="glass p-5">
@@ -1266,6 +1593,7 @@ define('SLICEHUB_SCRIPT_KEY', 'losowy_dlugi_string_min_32_znaki');</pre>
         $('#auth-pill').className = 'pill pill-ok';
         refreshTenants();
         await refreshMigrationsPicker();
+        await refreshSeedsPicker();
     }
 
     async function api(action, body = {}) {
@@ -1521,14 +1849,106 @@ define('SLICEHUB_SCRIPT_KEY', 'losowy_dlugi_string_min_32_znaki');</pre>
         if (r.success) { refreshTenants(); }
     });
 
+    // --- SEEDS ---
+    const SEED_TYPE_PILL = {
+        full:  '<span class="pill pill-info">full</span>',
+        menu:  '<span class="pill pill-ok">menu</span>',
+        ops:   '<span class="pill pill-warn">ops</span>',
+        demo:  '<span class="pill pill-soft" style="background:rgba(148,163,184,0.2);color:#cbd5e1">demo</span>',
+    };
+    let _seedsCache = [];
+
+    async function refreshSeedsPicker() {
+        const r = await api('list_seeds');
+        const picker = $('#seeds-picker');
+        if (!r.success) { picker.innerHTML = '<span class="text-red-400">' + escapeHtml(r.message) + '</span>'; return; }
+        const seeds = (r.data && r.data.seeds) || [];
+        _seedsCache = seeds;
+        if (seeds.length === 0) { picker.innerHTML = '<span class="text-slate-400">Brak seedów w katalogu scripts/.</span>'; return; }
+        picker.innerHTML = seeds.map((s, i) => {
+            const pill = SEED_TYPE_PILL[s.type] || '<span class="pill pill-info">' + escapeHtml(s.type) + '</span>';
+            const missing = !s.exists ? ' <span class="pill pill-fail">brak pliku</span>' : '';
+            const size = s.size_kb ? s.size_kb + ' KB' : '—';
+            return '<div class="sh-mig-row">' +
+                '<input type="checkbox" class="seed-check" data-file="' + escapeHtml(s.file) + '" data-tid="' + s.tenant_id + '">' +
+                '<div class="sh-mig-name">' +
+                    '<code>' + escapeHtml(s.file) + '</code> ' + pill + missing + '<br>' +
+                    '<span class="text-slate-500">tenant_id=' + s.tenant_id + ' · ' + size + ' · ' + escapeHtml(s.description) + '</span><br>' +
+                    '<span class="text-slate-600 text-xs">wymaga: ' + escapeHtml(s.requires) + '</span>' +
+                '</div>' +
+            '</div>';
+        }).join('');
+    }
+
+    $('#btn-seed-refresh').addEventListener('click', refreshSeedsPicker);
+    $('#btn-seed-all').addEventListener('click', () => {
+        $$('.seed-check').forEach(c => c.checked = true);
+    });
+    $('#btn-seed-none').addEventListener('click', () => {
+        $$('.seed-check').forEach(c => c.checked = false);
+    });
+
+    $('#btn-seed-status').addEventListener('click', async () => {
+        const tid = parseInt($('#ss-tenant').value, 10) || 0;
+        if (!tid) return;
+        const r = await api('seed_status', { tenant_id: tid });
+        const out = $('#seed-status-out');
+        if (!r.success) { renderResult(out, r); return; }
+        const c = r.data.counts || {};
+        const exists = r.data.tenant_exists;
+        const rows = Object.entries(c).map(([k, v]) =>
+            '<tr><td class="text-slate-400">' + escapeHtml(k) + '</td><td><code>' + (v === null ? '<span class="text-amber-400">brak tabeli</span>' : v) + '</code></td></tr>'
+        ).join('');
+        const pill = exists ? '<span class="pill pill-ok">tenant istnieje</span>' : '<span class="pill pill-fail">tenant nie istnieje</span>';
+        out.innerHTML = pill + ' <span class="text-slate-400">' + escapeHtml(r.data.tenant_name || '') + '</span>' +
+            '<table class="mt-2"><tbody>' + rows + '</tbody></table>';
+    });
+
+    $('#btn-run-seed').addEventListener('click', async () => {
+        const targetTid = parseInt($('#s-target-tenant').value, 10) || 0;
+        if (!targetTid) { renderResult($('#seed-run-out'), { success: false, message: 'Wybierz tenanta docelowego.' }); return; }
+        const force = $('#s-force').checked;
+        const checked = $$('.seed-check').filter(c => c.checked);
+        if (checked.length === 0) { renderResult($('#seed-run-out'), { success: false, message: 'Zaznacz co najmniej jeden seed.' }); return; }
+
+        const out = $('#seed-run-out');
+        out.innerHTML = '<span class="text-slate-400">Wgrywanie ' + checked.length + ' seed(ów) dla tenant ' + targetTid + '…</span>';
+
+        for (const cb of checked) {
+            const file = cb.dataset.file;
+            const r = await api('run_seed', { file, target_tenant_id: targetTid, force });
+            const extra = (r.data && r.data.statements_total)
+                ? ' <span class="text-slate-500">(' + r.data.statements_ok + '/' + r.data.statements_total + ' OK' +
+                  (r.data.remapped ? ', remap' : '') + ', ' + r.data.duration_ms + 'ms)</span>'
+                : '';
+            const line = document.createElement('div');
+            line.className = 'mt-1';
+            line.innerHTML = (r.success ? '<span class="pill pill-ok">OK</span>' : '<span class="pill pill-fail">FAIL</span>')
+                + ' <code class="text-sm">' + escapeHtml(file) + '</code> <span class="text-sm">' + escapeHtml(r.message || '') + '</span>' + extra;
+            if (r.data && r.data.errors && r.data.errors.length) {
+                line.innerHTML += '<pre class="log mt-1 text-red-300 text-xs">' + r.data.errors.map(escapeHtml).join('\n') + '</pre>';
+            }
+            out.appendChild(line);
+            // Po każdym seedzie odśwież status
+            if (r.success) {
+                $('#ss-tenant').value = String(targetTid);
+                $('#btn-seed-status').click();
+            }
+        }
+    });
+
     // --- TENANTS ---
     async function refreshTenants() {
         const r = await api('list_tenants');
         const list = $('#tenants-list');
         const sel1 = $('#o-tenant');
         const sel2 = $('#u-tenant');
+        const selSs  = $('#ss-tenant');
+        const selSt  = $('#s-target-tenant');
         sel1.innerHTML = '';
         sel2.innerHTML = '';
+        if (selSs) selSs.innerHTML = '';
+        if (selSt) selSt.innerHTML = '<option value="0">— wybierz —</option>';
         if (!r.success) { renderResult(list, r); return; }
         if (r.data && r.data.schema_missing) {
             list.innerHTML = '<span class="pill pill-warn">Brak schematu</span> <span class="text-sm text-slate-400">— uruchom najpierw instalację (sekcja 2 lub 3).</span>';
@@ -1545,6 +1965,8 @@ define('SLICEHUB_SCRIPT_KEY', 'losowy_dlugi_string_min_32_znaki');</pre>
         for (const x of t) {
             const o1 = document.createElement('option'); o1.value = x.id; o1.textContent = x.id + ' — ' + x.name; sel1.appendChild(o1);
             const o2 = document.createElement('option'); o2.value = x.id; o2.textContent = x.id + ' — ' + x.name; sel2.appendChild(o2);
+            if (selSs) { const o3 = document.createElement('option'); o3.value = x.id; o3.textContent = x.id + ' — ' + x.name; selSs.appendChild(o3); }
+            if (selSt) { const o4 = document.createElement('option'); o4.value = x.id; o4.textContent = x.id + ' — ' + x.name; selSt.appendChild(o4); }
         }
     }
     $('#btn-refresh-tenants').addEventListener('click', refreshTenants);

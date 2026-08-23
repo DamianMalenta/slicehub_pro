@@ -42,7 +42,14 @@ if (!isset($pdo)) {
     die(json_encode(['success' => false, 'message' => 'Database connection failed.']));
 }
 
-$T = 1; // tenant_id
+// --tenant=N CLI override (default 1; backward-compatible)
+$T = 1;
+if (PHP_SAPI === 'cli') {
+    $opts = getopt('', ['tenant::']);
+    if (isset($opts['tenant']) && (int)$opts['tenant'] > 0) {
+        $T = (int)$opts['tenant'];
+    }
+}
 $results = [];
 $ok = 0;
 $fail = 0;

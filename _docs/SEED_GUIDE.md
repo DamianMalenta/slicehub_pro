@@ -1,6 +1,6 @@
 # Seed — ścieżka „golden path” (SliceHub demo)
 
-> Ostatnia aktualizacja: 2026-05-22. Główny seed: `scripts/seed_demo_all.php` (tenant_id = 1).
+> Ostatnia aktualizacja: 2026-08-23. Główny seed: `scripts/seed_demo_all.php` (tenant_id = 1).
 
 ## Pełna baza od zera
 
@@ -15,6 +15,45 @@ Opcjonalnie (drugi tenant / duże menu + KSeF FORNO):
 ```bash
 mysql -u root slicehub_pro_v2 < scripts/seed_pizzaforno.sql
 ```
+
+## Wgrywanie seedów przez install_panel.php (od 2026-08-23)
+
+Zamiast ręcznie wgrywać seedy przez `mysql` CLI, można użyć panelu instalacyjnego:
+
+1. Otwórz `http(s)://<host>/slicehub/scripts/install_panel.php`
+2. Zaloguj się kluczem `SLICEHUB_SCRIPT_KEY` (z `core/local_secrets.php`)
+3. Sekcja **2c. Dane demo / seed** (po sekcji migracji)
+4. Wybierz tenanta → „Pokaż status danych" (liczniki per tabela)
+5. Zaznacz checkboxem seed(y): `seed_pizzaforno.sql` / `seed_pizzaforno_menu.sql` / `seed_pizzaforno_ops.sql` / `seed_demo_all.php`
+6. Wybierz „Wgraj dla tenanta" (auto-remap `@tid` jeśli ID się różni)
+7. Kliknij „Wgraj zaznaczone seedy"
+
+### Dostępne seedy w panelu
+
+| Plik | Typ | native tenant_id | Opis |
+|---|---|---|---|
+| `seed_pizzaforno.sql` | full | 2 | Pełny seed Pizza Forno (menu + ops) |
+| `seed_pizzaforno_menu.sql` | menu | 2 | Tylko katalog jedzenia |
+| `seed_pizzaforno_ops.sql` | ops | 2 | Tylko dane operacyjne (wymaga menu) |
+| `seed_demo_all.php` | demo | 1 | Demo data tenant 1 (PHP) |
+
+### Auto-remap tenant_id
+
+Jeśli seed ma `tenant_id=2` a w dropdownie wybierzesz innego tenanta (np. 3), panel automatycznie podmienia `SET @tid := 2;` → `SET @tid := 3;` (SQL) lub `--tenant=3` (PHP). Remap logowany w odpowiedzi JSON.
+
+### Pre-flight checks
+
+- **Tenant istnieje?** — twardy blok (nie da się wgrać na nieistniejącego tenanta)
+- **ops bez menu?** — ostrzeżenie + drugi klik z checkboxem „Wymuś"
+- **Plik istnieje na dysku?** — twardy blok
+- **Whitelist plików** — tylko 4 dozwolone (anti path traversal)
+
+### Bezpieczeństwo
+
+- Wszystkie akcje wymagają auth kluczem (`SLICEHUB_SCRIPT_KEY`)
+- `(int)` cast na `target_tenant_id` (anti SQL injection)
+- `escapeshellarg()` na exec PHP seeda
+- `panel_table_exists()` przed query (anti missing-table error)
 
 ## Tylko odświeżenie danych demo (baza już po chain)
 
