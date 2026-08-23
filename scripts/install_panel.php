@@ -874,7 +874,7 @@ function action_list_seeds(): void
             'type'        => 'full',
             'tenant_id'   => 2,
             'description' => 'Pełny seed Pizza Forno (menu + dane operacyjne)',
-            'requires'    => 'tenant istnieje w sh_tenants',
+            'requires'    => 'tenant istnieje w sh_tenant',
             'format'      => 'sql',
         ],
         [
@@ -882,7 +882,7 @@ function action_list_seeds(): void
             'type'        => 'menu',
             'tenant_id'   => 2,
             'description' => 'Katalog jedzenia Pizza Forno (sys_items, menu, modyfikatory, receptury)',
-            'requires'    => 'tenant istnieje w sh_tenants',
+            'requires'    => 'tenant istnieje w sh_tenant',
             'format'      => 'sql',
         ],
         [
@@ -947,7 +947,7 @@ function action_seed_status(array $body): void
         }
 
         // Czy tenant istnieje?
-        $stmt = $pdo->prepare("SELECT id, name FROM sh_tenants WHERE id = ?");
+        $stmt = $pdo->prepare("SELECT id, name FROM sh_tenant WHERE id = ?");
         $stmt->execute([$tenantId]);
         $tenant = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -1003,11 +1003,11 @@ function action_run_seed(array $body): void
 
         // --- PRE-FLIGHT ---
         // 1. Tenant istnieje?
-        $stmt = $pdo->prepare("SELECT id, name FROM sh_tenants WHERE id = ?");
+        $stmt = $pdo->prepare("SELECT id, name FROM sh_tenant WHERE id = ?");
         $stmt->execute([$targetTid]);
         $tenant = $stmt->fetch(PDO::FETCH_ASSOC);
         if (empty($tenant)) {
-            panel_json(false, "Tenant {$targetTid} nie istnieje w sh_tenants. Utwórz go najpierw w sekcji 4.");
+            panel_json(false, "Tenant {$targetTid} nie istnieje w sh_tenant. Utwórz go najpierw w sekcji 4.");
             return;
         }
 
