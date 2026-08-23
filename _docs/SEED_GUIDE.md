@@ -16,6 +16,8 @@ Opcjonalnie (drugi tenant / duże menu + KSeF FORNO):
 mysql -u root slicehub_pro_v2 < scripts/seed_pizzaforno.sql
 ```
 
+> 💡 Alternatywa GUI: seedy można wgrać z panelu instalacyjnego — patrz sekcja [„Wgrywanie seedów przez install_panel.php"](#wgrywanie-seedów-przez-install_panelphp-od-2026-08-23) poniżej.
+
 ## Wgrywanie seedów przez install_panel.php (od 2026-08-23)
 
 Zamiast ręcznie wgrywać seedy przez `mysql` CLI, można użyć panelu instalacyjnego:
@@ -58,10 +60,11 @@ Jeśli seed ma `tenant_id=2` a w dropdownie wybierzesz innego tenanta (np. 3), p
 ## Tylko odświeżenie danych demo (baza już po chain)
 
 ```bash
-php scripts/seed_demo_all.php
+php scripts/seed_demo_all.php                    # tenant 1 (default)
+php scripts/seed_demo_all.php --tenant=3         # inny tenant (od 2026-08-23)
 ```
 
-Bezpieczny wielokrotny run (`ON DUPLICATE KEY UPDATE`). KSeF demo (`FA/DEMO/%`) jest kasowany i wstawiany na nowo.
+Bezpieczny wielokrotny run (`ON DUPLICATE KEY UPDATE`). KSeF demo (`FA/DEMO/%`) jest kasowany i wstawiany na nowo. Opcja `--tenant=N` pozwala wgrać demo data na innego tenanta niż domyślny 1.
 
 ## Co robi `seed_demo_all.php`
 
@@ -107,7 +110,7 @@ Typowy flow po `install_panel.php`: tenant 1 pusty (Demo Tenant), dane w tenant 
 - **Nie** zakładaj demo PIN-ów z tabeli powyżej — użyj PIN/hasła z install panelu.
 - POS/Online: `tenant_config.php` wybiera tenanta z użytkownikami; opcjonalnie `?tenant=2` w URL.
 - Test runner: auto-discovery PIN przed suite'ami (`discoverAuthTenant()`).
-- Pełny reseed demo: `php scripts/seed_demo_all.php` (tenant 1) lub `scripts/seed_pizzaforno.sql` z `@tid`.
+- Pełny reseed demo: `php scripts/seed_demo_all.php` (tenant 1), `php scripts/seed_demo_all.php --tenant=N` (inny tenant), `scripts/seed_pizzaforno.sql` z `@tid`, lub przez panel (sekcja 2c z auto-remap).
 
 Szczegóły seeda: [`sessions/2026-05-22_seed_refresh.md`](sessions/2026-05-22_seed_refresh.md).  
 Multi-tenant / auth: [`sessions/2026-05-22_tenant_discovery_auth.md`](sessions/2026-05-22_tenant_discovery_auth.md).
