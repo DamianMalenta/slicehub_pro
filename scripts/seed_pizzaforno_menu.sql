@@ -1,6 +1,6 @@
 -- =============================================================================
 -- seed_pizzaforno_menu.sql — SliceHub Pro
--- Wygenerowane: 2026-08-22 04:33:29
+-- Wygenerowane: 2026-08-23 21:18:17
 -- Źródło: _docs/menu_pizzaforno/menu (14).xlsx + additions.xlsx
 -- Tryb: MENU-ONLY (katalog jedzenia: sys_items, menu, modyfikatory, receptury)
 -- Rodzin pizzy: 32 | Panini: 11 | Pojedyncze: 101

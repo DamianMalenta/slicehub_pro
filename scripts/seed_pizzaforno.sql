@@ -1,6 +1,6 @@
 -- =============================================================================
 -- seed_pizzaforno.sql — SliceHub Pro
--- Wygenerowane: 2026-08-22 04:33:36
+-- Wygenerowane: 2026-08-23 21:18:18
 -- Źródło: _docs/menu_pizzaforno/menu (14).xlsx + additions.xlsx
 -- Tryb: FULL (menu + wh_stock + PZ + KSeF + zamówienia)
 -- Rodzin pizzy: 32 | Panini: 11 | Pojedyncze: 101
@@ -5564,7 +5564,7 @@ INSERT INTO wh_documents (tenant_id, doc_number, type, warehouse_id, status,
   supplier_name, supplier_invoice, notes, created_at)
 VALUES (@tid, 'PZ-2026/05/FORNO-001', 'PZ', @wh, 'completed',
   'HURTOWNIA SPOŻYWCZA WARMIA Sp. z o.o.', 'PZ-2026/05/FORNO-001',
-  'NIP: 5252311234', '2026-08-08 04:33:36');
+  'NIP: 5252311234', '2026-08-09 21:18:18');
 SET @pz_id = LAST_INSERT_ID();
 
 INSERT INTO wh_document_lines (document_id, sku, quantity, unit_net_cost, line_net_value, vat_rate, system_qty, counted_qty)
@@ -5623,7 +5623,7 @@ INSERT INTO wh_documents (tenant_id, doc_number, type, warehouse_id, status,
   supplier_name, supplier_invoice, notes, created_at)
 VALUES (@tid, 'PZ-2026/05/FORNO-002', 'PZ', @wh, 'completed',
   'FRUKTUS — Warzywa i Owoce', 'PZ-2026/05/FORNO-002',
-  'NIP: 7780012345', '2026-08-15 04:33:36');
+  'NIP: 7780012345', '2026-08-16 21:18:18');
 SET @pz_id = LAST_INSERT_ID();
 
 INSERT INTO wh_document_lines (document_id, sku, quantity, unit_net_cost, line_net_value, vat_rate, system_qty, counted_qty)
@@ -5688,7 +5688,7 @@ INSERT INTO wh_documents (tenant_id, doc_number, type, warehouse_id, status,
   supplier_name, supplier_invoice, notes, created_at)
 VALUES (@tid, 'PZ-2026/05/FORNO-003', 'PZ', @wh, 'completed',
   'DI MARCO — Włoskie Specjały', 'PZ-2026/05/FORNO-003',
-  'NIP: 1230012345', '2026-08-19 04:33:36');
+  'NIP: 1230012345', '2026-08-20 21:18:18');
 SET @pz_id = LAST_INSERT_ID();
 
 INSERT INTO wh_document_lines (document_id, sku, quantity, unit_net_cost, line_net_value, vat_rate, system_qty, counted_qty)
@@ -5747,7 +5747,7 @@ INSERT INTO wh_documents (tenant_id, doc_number, type, warehouse_id, status,
   supplier_name, supplier_invoice, notes, created_at)
 VALUES (@tid, 'PZ-2026/05/FORNO-004', 'PZ', @wh, 'completed',
   'MŁYNY POLSKIE S.A.', 'PZ-2026/05/FORNO-004',
-  'NIP: 8870012345', '2026-08-12 04:33:36');
+  'NIP: 8870012345', '2026-08-13 21:18:18');
 SET @pz_id = LAST_INSERT_ID();
 
 INSERT INTO wh_document_lines (document_id, sku, quantity, unit_net_cost, line_net_value, vat_rate, system_qty, counted_qty)
@@ -5776,7 +5776,7 @@ INSERT INTO wh_documents (tenant_id, doc_number, type, warehouse_id, status,
   supplier_name, supplier_invoice, notes, created_at)
 VALUES (@tid, 'PZ-2026/05/FORNO-005', 'PZ', @wh, 'completed',
   'BROWAR REGIONALNY TYSKIE', 'PZ-2026/05/FORNO-005',
-  'NIP: 6450012345', '2026-08-21 04:33:36');
+  'NIP: 6450012345', '2026-08-22 21:18:18');
 SET @pz_id = LAST_INSERT_ID();
 
 INSERT INTO wh_document_lines (document_id, sku, quantity, unit_net_cost, line_net_value, vat_rate, system_qty, counted_qty)
@@ -5820,10 +5820,10 @@ INSERT INTO sh_ksef_invoices (tenant_id, supplier_nip, supplier_name, supplier_a
   fetched_at, processed_at)
 VALUES (@tid, '5252311234', 'HURTOWNIA SPOŻYWCZA WARMIA Sp. z o.o.', 'ul. Warmińska 14, 10-100 Olsztyn',
   NULL, 'Pizzeria Forno', 'FA/FORNO/2026/001',
-  '2026-08-20', '2026-08-19', '2026-09-19',
+  '2026-08-21', '2026-08-20', '2026-09-20',
   91500, 7602, 99102,
   'new', NULL,
-  '2026-08-12 04:33:36', NULL);
+  '2026-08-14 21:18:18', NULL);
 SET @ksef_id = LAST_INSERT_ID();
 
 INSERT INTO sh_ksef_invoice_lines (ksef_invoice_id, line_no, external_name, external_description,
@@ -5844,10 +5844,10 @@ INSERT INTO sh_ksef_invoices (tenant_id, supplier_nip, supplier_name, supplier_a
   fetched_at, processed_at)
 VALUES (@tid, '7780012345', 'FRUKTUS — Warzywa i Owoce', 'ul. Tęczowa 3, 54-125 Wrocław',
   NULL, 'Pizzeria Forno', 'FA/FORNO/2026/002',
-  '2026-08-14', '2026-08-14', '2026-09-13',
+  '2026-08-15', '2026-08-15', '2026-09-14',
   36800, 1840, 38640,
   'accepted', (SELECT id FROM wh_documents WHERE tenant_id=@tid AND doc_number='PZ-2026/05/FORNO-002'),
-  '2026-08-06 04:33:36', '2026-08-14');
+  '2026-08-08 21:18:18', '2026-08-15');
 SET @ksef_id = LAST_INSERT_ID();
 
 INSERT INTO sh_ksef_invoice_lines (ksef_invoice_id, line_no, external_name, external_description,
@@ -5870,10 +5870,10 @@ INSERT INTO sh_ksef_invoices (tenant_id, supplier_nip, supplier_name, supplier_a
   fetched_at, processed_at)
 VALUES (@tid, '1230012345', 'DI MARCO — Włoskie Specjały', 'ul. Włoska 8, 00-001 Warszawa',
   NULL, 'Pizzeria Forno', 'FA/FORNO/2026/003',
-  '2026-08-18', '2026-08-18', '2026-09-17',
+  '2026-08-19', '2026-08-19', '2026-09-18',
   100400, 8032, 108432,
   'processing', NULL,
-  '2026-08-10 04:33:36', NULL);
+  '2026-08-12 21:18:18', NULL);
 SET @ksef_id = LAST_INSERT_ID();
 
 INSERT INTO sh_ksef_invoice_lines (ksef_invoice_id, line_no, external_name, external_description,
@@ -5893,7 +5893,7 @@ INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,
   subtotal, delivery_fee, grand_total, status, payment_status, payment_method,
   delivery_status, customer_name, customer_phone, delivery_address, lat, lng,
   promised_time, tracking_token, created_at)
-VALUES ('9b895afd-7d1a-4ef9-887d-4e30249e3c38', @tid, 'FORNO-001',
+VALUES ('ce6798eb-5d49-456a-947c-7202a014c2d2', @tid, 'FORNO-001',
   'delivery', 'delivery', 'seed',
   9500, 800, 10300,
   'accepted', 'card', 'card',
@@ -5902,22 +5902,22 @@ VALUES ('9b895afd-7d1a-4ef9-887d-4e30249e3c38', @tid, 'FORNO-001',
 
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('1e42bd99-f0b6-4e1f-8633-6105e9b8ed04', '9b895afd-7d1a-4ef9-887d-4e30249e3c38', 'MARGHERITA_30CM', 'Margherita 30cm',
+VALUES ('e193e91f-de84-4618-82bf-8e7e7aa7f7e1', 'ce6798eb-5d49-456a-947c-7202a014c2d2', 'MARGHERITA_30CM', 'Margherita 30cm',
   2700, 1, 2700, 8.0, 200, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('8866dade-1dcf-4dcd-beb1-17f7cc6065ab', '9b895afd-7d1a-4ef9-887d-4e30249e3c38', 'DI_PARMA_37CM', 'Di Parma 37cm',
+VALUES ('21f3c6c8-4b0e-4420-be3e-6fde2a2c2e87', 'ce6798eb-5d49-456a-947c-7202a014c2d2', 'DI_PARMA_37CM', 'Di Parma 37cm',
   5400, 1, 5400, 8.0, 400, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('b88c7844-a888-4072-bbc6-4359f0870667', '9b895afd-7d1a-4ef9-887d-4e30249e3c38', 'COCA_COLA', 'Coca-Cola 0.33l',
+VALUES ('02f5b9e6-7311-4d2d-b2a3-0a3f41227954', 'ce6798eb-5d49-456a-947c-7202a014c2d2', 'COCA_COLA', 'Coca-Cola 0.33l',
   700, 2, 1400, 23.0, 262, NULL);
 
 INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,
   subtotal, delivery_fee, grand_total, status, payment_status, payment_method,
   delivery_status, customer_name, customer_phone, delivery_address, lat, lng,
   promised_time, tracking_token, created_at)
-VALUES ('ac4001a2-3e35-46f5-a2f0-c98c84bb083e', @tid, 'FORNO-002',
+VALUES ('3efdfa94-a3bd-4379-ae31-880dc79624af', @tid, 'FORNO-002',
   'delivery', 'delivery', 'seed',
   7500, 800, 8300,
   'preparing', 'online_paid', 'online',
@@ -5926,18 +5926,18 @@ VALUES ('ac4001a2-3e35-46f5-a2f0-c98c84bb083e', @tid, 'FORNO-002',
 
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('5809b61e-4353-4df9-ae1e-8d74b91c15e4', 'ac4001a2-3e35-46f5-a2f0-c98c84bb083e', 'ETNA_30CM', 'Etna 30cm',
+VALUES ('a45a4797-18ca-4425-821c-7fad89e32408', '3efdfa94-a3bd-4379-ae31-880dc79624af', 'ETNA_30CM', 'Etna 30cm',
   3800, 1, 3800, 8.0, 281, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('5f4ac20b-5c24-4b9b-9555-37d10966a6aa', 'ac4001a2-3e35-46f5-a2f0-c98c84bb083e', 'VINCI_30CM', 'Vinci 30cm',
+VALUES ('e8e74720-8f74-4be0-9cf3-9bcdbd91f5af', '3efdfa94-a3bd-4379-ae31-880dc79624af', 'VINCI_30CM', 'Vinci 30cm',
   3700, 1, 3700, 8.0, 274, NULL);
 
 INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,
   subtotal, delivery_fee, grand_total, status, payment_status, payment_method,
   delivery_status, customer_name, customer_phone, delivery_address, lat, lng,
   promised_time, tracking_token, created_at)
-VALUES ('e6acfbc3-b7d6-4d8f-a039-5b4eee7ab11d', @tid, 'FORNO-003',
+VALUES ('d970c563-5a5f-4dad-9eff-41926d557214', @tid, 'FORNO-003',
   'takeaway', 'takeaway', 'seed',
   4050, 0, 4050,
   'new', 'to_pay', 'cash',
@@ -5946,14 +5946,14 @@ VALUES ('e6acfbc3-b7d6-4d8f-a039-5b4eee7ab11d', @tid, 'FORNO-003',
 
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('16ece7e1-d0c1-4629-a354-ab99cf6178ea', 'e6acfbc3-b7d6-4d8f-a039-5b4eee7ab11d', 'MARGHERITA_37CM', 'Margherita 37cm',
+VALUES ('6025b7be-a6a6-4ded-b588-7111cb862703', 'd970c563-5a5f-4dad-9eff-41926d557214', 'MARGHERITA_37CM', 'Margherita 37cm',
   4050, 1, 4050, 8.0, 300, NULL);
 
 INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,
   subtotal, delivery_fee, grand_total, status, payment_status, payment_method,
   delivery_status, customer_name, customer_phone, delivery_address, lat, lng,
   promised_time, tracking_token, created_at)
-VALUES ('33a48e48-7cf8-4de1-af92-3e452986fb07', @tid, 'FORNO-004',
+VALUES ('7c09fee6-c752-462c-af3a-a7fab37e5d82', @tid, 'FORNO-004',
   'pos', 'dine_in', 'seed',
   17750, 0, 17750,
   'preparing', 'to_pay', NULL,
@@ -5962,26 +5962,26 @@ VALUES ('33a48e48-7cf8-4de1-af92-3e452986fb07', @tid, 'FORNO-004',
 
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('9a5821f1-1d24-43aa-93c5-c7b1840211c8', '33a48e48-7cf8-4de1-af92-3e452986fb07', 'MONTANARA_37CM', 'Montanara 37cm',
+VALUES ('9111bb91-8bb8-45ea-b222-f96d8f20d801', '7c09fee6-c752-462c-af3a-a7fab37e5d82', 'MONTANARA_37CM', 'Montanara 37cm',
   5550, 1, 5550, 8.0, 411, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('178028bc-5e7e-4686-8aa0-8d2d7583a070', '33a48e48-7cf8-4de1-af92-3e452986fb07', 'STEAKY_37CM', 'Steaky 37cm',
+VALUES ('1accd8f2-e4bb-4d49-add5-40030c9c075e', '7c09fee6-c752-462c-af3a-a7fab37e5d82', 'STEAKY_37CM', 'Steaky 37cm',
   6000, 1, 6000, 8.0, 444, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('a8882e97-9fec-4ccf-bbe2-b175f77a0c28', '33a48e48-7cf8-4de1-af92-3e452986fb07', 'CAPRICCIOSA_30CM', 'Capricciosa 30cm',
+VALUES ('9cef2123-56d8-458c-9d34-8557aa446804', '7c09fee6-c752-462c-af3a-a7fab37e5d82', 'CAPRICCIOSA_30CM', 'Capricciosa 30cm',
   3600, 1, 3600, 8.0, 267, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('517c7836-c195-44f7-b0b3-feabad25678a', '33a48e48-7cf8-4de1-af92-3e452986fb07', 'PIWO_BUTELKA', 'Piwo 0.5l',
+VALUES ('b466ccba-3245-44af-bf0b-8a31eba04042', '7c09fee6-c752-462c-af3a-a7fab37e5d82', 'PIWO_BUTELKA', 'Piwo 0.5l',
   1300, 2, 2600, 23.0, 486, NULL);
 
 INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,
   subtotal, delivery_fee, grand_total, status, payment_status, payment_method,
   delivery_status, customer_name, customer_phone, delivery_address, lat, lng,
   promised_time, tracking_token, created_at)
-VALUES ('ef643ccf-a13c-426c-b513-20d82c2445ad', @tid, 'FORNO-005',
+VALUES ('8ba7dc59-9f41-4b8c-b7b9-92d684474033', @tid, 'FORNO-005',
   'delivery', 'delivery', 'seed',
   10300, 800, 11100,
   'completed', 'card', 'card',
@@ -5990,42 +5990,42 @@ VALUES ('ef643ccf-a13c-426c-b513-20d82c2445ad', @tid, 'FORNO-005',
 
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('20d1fa25-ae3e-447f-937c-26bb2a0d7f42', 'ef643ccf-a13c-426c-b513-20d82c2445ad', 'QUATTRO_FORMAGGI_37CM', 'Quattro Formaggi 37cm',
+VALUES ('c2ba8350-f0f0-4383-8201-f09b95be8e01', '8ba7dc59-9f41-4b8c-b7b9-92d684474033', 'QUATTRO_FORMAGGI_37CM', 'Quattro Formaggi 37cm',
   5700, 1, 5700, 8.0, 422, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('811835f4-8e23-4854-8767-2486c74efeb6', 'ef643ccf-a13c-426c-b513-20d82c2445ad', 'DI_PARMA_30CM', 'Di Parma 30cm',
+VALUES ('b73e00a7-70d7-4554-92f6-11aa367a6d9b', '8ba7dc59-9f41-4b8c-b7b9-92d684474033', 'DI_PARMA_30CM', 'Di Parma 30cm',
   3600, 1, 3600, 8.0, 267, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('c8685a7b-ca95-4a4a-aba8-e2c800629bcd', 'ef643ccf-a13c-426c-b513-20d82c2445ad', 'WODA_NIEGAZ', 'Woda niegazowana',
+VALUES ('1ac94449-e47f-46f4-add2-8a38246225ab', '8ba7dc59-9f41-4b8c-b7b9-92d684474033', 'WODA_NIEGAZ', 'Woda niegazowana',
   500, 2, 1000, 23.0, 187, NULL);
 
 INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,
   subtotal, delivery_fee, grand_total, status, payment_status, payment_method,
   delivery_status, customer_name, customer_phone, delivery_address, lat, lng,
   promised_time, tracking_token, created_at)
-VALUES ('8cc0a992-4982-40cd-91fa-9795ebf008ba', @tid, 'FORNO-006',
+VALUES ('435d1489-54c0-442b-8813-5610cc613126', @tid, 'FORNO-006',
   'delivery', 'delivery', 'seed',
   8600, 800, 9400,
   'ready', 'online_paid', 'online',
   'in_delivery', 'Piotr Nowicki', '+48 504 321 987', 'ul. Słoneczna 21, 10-710 Olsztyn', 53.765, 20.51,
-  DATE_ADD(DATE_SUB(NOW(), INTERVAL 75 MINUTE), INTERVAL 35 MINUTE), LOWER(SUBSTRING(REPLACE('8cc0a992-4982-40cd-91fa-9795ebf008ba','-',''), 1, 16)), DATE_SUB(NOW(), INTERVAL 75 MINUTE));
+  DATE_ADD(DATE_SUB(NOW(), INTERVAL 75 MINUTE), INTERVAL 35 MINUTE), LOWER(SUBSTRING(REPLACE('435d1489-54c0-442b-8813-5610cc613126','-',''), 1, 16)), DATE_SUB(NOW(), INTERVAL 75 MINUTE));
 
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('4474353e-382c-4dbb-ba95-b1d2fca014bf', '8cc0a992-4982-40cd-91fa-9795ebf008ba', 'DIAVOLA_30CM', 'Diavola 30cm',
+VALUES ('cd69a87d-6aae-4798-bd50-4197919c8007', '435d1489-54c0-442b-8813-5610cc613126', 'DIAVOLA_30CM', 'Diavola 30cm',
   3500, 1, 3500, 8.0, 259, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('c2eeb300-775e-4e6d-bc22-9198a1c81044', '8cc0a992-4982-40cd-91fa-9795ebf008ba', 'AMERICANA_37CM', 'Americano 37cm',
+VALUES ('be6ffdff-9c94-40dc-b98a-ef98e7d26fdc', '435d1489-54c0-442b-8813-5610cc613126', 'AMERICANA_37CM', 'Americano 37cm',
   5100, 1, 5100, 8.0, 378, NULL);
 
 INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,
   subtotal, delivery_fee, grand_total, status, payment_status, payment_method,
   delivery_status, customer_name, customer_phone, delivery_address, lat, lng,
   promised_time, tracking_token, created_at)
-VALUES ('47480ac8-0d5f-45af-888c-a83293a89713', @tid, 'FORNO-007',
+VALUES ('98e73117-83ac-43ff-b19b-3d0033541589', @tid, 'FORNO-007',
   'online', 'delivery', 'seed',
   4000, 800, 4800,
   'new', 'online_paid', 'online',
@@ -6034,18 +6034,18 @@ VALUES ('47480ac8-0d5f-45af-888c-a83293a89713', @tid, 'FORNO-007',
 
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('f7af3252-4437-4f3a-87e9-ec22822f5d71', '47480ac8-0d5f-45af-888c-a83293a89713', 'MARGHERITA_ITALIANO_30CM', 'Margherita Italiano 30cm',
+VALUES ('792b3f8b-df1d-4b96-817e-327e9dd4680b', '98e73117-83ac-43ff-b19b-3d0033541589', 'MARGHERITA_ITALIANO_30CM', 'Margherita Italiano 30cm',
   3300, 1, 3300, 8.0, 244, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('6a3bb030-da78-445d-a380-313dc9920955', '47480ac8-0d5f-45af-888c-a83293a89713', 'SPRITE', 'Sprite 0.33l',
+VALUES ('95ffb295-fe8f-4cf6-87b6-516dbd856ad6', '98e73117-83ac-43ff-b19b-3d0033541589', 'SPRITE', 'Sprite 0.33l',
   700, 1, 700, 23.0, 131, NULL);
 
 INSERT INTO sh_orders (id, tenant_id, order_number, channel, order_type, source,
   subtotal, delivery_fee, grand_total, status, payment_status, payment_method,
   delivery_status, customer_name, customer_phone, delivery_address, lat, lng,
   promised_time, tracking_token, created_at)
-VALUES ('f6497c4e-5c33-4574-b5a3-d0e982c1ca46', @tid, 'FORNO-008',
+VALUES ('c81ad0e7-04a8-41b2-9978-bcf012e09afe', @tid, 'FORNO-008',
   'pos', 'dine_in', 'seed',
   24450, 0, 24450,
   'completed', 'card', 'card',
@@ -6054,23 +6054,23 @@ VALUES ('f6497c4e-5c33-4574-b5a3-d0e982c1ca46', @tid, 'FORNO-008',
 
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('46472d19-74f1-4085-80f2-975df899557c', 'f6497c4e-5c33-4574-b5a3-d0e982c1ca46', 'CARBONARA_30CM', 'Carbonara 30cm',
+VALUES ('41314225-144e-4eac-92a8-01ecafdce36d', 'c81ad0e7-04a8-41b2-9978-bcf012e09afe', 'CARBONARA_30CM', 'Carbonara 30cm',
   3600, 2, 7200, 8.0, 533, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('24b6060c-dff9-449f-9328-05ca052d73d9', 'f6497c4e-5c33-4574-b5a3-d0e982c1ca46', 'VERDURA_37CM', 'Verdura 37cm',
+VALUES ('696b8f7b-1b81-40bf-8923-635e6ba280c7', 'c81ad0e7-04a8-41b2-9978-bcf012e09afe', 'VERDURA_37CM', 'Verdura 37cm',
   5250, 1, 5250, 8.0, 389, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('41df9c32-2689-4eae-9fe9-9ca7153b5050', 'f6497c4e-5c33-4574-b5a3-d0e982c1ca46', 'CAPRICCIOSA_37CM', 'Capricciosa 37cm',
+VALUES ('8a6bdb14-459a-493e-9d33-f1b772dc7024', 'c81ad0e7-04a8-41b2-9978-bcf012e09afe', 'CAPRICCIOSA_37CM', 'Capricciosa 37cm',
   5400, 1, 5400, 8.0, 400, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('6f737e03-54e5-41ea-8d7f-5676ec8a8e92', 'f6497c4e-5c33-4574-b5a3-d0e982c1ca46', 'PIWO_BUTELKA', 'Piwo 0.5l',
+VALUES ('ff7767cf-1e52-429f-aeac-09d2c3104755', 'c81ad0e7-04a8-41b2-9978-bcf012e09afe', 'PIWO_BUTELKA', 'Piwo 0.5l',
   1300, 4, 5200, 23.0, 972, NULL);
 INSERT INTO sh_order_lines (id, order_id, item_sku, snapshot_name,
   unit_price, quantity, line_total, vat_rate, vat_amount, modifiers_json)
-VALUES ('1fdcc9ff-bfc9-42c1-abae-2b7cf9a8bdfe', 'f6497c4e-5c33-4574-b5a3-d0e982c1ca46', 'COCA_COLA', 'Coca-Cola 0.33l',
+VALUES ('72098a61-e0cd-4dad-9e00-c91ce2684211', 'c81ad0e7-04a8-41b2-9978-bcf012e09afe', 'COCA_COLA', 'Coca-Cola 0.33l',
   700, 2, 1400, 23.0, 262, NULL);
 
 COMMIT;
