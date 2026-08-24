@@ -1161,6 +1161,28 @@ SET @wh  := {esc(WAREHOUSE_ID)};
     if not menu_only:
         W(f"DELETE FROM wh_stock WHERE tenant_id=@tid AND sku IN ({sys_skus_quoted});")
         W("")
+        # HR tables (must delete before sh_users — FK)
+        W("DELETE FROM sh_payroll_ledger WHERE tenant_id=@tid AND employee_id IN")
+        W("  (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code LIKE 'EMP-FORNO-%');")
+        W("DELETE FROM sh_work_sessions WHERE tenant_id=@tid AND employee_id IN")
+        W("  (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code LIKE 'EMP-FORNO-%');")
+        W("DELETE FROM sh_employee_rates WHERE tenant_id=@tid AND employee_id IN")
+        W("  (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code LIKE 'EMP-FORNO-%');")
+        W("DELETE FROM sh_employees WHERE tenant_id=@tid AND employee_code LIKE 'EMP-FORNO-%';")
+        W("")
+        # sh_driver_shifts + sh_drivers
+        W("DELETE FROM sh_driver_shifts WHERE driver_id IN")
+        W("  (SELECT user_id FROM sh_drivers WHERE tenant_id=@tid);")
+        W("DELETE FROM sh_drivers WHERE tenant_id=@tid;")
+        W("")
+        # sh_users
+        W("DELETE FROM sh_users WHERE tenant_id=@tid AND username IN")
+        W("  ('forno_owner','forno_manager','forno_waiter','forno_cook','forno_driver');")
+        W("")
+        # sh_tenant_settings
+        W("DELETE FROM sh_tenant_settings WHERE tenant_id=@tid AND setting_key IN")
+        W("  ('', 'currency', 'default_vat_dine_in', 'default_vat_takeaway', 'half_half_surcharge');")
+        W("")
 
     # sys_items
     W(f"DELETE FROM sys_items WHERE tenant_id=@tid AND sku IN ({sys_skus_quoted});")
@@ -1700,6 +1722,7 @@ SET @wh  := {esc(WAREHOUSE_ID)};
 
         # ── ORDERS ────────────────────────────────────────────────────────────────
         W("-- ── 2.18 sh_orders + sh_order_lines ───────────────────────────────────")
+        order_ids_full = []
 
         for order in ORDERS_DATA:
             order_id  = gen_uuid()
@@ -1745,6 +1768,155 @@ SET @wh  := {esc(WAREHOUSE_ID)};
                 W(f"VALUES ({esc(line_id)}, {esc(order_id)}, {esc(item_sku)}, {esc(snap_name)},")
                 W(f"  {unit_price}, {qty}, {line_tot}, {vat_rate}, {vat_amt}, {mods_json});")
             W("")
+            order_ids_full.append((order_id, None, status, created_sql, grand_tot, pay_status, pm))
+
+        # ── 2.19 sh_tenant_settings + sh_users + sh_drivers (ops w full) ──────
+        W("-- ── 2.19 sh_tenant_settings + sh_users + sh_drivers ──────────────────")
+        # Tenant settings
+        W("INSERT INTO sh_tenant_settings (tenant_id, setting_key, is_active, min_order_value,")
+        W("  min_prep_time_minutes, sla_green_min, sla_yellow_min, base_prep_minutes,")
+        W("  min_lead_time_minutes, setting_value)")
+        W("VALUES (@tid, '', 1, 0, 30, 10, 5, 25, 30, NULL)")
+        W("ON DUPLICATE KEY UPDATE is_active=1;")
+        W("INSERT INTO sh_tenant_settings (tenant_id, setting_key, setting_value)")
+        W("VALUES (@tid, 'currency', 'PLN'),")
+        W("       (@tid, 'default_vat_dine_in', '8'),")
+        W("       (@tid, 'default_vat_takeaway', '5'),")
+        W("       (@tid, 'half_half_surcharge', '200')")
+        W("ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value);")
+        W("")
+        # Users
+        W("INSERT INTO sh_users (tenant_id, username, password_hash, pin_code, name,")
+        W("  first_name, last_name, role, status, is_active, is_deleted)")
+        W("VALUES")
+        W("  (@tid, 'forno_owner',   '$2y$10$N9qo8uLOickgx2ZMRZoMy.MrqJZ4DpI1eKQZdJxKQKQKQKQKQKQK', '0000', 'Owner Forno',    'Owner',  'Forno',   'owner',   'active', 1, 0),")
+        W("  (@tid, 'forno_manager', '$2y$10$N9qo8uLOickgx2ZMRZoMy.MrqJZ4DpI1eKQZdJxKQKQKQKQKQKQK', '1000', 'Manager Forno',  'Anna',   'Manager', 'manager', 'active', 1, 0),")
+        W("  (@tid, 'forno_waiter',  '$2y$10$N9qo8uLOickgx2ZMRZoMy.MrqJZ4DpI1eKQZdJxKQKQKQKQKQKQK', '1111', 'Kelner Forno',   'Marek',  'Kelner',  'waiter',  'active', 1, 0),")
+        W("  (@tid, 'forno_cook',    '$2y$10$N9qo8uLOickgx2ZMRZoMy.MrqJZ4DpI1eKQZdJxKQKQKQKQKQKQK', '3333', 'Kucharz Forno',  'Piotr',  'Kucharz', 'cook',    'active', 1, 0),")
+        W("  (@tid, 'forno_driver',  '$2y$10$N9qo8uLOickgx2ZMRZoMy.MrqJZ4DpI1eKQZdJxKQKQKQKQKQKQK', '4444', 'Kierowca Forno', 'Tomek',  'Kierowca','driver',  'active', 1, 0)")
+        W("ON DUPLICATE KEY UPDATE is_active=1, is_deleted=0;")
+        W("SET @uid_owner   = (SELECT id FROM sh_users WHERE tenant_id=@tid AND username='forno_owner');")
+        W("SET @uid_manager = (SELECT id FROM sh_users WHERE tenant_id=@tid AND username='forno_manager');")
+        W("SET @uid_waiter  = (SELECT id FROM sh_users WHERE tenant_id=@tid AND username='forno_waiter');")
+        W("SET @uid_cook    = (SELECT id FROM sh_users WHERE tenant_id=@tid AND username='forno_cook');")
+        W("SET @uid_driver  = (SELECT id FROM sh_users WHERE tenant_id=@tid AND username='forno_driver');")
+        W("")
+        # Drivers
+        W("INSERT INTO sh_drivers (user_id, tenant_id, status) VALUES (@uid_driver, @tid, 'available')")
+        W("ON DUPLICATE KEY UPDATE status='available';")
+        W("INSERT INTO sh_driver_shifts (tenant_id, driver_id, initial_cash, status)")
+        W("VALUES (@tid, @uid_driver, 10000, 'active')")
+        W("ON DUPLICATE KEY UPDATE status='active';")
+        W("")
+
+        # ── 2.20 sh_employees + rates + work_sessions + payroll_ledger ─────────
+        W("-- ── 2.20 sh_employees + rates + work_sessions + payroll_ledger ────────")
+        hire_sql = "DATE_SUB(CURDATE(), INTERVAL 6 MONTH)"
+        emp_data = [
+            ('@uid_owner',   'EMP-FORNO-001', 'Owner Forno',    'Owner',  'Forno',   'owner',  hire_sql),
+            ('@uid_manager', 'EMP-FORNO-002', 'Manager Forno',  'Anna',   'Manager', 'manager', hire_sql),
+            ('@uid_waiter',  'EMP-FORNO-003', 'Kelner Forno',   'Marek',  'Kelner',  'waiter',  hire_sql),
+            ('@uid_cook',    'EMP-FORNO-004', 'Kucharz Forno',  'Piotr',  'Kucharz', 'cook',    hire_sql),
+            ('@uid_driver',  'EMP-FORNO-005', 'Kierowca Forno', 'Tomek',  'Kierowca','driver',  hire_sql),
+        ]
+        emp_rows = []
+        for uid_var, code, disp, first, last, role, hire in emp_data:
+            emp_rows.append(
+                f"(@tid, {uid_var}, {esc(code)}, {esc(disp)}, {esc(first)}, {esc(last)},"
+                f" {hire}, {esc(role)}, 'active', 'PLN')"
+            )
+        W("INSERT INTO sh_employees")
+        W("  (tenant_id, user_id, employee_code, display_name, first_name, last_name,")
+        W("   hire_date, primary_role, status, default_currency)")
+        W("VALUES")
+        W(",\n".join(emp_rows) + ";")
+        W("SET @eid_owner   = (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code='EMP-FORNO-001');")
+        W("SET @eid_manager = (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code='EMP-FORNO-002');")
+        W("SET @eid_waiter  = (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code='EMP-FORNO-003');")
+        W("SET @eid_cook    = (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code='EMP-FORNO-004');")
+        W("SET @eid_driver  = (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code='EMP-FORNO-005');")
+        W("")
+        # Employee rates
+        rates_data = [
+            ('@eid_manager', 2800),
+            ('@eid_waiter',  2200),
+            ('@eid_cook',    2500),
+            ('@eid_driver',  2000),
+        ]
+        rate_rows = []
+        for eid_var, amount in rates_data:
+            rate_rows.append(
+                f"(@tid, {eid_var}, 'hourly', {amount}, 'PLN', {hire_sql}, NULL, 'hiring')"
+            )
+        W("INSERT INTO sh_employee_rates")
+        W("  (tenant_id, employee_id, rate_type, amount_minor, currency, effective_from, effective_to, reason)")
+        W("VALUES")
+        W(",\n".join(rate_rows) + ";")
+        W("")
+        # Work sessions + payroll ledger (4 months × ~20 shifts)
+        import hashlib as _hl
+        emp_rates = [
+            ('@eid_owner',   '@uid_owner',   'EMP-FORNO-001', 0),
+            ('@eid_manager', '@uid_manager', 'EMP-FORNO-002', 2800),
+            ('@eid_waiter',  '@uid_waiter',  'EMP-FORNO-003', 2200),
+            ('@eid_cook',    '@uid_cook',    'EMP-FORNO-004', 2500),
+            ('@eid_driver',  '@uid_driver',  'EMP-FORNO-005', 2000),
+        ]
+        for eid_var, uid_var, emp_code, rate_minor in emp_rates:
+            for month_offset in [3, 2, 1, 0]:
+                base_days_ago = month_offset * 30
+                shifts_this_month = 0
+                for day in range(1, 29):
+                    days_back = base_days_ago + day
+                    if days_back < 0:
+                        continue
+                    if days_back % 7 in (5, 6):
+                        continue
+                    if shifts_this_month >= 20:
+                        break
+                    start_sql = f"DATE_SUB(NOW(), INTERVAL {days_back} DAY) - INTERVAL 8 HOUR"
+                    end_sql   = f"DATE_SUB(NOW(), INTERVAL {days_back} DAY)"
+                    total_hours = 8.0
+                    uuid_seed = f"forno-{emp_code}-{month_offset}-{day}"
+                    uuid_hash = _hl.md5(uuid_seed.encode()).hexdigest()
+                    ws_uuid = f"{uuid_hash[:8]}-{uuid_hash[8:12]}-{uuid_hash[12:16]}-{uuid_hash[16:20]}-{uuid_hash[20:32]}"
+                    W(f"INSERT INTO sh_work_sessions")
+                    W(f"  (session_uuid, tenant_id, user_id, employee_id, start_time, end_time,")
+                    W(f"   total_hours, clock_in_source, clock_out_source)")
+                    W(f"VALUES ({esc(ws_uuid)}, @tid, {uid_var}, {eid_var},")
+                    W(f"  {start_sql}, {end_sql}, {total_hours}, 'kiosk', 'kiosk')")
+                    W(f"ON DUPLICATE KEY UPDATE end_time=VALUES(end_time), total_hours=VALUES(total_hours);")
+                    W(f"SET @ws_id = (SELECT id FROM sh_work_sessions WHERE session_uuid={esc(ws_uuid)});")
+                    if rate_minor > 0:
+                        earnings_minor = int(total_hours * rate_minor)
+                        period_sql = f"YEAR(DATE_SUB(NOW(), INTERVAL {days_back} DAY)), MONTH(DATE_SUB(NOW(), INTERVAL {days_back} DAY))"
+                        ledger_uuid_seed = f"ledger-{emp_code}-{month_offset}-{day}"
+                        ledger_hash = _hl.md5(ledger_uuid_seed.encode()).hexdigest()
+                        ledger_uuid = f"{ledger_hash[:8]}-{ledger_hash[8:12]}-{ledger_hash[12:16]}-{ledger_hash[16:20]}-{ledger_hash[20:32]}"
+                        W(f"INSERT INTO sh_payroll_ledger")
+                        W(f"  (entry_uuid, tenant_id, employee_id, period_year, period_month,")
+                        W(f"   entry_type, amount_minor, currency, hours_qty, rate_applied_minor,")
+                        W(f"   ref_work_session_id, description, created_at)")
+                        W(f"VALUES ({esc(ledger_uuid)}, @tid, {eid_var}, {period_sql},")
+                        W(f"  'work_earnings', {earnings_minor}, 'PLN', {total_hours}, {rate_minor},")
+                        W(f"  @ws_id, 'Demo shift', {end_sql})")
+                        W(f"ON DUPLICATE KEY UPDATE amount_minor=VALUES(amount_minor), hours_qty=VALUES(hours_qty);")
+                    W("")
+                    shifts_this_month += 1
+        W("")
+
+        # ── 2.21 sh_order_audit + sh_order_payments ───────────────────────────
+        W("-- ── 2.21 sh_order_audit + sh_order_payments ──────────────────────────")
+        for order_id, _, _, _, _, _, _ in order_ids_full:
+            W(f"INSERT INTO sh_order_audit (order_id, old_status, new_status, timestamp)")
+            W(f"VALUES ({esc(order_id)}, 'new', 'accepted', NOW());")
+        for order_id, _, _, _, grand_tot, pay_status, pm_var in order_ids_full:
+            if pay_status in ('card', 'online_paid') and pm_var != 'NULL':
+                pay_id = gen_uuid()
+                W(f"INSERT INTO sh_order_payments (id, order_id, tenant_id, method, amount_grosze, tendered_grosze, transaction_id)")
+                W(f"VALUES ({esc(pay_id)}, {esc(order_id)}, @tid, {pm_var}, {grand_tot}, {grand_tot},")
+                W(f"  CONCAT('SEED-', UPPER(SUBSTRING(REPLACE({esc(order_id)},'-',''), 1, 12))));")
+        W("")
 
     # ── COMMIT ────────────────────────────────────────────────────────────────
     W("COMMIT;")
@@ -1775,7 +1947,15 @@ SET @wh  := {esc(WAREHOUSE_ID)};
         W("UNION ALL")
         W("SELECT 'ksef_invoices',COUNT(*) FROM sh_ksef_invoices WHERE tenant_id=@tid AND invoice_number LIKE 'FA/FORNO/%'")
         W("UNION ALL")
-        W("SELECT 'orders',      COUNT(*) FROM sh_orders WHERE tenant_id=@tid AND order_number LIKE 'FORNO-%';")
+        W("SELECT 'orders',      COUNT(*) FROM sh_orders WHERE tenant_id=@tid AND order_number LIKE 'FORNO-%'")
+        W("UNION ALL")
+        W("SELECT 'employees',   COUNT(*) FROM sh_employees WHERE tenant_id=@tid AND employee_code LIKE 'EMP-FORNO-%'")
+        W("UNION ALL")
+        W("SELECT 'emp_rates',   COUNT(*) FROM sh_employee_rates WHERE tenant_id=@tid AND employee_id IN (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code LIKE 'EMP-FORNO-%')")
+        W("UNION ALL")
+        W("SELECT 'work_sessions', COUNT(*) FROM sh_work_sessions WHERE tenant_id=@tid AND employee_id IN (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code LIKE 'EMP-FORNO-%')")
+        W("UNION ALL")
+        W("SELECT 'payroll_ledger', COUNT(*) FROM sh_payroll_ledger WHERE tenant_id=@tid AND employee_id IN (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code LIKE 'EMP-FORNO-%'));")
     else:
         W(";")
     W("")
@@ -1868,6 +2048,16 @@ SET @wh  := {esc(WAREHOUSE_ID)};
     W("DELETE FROM sh_drivers WHERE tenant_id=@tid;")
     W("")
 
+    # HR tables (must delete before sh_users — FK sh_employees.user_id → sh_users.id)
+    W("DELETE FROM sh_payroll_ledger WHERE tenant_id=@tid AND employee_id IN")
+    W("  (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code LIKE 'EMP-FORNO-%');")
+    W("DELETE FROM sh_work_sessions WHERE tenant_id=@tid AND employee_id IN")
+    W("  (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code LIKE 'EMP-FORNO-%');")
+    W("DELETE FROM sh_employee_rates WHERE tenant_id=@tid AND employee_id IN")
+    W("  (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code LIKE 'EMP-FORNO-%');")
+    W("DELETE FROM sh_employees WHERE tenant_id=@tid AND employee_code LIKE 'EMP-FORNO-%';")
+    W("")
+
     # sh_users
     W("DELETE FROM sh_users WHERE tenant_id=@tid AND username IN")
     W("  ('forno_owner','forno_manager','forno_waiter','forno_cook','forno_driver');")
@@ -1931,6 +2121,141 @@ SET @wh  := {esc(WAREHOUSE_ID)};
     W("INSERT INTO sh_driver_shifts (tenant_id, driver_id, initial_cash, status)")
     W("VALUES (@tid, @uid_driver, 10000, 'active')")
     W("ON DUPLICATE KEY UPDATE status='active';")
+    W("")
+
+    # ── SEKCJA 2b: sh_employees (5 profili HR) ─────────────────────────────────
+    W("-- ── 2b sh_employees (5 profili HR — kadry) ──────────────────────────────")
+    # hire_date = 6 months ago (dynamic SQL, stays fresh on re-seed)
+    hire_sql = "DATE_SUB(CURDATE(), INTERVAL 6 MONTH)"
+    emp_data = [
+        ('@uid_owner',   'EMP-FORNO-001', 'Owner Forno',    'Owner',  'Forno',   'owner',  hire_sql),
+        ('@uid_manager', 'EMP-FORNO-002', 'Manager Forno',  'Anna',   'Manager', 'manager', hire_sql),
+        ('@uid_waiter',  'EMP-FORNO-003', 'Kelner Forno',   'Marek',  'Kelner',  'waiter',  hire_sql),
+        ('@uid_cook',    'EMP-FORNO-004', 'Kucharz Forno',  'Piotr',  'Kucharz', 'cook',    hire_sql),
+        ('@uid_driver',  'EMP-FORNO-005', 'Kierowca Forno', 'Tomek',  'Kierowca','driver',  hire_sql),
+    ]
+    emp_rows = []
+    for uid_var, code, disp, first, last, role, hire in emp_data:
+        emp_rows.append(
+            f"(@tid, {uid_var}, {esc(code)}, {esc(disp)}, {esc(first)}, {esc(last)},"
+            f" {hire}, {esc(role)}, 'active', 'PLN')"
+        )
+    W("INSERT INTO sh_employees")
+    W("  (tenant_id, user_id, employee_code, display_name, first_name, last_name,")
+    W("   hire_date, primary_role, status, default_currency)")
+    W("VALUES")
+    W(",\n".join(emp_rows) + ";")
+    W("")
+
+    # Resolve employee IDs
+    W("SET @eid_owner   = (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code='EMP-FORNO-001');")
+    W("SET @eid_manager = (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code='EMP-FORNO-002');")
+    W("SET @eid_waiter  = (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code='EMP-FORNO-003');")
+    W("SET @eid_cook    = (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code='EMP-FORNO-004');")
+    W("SET @eid_driver  = (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code='EMP-FORNO-005');")
+    W("")
+
+    # ── SEKCJA 2c: sh_employee_rates (stawki godzinowe) ────────────────────────
+    W("-- ── 2c sh_employee_rates (stawki godzinowe — temporal) ──────────────────")
+    # Rates in grosze per hour (amount_minor). effective_from = hire_date.
+    # owner: no hourly rate (salaried) — skip. Others get market rates.
+    rates_data = [
+        ('@eid_manager', 2800),   # 28.00 PLN/h
+        ('@eid_waiter',  2200),   # 22.00 PLN/h
+        ('@eid_cook',    2500),   # 25.00 PLN/h
+        ('@eid_driver',  2000),   # 20.00 PLN/h
+    ]
+    rate_rows = []
+    for eid_var, amount in rates_data:
+        rate_rows.append(
+            f"(@tid, {eid_var}, 'hourly', {amount}, 'PLN', {hire_sql}, NULL, 'hiring')"
+        )
+    W("INSERT INTO sh_employee_rates")
+    W("  (tenant_id, employee_id, rate_type, amount_minor, currency, effective_from, effective_to, reason)")
+    W("VALUES")
+    W(",\n".join(rate_rows) + ";")
+    W("")
+
+    # ── SEKCJA 2d: sh_work_sessions + sh_payroll_ledger (4 mies historii) ──────
+    W("-- ── 2d sh_work_sessions + sh_payroll_ledger (4 mies × ~20 shiftów) ─────")
+    W("-- Generowane dynamicznie: DATE_SUB(NOW(), INTERVAL X DAY) — świeże po re-seedzie.")
+    W("")
+
+    # Generate ~20 shifts/month × 4 months per employee (skip weekends)
+    # Deterministic UUID per (employee_code, month, day) for idempotency
+    import hashlib
+    emp_rates = [
+        ('@eid_owner',   '@uid_owner',   'EMP-FORNO-001', 0),     # no rate — skip ledger
+        ('@eid_manager', '@uid_manager', 'EMP-FORNO-002', 2800),
+        ('@eid_waiter',  '@uid_waiter',  'EMP-FORNO-003', 2200),
+        ('@eid_cook',    '@uid_cook',    'EMP-FORNO-004', 2500),
+        ('@eid_driver',  '@uid_driver',  'EMP-FORNO-005', 2000),
+    ]
+
+    ws_count = 0
+    ledger_count = 0
+
+    for eid_var, uid_var, emp_code, rate_minor in emp_rates:
+        # 4 months back: 90, 60, 30, 0 days ago (approx mid-month points)
+        # Generate ~20 shifts per month (Mon-Fri, ~4 weeks)
+        for month_offset in [3, 2, 1, 0]:
+            base_days_ago = month_offset * 30
+            shifts_this_month = 0
+            for day in range(1, 29):
+                # Approximate weekday: day_offset from today
+                days_back = base_days_ago + day
+                if days_back < 0:
+                    continue  # don't generate future
+                # Skip weekends: use modulo of days_back
+                # (approximate — not exact calendar, but good enough for demo)
+                if days_back % 7 in (5, 6):
+                    continue
+                if shifts_this_month >= 20:
+                    break
+
+                # 8-hour shift: start 10:00, end 18:00
+                start_sql = f"DATE_SUB(NOW(), INTERVAL {days_back} DAY) - INTERVAL 8 HOUR"
+                end_sql   = f"DATE_SUB(NOW(), INTERVAL {days_back} DAY)"
+                total_hours = 8.0
+
+                # Deterministic UUID
+                uuid_seed = f"forno-{emp_code}-{month_offset}-{day}"
+                uuid_hash = hashlib.md5(uuid_seed.encode()).hexdigest()
+                ws_uuid = f"{uuid_hash[:8]}-{uuid_hash[8:12]}-{uuid_hash[12:16]}-{uuid_hash[16:20]}-{uuid_hash[20:32]}"
+
+                W(f"INSERT INTO sh_work_sessions")
+                W(f"  (session_uuid, tenant_id, user_id, employee_id, start_time, end_time,")
+                W(f"   total_hours, clock_in_source, clock_out_source)")
+                W(f"VALUES ({esc(ws_uuid)}, @tid, {uid_var}, {eid_var},")
+                W(f"  {start_sql}, {end_sql}, {total_hours}, 'kiosk', 'kiosk')")
+                W(f"ON DUPLICATE KEY UPDATE end_time=VALUES(end_time), total_hours=VALUES(total_hours);")
+                W(f"SET @ws_id = (SELECT id FROM sh_work_sessions WHERE session_uuid={esc(ws_uuid)});")
+                W("")
+
+                # Payroll ledger entry (only for employees with rate)
+                if rate_minor > 0:
+                    earnings_minor = int(total_hours * rate_minor)
+                    # period_year and period_month from the shift date
+                    period_sql = f"YEAR(DATE_SUB(NOW(), INTERVAL {days_back} DAY)), MONTH(DATE_SUB(NOW(), INTERVAL {days_back} DAY))"
+                    ledger_uuid_seed = f"ledger-{emp_code}-{month_offset}-{day}"
+                    ledger_hash = hashlib.md5(ledger_uuid_seed.encode()).hexdigest()
+                    ledger_uuid = f"{ledger_hash[:8]}-{ledger_hash[8:12]}-{ledger_hash[12:16]}-{ledger_hash[16:20]}-{ledger_hash[20:32]}"
+
+                    W(f"INSERT INTO sh_payroll_ledger")
+                    W(f"  (entry_uuid, tenant_id, employee_id, period_year, period_month,")
+                    W(f"   entry_type, amount_minor, currency, hours_qty, rate_applied_minor,")
+                    W(f"   ref_work_session_id, description, created_at)")
+                    W(f"VALUES ({esc(ledger_uuid)}, @tid, {eid_var}, {period_sql},")
+                    W(f"  'work_earnings', {earnings_minor}, 'PLN', {total_hours}, {rate_minor},")
+                    W(f"  @ws_id, 'Demo shift', {end_sql})")
+                    W(f"ON DUPLICATE KEY UPDATE amount_minor=VALUES(amount_minor), hours_qty=VALUES(hours_qty);")
+                    W("")
+                    ledger_count += 1
+
+                ws_count += 1
+                shifts_this_month += 1
+
+    W(f"-- Wygenerowano: {ws_count} sesji, {ledger_count} wpisów ledger")
     W("")
 
     # ── SEKCJA 3: wh_stock (67 wierszy) ───────────────────────────────────────
@@ -2088,14 +2413,27 @@ SET @wh  := {esc(WAREHOUSE_ID)};
             W(f"  {unit_price}, {qty}, {line_tot}, {vat_rate}, {vat_amt}, {mods_json});")
         W("")
 
-        order_ids.append((order_id, uid_sql, status, created_sql))
+        order_ids.append((order_id, uid_sql, status, created_sql, grand_tot, pay_status, pm))
 
     # ── SEKCJA 7: sh_order_audit (8 wierszy) ──────────────────────────────────
     W("-- ── 7 sh_order_audit (8 wierszy) ───────────────────────────────────────")
 
-    for order_id, uid_sql, status, created_sql in order_ids:
+    for order_id, uid_sql, status, created_sql, _, _, _ in order_ids:
         W(f"INSERT INTO sh_order_audit (order_id, user_id, old_status, new_status, timestamp)")
         W(f"VALUES ({esc(order_id)}, {uid_sql}, 'new', {esc(status)}, {created_sql});")
+    W("")
+
+    # ── SEKCJA 7b: sh_order_payments (płatności za zamówienia) ────────────────
+    W("-- ── 7b sh_order_payments (płatności) ───────────────────────────────────")
+    for order_id, _, _, created_sql, grand_tot, pay_status, pm_var in order_ids:
+        # Only create payment records for paid orders (card, online_paid)
+        # Skip 'to_pay' — payment pending, no record yet
+        if pay_status in ('card', 'online_paid') and pm_var != 'NULL':
+            pay_id = gen_uuid()
+            method = pm_var.strip("'\"")
+            W(f"INSERT INTO sh_order_payments (id, order_id, tenant_id, method, amount_grosze, tendered_grosze, transaction_id)")
+            W(f"VALUES ({esc(pay_id)}, {esc(order_id)}, @tid, {pm_var}, {grand_tot}, {grand_tot},")
+            W(f"  CONCAT('SEED-', UPPER(SUBSTRING(REPLACE({esc(order_id)},'-',''), 1, 12))));")
     W("")
 
     # ── COMMIT ────────────────────────────────────────────────────────────────
@@ -2116,7 +2454,17 @@ SET @wh  := {esc(WAREHOUSE_ID)};
     W("UNION ALL")
     W("SELECT 'ksef_invoices', COUNT(*) FROM sh_ksef_invoices WHERE tenant_id=@tid AND invoice_number LIKE 'FA/FORNO/%'")
     W("UNION ALL")
-    W("SELECT 'orders', COUNT(*) FROM sh_orders WHERE tenant_id=@tid AND order_number LIKE 'FORNO-%';")
+    W("SELECT 'orders', COUNT(*) FROM sh_orders WHERE tenant_id=@tid AND order_number LIKE 'FORNO-%'")
+    W("UNION ALL")
+    W("SELECT 'order_payments', COUNT(*) FROM sh_order_payments WHERE tenant_id=@tid")
+    W("UNION ALL")
+    W("SELECT 'employees', COUNT(*) FROM sh_employees WHERE tenant_id=@tid AND employee_code LIKE 'EMP-FORNO-%'")
+    W("UNION ALL")
+    W("SELECT 'employee_rates', COUNT(*) FROM sh_employee_rates WHERE tenant_id=@tid AND employee_id IN (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code LIKE 'EMP-FORNO-%')")
+    W("UNION ALL")
+    W("SELECT 'work_sessions', COUNT(*) FROM sh_work_sessions WHERE tenant_id=@tid AND employee_id IN (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code LIKE 'EMP-FORNO-%')")
+    W("UNION ALL")
+    W("SELECT 'payroll_ledger', COUNT(*) FROM sh_payroll_ledger WHERE tenant_id=@tid AND employee_id IN (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code LIKE 'EMP-FORNO-%'));")
     W("")
     W("-- ✅ Seed Pizza Forno OPS załadowany pomyślnie (dane operacyjne)!")
     W("")
