@@ -108,6 +108,7 @@ export function openCheckoutOverlay({ state, api, onSuccess, cartLinesForApi, pe
     document.body.appendChild(overlay);
 
     const close = () => {
+        if (countdownTimer) clearInterval(countdownTimer);
         overlay.classList.add('is-closing');
         setTimeout(() => overlay.remove(), 200);
     };
@@ -199,7 +200,21 @@ export function openCheckoutOverlay({ state, api, onSuccess, cartLinesForApi, pe
                             </span>
                         </label>
                     </div>
+                    <div class="checkout-quick-pills" id="checkout-quick-pills">
+                        <span class="checkout-quick-pills__label">Szybki wybór <small style="font-weight:600;color:#a8a29e">(od najszybszego)</small>:</span>
+                        <button type="button" class="checkout-quick-pill" data-quick-min="30" title="30 min po najszybszym możliwym czasie">+30m</button>
+                        <button type="button" class="checkout-quick-pill" data-quick-min="45" title="45 min po najszybszym możliwym czasie">+45m</button>
+                        <button type="button" class="checkout-quick-pill" data-quick-min="60" title="60 min po najszybszym możliwym czasie">+60m</button>
+                        <button type="button" class="checkout-quick-pill" data-quick-min="90" title="90 min po najszybszym możliwym czasie">+90m</button>
+                    </div>
                     <div id="checkout-scheduled-wrap" class="checkout-scheduled" hidden>
+                        <div class="checkout-scheduled__date-row">
+                            <label class="checkout-label checkout-label--inline">
+                                <span>Data</span>
+                                <input type="date" id="checkout-date-picker" class="checkout-date-input">
+                            </label>
+                            <button type="button" class="checkout-date-today" id="checkout-date-today">Dziś</button>
+                        </div>
                         <label class="checkout-label">
                             <span>Godzina ${orderType === 'delivery' ? 'dostawy' : 'odbioru'}</span>
                             <select name="requestedTimeSlot" id="checkout-time-slot" disabled>
@@ -207,6 +222,15 @@ export function openCheckoutOverlay({ state, api, onSuccess, cartLinesForApi, pe
                             </select>
                         </label>
                         <p class="checkout-note" id="checkout-slot-note">Dostępne godziny uwzględniają godziny otwarcia i czas przygotowania.</p>
+                        <div id="checkout-time-confirm" class="checkout-time-confirm" hidden>
+                            <div class="checkout-time-confirm__row">
+                                <i class="fa-solid fa-circle-check checkout-time-confirm__icon"></i>
+                                <div>
+                                    <strong id="checkout-time-confirm-label">—</strong>
+                                    <small id="checkout-time-confirm-countdown">—</small>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </fieldset>
 
@@ -278,8 +302,63 @@ export function openCheckoutOverlay({ state, api, onSuccess, cartLinesForApi, pe
     const scheduledWrap = overlay.querySelector('#checkout-scheduled-wrap');
     const slotSelect  = overlay.querySelector('#checkout-time-slot');
     const slotNote    = overlay.querySelector('#checkout-slot-note');
+    const datePicker  = overlay.querySelector('#checkout-date-picker');
+    const dateTodayBtn = overlay.querySelector('#checkout-date-today');
+    const confirmPanel    = overlay.querySelector('#checkout-time-confirm');
+    const confirmLabel    = overlay.querySelector('#checkout-time-confirm-label');
+    const confirmCountdown = overlay.querySelector('#checkout-time-confirm-countdown');
     let slotsCache = [];
     let slotsLoaded = false;
+    let countdownTimer = null;
+    // Faza 2 fix: ASAP promised_time z backendu — baseline dla pigułek szybkiego wyboru.
+    // Uwzględnia base_prep_minutes + obciążenie kuchni + channel buffer.
+    // Pigułki NIE mogą liczyć od Date.now() — mogłyby celować poniżej minimalnego lead time.
+    let asapPromisedTime = null;
+
+    // ── Panel potwierdzenia wybranego czasu (Faza 1) ────────────────────────
+    // Pokazuje "Dziś 19:30" + "Za 45 min" (zielone) lub "Spóźnione 12 min"
+    // (czerwone, pulsujące). Czysto frontendowe — dane z slotsCache / ISO z <select>.
+    // Inspiracja: legacy pos.html updateScheduledDisplay(), ale bez datetime-local.
+    function clearCountdown() {
+        if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+        if (confirmPanel) confirmPanel.hidden = true;
+    }
+
+    function updateConfirmPanel(isoSlot) {
+        if (!confirmPanel || !confirmLabel || !confirmCountdown) return;
+        if (!isoSlot) { clearCountdown(); return; }
+        const target = new Date(isoSlot);
+        if (isNaN(target.getTime())) { clearCountdown(); return; }
+        const now = new Date();
+        const isToday = target.getDate() === now.getDate()
+            && target.getMonth() === now.getMonth()
+            && target.getFullYear() === now.getFullYear();
+        const hh = String(target.getHours()).padStart(2, '0');
+        const mm = String(target.getMinutes()).padStart(2, '0');
+        const dateLabel = isToday
+            ? `Dziś ${hh}:${mm}`
+            : `${String(target.getDate()).padStart(2, '0')}.${String(target.getMonth() + 1).padStart(2, '0')} ${hh}:${mm}`;
+        confirmLabel.textContent = dateLabel;
+        confirmPanel.hidden = false;
+        confirmPanel.classList.remove('checkout-time-confirm--late');
+
+        function tick() {
+            const diffMs = target.getTime() - Date.now();
+            const diffMin = Math.round(diffMs / 60000);
+            if (diffMin >= 0) {
+                confirmCountdown.textContent = `Za ${diffMin} min`;
+                confirmCountdown.classList.remove('checkout-time-confirm__countdown--late');
+                confirmPanel.classList.remove('checkout-time-confirm--late');
+            } else {
+                confirmCountdown.textContent = `Spóźnione ${Math.abs(diffMin)} min`;
+                confirmCountdown.classList.add('checkout-time-confirm__countdown--late');
+                confirmPanel.classList.add('checkout-time-confirm--late');
+            }
+        }
+        tick();
+        if (countdownTimer) clearInterval(countdownTimer);
+        countdownTimer = setInterval(tick, 30000); // odśwież co 30s
+    }
 
     async function loadAsapEstimate() {
         if (!asapEtaEl) return;
@@ -293,6 +372,10 @@ export function openCheckoutOverlay({ state, api, onSuccess, cartLinesForApi, pe
                 asapEtaEl.textContent = eta
                     ? `~${mins} min (ok. ${eta})`
                     : `~${mins} min`;
+                // Faza 2 fix: zachowaj ASAP promised_time jako baseline dla pigułek.
+                if (res.data.promised_time) {
+                    asapPromisedTime = new Date(res.data.promised_time);
+                }
             } else {
                 asapEtaEl.textContent = res.message || 'Jak najszybciej';
             }
@@ -301,17 +384,24 @@ export function openCheckoutOverlay({ state, api, onSuccess, cartLinesForApi, pe
         }
     }
 
-    async function loadSlots() {
-        if (slotsLoaded || !slotSelect) return;
+    async function loadSlots(forceDate) {
+        if (!slotSelect) return;
+        // Faza 3: forceDate pozwala przeładować sloty dla innej daty.
+        // Bez forceDate: ładuj tylko raz (idempotentny dla today).
+        const selectedDate = forceDate || '';
+        if (slotsLoaded && !forceDate) return;
         slotSelect.disabled = true;
         slotSelect.innerHTML = '<option value="">Ładuję dostępne godziny…</option>';
+        clearCountdown();
         try {
-            const res = await api.estimateTime({
+            const payload = {
                 mode: 'slots',
                 order_type: orderType,
                 interval: 15,
                 count: 12,
-            });
+            };
+            if (selectedDate) payload.date = selectedDate;
+            const res = await api.estimateTime(payload);
             if (res.success && Array.isArray(res.data?.slots)) {
                 slotsCache = res.data.slots;
                 if (slotsCache.length === 0) {
@@ -346,10 +436,126 @@ export function openCheckoutOverlay({ state, api, onSuccess, cartLinesForApi, pe
                     loadSlots();
                 } else {
                     if (scheduledWrap) scheduledWrap.hidden = true;
+                    clearCountdown();
                 }
             });
         });
         loadAsapEstimate();
+
+        // Faza 3: Date picker init — min = today, default = today.
+        // Zmiana daty przeładowuje sloty (forceDate) i czyści panel potwierdzenia.
+        if (datePicker) {
+            const todayIso = new Date().toISOString().split('T')[0];
+            datePicker.min = todayIso;
+            datePicker.value = todayIso;
+            datePicker.addEventListener('change', () => {
+                const sel = datePicker.value || todayIso;
+                slotsLoaded = false;
+                loadSlots(sel);
+            });
+        }
+        if (dateTodayBtn) {
+            dateTodayBtn.addEventListener('click', () => {
+                if (!datePicker) return;
+                const todayIso = new Date().toISOString().split('T')[0];
+                if (datePicker.value === todayIso) return;
+                datePicker.value = todayIso;
+                slotsLoaded = false;
+                loadSlots(todayIso);
+            });
+        }
+
+        // Slot select → panel potwierdzenia (Faza 1).
+        if (slotSelect) {
+            slotSelect.addEventListener('change', () => {
+                const iso = (slotSelect.value || '').trim();
+                if (iso) updateConfirmPanel(iso);
+                else clearCountdown();
+            });
+        }
+
+        // Quick-time pills (Faza 2 fix) — kliknięcie wylicza cel od ASAP baseline
+        // (promised_time z backendu — uwzględnia base_prep_minutes + load + buffer),
+        // NIE od Date.now(). Pigułka +30m = ASAP + 30 min, nie teraz + 30 min.
+        // Przełącza radio na 'scheduled', ładuje sloty, zaznacza najbliższy slot ≥ cel.
+        // Fallback: custom ISO — backend PromisedTimeEngine zwaliduje.
+        const quickPills = timeGroup.querySelectorAll('.checkout-quick-pill');
+        quickPills.forEach((pill) => {
+            pill.addEventListener('click', async () => {
+                const mins = parseInt(pill.dataset.quickMin || '0', 10);
+                if (!mins) return;
+
+                // Faza 2 fix: baseline = ASAP promised_time (z backendu).
+                // Jeśli ASAP jeszcze niezaładowany, załaduj i poczekaj.
+                if (!asapPromisedTime) {
+                    await loadAsapEstimate();
+                }
+                // Fallback: jeśli ASAP nadal null (błąd API), użyj now + minimalny buffer.
+                // Backend i tak zwaliduje przez PromisedTimeEngine — nie przepuści poniżej lead time.
+                const baseline = asapPromisedTime || new Date(Date.now() + 15 * 60000);
+                const target = new Date(baseline.getTime() + mins * 60000);
+
+                // Przełącz radio na scheduled (uruchomi change handler → loadSlots).
+                const scheduledRadio = timeGroup.querySelector('input[name="timeMode"][value="scheduled"]');
+                if (scheduledRadio && !scheduledRadio.checked) {
+                    scheduledRadio.checked = true;
+                    if (scheduledWrap) scheduledWrap.hidden = false;
+                    loadSlots();
+                }
+
+                // Poczekaj na załadowanie slotów (loadSlots jest idempotentny —
+                // jeśli już załadowane, zwraca natychmiast).
+                if (!slotsLoaded) {
+                    await new Promise((r) => setTimeout(r, 600));
+                }
+
+                // Znajdź najbliższy slot ≥ target (lub pierwszy po celu).
+                // Sloty w slotsCache mają format { iso: "2026-08-24T19:15", label, ... }.
+                const targetMs = target.getTime();
+                let bestSlot = null;
+                let bestDiff = Infinity;
+                for (const s of slotsCache) {
+                    if (!s.iso) continue;
+                    const slotMs = new Date(s.iso).getTime();
+                    if (isNaN(slotMs)) continue;
+                    const diff = slotMs - targetMs;
+                    // Preferuj slot ≥ target (diff ≥ 0), najmniejszy diff.
+                    // Jeśli wszystkie < target, weź najmniejszy diff absolutny.
+                    if (diff >= 0 && diff < bestDiff) {
+                        bestDiff = diff;
+                        bestSlot = s;
+                    }
+                }
+                if (!bestSlot && slotsCache.length > 0) {
+                    // Fallback: najbliższy absolutnie (nawet < target).
+                    for (const s of slotsCache) {
+                        if (!s.iso) continue;
+                        const slotMs = new Date(s.iso).getTime();
+                        if (isNaN(slotMs)) continue;
+                        const diff = Math.abs(slotMs - targetMs);
+                        if (diff < bestDiff) {
+                            bestDiff = diff;
+                            bestSlot = s;
+                        }
+                    }
+                }
+
+                if (bestSlot && slotSelect) {
+                    slotSelect.value = bestSlot.iso;
+                    updateConfirmPanel(bestSlot.iso);
+                } else if (slotSelect) {
+                    // Brak pasującego slotu — wstaw custom option z ISO celu.
+                    // Backend PromisedTimeEngine::calculate('scheduled') zwaliduje.
+                    const isoTarget = `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}-${String(target.getDate()).padStart(2, '0')}T${String(target.getHours()).padStart(2, '0')}:${String(target.getMinutes()).padStart(2, '0')}`;
+                    const customOpt = document.createElement('option');
+                    customOpt.value = isoTarget;
+                    customOpt.textContent = `${String(target.getHours()).padStart(2, '0')}:${String(target.getMinutes()).padStart(2, '0')} (niestandardowy)`;
+                    slotSelect.appendChild(customOpt);
+                    slotSelect.value = isoTarget;
+                    updateConfirmPanel(isoTarget);
+                }
+            });
+        });
 
         // Wpięcie B — Doorway preorder → auto-aktywacja scheduled.
         // Gdy klient wszedł przez „Zamów z wyprzedzeniem" (state.preOrder),

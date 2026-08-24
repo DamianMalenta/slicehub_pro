@@ -145,6 +145,8 @@ async function recalcCart() {
         state.lastCalc = null;
         if (elTotal) elTotal.textContent = '—';
         if (sumWrap) renderCartSummary(sumWrap, null);
+        // Faza 1 fix: aktualizuj FAB natychmiast przy pustym koszyku.
+        updateCartFab(cartCount(), '0,00 zł');
         return;
     }
     const res = await OnlineAPI.cartCalculate({
@@ -157,9 +159,13 @@ async function recalcCart() {
         state.lastCalc = res.data;
         if (elTotal) elTotal.textContent = formatMoneyPl(res.data.grand_total);
         if (sumWrap) renderCartSummary(sumWrap, res.data);
+        // Faza 1 fix: aktualizuj pływający pasek (FAB) po authoritative recalc.
+        // Bez tego FAB pokazuje "0,00 zł" aż do następnego refreshCartUi().
+        updateCartFab(cartCount(), formatMoneyPl(res.data.grand_total));
     } else if (elTotal) {
         elTotal.textContent = res.message || 'Błąd';
         if (sumWrap) renderCartSummary(sumWrap, null);
+        updateCartFab(cartCount(), '0,00 zł');
     }
 }
 

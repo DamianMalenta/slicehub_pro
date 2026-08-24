@@ -561,7 +561,21 @@ const PosUI = (() => {
                 expandHtml = `<div class="pulse-expand">${custSection}<div class="pulse-items">${lines}</div>${requestedSection}<div class="pulse-time-section"><div class="pulse-section-label">Czas realizacji</div><div class="pulse-accept-btns">${pillsHtml}</div><div class="pulse-section-label pulse-section-label-slots">Lub wybierz godzinę</div><div class="pulse-slots">${slotsHtml}</div></div><div class="pulse-actions"><button class="pulse-accept-now" data-accept-now="${o.id}" data-promised="${o.promised_time || ''}">${acceptNowLabel}</button><button class="pulse-reject" data-reject="${o.id}">Odrzuć</button></div></div>`;
             }
 
-            target.insertAdjacentHTML('beforeend', `<div class="pulse-card ${borderClass}" data-pulse-id="${o.id}"><div class="pulse-card-top"><span class="pulse-num">#${num}</span><span class="pulse-total">${total}zł</span></div><div class="pulse-card-meta">${custAddr ? `<span class="pulse-addr">${custAddr}</span>` : (custName || '')}</div><div class="pulse-card-bottom"><span class="pulse-source">${_e(o.source || 'online')}</span><span class="pulse-time">${elapsed}m</span></div>${expandHtml}</div>`);
+            // Countdown do promised_time (Faza 4) — pokazuje "Za 45m" (zielone)
+            // lub "Spóźnione 12m" (czerwone) na karcie Pulse, obok elapsed.
+            // Widoczne tylko gdy promised_time jest ustawione.
+            let countdownHtml = '';
+            if (o.promised_time) {
+                const ptMs = new Date(o.promised_time).getTime();
+                const diffMin = Math.round((ptMs - Date.now()) / 60000);
+                if (diffMin >= 0) {
+                    countdownHtml = `<span class="pulse-countdown pulse-countdown--ok">Za ${diffMin}m</span>`;
+                } else {
+                    countdownHtml = `<span class="pulse-countdown pulse-countdown--late">Spóźnione ${Math.abs(diffMin)}m</span>`;
+                }
+            }
+
+            target.insertAdjacentHTML('beforeend', `<div class="pulse-card ${borderClass}" data-pulse-id="${o.id}"><div class="pulse-card-top"><span class="pulse-num">#${num}</span><span class="pulse-total">${total}zł</span></div><div class="pulse-card-meta">${custAddr ? `<span class="pulse-addr">${custAddr}</span>` : (custName || '')}</div><div class="pulse-card-bottom"><span class="pulse-source">${_e(o.source || 'online')}</span><span class="pulse-time">${elapsed}m</span>${countdownHtml}</div>${expandHtml}</div>`);
         });
 
         // Wire events
@@ -867,9 +881,12 @@ const PosUI = (() => {
 
     function _doPrint(htmlContent) {
         const iframe = document.getElementById('print-frame'); if (!iframe) return;
-        const doc = iframe.contentglobalThis.document;
+        // UWAGA: contentWindow to właściwość HTMLIFrameElement (DOM API), NIE window.
+        // Nie podlega zamianie window.* → globalThis.* (PR #60) — contentglobalThis
+        // nie istnieje w API DOM i powoduje TypeError, blokując drukowanie paragonów.
+        const doc = iframe.contentWindow.document;
         doc.open(); doc.write(htmlContent); doc.close();
-        setTimeout(() => { iframe.contentglobalThis.focus(); iframe.contentglobalThis.print(); }, 250);
+        setTimeout(() => { iframe.contentWindow.focus(); iframe.contentWindow.print(); }, 250);
     }
 
     return Object.freeze({

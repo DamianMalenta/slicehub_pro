@@ -44,11 +44,15 @@ if ($tenantId <= 0) {
     }
 }
 
-// 3. Auto-discovery z bazy — tenant z co najmniej jednym aktywnym użytkownikiem (unika pustego demo id=1)
+// 3. Auto-discovery z bazy — preferuj tenanta z aktywnymi użytkownikami i danymi menu.
+//    Naprawa (2026-08-24): wcześniej ORDER BY t.id ASC wybierało tenant 1 (pusty demo)
+//    nawet gdy tenant 2 miał 229 dań. Teraz sortujemy po liczbie dań DESC — tenant
+//    z realnym menu wygrywa. Tie-break po t.id ASC dla determinizmu.
 if ($tenantId <= 0) {
     try {
         require_once __DIR__ . '/core/db_config.php';
         if (isset($pdo) && $pdo instanceof PDO) {
+            // Sprawdź czy sh_menu_items ma dane (tenant 2 po install_panel, tenant 1 po seed_demo)
             $row = $pdo->query("
                 SELECT t.id
                 FROM sh_tenant t
@@ -58,7 +62,10 @@ if ($tenantId <= 0) {
                       AND u.status = 'active'
                       AND u.is_deleted = 0
                 )
-                ORDER BY t.id ASC
+                ORDER BY (
+                    SELECT COUNT(*) FROM sh_menu_items mi
+                    WHERE mi.tenant_id = t.id AND mi.is_deleted = 0
+                ) DESC, t.id ASC
                 LIMIT 1
             ")->fetch(PDO::FETCH_ASSOC);
             if ($row && (int)$row['id'] > 0) {

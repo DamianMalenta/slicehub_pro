@@ -103,7 +103,10 @@ final class MenuVisibilityFilter
      */
     public static function mealsWhere(PDO $pdo, string $alias = 'mp'): string
     {
-        $conditions = ["{$alias}.is_deleted = 0"];
+        // is_active zachowane dla meals — meals nie mają pełnego cyklu publikacji
+        // w Studio (Konstytucja §3 dotyczy dań, nie meal packages). is_active jest
+        // ich jedynym toggle widoczności poza is_deleted.
+        $conditions = ["{$alias}.is_deleted = 0", "{$alias}.is_active = 1"];
 
         if (self::mealsHasPubStatus($pdo)) {
             $conditions[] = "({$alias}.publication_status IS NULL OR {$alias}.publication_status IN ('" . implode("','", self::PUBLISHED_STATUSES) . "'))";

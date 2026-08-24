@@ -434,22 +434,53 @@ class OrderStateMachine
         // [FIX-3] canTransition now receives order_type so dine_in orders
         // are validated against DINE_IN_TRANSITIONS when the maps diverge.
         if (!self::canTransition($oldStatus, 'completed', $flags, $orderType)) {
-            // If not directly allowed, check if we can fast-track via
-            // intermediate state (e.g., pending → ready → completed)
+            // Naprawa (2026-08-24): wcześniej settle_and_close blokował na
+            // "Order must be 'ready' first" dla zamówień w preparing/accepted/new.
+            // Teraz auto-przechodzimy przez całą ścieżkę do 'ready' w jednej TX.
+            // Strict chain: new → accepted → pending → preparing → ready → completed
+            // Kelner klika ZAMKNIJ, system sam domyka wszystkie kroki po kolei.
             if (!in_array($oldStatus, self::TERMINAL_STATUSES, true)) {
-                // [FF-HOOK] Future: auto_complete flag will make this path
-                // reachable. For now, require strict readiness.
+                // Idź przez łańcuch transition aż do 'ready'.
+                // Każdy krok: znajdź następny status w drodze do 'ready'.
+                $chain = ['new' => 'accepted', 'accepted' => 'pending', 'pending' => 'preparing', 'preparing' => 'ready'];
+                $current = $oldStatus;
+                $maxSteps = 5; // zabezpieczenie przed pętlą
+                while ($current !== 'ready' && $maxSteps-- > 0) {
+                    // Spróbuj bezpośrednio do 'ready' (możliwe z flagami skip_kitchen/auto_complete)
+                    if (self::canTransition($current, 'ready', $flags, $orderType)) {
+                        $next = 'ready';
+                    } elseif (isset($chain[$current]) && self::canTransition($current, $chain[$current], $flags, $orderType)) {
+                        $next = $chain[$current];
+                    } else {
+                        break; // nie można przejść dalej
+                    }
+                    $step = self::transitionOrder(
+                        $pdo, $orderId, $tenantId, $userId, $next, $flags
+                    );
+                    if (!$step['success']) {
+                        return [
+                            'success'    => false,
+                            'message'    => $step['message'],
+                            'old_status' => $oldStatus,
+                        ];
+                    }
+                    $current = $next;
+                }
+                if ($current !== 'ready') {
+                    return [
+                        'success'    => false,
+                        'message'    => "Cannot complete order from status '{$oldStatus}'. Unable to auto-transition to 'ready'. Move it to 'ready' manually first.",
+                        'old_status' => $oldStatus,
+                    ];
+                }
+                // Teraz status = 'ready', transition do 'completed' jest dozwolony.
+            } else {
                 return [
                     'success'    => false,
-                    'message'    => "Cannot fast-complete from status '{$oldStatus}'. Order must be 'ready' first.",
+                    'message'    => "Order is already '{$oldStatus}'.",
                     'old_status' => $oldStatus,
                 ];
             }
-            return [
-                'success'    => false,
-                'message'    => "Order is already '{$oldStatus}'.",
-                'old_status' => $oldStatus,
-            ];
         }
 
         $printReceipt = !empty($options['print_receipt']);
@@ -495,7 +526,7 @@ class OrderStateMachine
         $pdo->prepare(
             "INSERT INTO sh_order_audit (order_id, user_id, old_status, new_status, timestamp)
              VALUES (:oid, :uid, :os, 'completed', :now)"
-        )->execute([':oid' => $orderId, ':uid' => $userId, ':os' => $oldStatus, ':now' => $now]);
+        )->execute([':oid' => $orderId, ':uid' => $userId, ':os' => 'ready', ':now' => $now]);
 
         return [
             'success'    => true,

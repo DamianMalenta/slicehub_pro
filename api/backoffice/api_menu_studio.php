@@ -1161,9 +1161,9 @@ try {
             } catch (PDOException $e) {}
 
             if ($schemaV2) {
-                $stmtItems = $pdo->prepare("SELECT id, category_id, name, ascii_key, is_active, badge_type, is_secret, stock_count, vat_rate_dine_in, vat_rate_takeaway, kds_station_id, is_locked_by_hq, image_url, description{$itemVariantCols} FROM sh_menu_items WHERE tenant_id = ? AND is_deleted = 0 ORDER BY display_order ASC, name ASC");
+                $stmtItems = $pdo->prepare("SELECT id, category_id, name, ascii_key, is_active, badge_type, is_secret, stock_count, vat_rate_dine_in, vat_rate_takeaway, kds_station_id, is_locked_by_hq, image_url, description, publication_status, valid_from, valid_to{$itemVariantCols} FROM sh_menu_items WHERE tenant_id = ? AND is_deleted = 0 ORDER BY display_order ASC, name ASC");
             } else {
-                $stmtItems = $pdo->prepare("SELECT id, category_id, name, ascii_key, is_active, badge_type, is_secret, stock_count, vat_rate AS vat_rate_dine_in, vat_rate AS vat_rate_takeaway, printer_group AS kds_station_id, 0 AS is_locked_by_hq, NULL AS image_url, description{$itemVariantCols} FROM sh_menu_items WHERE tenant_id = ? AND is_deleted = 0 ORDER BY display_order ASC, name ASC");
+                $stmtItems = $pdo->prepare("SELECT id, category_id, name, ascii_key, is_active, badge_type, is_secret, stock_count, vat_rate AS vat_rate_dine_in, vat_rate AS vat_rate_takeaway, printer_group AS kds_station_id, 0 AS is_locked_by_hq, NULL AS image_url, description, 'Draft' AS publication_status, NULL AS valid_from, NULL AS valid_to{$itemVariantCols} FROM sh_menu_items WHERE tenant_id = ? AND is_deleted = 0 ORDER BY display_order ASC, name ASC");
             }
             $stmtItems->execute([$tenant_id]);
             $itemsRaw = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
@@ -1233,6 +1233,9 @@ try {
                     'isLockedByHq' => (bool)($i['is_locked_by_hq'] ?? 0),
                     'imageUrl' => $i['image_url'] ?? '',
                     'description' => $i['description'] ?? '',
+                    'publicationStatus' => $i['publication_status'] ?? 'Draft',
+                    'validFrom' => $i['valid_from'] ?? null,
+                    'validTo' => $i['valid_to'] ?? null,
                     'priceTiers' => $tiersBySku[$i['ascii_key'] ?? ''] ?? [],
                     'parentItemId' => isset($i['parent_item_id']) ? (int)$i['parent_item_id'] : null,
                     'isVariantParent' => !empty($i['is_variant_parent']),

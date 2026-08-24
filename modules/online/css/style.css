@@ -2734,6 +2734,114 @@ html, body {
 }
 .checkout-scheduled select:disabled { opacity: .6; cursor: wait; }
 
+/* ── Date picker (Faza 3) ──────────────────────────────────────────────── */
+.checkout-scheduled__date-row {
+    display: flex; align-items: flex-end; gap: 8px; margin-bottom: 10px;
+}
+.checkout-label--inline { flex: 1; }
+.checkout-date-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1.5px solid rgba(0,0,0,.12);
+    border-radius: 10px;
+    font-size: 14px;
+    background: #fff;
+    color: #1c1917;
+    cursor: pointer;
+}
+.checkout-date-input:focus {
+    outline: none;
+    border-color: #c2410c;
+    box-shadow: 0 0 0 3px rgba(194, 65, 12, .14);
+}
+.checkout-date-today {
+    padding: 10px 14px;
+    border: 1.5px solid rgba(194, 65, 12, .25);
+    border-radius: 10px;
+    background: rgba(255, 237, 213, .15);
+    color: #c2410c;
+    font-size: 12px; font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .15s, border-color .15s, color .15s;
+}
+.checkout-date-today:hover {
+    background: #c2410c;
+    border-color: #c2410c;
+    color: #fff;
+}
+
+/* ── Quick-time pills (Faza 2) ─────────────────────────────────────────── */
+.checkout-quick-pills {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+    margin-top: 10px;
+}
+.checkout-quick-pills__label {
+    font-size: 11px; font-weight: 700; color: #78716c;
+    text-transform: uppercase; letter-spacing: .04em;
+    margin-right: 2px;
+}
+.checkout-quick-pill {
+    padding: 6px 14px;
+    border: 1.5px solid rgba(194, 65, 12, .25);
+    border-radius: 999px;
+    background: rgba(255, 237, 213, .15);
+    color: #c2410c;
+    font-size: 12px; font-weight: 800;
+    cursor: pointer;
+    transition: background .15s, border-color .15s, color .15s;
+}
+.checkout-quick-pill:hover {
+    background: #c2410c;
+    border-color: #c2410c;
+    color: #fff;
+}
+.checkout-quick-pill:active { transform: scale(.96); }
+
+/* ── Panel potwierdzenia wybranego czasu (Faza 1) ──────────────────────── */
+.checkout-time-confirm {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border: 1.5px solid rgba(34, 197, 94, .35);
+    border-radius: 10px;
+    background: rgba(34, 197, 94, .08);
+    transition: background .2s, border-color .2s;
+}
+.checkout-time-confirm[hidden] { display: none; }
+.checkout-time-confirm--late {
+    border-color: rgba(239, 68, 68, .45);
+    background: rgba(239, 68, 68, .08);
+    animation: checkout-confirm-pulse 1.6s ease-in-out infinite;
+}
+@keyframes checkout-confirm-pulse {
+    0%, 100% { background: rgba(239, 68, 68, .08); }
+    50%      { background: rgba(239, 68, 68, .16); }
+}
+.checkout-time-confirm__row {
+    display: flex; align-items: center; gap: 10px;
+}
+.checkout-time-confirm__icon {
+    font-size: 18px;
+    color: #16a34a;
+    flex-shrink: 0;
+}
+.checkout-time-confirm--late .checkout-time-confirm__icon { color: #dc2626; }
+.checkout-time-confirm__row strong {
+    display: block;
+    font-size: 15px;
+    color: #1c1917;
+    line-height: 1.2;
+}
+.checkout-time-confirm__row small {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #16a34a;
+    margin-top: 2px;
+    letter-spacing: .02em;
+}
+.checkout-time-confirm__countdown--late { color: #dc2626 !important; }
+
 /* ── Consent + actions + errors ────────────────────────────────────────── */
 .checkout-consent {
     display: flex; align-items: flex-start; gap: 10px;

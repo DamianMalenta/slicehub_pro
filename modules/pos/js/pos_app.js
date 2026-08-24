@@ -991,6 +991,89 @@ const PosApp = (() => {
         }
     }
 
+    // ── Faza 5: Podgląd affected orders przed zastosowaniem ────────────────
+    // Kafelki/godzina nie wysyłają natychmiast — pokazują preview z listą
+    // zamówień (obecny → nowy promised_time) + przycisk "Zastosuj".
+    // Eliminuje przypadkowe przesunięcia.
+    let _tcPendingOpts = null;
+
+    function _tcFmtTime(dateStr) {
+        if (!dateStr) return 'ASAP';
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return '—';
+        return d.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function _tcCalcNewTime(order, opts) {
+        const base = order.promised_time || order.created_at;
+        const baseDate = new Date(base);
+        if (isNaN(baseDate.getTime())) return null;
+        if (opts.delayMinutes != null) {
+            return new Date(baseDate.getTime() + opts.delayMinutes * 60000);
+        }
+        if (opts.targetDatetime != null) {
+            return new Date(opts.targetDatetime);
+        }
+        return null; // markReady — nie zmienia czasu
+    }
+
+    function _tcShowPreview(opts) {
+        const orderIds = _tcResolveOrderIds();
+        if (orderIds.length === 0) {
+            _tcSetStatus('Brak zamówień w wybranym zakresie.', 'err');
+            return;
+        }
+        _tcPendingOpts = opts;
+
+        const section = document.getElementById('tc-preview-section');
+        const listEl = document.getElementById('tc-preview-list');
+        const countEl = document.getElementById('tc-preview-count');
+        const applyBtn = document.getElementById('tc-preview-apply');
+        if (!section || !listEl || !countEl) return;
+
+        // Pobierz zamówienia z matching IDs (z _tcActiveOrders, już załadowane)
+        const idSet = new Set(orderIds);
+        const orders = _tcActiveOrders().filter(o => idSet.has(o.id));
+
+        // Opis akcji
+        let actionLabel = '';
+        if (opts.delayMinutes != null) actionLabel = `Przesunięcie o +${opts.delayMinutes} min`;
+        else if (opts.targetDatetime != null) {
+            const t = new Date(opts.targetDatetime);
+            actionLabel = `Ustawienie na ${t.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}`;
+        } else if (opts.markReady) actionLabel = 'Oznaczenie jako gotowe';
+
+        countEl.textContent = `${orders.length} zamówień · ${actionLabel}`;
+
+        // Buduj listę — pokaż max 10, reszta jako "+N więcej"
+        const shown = orders.slice(0, 10);
+        const rows = shown.map(o => {
+            const num = (o.order_number || '').split('/').pop() || o.id;
+            const oldTime = _tcFmtTime(o.promised_time || o.created_at);
+            const newDate = _tcCalcNewTime(o, opts);
+            const newTime = newDate ? _tcFmtTime(newDate.toISOString()) : (opts.markReady ? '→ GOTOWE' : '—');
+            const typeIcon = o.order_type === 'delivery' ? '📍' : o.order_type === 'takeaway' ? '🥡' : '🍽';
+            const arrow = opts.markReady ? '✓' : '→';
+            return `<div class="tc-preview-row"><span class="tc-preview-num">#${num}</span><span class="tc-preview-type">${typeIcon}</span><span class="tc-preview-old">${oldTime}</span><span class="tc-preview-arrow">${arrow}</span><span class="tc-preview-new">${newTime}</span></div>`;
+        }).join('');
+        const more = orders.length > 10 ? `<div class="tc-preview-more">+${orders.length - 10} więcej</div>` : '';
+        listEl.innerHTML = rows + more;
+
+        // Etykieta przycisku "Zastosuj"
+        if (applyBtn) {
+            applyBtn.textContent = `Zastosuj do ${orders.length} zamówień`;
+        }
+
+        section.hidden = false;
+        _tcSetStatus('');
+    }
+
+    function _tcHidePreview() {
+        const section = document.getElementById('tc-preview-section');
+        if (section) section.hidden = true;
+        _tcPendingOpts = null;
+    }
+
     function _tcSetStatus(msg, type) {
         const el = document.getElementById('tc-status');
         if (!el) return;
@@ -1010,6 +1093,7 @@ const PosApp = (() => {
         const notify = document.getElementById('tc-notify');
         if (notify) notify.checked = true;
         _tcSetStatus('');
+        _tcHidePreview();
         _tcUpdateSelectedCount();
         modal.classList.add('active');
     }
@@ -1069,19 +1153,20 @@ const PosApp = (() => {
                 modal.querySelectorAll('.tc-scope-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 _tcUpdateSelectedCount();
+                _tcHidePreview();
                 _tcSetStatus('');
             });
         });
 
-        // Kafelki szybkiego przesunięcia
+        // Kafelki szybkiego przesunięcia — Faza 5: pokaż preview zamiast wysyłać
         modal.querySelectorAll('.tc-tile').forEach(tile => {
             tile.addEventListener('click', () => {
                 const delay = parseInt(tile.dataset.tcDelay, 10);
-                void _tcSubmit({ delayMinutes: delay });
+                _tcShowPreview({ delayMinutes: delay });
             });
         });
 
-        // Konkretna godzina
+        // Konkretna godzina — Faza 5: pokaż preview zamiast wysyłać
         document.getElementById('tc-apply-time')?.addEventListener('click', () => {
             const timeVal = document.getElementById('tc-target-time')?.value;
             if (!timeVal) {
@@ -1094,12 +1179,24 @@ const PosApp = (() => {
             const mm = String(today.getMonth() + 1).padStart(2, '0');
             const dd = String(today.getDate()).padStart(2, '0');
             const targetDatetime = `${yyyy}-${mm}-${dd} ${timeVal}:00`;
-            void _tcSubmit({ targetDatetime });
+            _tcShowPreview({ targetDatetime });
         });
 
-        // Mark ready
+        // Mark ready — Faza 5: pokaż preview zamiast wysyłać
         document.getElementById('tc-mark-ready')?.addEventListener('click', () => {
-            void _tcSubmit({ markReady: true });
+            _tcShowPreview({ markReady: true });
+        });
+
+        // Preview actions (Faza 5)
+        document.getElementById('tc-preview-cancel')?.addEventListener('click', () => {
+            _tcHidePreview();
+            _tcSetStatus('');
+        });
+        document.getElementById('tc-preview-apply')?.addEventListener('click', () => {
+            if (!_tcPendingOpts) return;
+            const opts = _tcPendingOpts;
+            _tcHidePreview();
+            void _tcSubmit(opts);
         });
     }
 

@@ -1192,17 +1192,45 @@ try {
         if ($mode === 'slots') {
             $interval = max(5, min(60, inputInt($input, 'interval', 15)));
             $count    = max(4, min(24, inputInt($input, 'count', 12)));
+            $dateParam = inputStr($input, 'date'); // YYYY-MM-DD — opcjonalny, default = today
 
             // ASAP estimate jako punkt startowy (uwzględnia load + channel buffer)
             $asap = PromisedTimeEngine::calculate($pdo, $tenantId, 'asap', $orderType);
 
             $tz       = new DateTimeZone('Europe/Warsaw');
+            $now      = new DateTime('now', $tz);
+            $todayStr = $now->format('Y-m-d');
+
+            // Faza 3: multi-day — jeśli date param jest podany i jest w przyszłości,
+            // startuj od tego dnia (00:00) zamiast od ASAP. Pętla sama znajdzie
+            // pierwszy otwarty slot wg opening_hours.
+            // Jeśli date == today lub brak: zachowanie dotychczasowe (earliest = ASAP).
             $earliest = new DateTime($asap['promised_time'], $tz);
-            // Zaokrąglij w górę do najbliższego granicznego interwału
-            $mins = (int)$earliest->format('i');
-            $nextSlot = (int)ceil($mins / $interval) * $interval;
-            $earliest->setTime((int)$earliest->format('H'), 0, 0);
-            $earliest->modify("+{$nextSlot} minutes");
+            if ($dateParam !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateParam)) {
+                try {
+                    $reqDate = new DateTime($dateParam . ' 00:00:00', $tz);
+                    if ($reqDate->format('Y-m-d') > $todayStr) {
+                        // Przyszły dzień — startuj od północy, pętla znajdzie otwarcie.
+                        $earliest = $reqDate;
+                    } elseif ($reqDate->format('Y-m-d') < $todayStr) {
+                        // Przeszłość — odrzuć.
+                        onlineResponse(false, null, 'Wybrana data jest w przeszłości.');
+                    }
+                    // date == today: zostaw earliest = ASAP (default)
+                } catch (\Throwable $e) {
+                    // Niepoprawna data — ignoruj, użyj default (ASAP).
+                }
+            }
+            // Zaokrąglij w górę do najbliższego granicznego interwału (tylko dla today)
+            if ($earliest->format('Y-m-d') === $todayStr) {
+                $mins = (int)$earliest->format('i');
+                $nextSlot = (int)ceil($mins / $interval) * $interval;
+                $earliest->setTime((int)$earliest->format('H'), 0, 0);
+                $earliest->modify("+{$nextSlot} minutes");
+            } else {
+                // Przyszły dzień — startuj od 00:00, pętla sama zaokrągli do otwarcia.
+                $earliest->setTime(0, 0, 0);
+            }
 
             // Pobierz opening_hours do filtrowania slotów
             $openingHoursRaw = null;
