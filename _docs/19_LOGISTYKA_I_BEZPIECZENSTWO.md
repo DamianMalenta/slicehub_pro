@@ -438,3 +438,16 @@ Na produkcji (Linux) użyj crontab. Na Windows/XAMPP użyj Task Scheduler:
 # worker_driver_fanout: co 30s (wymaga 2 zadań z offset 30s)
 # worker_sla_monitor: co 1 min
 ```
+
+### 6.8 Spięcie HR ↔ Logistyka — Fazy 1–4 (2026-08-24)
+
+Plan 4-fazowy domykający powiązanie shiftu kasowego z sesją HR (PR #57/#58/#59):
+
+| Faza | Zakres | Pliki | Status |
+|---|---|---|---|
+| 1 | Retry `hrClockIn`/`hrClockOut` (3 próby, backoff) + widoczny badge stanu HR w Driver App; zapamiętanie `session_uuid` w localStorage | `driver_api.js`, `driver_app.js`, `index.html` | ✅ |
+| 2 | Korelacja `sh_driver_shifts.work_session_uuid CHAR(36)` (migracja 066, index `idx_shifts_tenant_ws_uuid`, bez FK cross-silo) + akcja `link_hr_session` + raport rozjazdów `scripts/report_hr_shift_drift.php` | `engine.php`, migracja 066 | ✅ |
+| 3 | **Miękki gate HR** (`core/HrSessionGate.php`, read-only cross-silo per `_docs/18` §9.3): FF per-tenant `HR_REQUIRE_OPEN_SESSION_FOR_DISPATCH` (default OFF). Kierowca bez otwartej `sh_work_sessions` (grace 5 min od startu shiftu) dostaje `hr_session_ok=false` w `get_dashboard` i listach POS (badge „HR" w dyspozytorni, lista NIE filtrowana); `action=dispatch` przechodzi, ale zwraca `hr_warning:true` + alert SSE `hr.dispatch_without_session` (`broadcast:<tid>`). Brak twardej blokady. | `HrSessionGate.php`, `api/courses/engine.php`, `api/pos/engine.php`, `courses_ui.js` | ✅ |
+| 4 | Sprzątanie po clock-out w `worker_driver_fanout`: natychmiastowy `slicehubClearStaffPresence()` + wykrycie wiszącego aktywnego `sh_driver_shifts` → alert SSE `hr.shift_hanging`. **Bez auto-close** — reconcile wymaga rozliczenia gotówki przez człowieka. `busy` nadal nietykany (§11.4 doc 18). | `worker_driver_fanout.php` | ✅ |
+
+Włączenie gate'u: `INSERT INTO sh_tenant_settings (tenant_id, setting_key, setting_value) VALUES (N,'HR_REQUIRE_OPEN_SESSION_FOR_DISPATCH','1')`. Rollback = flip flagi.
