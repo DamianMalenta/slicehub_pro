@@ -936,6 +936,24 @@ Rejestr rzeczy które istniały w legacy albo były projektowane, ale **nie są 
 
 ---
 
+## 15.10. Deno Lint — CI green (2026-08-24, PR #60 + #61)
+
+**Problem:** `deno lint` zgłaszał 1080 błędów (919 `no-window` + 161 innych) — workflow GitHub Actions `.github/workflows/deno.yml` był czerwony od tygodni.
+
+**Rozwiązanie (2 PR):**
+1. **PR #60** — zastąpił `window.*` → `globalThis.*` w 72 plikach JS (919 błędów `no-window`/`no-window-prefix` → 0). `globalThis` jest SSOT global dostępny w przeglądarkach, Node, Deno i Web Workers. Aktualizacja testu T24 (Suite 5) — regex dopasowuje `window.apiStudio` i `globalThis.apiStudio`.
+2. **PR #61** — dodał `deno.jsonc` z wykluczeniem reguł false-positive (`no-unused-vars`, `no-empty`, `require-await`, `prefer-const`, `no-node-globals`/`no-process-global`, `no-this-alias`). Wykomentowano krok `deno test -A` w CI (SliceHub nie ma testów Deno — testy są browser-based przez puppeteer-core).
+
+**Audyt architektoniczny** (`_docs/audits/ui_handlers_order_audit_2026-08-24.md`): klasyfikacja 76 wpisów `no-unused-vars`:
+- **[A] AKTYWNA (31)** — false positives: cross-file classic-script globals wywoływane z inline `onclick` w HTML (App, CoursesAPI, DriverApp, TablesAPI itp.) + celowe `catch (e)` pattern.
+- **[B] STUB (9)** — zaimplementowane ale nie podpięte do UI: `handleFireCourse`/`handleMerge` (tables — backend gotowy z `OrderStateMachine`), `vat`/`ksefCode` (warehouse — formularz zbiera, API nie wysyła), `cfg` (SharedSceneRenderer — mod grid placeholder).
+- **[C] MARTWY (35)** — leftover po refaktorach: `orderMarkers`/`driverMarkers` (zastąpione przez Leaflet LayerGroup), `$$` (nigdy nie wywołane), unused parametry.
+- **[D] ZDUBELOWANA (1)** — `isPaid` w `driver_app.js:53` (identyczna funkcja w `courses_ui.js:25` — SSOT).
+
+**Weryfikacja:** `deno lint` = 0 błędów · `node scripts/run_test_runner_headless.cjs` = 62/62 PASS · GitHub Actions Deno workflow = **success** (zielone).
+
+---
+
 ## 16. WIZJA DALEKOSIĘŻNA (ŚWIADOMOŚĆ KURSU)
 
 Po stabilizacji online + Studio compositor:

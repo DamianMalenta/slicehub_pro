@@ -35,6 +35,30 @@ find /workspace -name "*.php" -not -path "*/vendor/*" | xargs -P4 -I{} php -l {}
 
 All output should say "No syntax errors detected". Any other output is a failure.
 
+### Deno lint (JS static analysis)
+
+Repo zawiera `deno.jsonc` (od 2026-08-24, PR #61) z konfiguracją reguł lintera Deno. Deno lint jest używany **wyłącznie** jako narzędzie analizy statycznej JS — aplikacja nigdy nie działa pod Deno.
+
+```bash
+deno lint
+# Oczekiwany wynik: "Checked 108 files" bez błędów (exit 0)
+```
+
+**Wykluczone reguły** (false positives w codebase z classic `<script>` bez ES modules):
+- `no-unused-vars` — cross-file globals (App, CoursesAPI, DriverApp, TablesAPI itp.) wywoływane z inline `onclick` w HTML, ale Deno analizuje pliki osobno.
+- `no-empty` — celowe puste catch blocks z hardcoded fallback.
+- `require-await` — async stubs/handlers dla spójności API.
+- `prefer-const` — stylistyczne; let vs const w pre-existing code.
+- `no-node-globals` / `no-process-global` — `process.*` w `.cjs` test runner (Deno 1.x vs 2.x naming).
+- `no-this-alias` — pre-existing pattern w jednym pliku.
+
+**Reguły NIE wykluczone** (naprawione w kodzie, PR #60):
+- `no-window` / `no-window-prefix` — zastąpione `window.*` → `globalThis.*` w 72 plikach JS (919 błędów → 0).
+
+**CI:** `.github/workflows/deno.yml` uruchamia `deno lint` (krok `deno test -A` wykomentowany — SliceHub nie ma testów Deno; testy są browser-based przez puppeteer-core). Workflow jest `workflow_dispatch` (ręczny trigger).
+
+**Pełna klasyfikacja `no-unused-vars`:** `_docs/audits/ui_handlers_order_audit_2026-08-24.md` — 76 wpisów: [A] aktywna (31), [B] stub (9), [C] martwy (35), [D] zublowana (1).
+
 ### Tests
 
 Open `http://localhost/slicehub/tests/test_runner.html` in a browser and click "Uruchom Wszystkie Testy". All 62 tests should pass. The tests are JavaScript-based and call the REST API endpoints.
