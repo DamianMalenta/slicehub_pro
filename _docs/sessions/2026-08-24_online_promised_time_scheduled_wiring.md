@@ -114,7 +114,7 @@ Zmienna `$resolvedPromisedTime` przekazywana do bindera INSERT (usunięto closur
 | # | Ścieżka | Silnik odpala? | Status po 2026-08-24 |
 |---|---|---|---|
 | 1 | POS `process_order` | ❌ NIE (fallback `now()`) | L5 — niski priorytet, pillsy maskują |
-| 2 | POS `accept_order` | ⚠️ WARUNKOWO | L1 — otwarte (UX decision) |
+| 2 | POS `accept_order` | ✅ **TAK (zachowuje istniejący)** | **L1 DOMKNIĘTE** (PR #66, sesja `2026-08-24_pos_accept_preserve_promised_time.md`) |
 | 3 | Online `guest_checkout` ASAP | ✅ TAK | bez zmian |
 | 4 | Online `guest_checkout` scheduled | ✅ **TAK (nowość)** | **L2 DOMKNIĘTE** |
 | 5 | Gateway `intake` ASAP | ✅ TAK | bez zmian |
@@ -179,7 +179,7 @@ Zmienna `$resolvedPromisedTime` przekazywana do bindera INSERT (usunięto closur
 **Status luk z audytu 2026-08-03 po tej sesji:**
 - ✅ L2 (online scheduled bez walidacji) — **DOMKNIĘTE**
 - ✅ L3 (silnik scheduled = martwy kod) — **DOMKNIĘTE**
-- ❌ L1 (POS accept "ZAAKCEPTUJ" wysyła `now`) — otwarte, wymaga decyzji UX
+- ✅ L1 (POS accept "ZAAKCEPTUJ" wysyła `now`) — **DOMKNIĘTE** w sesji `2026-08-24_pos_accept_preserve_promised_time.md` (PR #66)
 - ❌ L4 (gateway scheduled duplikat logiki) — otwarte, niski priorytet
 - ❌ L5 (POS process_order fallback `now()`) — otwarte, niski priorytet
 
