@@ -165,3 +165,22 @@ Zmienna `$resolvedPromisedTime` przekazywana do bindera INSERT (usunięto closur
 | `_docs/sessions/2026-08-24_online_promised_time_scheduled_wiring.md` | ten dokument |
 
 **Migracja SQL:** brak — wszystkie kolumny istniały w `001_init_slicehub_pro_v2.sql`.
+
+---
+
+## 8. Domknięcie sesji (2026-08-24)
+
+**PR #63:** https://github.com/DamianMalenta/slicehub_pro/pull/63 — **MERGED** do `main` (commit `7684e48`).
+
+**Weryfikacja post-merge na `main`:**
+- `node scripts/run_test_runner_headless.cjs` → **62/62 PASS** (`✓ ALL 62 PASSED`)
+- Uwaga: przy wielokrotnym uruchomieniu test runnera pod rząd gateway test może trafić 429 (rate-limit per-minute z `api/gateway/intake.php`). To **flaky** — nie regression. Po odczekaniu ~60s (reset okna) testy przechodzą czysto. Moje zmiany dotyczyły `api/online/engine.php`, nie gateway.
+
+**Status luk z audytu 2026-08-03 po tej sesji:**
+- ✅ L2 (online scheduled bez walidacji) — **DOMKNIĘTE**
+- ✅ L3 (silnik scheduled = martwy kod) — **DOMKNIĘTE**
+- ❌ L1 (POS accept "ZAAKCEPTUJ" wysyła `now`) — otwarte, wymaga decyzji UX
+- ❌ L4 (gateway scheduled duplikat logiki) — otwarte, niski priorytet
+- ❌ L5 (POS process_order fallback `now()`) — otwarte, niski priorytet
+
+**Sesja zamknięta.** Pozostałe luki (L1/L4/L5) udokumentowane w sekcji 5 — do osobnej sesji.
