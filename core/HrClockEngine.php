@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/Uuid.php';
+require_once __DIR__ . '/StaffFleetPresence.php';
 
 /**
  * HR Clock Engine — Faza 3A (POS + Kiosk)
@@ -132,8 +133,7 @@ final class HrClockEngine
             ]);
 
             if ($employee['user_id'] !== null) {
-                $pdo->prepare('UPDATE sh_users SET last_seen = NOW() WHERE id = :id AND tenant_id = :tid')
-                    ->execute([':id' => (int)$employee['user_id'], ':tid' => $tenantId]);
+                slicehubTouchStaffPresence($pdo, (int)$tenantId, (int)$employee['user_id']);
             }
 
             // Snapshot stawki ODPOWIADAJĄCEJ momentowi clock-in (snapshot to response,
