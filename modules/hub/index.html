@@ -23,6 +23,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="css/hub.css">
+    <link rel="stylesheet" href="css/hub_order_history.css">
     <link rel="stylesheet" href="../ui_shell/sh_mobile_shell.css">
 </head>
 <body>
@@ -89,6 +90,11 @@
                 <span class="hub-card-icon"><i class="fa-solid fa-pen-to-square"></i></span>
                 <h3>Edycja zamówień</h3>
                 <p>Zmień pozycje aktywnego zamówienia — KDS zobaczy różnice</p>
+            </a>
+            <a class="hub-card" href="#" id="hub-card-order-history" data-roles="owner,admin,manager">
+                <span class="hub-card-icon"><i class="fa-solid fa-clock-rotate-left"></i></span>
+                <h3>Historia zamówień</h3>
+                <p>Wszystkie zamówienia + oś czasu audytowa (read-only)</p>
             </a>
         </div>
 
@@ -214,8 +220,125 @@
     </div>
 </div>
 
+<div id="hoh-overlay" class="hoh-overlay hub-hidden">
+    <div class="hoh-modal">
+        <header class="hoh-head">
+            <h2>Historia zamówień</h2>
+            <button type="button" id="hoh-btn-close" class="hoh-close" title="Zamknij">&times;</button>
+        </header>
+        <p id="hoh-error" class="hub-err" aria-live="polite"></p>
+
+        <div id="hoh-view-list">
+            <div class="hoh-filters">
+                <div class="hoh-filter-group">
+                    <label for="hoh-filter-date-from">Od</label>
+                    <input type="date" id="hoh-filter-date-from">
+                </div>
+                <div class="hoh-filter-group">
+                    <label for="hoh-filter-date-to">Do</label>
+                    <input type="date" id="hoh-filter-date-to">
+                </div>
+                <div class="hoh-filter-group">
+                    <label for="hoh-filter-status">Status</label>
+                    <select id="hoh-filter-status">
+                        <option value="">Wszystkie</option>
+                        <option value="new">Nowe</option>
+                        <option value="accepted">Zaakceptowane</option>
+                        <option value="preparing">W przygotowaniu</option>
+                        <option value="ready">Gotowe</option>
+                        <option value="dispatched">Wysłane</option>
+                        <option value="in_delivery">W dostawie</option>
+                        <option value="delivered">Dostarczone</option>
+                        <option value="completed">Zakończone</option>
+                        <option value="cancelled">Anulowane</option>
+                    </select>
+                </div>
+                <div class="hoh-filter-group">
+                    <label for="hoh-filter-type">Typ</label>
+                    <select id="hoh-filter-type">
+                        <option value="">Wszystkie</option>
+                        <option value="dine_in">Sala</option>
+                        <option value="takeaway">Wynos</option>
+                        <option value="delivery">Dostawa</option>
+                    </select>
+                </div>
+                <div class="hoh-filter-group">
+                    <label for="hoh-filter-payment">Płatność</label>
+                    <select id="hoh-filter-payment">
+                        <option value="">Wszystkie</option>
+                        <option value="to_pay">Do zapłaty</option>
+                        <option value="cash">Gotówka</option>
+                        <option value="card">Karta</option>
+                        <option value="online_unpaid">Online (nieopłacone)</option>
+                        <option value="online_paid">Online (opłacone)</option>
+                    </select>
+                </div>
+                <div class="hoh-filter-group">
+                    <label for="hoh-filter-source">Źródło</label>
+                    <select id="hoh-filter-source">
+                        <option value="">Wszystkie</option>
+                        <option value="pos">POS</option>
+                        <option value="online">Online</option>
+                        <option value="kiosk">Kiosk</option>
+                    </select>
+                </div>
+                <div class="hoh-filter-group">
+                    <label for="hoh-filter-search">Szukaj</label>
+                    <input type="text" id="hoh-filter-search" placeholder="nr / klient / telefon">
+                </div>
+                <div class="hoh-filter-checkboxes">
+                    <label><input type="checkbox" id="hoh-filter-fiscalized"> Tylko sfiskalizowane</label>
+                    <label><input type="checkbox" id="hoh-filter-corrected"> Tylko skorygowane</label>
+                </div>
+                <div class="hoh-filter-actions">
+                    <button type="button" id="hoh-btn-apply" class="hoh-btn-apply">Filtruj</button>
+                </div>
+            </div>
+
+            <div class="hoh-table-wrap">
+                <table class="hoh-table">
+                    <thead>
+                        <tr>
+                            <th>Nr</th>
+                            <th>Klient</th>
+                            <th>Status</th>
+                            <th>Typ</th>
+                            <th>Płatność</th>
+                            <th style="text-align:right">Total</th>
+                            <th>Czas</th>
+                        </tr>
+                    </thead>
+                    <tbody id="hoh-table-body"></tbody>
+                </table>
+            </div>
+
+            <div class="hoh-pagination">
+                <span id="hoh-page-info" class="hoh-page-info">—</span>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <button type="button" id="hoh-btn-prev">← Poprzednia</button>
+                    <button type="button" id="hoh-btn-next">Następna →</button>
+                    <select id="hoh-per-page" class="hoh-per-page" title="Na stronę">
+                        <option value="25">25</option>
+                        <option value="50" selected>50</option>
+                        <option value="100">100</option>
+                        <option value="200">200</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div id="hoh-view-drawer" class="hub-hidden">
+            <div class="hoh-drawer-top">
+                <button type="button" id="hoh-btn-back" class="hoh-back"><i class="fa-solid fa-arrow-left"></i> Lista</button>
+            </div>
+            <div id="hoh-drawer-content"></div>
+        </div>
+    </div>
+</div>
+
 <script src="../../core/js/sh_api_base.js"></script>
 <script src="js/hub_app.js" defer></script>
 <script src="js/hub_order_edit.js" defer></script>
+<script src="js/hub_order_history.js" defer></script>
 </body>
 </html>
