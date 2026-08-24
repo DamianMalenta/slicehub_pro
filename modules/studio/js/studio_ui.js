@@ -56,8 +56,9 @@ globalThis.Core = {
         const dash = document.getElementById('navigator-dashboard');
         if (!dash) return;
         const total = items.length;
-        const active = items.filter(i => i.isActive && i.publicationStatus === 'Live').length;
-        const draft = items.filter(i => !i.isActive || i.publicationStatus === 'Draft').length;
+        // Faza 1 (2026-08-24): liczniki wyłącznie po publicationStatus (kanoniczny status).
+        const active = items.filter(i => i.publicationStatus === 'Live').length;
+        const draft = items.filter(i => i.publicationStatus === 'Draft').length;
         dash.classList.toggle('hidden', total === 0);
         const el = id => document.getElementById(id);
         if (el('dash-total-items')) el('dash-total-items').textContent = total;
@@ -70,8 +71,9 @@ globalThis.Core = {
         if (!container) return;
         const items = globalThis.StudioState?.items || [];
         const total = items.length;
-        const live = items.filter(i => i.isActive && i.publicationStatus === 'Live').length;
-        const draft = items.filter(i => !i.isActive || i.publicationStatus === 'Draft').length;
+        // Faza 1 (2026-08-24): liczniki wyłącznie po publicationStatus (kanoniczny status).
+        const live = items.filter(i => i.publicationStatus === 'Live').length;
+        const draft = items.filter(i => i.publicationStatus === 'Draft').length;
         const archived = items.filter(i => i.publicationStatus === 'Archived').length;
 
         const recent = this._getRecentItems();
@@ -279,8 +281,9 @@ globalThis.Core = {
 
     _matchesFilter: function(item) {
         if (this._treeFilter === 'all') return true;
-        if (this._treeFilter === 'active') return item.isActive && item.publicationStatus === 'Live';
-        if (this._treeFilter === 'draft') return !item.isActive || item.publicationStatus === 'Draft';
+        // Faza 1 (2026-08-24): filtry drzewa wyłącznie po publicationStatus.
+        if (this._treeFilter === 'active') return item.publicationStatus === 'Live';
+        if (this._treeFilter === 'draft') return item.publicationStatus === 'Draft';
         return true;
     },
 
@@ -348,9 +351,14 @@ globalThis.Core = {
                 const renderItemRow = (item, indent) => {
                     const posTier = item.priceTiers ? item.priceTiers.find(t => t.channel === 'POS') : null;
                     const displayPrice = posTier ? posTier.price.toFixed(2) : (item.price ? parseFloat(item.price).toFixed(2) : "0.00");
-                    const statusIcon = item.isActive 
-                        ? '<i class="fa-solid fa-circle-check text-green-500 text-[10px]" title="Aktywne"></i>' 
-                        : '<i class="fa-solid fa-eye-slash text-red-500 text-[10px]" title="Ukryte na POS"></i>';
+                    // Faza 1 (2026-08-24): ikona statusu wyłącznie po publicationStatus.
+                    // Live = zielona, Draft = żółta/ostrzeżenie, Archived = szara/pudełko.
+                    const pubStatus = item.publicationStatus || 'Draft';
+                    const statusIcon = pubStatus === 'Live'
+                        ? '<i class="fa-solid fa-circle-check text-green-500 text-[10px]" title="Live"></i>'
+                        : pubStatus === 'Archived'
+                            ? '<i class="fa-solid fa-box-archive text-slate-400 text-[10px]" title="Archived"></i>'
+                            : '<i class="fa-solid fa-circle-exclamation text-amber-500 text-[10px]" title="Draft"></i>';
                     const isChecked = globalThis.StudioState.bulkSelectedItems.includes(item.id) ? 'checked' : '';
                     const thumbHtml = item.imageUrl
                         ? `<img src="${_e(item.imageUrl)}" alt="" class="w-full h-full object-cover" loading="lazy" onerror="this.remove(); this.parentElement.innerHTML='<i class=\\'fa-solid fa-image text-slate-700 text-[11px]\\'></i>';">`

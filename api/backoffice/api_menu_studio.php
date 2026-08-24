@@ -1425,11 +1425,30 @@ try {
             $availableStart = $toNull($input['availableStart'] ?? null);
             $availableEnd = $toNull($input['availableEnd'] ?? null);
 
-            // F-S4-fix (2026-05-13): default 'Live' dla NEW item (itemId=0), 'Draft' dla update bez explicit.
-            // Stary default 'Draft' powodował że nowe pozycje były niewidoczne w POS (filter Live/published).
+            // F-S4-fix (2026-05-13): default 'Live' dla NEW item (itemId=0).
+            // Faza 1 (2026-08-24): dla UPDATE bez explicit publicationStatus — zachowaj
+            // obecny status z bazy (nie resetuj do 'Draft'). Zapobiega przypadkowemu
+            // ukryciu pozycji przy częściowych aktualizacjach z innych klientów API.
             $itemIdForDefault = (int)($input['itemId'] ?? 0);
-            $defaultPubStatus = $itemIdForDefault > 0 ? 'Draft' : 'Live';
-            $pubStatus = in_array($input['publicationStatus'] ?? '', ['Draft', 'Live', 'Archived']) ? $input['publicationStatus'] : $defaultPubStatus;
+            $explicitPubStatus = in_array($input['publicationStatus'] ?? '', ['Draft', 'Live', 'Archived'], true);
+            if ($explicitPubStatus) {
+                $pubStatus = $input['publicationStatus'];
+            } elseif ($itemIdForDefault > 0) {
+                // UPDATE bez explicit status — zachowaj obecny z bazy.
+                try {
+                    $stmtCurPub = $pdo->prepare(
+                        "SELECT publication_status FROM sh_menu_items WHERE id = ? AND tenant_id = ? AND is_deleted = 0 LIMIT 1"
+                    );
+                    $stmtCurPub->execute([$itemIdForDefault, $tenant_id]);
+                    $curPub = $stmtCurPub->fetchColumn();
+                    $pubStatus = in_array($curPub, ['Draft', 'Live', 'Archived'], true) ? $curPub : 'Draft';
+                } catch (\PDOException $e) {
+                    $pubStatus = 'Draft';
+                }
+            } else {
+                // NEW item — default 'Live' (widoczne od razu w POS).
+                $pubStatus = 'Live';
+            }
             $validFrom = $toNull($input['validFrom'] ?? null);
             $validTo = $toNull($input['validTo'] ?? null);
             $description = trim($input['description'] ?? '');

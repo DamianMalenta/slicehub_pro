@@ -309,7 +309,10 @@ Event types:
 - Ceny w groszach (1 PLN = 100, np. 25.00 PLN = 2500)
 - `dishOptions` = grupy modyfikatorów z `type: single|multiple` (na podstawie max_selection)
 - `allergens` z `allergens_json`, `media` z `image_url`, `menuLabels` z `badge_type`
-- Pomija dania z `publication_status='draft'`
+- Pomija dania z `publication_status` innym niż `Live`/`published` (Draft, Archived są wykluczone)
+- Pomija dania z `is_secret = 1` (POS-only)
+- Pomija dania poza oknem temporal (`valid_from`/`valid_to`)
+- Filtr widoczności: `MenuVisibilityFilter::publicItemsWhere()` (SSOT, od 2026-08-24)
 
 ### 3. `api/integrations/choiceqr/areas.php` — export stref (GET)
 

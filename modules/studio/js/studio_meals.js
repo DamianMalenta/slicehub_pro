@@ -102,7 +102,7 @@
             document.getElementById('meal-type').value = 'fixed';
             document.getElementById('meal-final-price').value = '';
             document.getElementById('meal-pub-status').value = 'Live';
-            document.getElementById('meal-is-active').checked = true;
+            // Faza 1 (2026-08-24): meal-is-active usunięty z UI — publication_status jest kanonem.
             fillCategorySelect(8);
             renderComponents([]);
         },
@@ -124,7 +124,7 @@
             document.getElementById('meal-final-price').value = m.final_price_grosze != null
                 ? (parseInt(m.final_price_grosze, 10) / 100).toFixed(2) : '';
             document.getElementById('meal-pub-status').value = m.publication_status || 'Draft';
-            document.getElementById('meal-is-active').checked = !!parseInt(m.is_active, 10);
+            // Faza 1 (2026-08-24): meal-is-active usunięty z UI — publication_status jest kanonem.
             fillCategorySelect(m.category_id);
             renderComponents(m.components || []);
         },
@@ -152,7 +152,9 @@
                 type: document.getElementById('meal-type').value,
                 final_price_grosze: priceRaw !== '' ? Math.round(parseFloat(priceRaw) * 100) : null,
                 publication_status: document.getElementById('meal-pub-status').value,
-                is_active: document.getElementById('meal-is-active').checked ? 1 : 0,
+                // Faza 1 (2026-08-24): is_active usunięte z UI — derivowane z publication_status
+                // dla zgodności wstecz z backendem (kolumna is_active nadal istnieje w bazie).
+                is_active: document.getElementById('meal-pub-status').value === 'Live' ? 1 : 0,
                 components: collectComponents(),
             };
             if (!payload.ascii_key || !payload.name) {

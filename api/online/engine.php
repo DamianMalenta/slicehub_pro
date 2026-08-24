@@ -104,6 +104,7 @@ try {
     require_once __DIR__ . '/../../core/db_config.php';
     require_once __DIR__ . '/../../core/Uuid.php';
     require_once __DIR__ . '/../../core/AssetResolver.php';
+    require_once __DIR__ . '/../../core/MenuVisibilityFilter.php';
     if (!isset($pdo)) {
         onlineResponse(false, null, 'Database connection failed.');
     }
@@ -521,17 +522,20 @@ try {
             $hasVariantColsOnline = true;
         } catch (\PDOException $e) {}
 
-        // Categories
+        // Categories — public channel: is_menu = 1 AND is_deleted = 0
+        $catPublicWhere = MenuVisibilityFilter::publicCategoriesWhere('c');
         $stmtCats = $pdo->prepare(
-            "SELECT id, name, display_order, is_menu
-             FROM sh_categories
-             WHERE tenant_id = :tid AND is_deleted = 0
-             ORDER BY display_order ASC, name ASC"
+            "SELECT c.id, c.name, c.display_order, c.is_menu
+             FROM sh_categories c
+             WHERE c.tenant_id = :tid AND {$catPublicWhere}
+             ORDER BY c.display_order ASC, c.name ASC"
         );
         $stmtCats->execute([':tid' => $tenantId]);
         $catRows = $stmtCats->fetchAll(PDO::FETCH_ASSOC);
 
-        // Items (active, non-deleted) — jeśli F-S1: wyklucz ghost parents, pobierz parent info dla dzieci.
+        // Items — public visibility filter (publication_status + temporal + is_secret).
+        // F-S1: wyklucz ghost parents, pobierz parent info dla dzieci.
+        $itemPublicWhere = MenuVisibilityFilter::publicItemsWhere($pdo, 'mi');
         if ($hasVariantColsOnline) {
             $stmtItems = $pdo->prepare(
                 "SELECT mi.ascii_key AS sku, mi.name, mi.description, mi.image_url,
@@ -553,7 +557,7 @@ try {
                    LEFT JOIN sh_variant_scale_options opt
                         ON opt.id = mi.variant_option_id AND opt.tenant_id = mi.tenant_id
                   WHERE mi.tenant_id = :tid
-                    AND mi.is_active = 1 AND mi.is_deleted = 0
+                    AND {$itemPublicWhere}
                     AND mi.is_variant_parent = 0
                   ORDER BY mi.display_order ASC, mi.name ASC"
             );
@@ -568,7 +572,7 @@ try {
                         NULL AS variant_option_name, NULL AS variant_option_key,
                         NULL AS variant_option_order
                    FROM sh_menu_items mi
-                  WHERE mi.tenant_id = :tid AND mi.is_active = 1 AND mi.is_deleted = 0
+                  WHERE mi.tenant_id = :tid AND {$itemPublicWhere}
                   ORDER BY mi.display_order ASC, mi.name ASC"
             );
         }
@@ -735,12 +739,13 @@ try {
             onlineResponse(false, null, 'itemSku is required.');
         }
 
-        // Item metadata
+        // Item metadata — public visibility filter (publication_status + temporal + is_secret)
+        $itemPublicWhere = MenuVisibilityFilter::publicItemsWhere($pdo, 'mi');
         $stmtItem = $pdo->prepare(
             "SELECT mi.ascii_key, mi.name, mi.description, mi.image_url, mi.category_id
              FROM sh_menu_items mi
              WHERE mi.tenant_id = :tid AND mi.ascii_key = :sku
-               AND mi.is_active = 1 AND mi.is_deleted = 0
+               AND {$itemPublicWhere}
              LIMIT 1"
         );
         $stmtItem->execute([':tid' => $tenantId, ':sku' => $itemSku]);
@@ -752,15 +757,17 @@ try {
         // Item base price
         $itemPrice = $resolvePrices([$itemSku], 'ITEM')[$itemSku] ?? null;
 
-        // Modifier groups + options
+        // Modifier groups + options — unified visibility filter (publication_status + temporal on groups)
+        $modGroupWhere = MenuVisibilityFilter::modifierGroupsWhere($pdo, 'mg');
+        $modWhere = MenuVisibilityFilter::modifiersWhere('m');
         $stmtMods = $pdo->prepare(
             "SELECT mg.id AS group_id, mg.name AS group_name, mg.ascii_key AS group_ascii_key,
                     mg.min_selection, mg.max_selection, mg.free_limit,
                     m.ascii_key AS mod_sku, m.name AS mod_name, m.is_default
              FROM sh_item_modifiers im
              JOIN sh_modifier_groups mg ON mg.id = im.group_id
-                                        AND mg.tenant_id = :tid AND mg.is_active = 1 AND mg.is_deleted = 0
-             JOIN sh_modifiers m ON m.group_id = mg.id AND m.is_active = 1 AND m.is_deleted = 0
+                                        AND mg.tenant_id = :tid AND {$modGroupWhere}
+             JOIN sh_modifiers m ON m.group_id = mg.id AND {$modWhere}
              JOIN sh_menu_items mi ON mi.id = im.item_id AND mi.tenant_id = :tid2
              WHERE mi.ascii_key = :sku
              ORDER BY mg.name ASC, m.name ASC"
@@ -809,6 +816,7 @@ try {
         if ($hasBoardCompanions) {
             try {
                 $heroSelect = $hasBcHero ? ", bc.product_filename" : ", NULL AS product_filename";
+                $compItemWhere = MenuVisibilityFilter::publicItemsWhere($pdo, 'mi');
                 $stmtComp = $pdo->prepare(
                     "SELECT bc.companion_sku, bc.companion_type, bc.board_slot,
                             bc.asset_filename {$heroSelect},
@@ -816,7 +824,7 @@ try {
                      FROM sh_board_companions bc
                      JOIN sh_menu_items mi ON mi.ascii_key = bc.companion_sku
                                            AND mi.tenant_id = bc.tenant_id
-                                           AND mi.is_deleted = 0 AND mi.is_active = 1
+                                           AND {$compItemWhere}
                      WHERE bc.tenant_id = :tid AND bc.item_sku = :sku AND bc.is_active = 1
                      ORDER BY bc.display_order ASC"
                 );
@@ -995,10 +1003,11 @@ try {
                 if (!empty($rows)) {
                     $skus = array_column($rows, 'sku');
                     $ph   = implode(',', array_fill(0, count($skus), '?'));
+                    $popItemWhere = MenuVisibilityFilter::publicItemsWhere($pdo, 'mi');
                     $stmtMI = $pdo->prepare(
                         "SELECT mi.ascii_key AS sku, mi.name, mi.description, mi.image_url
                          FROM sh_menu_items mi
-                         WHERE mi.tenant_id = ? AND mi.is_active = 1 AND mi.is_deleted = 0
+                         WHERE mi.tenant_id = ? AND {$popItemWhere}
                            AND mi.ascii_key IN ({$ph})"
                     );
                     $stmtMI->execute(array_merge([$tenantId], $skus));
@@ -1033,10 +1042,11 @@ try {
         // Fallback: top by display_order if no history
         if (empty($items)) {
             try {
+                $fbItemWhere = MenuVisibilityFilter::publicItemsWhere($pdo, 'mi');
                 $stmtFB = $pdo->prepare(
                     "SELECT mi.ascii_key AS sku, mi.name, mi.description, mi.image_url
                      FROM sh_menu_items mi
-                     WHERE mi.tenant_id = :tid AND mi.is_active = 1 AND mi.is_deleted = 0
+                     WHERE mi.tenant_id = :tid AND {$fbItemWhere}
                      ORDER BY mi.display_order ASC, mi.id ASC
                      LIMIT {$limit}"
                 );
@@ -2009,11 +2019,12 @@ try {
             ? "id, name, display_order, is_menu, layout_mode, default_composition_profile, category_scene_id"
             : "id, name, display_order, is_menu";
 
+        $sceneCatPublicWhere = MenuVisibilityFilter::publicCategoriesWhere('c');
         $stmtCats = $pdo->prepare(
             "SELECT {$catCols}
-             FROM sh_categories
-             WHERE tenant_id = :tid AND is_deleted = 0
-             ORDER BY display_order ASC, name ASC"
+             FROM sh_categories c
+             WHERE c.tenant_id = :tid AND {$sceneCatPublicWhere}
+             ORDER BY c.display_order ASC, c.name ASC"
         );
         $stmtCats->execute([':tid' => $tenantId]);
         $catRows = $stmtCats->fetchAll(PDO::FETCH_ASSOC);
@@ -2217,14 +2228,16 @@ try {
         $priceInfo = $resolvePrices([$itemSku], 'ITEM')[$itemSku] ?? null;
 
         // Modifier groups (mirror logiki z get_dish, ale w compact formacie)
+        $sceneModGroupWhere = MenuVisibilityFilter::modifierGroupsWhere($pdo, 'mg');
+        $sceneModWhere = MenuVisibilityFilter::modifiersWhere('m');
         $stmtMods = $pdo->prepare(
             "SELECT mg.id AS group_id, mg.name AS group_name, mg.ascii_key AS group_ascii_key,
                     mg.min_selection, mg.max_selection, mg.free_limit,
                     m.ascii_key AS mod_sku, m.name AS mod_name, m.is_default
              FROM sh_item_modifiers im
              JOIN sh_modifier_groups mg ON mg.id = im.group_id
-                                        AND mg.tenant_id = :tid AND mg.is_active = 1 AND mg.is_deleted = 0
-             JOIN sh_modifiers m ON m.group_id = mg.id AND m.is_active = 1 AND m.is_deleted = 0
+                                        AND mg.tenant_id = :tid AND {$sceneModGroupWhere}
+             JOIN sh_modifiers m ON m.group_id = mg.id AND {$sceneModWhere}
              JOIN sh_menu_items mi ON mi.id = im.item_id AND mi.tenant_id = :tid2
              WHERE mi.ascii_key = :sku
              ORDER BY mg.name ASC, m.name ASC"
@@ -2270,13 +2283,14 @@ try {
         $companions = [];
         if ($hasBoardCompanions) {
             try {
+                $sceneCompItemWhere = MenuVisibilityFilter::publicItemsWhere($pdo, 'mi');
                 $stmtComp = $pdo->prepare(
                     "SELECT bc.companion_sku, bc.companion_type, bc.board_slot,
                             bc.asset_filename, mi.name, mi.image_url
                      FROM sh_board_companions bc
                      JOIN sh_menu_items mi ON mi.ascii_key = bc.companion_sku
                                            AND mi.tenant_id = bc.tenant_id
-                                           AND mi.is_deleted = 0 AND mi.is_active = 1
+                                           AND {$sceneCompItemWhere}
                      WHERE bc.tenant_id = :tid AND bc.host_item_sku = :sku AND bc.is_active = 1
                      ORDER BY bc.display_order ASC"
                 );

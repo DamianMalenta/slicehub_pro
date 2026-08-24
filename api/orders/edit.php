@@ -120,6 +120,8 @@ try {
     $editInput = $input;
     $editInput['channel']    = $editInput['channel']    ?? $order['channel'];
     $editInput['order_type'] = $editInput['order_type'] ?? $order['order_type'];
+    // Faza 1: backoffice edit = internal (widzi is_secret — edycja istniejącego zamówienia).
+    $editInput['is_internal'] = true;
 
     $newOrderType     = (string)$editInput['order_type'];
     $orderTypeChanged = $newOrderType !== $order['order_type'];

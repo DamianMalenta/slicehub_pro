@@ -358,9 +358,12 @@ class CartEngine
         // =====================================================================
         // 1. VALIDATE INPUT
         // =====================================================================
-        $channel   = $input['channel'] ?? '';
-        $orderType = $input['order_type'] ?? '';
-        $lines     = $input['lines'] ?? [];
+        $channel    = $input['channel'] ?? '';
+        $orderType  = $input['order_type'] ?? '';
+        $lines      = $input['lines'] ?? [];
+        // Faza 1 (2026-08-24): is_internal = true dla wywołań z POS (kasa/kiosk).
+        // POS widzi is_secret=1 (POS-only dania). Online (default false) = public.
+        $isInternal = !empty($input['is_internal']);
 
         $validChannels   = ['POS', 'Takeaway', 'Delivery'];
         $validOrderTypes = ['dine_in', 'takeaway', 'delivery'];
@@ -403,31 +406,42 @@ class CartEngine
         try { $pdo->query("SELECT variant_option_id FROM sh_menu_items LIMIT 0"); $hasVariantColsCE = true; }
         catch (\PDOException $e) {}
 
+        // MenuVisibilityFilter: internal (POS/kasa — widzi is_secret) vs public (Online storefront).
+        // Faza 1 (2026-08-24): is_internal flag przekazywany przez wywołującego (POS engine = true).
+        if (!class_exists('MenuVisibilityFilter')) {
+            require_once __DIR__ . '/../../core/MenuVisibilityFilter.php';
+        }
+        $cartItemVisibility = $isInternal
+            ? MenuVisibilityFilter::internalItemsWhere($pdo, 'mi')
+            : MenuVisibilityFilter::publicItemsWhere($pdo, 'mi');
+
         $stmtItem = $pdo->prepare(
             $hasVariantColsCE
-            ? "SELECT ascii_key, name, vat_rate_dine_in, vat_rate_takeaway,
-                      variant_option_id, parent_item_id
-                 FROM sh_menu_items
-                WHERE ascii_key = :sku AND tenant_id = :tid AND is_deleted = 0
+            ? "SELECT mi.ascii_key, mi.name, mi.vat_rate_dine_in, mi.vat_rate_takeaway,
+                      mi.variant_option_id, mi.parent_item_id
+                 FROM sh_menu_items mi
+                WHERE mi.ascii_key = :sku AND mi.tenant_id = :tid AND {$cartItemVisibility}
                 LIMIT 1"
-            : "SELECT ascii_key, name, vat_rate_dine_in, vat_rate_takeaway,
+            : "SELECT mi.ascii_key, mi.name, mi.vat_rate_dine_in, mi.vat_rate_takeaway,
                       NULL AS variant_option_id, NULL AS parent_item_id
-                 FROM sh_menu_items
-                WHERE ascii_key = :sku AND tenant_id = :tid AND is_deleted = 0
+                 FROM sh_menu_items mi
+                WHERE mi.ascii_key = :sku AND mi.tenant_id = :tid AND {$cartItemVisibility}
                 LIMIT 1"
         );
 
         // F-S3 (2026-05-11): meal packages — combo SKU nie istnieje w sh_menu_items.
+        // Faza 1 (2026-08-24): unified visibility via MenuVisibilityFilter::mealsWhere
+        // (opuszcza sztywny is_active=1, opiera się na publication_status + temporal).
         $stmtMeal = null;
         $stmtMealComps = null;
         try {
             $pdo->query('SELECT id FROM sh_meal_packages LIMIT 0');
+            $cartMealVisibility = MenuVisibilityFilter::mealsWhere($pdo, 'mp');
             $stmtMeal = $pdo->prepare(
-                "SELECT id, ascii_key, name, final_price_grosze, discount_percent
-                   FROM sh_meal_packages
-                  WHERE ascii_key = :sku AND tenant_id = :tid
-                    AND is_deleted = 0 AND is_active = 1
-                    AND (publication_status IS NULL OR publication_status IN ('Live','published'))
+                "SELECT mp.id, mp.ascii_key, mp.name, mp.final_price_grosze, mp.discount_percent
+                   FROM sh_meal_packages mp
+                  WHERE mp.ascii_key = :sku AND mp.tenant_id = :tid
+                    AND {$cartMealVisibility}
                   LIMIT 1"
             );
             $stmtMealComps = $pdo->prepare(
