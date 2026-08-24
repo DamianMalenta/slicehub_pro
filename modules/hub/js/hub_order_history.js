@@ -315,14 +315,20 @@ const HubOrderHistory = (() => {
                 </ul>
             </div>`;
 
-        // Action buttons — Faza 1: disabled placeholders (Faza 2/3 aktywuje)
+        // Action buttons — Faza 2: metadata + payment_method aktywne.
+        // Faza 3: force_edit / revert / reopen — disabled placeholders.
+        const canEditMeta = data.can_edit_metadata === true;
+        const canChangePay = data.can_change_payment === true;
         const canRevert = data.can_revert === true;
         const canReopen = data.can_reopen === true;
         const canForce = data.can_force_edit === true;
         const actions = `
             <div class="hoh-actions">
-                <button type="button" class="hoh-action-btn" disabled title="Dostępne w Fazie 2 — edycja metadanych zamkniętego zamówienia">
+                <button type="button" class="hoh-action-btn" id="hoh-btn-edit-meta" ${canEditMeta ? '' : 'disabled'} title="${canEditMeta ? 'Edytuj dane klienta i notatki' : 'Edycja metadanych dozwolona tylko dla zamkniętych zamówień (owner/admin/manager)'}">
                     <i class="fa-solid fa-user-pen"></i> Edytuj metadane
+                </button>
+                <button type="button" class="hoh-action-btn" id="hoh-btn-change-pay" ${canChangePay ? '' : 'disabled'} title="${canChangePay ? 'Zmień formę płatności cash ↔ card' : 'Zmiana płatności dozwolona dla zakończonych, nie-sfiskalizowanych zamówień (cash/card tylko)'}">
+                    <i class="fa-solid fa-money-bill-transfer"></i> Zmień płatność
                 </button>
                 <button type="button" class="hoh-action-btn" disabled ${canForce ? '' : 'data-unavailable'} title="Dostępne w Fazie 3 — korekta pozycji zamkniętego zamówienia (KOR magazynowy)">
                     <i class="fa-solid fa-pen-to-square"></i> Edytuj pozycje (force)
@@ -366,6 +372,16 @@ const HubOrderHistory = (() => {
                     detail.classList.toggle('hub-hidden');
                 }
             });
+        });
+
+        // Wire Faza 2 action buttons
+        $('hoh-btn-edit-meta')?.addEventListener('click', () => {
+            if (!_detail) return;
+            _openMetadataModal(_detail);
+        });
+        $('hoh-btn-change-pay')?.addEventListener('click', () => {
+            if (!_detail) return;
+            _openPaymentModal(_detail);
         });
     }
 
@@ -449,6 +465,180 @@ const HubOrderHistory = (() => {
                 target.closest('.hoh-tl-item')?.classList.add('hoh-tl-item--active');
                 target.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
+        }
+    }
+
+    // =========================================================================
+    // FAZA 2 — Modal edycji metadanych (klient / telefon / adres / notatki / typ)
+    // =========================================================================
+    function _openMetadataModal(data) {
+        _ensureModalHost();
+        const host = $('hoh-modal-host');
+        if (!host) return;
+        const orderType = data.order_type || '';
+        const typeOptions = ['dine_in', 'takeaway', 'delivery']
+            .map((t) => `<option value="${t}" ${t === orderType ? 'selected' : ''}>${TYPE_LABELS[t] || t}</option>`)
+            .join('');
+        host.innerHTML = `
+            <div class="hoh-modal-backdrop" id="hoh-meta-backdrop">
+                <div class="hoh-modal" role="dialog" aria-modal="true" aria-labelledby="hoh-meta-title">
+                    <div class="hoh-modal-header">
+                        <h3 id="hoh-meta-title"><i class="fa-solid fa-user-pen"></i> Edytuj metadane #${_esc((data.order_number || '').split('/').pop() || data.order_number)}</h3>
+                        <button type="button" class="hoh-modal-close" id="hoh-meta-close" aria-label="Zamknij">×</button>
+                    </div>
+                    <div class="hoh-modal-body">
+                        <p class="hoh-modal-warn"><i class="fa-solid fa-circle-info"></i> Edycja dotyczy tylko danych niefiskalnych. Pozycje, kwota i paragon nie zostaną zmienione.</p>
+                        <div class="hoh-form-grid">
+                            <label class="hoh-field">
+                                <span>Imię klienta</span>
+                                <input type="text" id="hoh-meta-name" value="${_esc(data.customer_name || '')}" maxlength="255">
+                            </label>
+                            <label class="hoh-field">
+                                <span>Telefon</span>
+                                <input type="text" id="hoh-meta-phone" value="${_esc(data.customer_phone || '')}" maxlength="32">
+                            </label>
+                            <label class="hoh-field hoh-field--full">
+                                <span>Adres dostawy</span>
+                                <textarea id="hoh-meta-addr" rows="2">${_esc(data.delivery_address || '')}</textarea>
+                            </label>
+                            <label class="hoh-field hoh-field--full">
+                                <span>Notatki / uwagi</span>
+                                <textarea id="hoh-meta-notes" rows="3" placeholder="Uwagi managera (niefiskalne)">${_esc(data.notes || '')}</textarea>
+                            </label>
+                            <label class="hoh-field">
+                                <span>Typ zamówienia</span>
+                                <select id="hoh-meta-type">${typeOptions}</select>
+                            </label>
+                        </div>
+                        <p class="hoh-modal-error" id="hoh-meta-error"></p>
+                    </div>
+                    <div class="hoh-modal-footer">
+                        <button type="button" class="hoh-btn hoh-btn--ghost" id="hoh-meta-cancel">Anuluj</button>
+                        <button type="button" class="hoh-btn hoh-btn--primary" id="hoh-meta-save"><i class="fa-solid fa-floppy-disk"></i> Zapisz zmiany</button>
+                    </div>
+                </div>
+            </div>`;
+        host.classList.remove('hub-hidden');
+
+        const close = () => { host.classList.add('hub-hidden'); host.innerHTML = ''; };
+        $('hoh-meta-close')?.addEventListener('click', close);
+        $('hoh-meta-cancel')?.addEventListener('click', close);
+        $('hoh-meta-backdrop')?.addEventListener('click', (ev) => { if (ev.target === $('hoh-meta-backdrop')) close(); });
+        $('hoh-meta-save')?.addEventListener('click', () => void _submitMetadata(data, close));
+    }
+
+    async function _submitMetadata(data, closeFn) {
+        const errEl = $('hoh-meta-error');
+        if (errEl) errEl.textContent = '';
+        const saveBtn = $('hoh-meta-save');
+        if (saveBtn) saveBtn.disabled = true;
+
+        const metadata = {
+            customer_name: ($('hoh-meta-name')?.value || '').trim(),
+            customer_phone: ($('hoh-meta-phone')?.value || '').trim(),
+            delivery_address: ($('hoh-meta-addr')?.value || '').trim(),
+            notes: ($('hoh-meta-notes')?.value || '').trim(),
+            order_type: ($('hoh-meta-type')?.value || '').trim(),
+        };
+
+        // Walidacja: delivery wymaga adresu
+        if (metadata.order_type === 'delivery' && metadata.delivery_address === '') {
+            if (errEl) errEl.textContent = 'Zamówienie z dostawą wymaga adresu.';
+            if (saveBtn) saveBtn.disabled = false;
+            return;
+        }
+
+        const payload = {
+            order_id: data.order_id,
+            edit_scope: 'metadata',
+            metadata,
+        };
+        const r = await _post('/orders/edit.php', payload);
+        if (saveBtn) saveBtn.disabled = false;
+        if (!r.success) {
+            if (errEl) errEl.textContent = r.message || 'Nie udało się zapisać metadanych.';
+            return;
+        }
+        closeFn();
+        // Odśwież drawer + listę (timeline + metadane)
+        await openDrawer(data.order_id);
+        await _loadList();
+    }
+
+    // =========================================================================
+    // FAZA 2 — Modal zmiany formy płatności (cash ↔ card)
+    // =========================================================================
+    function _openPaymentModal(data) {
+        _ensureModalHost();
+        const host = $('hoh-modal-host');
+        if (!host) return;
+        const current = (data.payment_status || '').toLowerCase();
+        const other = current === 'cash' ? 'card' : 'cash';
+        const currentLabel = PAY_LABELS[current] || current;
+        const otherLabel = PAY_LABELS[other] || other;
+        host.innerHTML = `
+            <div class="hoh-modal-backdrop" id="hoh-pay-backdrop">
+                <div class="hoh-modal" role="dialog" aria-modal="true" aria-labelledby="hoh-pay-title">
+                    <div class="hoh-modal-header">
+                        <h3 id="hoh-pay-title"><i class="fa-solid fa-money-bill-transfer"></i> Zmień formę płatności #${_esc((data.order_number || '').split('/').pop() || data.order_number)}</h3>
+                        <button type="button" class="hoh-modal-close" id="hoh-pay-close" aria-label="Zamknij">×</button>
+                    </div>
+                    <div class="hoh-modal-body">
+                        <p class="hoh-modal-warn"><i class="fa-solid fa-triangle-exclamation"></i> Zmiana formy płatności <strong>${_esc(currentLabel)}</strong> → <strong>${_esc(otherLabel)}</strong>. Dozwolone tylko dla nie-sfiskalizowanych zamówień.</p>
+                        <div class="hoh-form-grid">
+                            <label class="hoh-field hoh-field--full">
+                                <span>Powód zmiany (opcjonalnie)</span>
+                                <textarea id="hoh-pay-reason" rows="3" placeholder="Np. klient zapłacił kartą zamiast gotówką"></textarea>
+                            </label>
+                        </div>
+                        <p class="hoh-modal-error" id="hoh-pay-error"></p>
+                    </div>
+                    <div class="hoh-modal-footer">
+                        <button type="button" class="hoh-btn hoh-btn--ghost" id="hoh-pay-cancel">Anuluj</button>
+                        <button type="button" class="hoh-btn hoh-btn--primary" id="hoh-pay-save"><i class="fa-solid fa-money-bill-transfer"></i> Zmień na ${_esc(otherLabel)}</button>
+                    </div>
+                </div>
+            </div>`;
+        host.classList.remove('hub-hidden');
+
+        const close = () => { host.classList.add('hub-hidden'); host.innerHTML = ''; };
+        $('hoh-pay-close')?.addEventListener('click', close);
+        $('hoh-pay-cancel')?.addEventListener('click', close);
+        $('hoh-pay-backdrop')?.addEventListener('click', (ev) => { if (ev.target === $('hoh-pay-backdrop')) close(); });
+        $('hoh-pay-save')?.addEventListener('click', () => void _submitPaymentChange(data, other, close));
+    }
+
+    async function _submitPaymentChange(data, newMethod, closeFn) {
+        const errEl = $('hoh-pay-error');
+        if (errEl) errEl.textContent = '';
+        const saveBtn = $('hoh-pay-save');
+        if (saveBtn) saveBtn.disabled = true;
+
+        const payload = {
+            order_id: data.order_id,
+            edit_scope: 'payment_method',
+            payment_status: newMethod,
+            reason: ($('hoh-pay-reason')?.value || '').trim(),
+        };
+        const r = await _post('/orders/edit.php', payload);
+        if (saveBtn) saveBtn.disabled = false;
+        if (!r.success) {
+            if (errEl) errEl.textContent = r.message || 'Nie udało się zmienić formy płatności.';
+            return;
+        }
+        closeFn();
+        await openDrawer(data.order_id);
+        await _loadList();
+    }
+
+    // ── Modal host container (lazy-created) ──────────────────────────────
+    function _ensureModalHost() {
+        let host = $('hoh-modal-host');
+        if (!host) {
+            host = document.createElement('div');
+            host.id = 'hoh-modal-host';
+            host.className = 'hub-hidden';
+            document.body.appendChild(host);
         }
     }
 

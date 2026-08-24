@@ -47,6 +47,7 @@ try {
     require_once __DIR__ . '/../../core/auth_guard.php';
     require_once __DIR__ . '/../../core/Uuid.php';
     require_once __DIR__ . '/../../core/OrderEventPublisher.php';
+    require_once __DIR__ . '/../../core/OrderStateMachine.php';
     require_once __DIR__ . '/../cart/CartEngine.php';
     require_once __DIR__ . '/DeltaEngine.php';
 
@@ -73,11 +74,22 @@ try {
         exit;
     }
 
+    // edit_scope: 'lines' (default, Faza E) | 'metadata' (Faza 2) | 'payment_method' (Faza 2)
+    $editScope = strtolower(trim((string)($input['edit_scope'] ?? 'lines')));
+    if (!in_array($editScope, ['lines', 'metadata', 'payment_method'], true)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Invalid edit_scope. Use: lines | metadata | payment_method.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
     // =========================================================================
     // 2. LOAD EXISTING ORDER (status guard + tenant isolation)
     // =========================================================================
     $stmtOrder = $pdo->prepare(
-        "SELECT id, status, channel, order_type, delivery_address
+        "SELECT id, status, channel, order_type, delivery_address,
+                customer_name, customer_phone, notes,
+                payment_status, payment_method,
+                fiscal_receipt_number, receipt_printed
          FROM sh_orders
          WHERE id = :id AND tenant_id = :tid
          LIMIT 1"
@@ -89,6 +101,38 @@ try {
         http_response_code(404);
         echo json_encode(['success' => false, 'message' => 'Order not found.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
+    }
+
+    // =========================================================================
+    // 2b. PHASE 2 BRANCH — metadata / payment_method edit on closed orders
+    //     (RFC-001 §4.3 Poziom 2). Lines edit (default) continues below.
+    // =========================================================================
+    if ($editScope === 'metadata' || $editScope === 'payment_method') {
+        // ── RBAC: owner / admin / manager ────────────────────────────────
+        $roleStmt = $pdo->prepare(
+            'SELECT LOWER(role) FROM sh_users WHERE id = :uid AND tenant_id = :tid AND is_deleted = 0 LIMIT 1'
+        );
+        $roleStmt->execute([':uid' => $user_id, ':tid' => $tenant_id]);
+        $role = strtolower((string)$roleStmt->fetchColumn());
+        if (!in_array($role, ['owner', 'admin', 'manager'], true)) {
+            http_response_code(403);
+            echo json_encode(['success' => false, 'message' => 'Forbidden: wymagana rola owner/admin/manager.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+
+        // Status must be completed or cancelled for metadata/payment edit
+        if (!in_array($order['status'], ['completed', 'cancelled'], true)) {
+            http_response_code(409);
+            echo json_encode(['success' => false, 'message' => "Edycja metadanych dozwolona tylko dla zamówień zamkniętych (completed/cancelled). Aktualny status: '{$order['status']}'."], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+
+        if ($editScope === 'metadata') {
+            _handleMetadataEdit($pdo, $tenant_id, $user_id, $orderId, $order, $input);
+        } else {
+            _handlePaymentMethodChange($pdo, $tenant_id, $user_id, $orderId, $order, $input);
+        }
+        // _handle* functions exit() — unreachable
     }
 
     $terminalStatuses = ['completed', 'cancelled'];
@@ -404,3 +448,271 @@ try {
 }
 
 exit;
+
+// =============================================================================
+// PHASE 2 HANDLERS (RFC-001 §4.3 — Poziom 2: metadata + payment_method edit)
+// Wywoływane z gałęzi edit_scope w głównym bloku try. Każda funkcja wykonuje
+// własną transakcję, loguje do sh_order_logs, publikuje event do outboxa i
+// exit() z odpowiedzią JSON.
+// =============================================================================
+
+/**
+ * Edycja metadanych niefiskalnych na zamkniętym zamówieniu (completed/cancelled).
+ * Aktualizuje: customer_name, customer_phone, delivery_address, notes, order_type.
+ * NIE dotyka: pozycji, grand_total, payment_status, fiscal_receipt_number.
+ *
+ * @param array $order  Wiersz z sh_orders (status, order_type, customer_name, ...)
+ * @param array $input  Surowy payload JSON z żądania
+ */
+function _handleMetadataEdit(PDO $pdo, int $tenantId, int $userId, string $orderId, array $order, array $input): void
+{
+    $metadata = is_array($input['metadata'] ?? null) ? $input['metadata'] : [];
+
+    // Dozwolone pola metadanych (whitelist)
+    $allowedFields = ['customer_name', 'customer_phone', 'delivery_address', 'notes', 'order_type'];
+    $changes = [];
+    $setClauses = [];
+    $params = [':id' => $orderId, ':tid' => $tenantId];
+
+    foreach ($allowedFields as $field) {
+        if (!array_key_exists($field, $metadata)) {
+            continue;
+        }
+        $newVal = trim((string)$metadata[$field]);
+
+        // Walidacja order_type
+        if ($field === 'order_type') {
+            if (!in_array($newVal, ['dine_in', 'takeaway', 'delivery'], true)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'order_type musi być: dine_in | takeaway | delivery.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                exit;
+            }
+            // delivery wymaga adresu
+            if ($newVal === 'delivery') {
+                $addr = array_key_exists('delivery_address', $metadata)
+                    ? trim((string)$metadata['delivery_address'])
+                    : trim((string)($order['delivery_address'] ?? ''));
+                if ($addr === '') {
+                    http_response_code(400);
+                    echo json_encode(['success' => false, 'message' => 'Zamówienie z dostawą wymaga adresu (delivery_address).'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                    exit;
+                }
+            }
+        }
+
+        $oldVal = trim((string)($order[$field] ?? ''));
+        if ($newVal === $oldVal) {
+            continue; // brak zmiany
+        }
+
+        $paramKey = ':' . $field;
+        $setClauses[] = "{$field} = {$paramKey}";
+        $params[$paramKey] = $newVal !== '' ? $newVal : null;
+        $changes[] = [
+            'field' => $field,
+            'old'   => $oldVal,
+            'new'   => $newVal,
+        ];
+    }
+
+    if (empty($changes)) {
+        echo json_encode([
+            'success' => true,
+            'message' => 'No metadata changes detected.',
+            'data'    => ['order_id' => $orderId, 'edit_scope' => 'metadata', 'changes' => []],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    $now = date('Y-m-d H:i:s');
+    $setClauses[] = 'updated_at = :now';
+    $params[':now'] = $now;
+
+    $setSql = implode(', ', $setClauses);
+
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare("UPDATE sh_orders SET {$setSql} WHERE id = :id AND tenant_id = :tid");
+        $stmt->execute($params);
+
+        // Audit trail (old_status = new_status — marker edycji metadanych)
+        $stmtAudit = $pdo->prepare(
+            "INSERT INTO sh_order_audit (order_id, user_id, old_status, new_status, timestamp)
+             VALUES (:oid, :uid, :old, :new, :now)"
+        );
+        $stmtAudit->execute([
+            ':oid' => $orderId,
+            ':uid' => $userId,
+            ':old' => $order['status'],
+            ':new' => $order['status'],
+            ':now' => $now,
+        ]);
+
+        // Structured log — action='metadata.edit', detail_json z old/new per field
+        OrderStateMachine::writeLog($pdo, $orderId, $tenantId, $userId, 'metadata.edit', [
+            'fields'  => $changes,
+            'scope'   => 'metadata',
+        ]);
+
+        // Publikuj event do outboxa (w tej samej transakcji)
+        OrderEventPublisher::publishOrderLifecycle(
+            $pdo,
+            $tenantId,
+            'order.metadata_edited',
+            $orderId,
+            [
+                'source'    => 'order_edit',
+                'user_id'   => $userId,
+                'changes'   => $changes,
+            ],
+            ['source' => 'edit', 'actorType' => 'staff', 'actorId' => (string)$userId]
+        );
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+
+    echo json_encode([
+        'success' => true,
+        'data'    => [
+            'order_id'    => $orderId,
+            'edit_scope'  => 'metadata',
+            'changes'     => $changes,
+            'audit_logged' => true,
+        ],
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+/**
+ * Zmiana formy płatności cash ↔ card na zamkniętym zamówieniu (completed).
+ * Aktualizuje: sh_orders.payment_status, sh_orders.payment_method, sh_order_payments.method.
+ * Bezpieczniki: tylko cash↔card, nie online_paid, nie sfiskalizowane (fiscal_receipt_number IS NULL).
+ *
+ * @param array $order  Wiersz z sh_orders (payment_status, payment_method, fiscal_receipt_number, ...)
+ * @param array $input  Surowy payload JSON z żądania
+ */
+function _handlePaymentMethodChange(PDO $pdo, int $tenantId, int $userId, string $orderId, array $order, array $input): void
+{
+    $newMethod = strtolower(trim((string)($input['payment_status'] ?? '')));
+    $reason    = trim((string)($input['reason'] ?? ''));
+    $oldMethod = strtolower((string)$order['payment_status']);
+
+    // Walidacja: tylko cash ↔ card
+    if (!in_array($newMethod, ['cash', 'card'], true)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Nowa forma płatności musi być: cash lub card. Online_paid wymaga integracji z bramką.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    if (!in_array($oldMethod, ['cash', 'card'], true)) {
+        http_response_code(409);
+        echo json_encode(['success' => false, 'message' => "Zmiana płatności dozwolona tylko z cash/card. Aktualna forma: '{$oldMethod}'."], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    if ($newMethod === $oldMethod) {
+        echo json_encode([
+            'success' => true,
+            'message' => 'No payment change detected.',
+            'data'    => ['order_id' => $orderId, 'edit_scope' => 'payment_method', 'old' => $oldMethod, 'new' => $newMethod],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    // Bezpiecznik fiskalny: fiscal_receipt_number musi być NULL (nie sfiskalizowane)
+    if (!empty($order['fiscal_receipt_number'])) {
+        http_response_code(409);
+        echo json_encode(['success' => false, 'message' => 'Zmiana formy płatności zablokowana — zamówienie jest sfiskalizowane (fiscal_receipt_number istnieje).'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    $now = date('Y-m-d H:i:s');
+
+    $pdo->beginTransaction();
+    try {
+        // 1. Aktualizuj nagłówek zamówienia
+        $stmtUpd = $pdo->prepare(
+            "UPDATE sh_orders
+             SET payment_status = :ps, payment_method = :pm, updated_at = :now
+             WHERE id = :id AND tenant_id = :tid"
+        );
+        $stmtUpd->execute([
+            ':ps'  => $newMethod,
+            ':pm'  => $newMethod,
+            ':now' => $now,
+            ':id'  => $orderId,
+            ':tid' => $tenantId,
+        ]);
+
+        // 2. Aktualizuj istniejące wpisy w sh_order_payments (cash→card lub card→cash)
+        //    Suma amount_grosze się nie zmienia — tylko method/payment_method.
+        $stmtPay = $pdo->prepare(
+            "UPDATE sh_order_payments
+             SET method = :method, payment_method = :pm
+             WHERE order_id = :oid AND tenant_id = :tid"
+        );
+        $stmtPay->execute([
+            ':method' => $newMethod,
+            ':pm'     => $newMethod,
+            ':oid'    => $orderId,
+            ':tid'    => $tenantId,
+        ]);
+
+        // 3. Audit trail (marker edycji — status bez zmian)
+        $stmtAudit = $pdo->prepare(
+            "INSERT INTO sh_order_audit (order_id, user_id, old_status, new_status, timestamp)
+             VALUES (:oid, :uid, :old, :new, :now)"
+        );
+        $stmtAudit->execute([
+            ':oid' => $orderId,
+            ':uid' => $userId,
+            ':old' => $order['status'],
+            ':new' => $order['status'],
+            ':now' => $now,
+        ]);
+
+        // 4. Structured log — action='payment.change'
+        OrderStateMachine::writeLog($pdo, $orderId, $tenantId, $userId, 'payment.change', [
+            'old'    => $oldMethod,
+            'new'    => $newMethod,
+            'reason' => $reason !== '' ? $reason : null,
+            'scope'  => 'payment_method',
+        ]);
+
+        // 5. Publikuj event do outboxa
+        OrderEventPublisher::publishOrderLifecycle(
+            $pdo,
+            $tenantId,
+            'order.payment_changed',
+            $orderId,
+            [
+                'source'       => 'order_edit',
+                'user_id'      => $userId,
+                'old_payment'  => $oldMethod,
+                'new_payment'  => $newMethod,
+                'reason'       => $reason !== '' ? $reason : null,
+            ],
+            ['source' => 'edit', 'actorType' => 'staff', 'actorId' => (string)$userId]
+        );
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+
+    echo json_encode([
+        'success' => true,
+        'data'    => [
+            'order_id'       => $orderId,
+            'edit_scope'     => 'payment_method',
+            'old_payment'    => $oldMethod,
+            'new_payment'    => $newMethod,
+            'audit_logged'   => true,
+        ],
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}

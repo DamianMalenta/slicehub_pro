@@ -55,6 +55,9 @@ const AUDIT_LABELS = [
     'order.fiscalized'    => 'Fiskalizacja zamówienia',
     'payment.settled'     => 'Rozliczenie płatności',
     'payment.refunded'    => 'Zwrot płatności',
+    // RFC-001 Faza 2 — edycja metadanych zamkniętych zamówień
+    'order.metadata_edited' => 'Edycja metadanych (klient/telefon/adres)',
+    'order.payment_changed' => 'Zmiana formy płatności (cash ↔ card)',
     // Logs actions
     'state_change'        => 'Zmiana statusu',
     'payment'             => 'Operacja płatności',
@@ -141,7 +144,10 @@ try {
 
     // ── Verify order belongs to tenant (Prawo VI) ─────────────────────
     $stmtOrder = $pdo->prepare(
-        "SELECT id, order_number, status, fiscal_receipt_number, receipt_printed
+        "SELECT id, order_number, status, order_type,
+                customer_name, customer_phone, delivery_address, notes,
+                payment_status, payment_method,
+                fiscal_receipt_number, receipt_printed
          FROM sh_orders
          WHERE id = :id AND tenant_id = :tid
          LIMIT 1"
@@ -428,8 +434,8 @@ try {
     }, $events);
 
     // ── Compute capability flags (RFC §4.2) ───────────────────────────
-    // Faza 1: read-only — endpointy revert/reopen/force_edit nie istnieją.
-    // Flagi odzwierciedlają teoretyczną możliwość (status + rola + snapshoty).
+    // Faza 2: can_edit_metadata / can_change_payment aktywne dla owner/admin/manager.
+    // Faza 3: can_revert / can_reopen / can_force_edit — endpointy jeszcze nie istnieją.
     $hasSnapshots = false;
     foreach ($timeline as $e) {
         if (!empty($e['snapshot'])) {
@@ -437,23 +443,47 @@ try {
             break;
         }
     }
-    $isAdminRole  = in_array($role, ['owner', 'admin'], true);
-    $orderStatus  = (string)($order['status'] ?? '');
+    $isManagerRole = in_array($role, ['owner', 'admin', 'manager'], true);
+    $isAdminRole   = in_array($role, ['owner', 'admin'], true);
+    $orderStatus   = (string)($order['status'] ?? '');
+    $isTerminal    = in_array($orderStatus, ['completed', 'cancelled'], true);
+    $payStatus     = strtolower((string)($order['payment_status'] ?? ''));
+    $isFiscalized  = !empty($order['fiscal_receipt_number']);
 
+    // Faza 2: edycja metadanych — manager+ dla zamkniętych zamówień
+    $canEditMetadata = $isManagerRole && $isTerminal;
+    // Faza 2: zmiana cash↔card — manager+, tylko completed, tylko cash/card, nie sfiskalizowane
+    $canChangePayment = $isManagerRole
+        && $orderStatus === 'completed'
+        && in_array($payStatus, ['cash', 'card'], true)
+        && !$isFiscalized;
+
+    // Faza 3 (placeholder — endpointy jeszcze nie istnieją)
     $canRevert     = $isAdminRole && $hasSnapshots;
     $canReopen     = $isAdminRole && $orderStatus === 'completed';
-    $canForceEdit  = $isAdminRole && in_array($orderStatus, ['completed', 'cancelled'], true);
+    $canForceEdit  = $isAdminRole && $isTerminal;
 
     auditOut(true, [
-        'order_id'        => $orderId,
-        'order_number'    => $order['order_number'],
-        'status'          => $orderStatus,
+        'order_id'              => $orderId,
+        'order_number'          => $order['order_number'],
+        'status'                => $orderStatus,
+        'order_type'            => $order['order_type'],
+        'customer_name'         => $order['customer_name'],
+        'customer_phone'        => $order['customer_phone'],
+        'delivery_address'      => $order['delivery_address'],
+        'notes'                 => $order['notes'],
+        'payment_status'        => $payStatus,
+        'payment_method'        => $order['payment_method'],
         'fiscal_receipt_number' => $order['fiscal_receipt_number'],
-        'receipt_printed' => ((int)$order['receipt_printed']) === 1,
-        'timeline'        => $timeline,
-        'can_revert'      => $canRevert,
-        'can_reopen'      => $canReopen,
-        'can_force_edit'  => $canForceEdit,
+        'receipt_printed'       => ((int)$order['receipt_printed']) === 1,
+        'timeline'              => $timeline,
+        // Faza 2
+        'can_edit_metadata'     => $canEditMetadata,
+        'can_change_payment'    => $canChangePayment,
+        // Faza 3 (placeholder)
+        'can_revert'            => $canRevert,
+        'can_reopen'            => $canReopen,
+        'can_force_edit'        => $canForceEdit,
     ]);
 } catch (PDOException $e) {
     error_log('[orders/audit] PDOException: ' . $e->getMessage());

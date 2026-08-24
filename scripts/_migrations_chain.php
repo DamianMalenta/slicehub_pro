@@ -79,4 +79,5 @@ return [
     '065_add_users_presence_index.sql',
     '066_driver_shifts_work_session_uuid.sql',
     '067_normalize_payment_status_defaults.sql',
+    '068_order_metadata_notes.sql',
 ];

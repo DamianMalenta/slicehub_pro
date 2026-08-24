@@ -58,6 +58,9 @@ final class OrderEventPublisher
         'order.fiscalized',
         'payment.settled',
         'payment.refunded',
+        // RFC-001 Faza 2 — edycja metadanych zamkniętych zamówień
+        'order.metadata_edited',
+        'order.payment_changed',
     ];
 
     /** Flaga per-request — true gdy wiemy że tabela outbox istnieje. */
