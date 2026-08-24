@@ -78,7 +78,7 @@ const CoursesUI = (() => {
             return `
             <div class="drv-card ${isSelected ? 'drv-selected' : ''}" onclick="App.selectDriver('${d.id}')">
                 <div class="drv-card-top">
-                    <span class="drv-name"><i class="fa-solid fa-motorcycle" style="margin-right:4px; color:var(--accent-blue)"></i>${displayName}</span>
+                    <span class="drv-name"><i class="fa-solid fa-motorcycle" style="margin-right:4px; color:var(--accent-blue)"></i>${displayName}${d.hr_session_ok === false ? ' <span class="drv-hr-warn" title="Brak aktywnej sesji HR (clock-in)"><i class="fa-solid fa-user-clock"></i> HR</span>' : ''}</span>
                     <span class="drv-status ${status}">${status === 'available' ? 'Dostępny' : status === 'busy' ? 'W trasie' : 'Offline'}</span>
                 </div>
                 <div class="drv-cash"><i class="fa-solid fa-wallet"></i> Start: ${initCash} zł | Zebrane: ${cash} zł</div>

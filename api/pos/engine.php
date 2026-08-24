@@ -58,6 +58,7 @@ try {
     require_once __DIR__ . '/../../core/AssetResolver.php';
     require_once __DIR__ . '/../../core/StaffFleetPresence.php';
     require_once __DIR__ . '/../../core/SlaThresholds.php';
+    require_once __DIR__ . '/../../core/HrSessionGate.php';
     require_once __DIR__ . '/../../core/Uuid.php';
     require_once __DIR__ . '/../orders/DeltaEngine.php';
 
@@ -315,6 +316,14 @@ try {
             );
             $stmtDrivers->execute([$tenant_id]);
             $drivers = $stmtDrivers->fetchAll(PDO::FETCH_ASSOC);
+            // Miękki gate HR — badge dla managera, bez filtrowania listy
+            $hrGateOn = slicehubHrGateEnabled($pdo, (int)$tenant_id);
+            foreach ($drivers as &$drv) {
+                $drv['hr_session_ok'] = $hrGateOn
+                    ? slicehubDriverHrSessionOk($pdo, (int)$tenant_id, (int)$drv['id'])
+                    : true;
+            }
+            unset($drv);
         } catch (\PDOException $e) {}
 
         // -- Waiters: tylko zalogowani w aplikacji kelnera (ostatni poll / login) --
@@ -593,6 +602,14 @@ try {
             );
             $stmtDrv->execute([$tenant_id]);
             $drivers = $stmtDrv->fetchAll(PDO::FETCH_ASSOC);
+            // Miękki gate HR — badge dla managera, bez filtrowania listy
+            $hrGateOnPoll = slicehubHrGateEnabled($pdo, (int)$tenant_id);
+            foreach ($drivers as &$drv) {
+                $drv['hr_session_ok'] = $hrGateOnPoll
+                    ? slicehubDriverHrSessionOk($pdo, (int)$tenant_id, (int)$drv['id'])
+                    : true;
+            }
+            unset($drv);
         } catch (\PDOException $e) {}
 
         // SLA thresholds (Phase A) — pos_ui fmtTime czyta yellow_min (single-boundary)

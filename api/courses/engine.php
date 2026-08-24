@@ -62,6 +62,7 @@ try {
     require_once __DIR__ . '/../../core/DriverFleetHelper.php';
     require_once __DIR__ . '/../../core/StaffFleetPresence.php';
     require_once __DIR__ . '/../../core/SlaThresholds.php';
+    require_once __DIR__ . '/../../core/HrSessionGate.php';
     require_once __DIR__ . '/../../core/OrderEventPublisher.php';
 
     if (!isset($pdo)) {
@@ -293,8 +294,13 @@ try {
         $courses = $stmtCourses->fetchAll(PDO::FETCH_ASSOC);
 
         // Normalize is_online flag (MySQL returns int/string, frontend expects bool)
+        // + miękki gate HR: hr_session_ok (badge dla managera, bez blokady)
+        $hrGateOn = slicehubHrGateEnabled($pdo, (int)$tenant_id);
         foreach ($drivers as &$drv) {
             $drv['is_online'] = (bool)($drv['is_online'] ?? false);
+            $drv['hr_session_ok'] = $hrGateOn
+                ? slicehubDriverHrSessionOk($pdo, (int)$tenant_id, (int)$drv['id'])
+                : true;
         }
         unset($drv);
 
@@ -367,6 +373,29 @@ try {
                 'driver_name'      => $driverRow['first_name'] ?: $driverRow['name'] ?: 'Kierowca',
                 'active_course_id' => $activeRow ? $activeRow['course_id'] : null,
             ], 'Kierowca jest w trasie.');
+        }
+
+        // Miękki gate HR (FF HR_REQUIRE_OPEN_SESSION_FOR_DISPATCH): bez blokady —
+        // dispatch przechodzi, ale manager dostaje warning + alert SSE (broadcast:<tid>).
+        $hrWarning = false;
+        if (slicehubHrGateEnabled($pdo, (int)$tenant_id)
+            && !slicehubDriverHrSessionOk($pdo, (int)$tenant_id, (int)$driverId)) {
+            $hrWarning = true;
+            try {
+                $pdo->prepare(
+                    "INSERT INTO sh_sse_broadcast (tenant_id, tracking_token, event_type, payload_json, created_at)
+                     VALUES (:tid, :tok, 'hr.dispatch_without_session', :pl, NOW())"
+                )->execute([
+                    ':tid' => $tenant_id,
+                    ':tok' => 'broadcast:' . $tenant_id,
+                    ':pl'  => json_encode([
+                        'event_type'  => 'hr.dispatch_without_session',
+                        'driver_id'   => (string)$driverId,
+                        'driver_name' => $driverRow['first_name'] ?: $driverRow['name'] ?: 'Kierowca',
+                        'ts'          => time(),
+                    ], JSON_UNESCAPED_UNICODE),
+                ]);
+            } catch (\Throwable $ignore) {}
         }
 
         // READY LOCK — validate orders
@@ -473,7 +502,7 @@ try {
             throw $e;
         }
 
-        coursesResponse(true, ['course_id'=>$courseId, 'stops'=>$stops, 'driver_status'=>'busy']);
+        coursesResponse(true, ['course_id'=>$courseId, 'stops'=>$stops, 'driver_status'=>'busy', 'hr_warning'=>$hrWarning]);
     }
 
     // =========================================================================
