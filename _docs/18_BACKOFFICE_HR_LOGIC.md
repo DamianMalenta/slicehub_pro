@@ -836,6 +836,8 @@ requested  ─ approve ────► approved ─ markPaid ───► paid �
 - FF czytany per-tenant z `sh_tenant_settings` (setting_key=`HR_USE_EVENT_DRIVER_FANOUT`). Default OFF.
 - Retry z backoff (`attempts * 60s`) do `MAX_ATTEMPTS=5`; po tym status eventu = `dead`.
 - Worker po stronie Logistyki (touchuje `sh_drivers`), nie `require_once` HR Engine-a. Zgodne z regułami §9.
+- **Sprzątanie po clock-out (2026-08-24, Faza 4):** przy `employee.clocked_out` worker dodatkowo (a) czyści presence natychmiast przez `slicehubClearStaffPresence()` (SSOT `core/StaffFleetPresence.php`, nie czekamy na TTL 120 s), (b) jeśli kierowca ma nadal aktywny `sh_driver_shifts` → alert SSE `hr.shift_hanging` na token `broadcast:<tid>` (in-app dla managera). **Bez auto-close shiftu** — reconcile wymaga rozliczenia gotówki przez człowieka.
+- **Miękki gate HR w dyspozytorni (Faza 3):** osobna FF `HR_REQUIRE_OPEN_SESSION_FOR_DISPATCH` + `core/HrSessionGate.php` (read-only cross-silo per §9.3, grace 5 min) — szczegóły w `_docs/19_LOGISTYKA_I_BEZPIECZENSTWO.md` §6.8.
 
 ### 11.5. Co pozostaje (Faza 4 / dalej) — ⚠ SEKCJA HISTORYCZNA
 

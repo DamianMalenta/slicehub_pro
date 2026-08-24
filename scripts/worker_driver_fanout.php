@@ -33,6 +33,7 @@ declare(strict_types=1);
  */
 
 require_once dirname(__DIR__) . '/core/db_config.php';
+require_once dirname(__DIR__) . '/core/StaffFleetPresence.php';
 /** @var PDO $pdo */
 
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -210,6 +211,38 @@ foreach ($events as $ev) {
             $upd->execute([':tid' => $tenantId, ':uid' => $userId]);
             $changed = $upd->rowCount();
             if ($changed > 0) { $stats['updated']++; } else { $stats['no_change']++; }
+
+            // Sprzątanie po clock-out: natychmiastowe wyczyszczenie presence
+            // (last_seen i tak wygasa po TTL, ale czyścimy dla spójności).
+            slicehubClearStaffPresence($pdo, $tenantId, $userId);
+
+            // Wiszący aktywny shift kasowy po clock-out → TYLKO alert in-app SSE
+            // dla managera (broadcast:<tid>). Bez auto-close — reconcile wymaga
+            // rozliczenia gotówki przez człowieka.
+            $hang = $pdo->prepare("
+                SELECT id, work_session_uuid, created_at FROM sh_driver_shifts
+                 WHERE tenant_id = :tid AND driver_id = :did AND status = 'active'
+                 LIMIT 1
+            ");
+            $hang->execute([':tid' => $tenantId, ':did' => (string)$userId]);
+            $hangRow = $hang->fetch(\PDO::FETCH_ASSOC);
+            if ($hangRow) {
+                $pdo->prepare("
+                    INSERT INTO sh_sse_broadcast (tenant_id, tracking_token, event_type, payload_json, created_at)
+                    VALUES (:tid, :tok, 'hr.shift_hanging', :pl, NOW())
+                ")->execute([
+                    ':tid' => $tenantId,
+                    ':tok' => 'broadcast:' . $tenantId,
+                    ':pl'  => json_encode([
+                        'event_type'        => 'hr.shift_hanging',
+                        'driver_user_id'    => $userId,
+                        'shift_id'          => (int)$hangRow['id'],
+                        'work_session_uuid' => $hangRow['work_session_uuid'],
+                        'shift_started_at'  => $hangRow['created_at'],
+                        'ts'                => time(),
+                    ], JSON_UNESCAPED_UNICODE),
+                ]);
+            }
         } else {
             throw new \RuntimeException('UNHANDLED_EVENT_TYPE');
         }
