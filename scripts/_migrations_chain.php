@@ -78,4 +78,5 @@ return [
     '064_drop_kitchen_changes.sql',
     '065_add_users_presence_index.sql',
     '066_driver_shifts_work_session_uuid.sql',
+    '067_normalize_payment_status_defaults.sql',
 ];

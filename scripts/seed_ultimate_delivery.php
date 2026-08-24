@@ -109,19 +109,21 @@ $addresses = [
 $phones = ['+48 500 100 200', '+48 512 345 678', '+48 601 222 333', '+48 666 777 888', '+48 503 111 999', '+48 510 888 444', '+48 600 300 500', '+48 795 123 456', '+48 722 555 666', '+48 508 432 100', '+48 530 901 234', '+48 660 345 890'];
 $names = ['Jan Kowalski', 'Anna Nowak', 'Piotr Wiśniewski', 'Marta Kamińska', 'Tomasz Lewandowski', 'Katarzyna Zielińska', 'Adam Szymański', 'Monika Wójcik', 'Krzysztof Dąbrowski', 'Ewa Kozłowska', 'Michał Jankowski', 'Agnieszka Mazur'];
 
+// Naprawa 2026-08-24: payment_status znormalizowany do słownika kanonicznego
+// (to_pay/online_unpaid/cash/card/online_paid) zgodnego z OrderStateMachine:14.
 $paymentConfigs = [
-    ['method' => 'cash',   'status' => 'unpaid'],
-    ['method' => 'card',   'status' => 'unpaid'],
-    ['method' => 'online', 'status' => 'paid'],
-    ['method' => 'cash',   'status' => 'unpaid'],
-    ['method' => 'online', 'status' => 'paid'],
-    ['method' => 'cash',   'status' => 'unpaid'],
-    ['method' => 'card',   'status' => 'unpaid'],
-    ['method' => 'online', 'status' => 'paid'],
-    ['method' => 'cash',   'status' => 'unpaid'],
-    ['method' => 'card',   'status' => 'unpaid'],
-    ['method' => 'online', 'status' => 'paid'],
-    ['method' => 'cash',   'status' => 'unpaid'],
+    ['method' => 'cash',   'status' => 'to_pay'],
+    ['method' => 'card',   'status' => 'to_pay'],
+    ['method' => 'online', 'status' => 'online_paid'],
+    ['method' => 'cash',   'status' => 'to_pay'],
+    ['method' => 'online', 'status' => 'online_paid'],
+    ['method' => 'cash',   'status' => 'to_pay'],
+    ['method' => 'card',   'status' => 'to_pay'],
+    ['method' => 'online', 'status' => 'online_paid'],
+    ['method' => 'cash',   'status' => 'to_pay'],
+    ['method' => 'card',   'status' => 'to_pay'],
+    ['method' => 'online', 'status' => 'online_paid'],
+    ['method' => 'cash',   'status' => 'to_pay'],
 ];
 
 $orderStatuses = ['ready', 'ready', 'ready', 'ready', 'pending', 'pending', 'ready', 'ready', 'preparing', 'ready', 'ready', 'ready'];

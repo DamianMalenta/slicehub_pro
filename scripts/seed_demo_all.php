@@ -744,10 +744,14 @@ seed('Orders (12 total)', function ($pdo, $T) use ($uuid4) {
     $count = 0;
 
     // --- 3 DINE-IN orders ---
+    // Naprawa 2026-08-24: payment_status znormalizowany do słownika kanonicznego
+    // (to_pay/online_unpaid/cash/card/online_paid) zgodnego z OrderStateMachine:14
+    // i SettlementEngine::PAY_STATUS_MAP. Wcześniej seed używał 'unpaid'/'paid'
+    // które nie są rozpoznawane przez isPaid() ani przez CASE WHEN w naprawach.
     $dineIn = [
-        ['preparing', 'unpaid', 'cash',   [['PIZZA_MARGHERITA','Margherita',2400,1],['DRINK_COLA_05','Coca-Cola 0.5L',700,2]], 3],
-        ['ready',     'unpaid', 'card',   [['BURGER_CHEESE','Cheese Burger',2400,2],['SIDE_FRIES','Frytki',900,1]], 3],
-        ['completed', 'paid',   'cash',   [['PASTA_CARBONARA','Penne Carbonara',2800,1],['DRINK_WATER_05','Woda 0.5L',500,1]], 3],
+        ['preparing', 'to_pay', 'cash',   [['PIZZA_MARGHERITA','Margherita',2400,1],['DRINK_COLA_05','Coca-Cola 0.5L',700,2]], 3],
+        ['ready',     'to_pay', 'card',   [['BURGER_CHEESE','Cheese Burger',2400,2],['SIDE_FRIES','Frytki',900,1]], 3],
+        ['completed', 'cash',   'cash',   [['PASTA_CARBONARA','Penne Carbonara',2800,1],['DRINK_WATER_05','Woda 0.5L',500,1]], 3],
     ];
     foreach ($dineIn as [$status, $ps, $pm, $lines, $userId]) {
         $oid = $uuid4();
@@ -761,8 +765,8 @@ seed('Orders (12 total)', function ($pdo, $T) use ($uuid4) {
 
     // --- 2 TAKEAWAY orders ---
     $takeaway = [
-        ['pending',  'unpaid','online',[['PIZZA_PEPPERONI','Pepperoni',2800,1],['DRINK_SPRITE_05','Sprite 0.5L',700,1]], null],
-        ['ready',    'paid',  'online',[['SET_BURGER_COMBO','Zestaw Burger+Frytki+Napój',3200,1]], null],
+        ['pending',  'online_unpaid','online',[['PIZZA_PEPPERONI','Pepperoni',2800,1],['DRINK_SPRITE_05','Sprite 0.5L',700,1]], null],
+        ['ready',    'online_paid',  'online',[['SET_BURGER_COMBO','Zestaw Burger+Frytki+Napój',3200,1]], null],
     ];
     foreach ($takeaway as [$status, $ps, $pm, $lines, $userId]) {
         $oid = $uuid4();
@@ -776,15 +780,15 @@ seed('Orders (12 total)', function ($pdo, $T) use ($uuid4) {
 
     // --- 5 DELIVERY orders (ready — for dispatch testing) ---
     $deliveries = [
-        ['ul. Święty Marcin 42/3, 61-807 Poznań',52.4069,16.9163,'501-123-456','Piotr Wiśniewski','cash','unpaid',
+        ['ul. Święty Marcin 42/3, 61-807 Poznań',52.4069,16.9163,'501-123-456','Piotr Wiśniewski','cash','to_pay',
             [['PIZZA_CAPRICCIOSA','Capricciosa',3000,1],['DRINK_COLA_05','Coca-Cola 0.5L',800,1]]],
-        ['ul. Garbary 78/12, 61-758 Poznań',52.4122,16.9387,'602-234-567','Katarzyna Zielińska','card','unpaid',
+        ['ul. Garbary 78/12, 61-758 Poznań',52.4122,16.9387,'602-234-567','Katarzyna Zielińska','card','to_pay',
             [['PIZZA_4FORMAGGI','Quattro Formaggi',3400,1],['SIDE_GARLIC_SAUCE','Sos czosnkowy',300,2]]],
-        ['os. Bohaterów II WŚ 15/4, 61-381 Poznań',52.4218,16.9511,'512-345-678','Tomasz Lewandowski','online','paid',
+        ['os. Bohaterów II WŚ 15/4, 61-381 Poznań',52.4218,16.9511,'512-345-678','Tomasz Lewandowski','online','online_paid',
             [['BURGER_BBQ','BBQ Burger',2800,2],['SIDE_FRIES','Frytki',1000,1]]],
-        ['ul. Głogowska 120, 60-243 Poznań',52.3929,16.8873,'693-456-789','Agnieszka Kamińska','cash','unpaid',
+        ['ul. Głogowska 120, 60-243 Poznań',52.3929,16.8873,'693-456-789','Agnieszka Kamińska','cash','to_pay',
             [['PIZZA_MARGHERITA','Margherita',2600,1],['PIZZA_DIAVOLA','Diavola',3200,1]]],
-        ['ul. Winogrady 144/8, 61-626 Poznań',52.4336,16.9245,'781-567-890','Michał Dąbrowski','online','paid',
+        ['ul. Winogrady 144/8, 61-626 Poznań',52.4336,16.9245,'781-567-890','Michał Dąbrowski','online','online_paid',
             [['PASTA_LASAGNE','Lasagne',3200,1],['DESSERT_TIRAMISU','Tiramisu',1800,1],['DRINK_BEER_TYSKIE','Piwo Tyskie',1000,1]]],
     ];
     $fee = 500;
@@ -803,9 +807,9 @@ seed('Orders (12 total)', function ($pdo, $T) use ($uuid4) {
 
     // --- 2 COMPLETED delivery orders (for cash reconciliation testing) ---
     $completed = [
-        ['ul. Ratajczaka 20, Poznań',52.4050,16.9180,'600-111-222','Jan Testowy','cash','unpaid',
+        ['ul. Ratajczaka 20, Poznań',52.4050,16.9180,'600-111-222','Jan Testowy','cash','to_pay',
             [['PIZZA_HAWAJSKA','Hawajska',3000,1]], 6],
-        ['ul. Półwiejska 8, Poznań',52.4040,16.9200,'600-333-444','Maria Testowa','cash','unpaid',
+        ['ul. Półwiejska 8, Poznań',52.4040,16.9200,'600-333-444','Maria Testowa','cash','to_pay',
             [['BURGER_CLASSIC','Classic Burger',2400,1],['DRINK_COLA_05','Cola 0.5L',800,1]], 6],
     ];
     foreach ($completed as $d) {

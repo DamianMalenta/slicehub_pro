@@ -309,7 +309,7 @@ CREATE TABLE sh_orders (
   delivery_fee          INT NOT NULL DEFAULT 0,
   grand_total           INT NOT NULL DEFAULT 0,
   status                VARCHAR(32) NOT NULL DEFAULT 'new',
-  payment_status        VARCHAR(32) NOT NULL DEFAULT 'unpaid',
+  payment_status        VARCHAR(32) NOT NULL DEFAULT 'to_pay',
   payment_method        VARCHAR(32) NULL,
   loyalty_points_earned INT NOT NULL DEFAULT 0,
   customer_name         VARCHAR(255) NULL,
