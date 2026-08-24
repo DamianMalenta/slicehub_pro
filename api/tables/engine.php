@@ -778,7 +778,7 @@ try {
                  VALUES
                     (:id, :tid, :onum, 'dine_in', 'dine_in', 'pos',
                      :tbl, :uid, :gc,
-                     'pending', 'unpaid', NOW())"
+                     'pending', 'to_pay', NOW())"
             );
             $stmtO->execute([
                 ':id'   => $orderId,

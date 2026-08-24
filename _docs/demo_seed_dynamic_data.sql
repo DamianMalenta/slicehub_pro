@@ -85,7 +85,7 @@ INSERT INTO sh_orders
    created_at)
 VALUES
   (@order1_id, @tid, 'DEMO-001', 'Delivery', 'delivery', 'online',
-   4500, 5300, 'accepted', 'paid', 'card',
+   4500, 5300, 'accepted', 'card', 'card',
    'Jan Kowalski', '+48 600 100 200', 'ul. Marszałkowska 12, 00-001 Warszawa',
    52.2297, 21.0122,
    NOW() - INTERVAL 15 MINUTE);
@@ -104,7 +104,7 @@ INSERT INTO sh_orders
    created_at)
 VALUES
   (@order2_id, @tid, 'DEMO-002', 'Takeaway', 'takeaway', 'pos',
-   3000, 3000, 'preparing', 'unpaid', NULL,
+   3000, 3000, 'preparing', 'to_pay', NULL,
    'Anna Nowak', '+48 600 300 400',
    NOW() - INTERVAL 8 MINUTE);
 
@@ -122,7 +122,7 @@ INSERT INTO sh_orders
    created_at)
 VALUES
   (@order3_id, @tid, 'DEMO-003', 'POS', 'dine_in', 'pos',
-   7500, 7500, 'new', 'unpaid', NULL,
+   7500, 7500, 'new', 'to_pay', NULL,
    'Stolik 5 (Para)', 2,
    NOW() - INTERVAL 3 MINUTE);
 

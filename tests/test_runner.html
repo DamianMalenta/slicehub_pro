@@ -1456,7 +1456,7 @@ const SUITES = [
                     const r = await callPosEngine({
                         action: 'process_order',
                         cart: [], source: 'POS', order_type: 'dine_in',
-                        payment_method: 'unpaid', payment_status: 'unpaid',
+                        payment_method: 'unpaid', payment_status: 'to_pay',
                         total_price: 0, status: 'pending',
                     });
                     if (r.error) return ['fail', r.error];
@@ -1477,7 +1477,7 @@ const SUITES = [
                                  removed: [{ sku: 'SER_MOZZ', name: 'Mozzarella' }],
                                  comment: 'Dobrze wypieczona' }],
                         source: 'POS', order_type: 'takeaway',
-                        payment_method: 'cash', payment_status: 'paid',
+                        payment_method: 'cash', payment_status: 'cash',
                         total_price: 56.00, status: 'pending',
                     });
                     if (r.error) return ['fail', r.error];

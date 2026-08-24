@@ -252,8 +252,8 @@ try {
     ];
     $paymentMethod = $paymentMethodMap[$payBy] ?? null;
     $paymentStatus = match ($payBy) {
-        'online' => 'paid',
-        default  => 'unpaid',
+        'online' => 'online_paid',
+        default  => 'to_pay',
     };
 
     // Order comment

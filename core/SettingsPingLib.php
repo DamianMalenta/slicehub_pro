@@ -177,7 +177,7 @@ final class SettingsPingLib
                     'order_type'      => 'takeaway',
                     'channel'         => 'Takeaway',
                     'payment_method'  => 'cash',
-                    'payment_status'  => 'unpaid',
+                    'payment_status'  => 'to_pay',
                     'customer_name'   => 'Test Ping',
                     'customer_phone'  => '+48 600 000 000',
                     'delivery_address' => null,

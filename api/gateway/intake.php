@@ -463,7 +463,7 @@ try {
                     (:id, :tid, :num, :channel, :order_type, :src,
                      :gw_src, :gw_eid,
                      :subtotal, :discount, :delivery, :grand,
-                     'new', 'unpaid', :points,
+                     'new', 'to_pay', :points,
                      :cust_name, :cust_phone, :del_addr,
                      :lat, :lng, :promised, :now)"
             );
@@ -501,7 +501,7 @@ try {
                  VALUES
                     (:id, :tid, :num, :channel, :order_type, :src,
                      :subtotal, :discount, :delivery, :grand,
-                     'new', 'unpaid', :points,
+                     'new', 'to_pay', :points,
                      :cust_name, :cust_phone, :del_addr,
                      :lat, :lng, :promised, :now)"
             );

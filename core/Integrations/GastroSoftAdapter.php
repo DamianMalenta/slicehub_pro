@@ -155,7 +155,7 @@ final class GastroSoftAdapter extends BaseAdapter
             ],
             'payment' => [
                 'method'        => $this->mapPaymentMethod($order['payment_method'] ?? null),
-                'status'        => (string)($order['payment_status'] ?? 'unpaid'),
+                'status'        => (string)($order['payment_status'] ?? 'to_pay'),
                 'amount_pln'    => (float)self::grToPln($totalGr),
             ],
             'items' => array_map(function (array $line): array {
