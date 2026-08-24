@@ -1,5 +1,9 @@
 # 2026-08-24 — Storefront Prep Time Settings (edycja PromisedTime w Online Studio)
 
+**Commit:** `662643c` (gałąź `feature/pos-time-control-and-gps-eta`)
+**PR:** #65 — https://github.com/DamianMalenta/slicehub_pro/pull/65
+**Status:** OPEN (gałąź współdzielona z równoległą sesją „Centrum Kontroli Czasu + GPS ETA")
+
 ## Kontekst
 
 Audyt `core/PromisedTimeEngine.php` (patrz raport w tej samej sesji) wykazał, że
@@ -8,6 +12,15 @@ parametry `base_prep_minutes` i `min_lead_time_minutes` w tabeli `sh_tenant_sett
 edycji z panelu przez właściciela lokalu. Jedynym parametrem promised-time
 edytowalnym z UI były godziny otwarcia (`opening_hours_json`) w zakładce Storefront
 modułu Online Studio.
+
+**Luka udokumentowana wcześniej w:**
+- `_docs/sessions/2026-08-03_promised_time_wiring_audit.md` — audyt wpięcia silnika
+  (sekcja 3.1: „base_prep_minutes z sh_tenant_settings (default 25)", bez wzmianki o UI)
+- `_docs/RAPORT_OBCIAZENIE_I_ELASTYCZNOSC_MENU.md` §3.4 — tabelka „uprawnienia managera"
+  wymienia `base_prep_minutes` i `min_lead_time_minutes` jako konfigurowalne przez
+  `tenant_settings`, ale bez wskazania modułu UI.
+- `_docs/00_PAMIEC_SYSTEMU.md` linia 472 — sekcja PromisedTimeEngine opisuje
+  `base_prep_minutes` jako parametr tenanta, ale nie wspominada edycji z panelu.
 
 ## Cel
 
@@ -65,14 +78,27 @@ ustawień preorder i godzin otwarcia.
 
 ## Zakres commita
 
-Scommitowano **wyłącznie** 2 pliki:
+Scommitowano **wyłącznie** 3 pliki (commit `662643c`):
 - `api/online_studio/engine.php`
 - `modules/online_studio/js/tabs/storefront.js`
+- `_docs/sessions/2026-08-24_storefront_prep_time_settings.md` (ten dokument)
 
-Pozostałe niecommitowane zmiany WIP na gałęzi `feature/pos-time-control-and-gps-eta`
-(GPS ETA Haversine w `api/online/engine.php`, akcja `shift_time` w
-`api/pos/engine.php`, `order.delayed` w `NotificationDispatcher.php` i
-`OrderEventPublisher.php`) należą do równoległej sesji i zostały nietknięte.
+Pozostałe zmiany na gałęzi `feature/pos-time-control-and-gps-eta` (GPS ETA
+Haversine w `api/online/engine.php`, akcja `shift_time` w `api/pos/engine.php`,
+`order.delayed` w `NotificationDispatcher.php` i `OrderEventPublisher.php`,
+modal Centrum Kontroli Czasu w POS) należą do równoległej sesji (commit
+`9589bdb`) i są częścią tego samego PR #65.
+
+## Domknięte luki dokumentacyjne
+
+Ta implementacja domyka lukę opisaną w audytach:
+- **`2026-08-03_promised_time_wiring_audit.md`** — parametry `base_prep_minutes`
+  i `min_lead_time_minutes` były czytane przez silnik ale nieedytowalne z UI.
+  Teraz właściciel lokalu może je zmienić w Online Studio → Storefront →
+  „Czasy zamówień (PromisedTime)".
+- **`RAPORT_OBCIAZENIE_I_ELASTYCZNOSC_MENU.md` §3.4** — tabelka „uprawnienia
+  managera" wymieniała te kolumny jako konfigurowalne przez `tenant_settings`,
+  ale bez modułu UI. Teraz mają dedykowaną sekcję w Storefront.
 
 ## Powiązane
 

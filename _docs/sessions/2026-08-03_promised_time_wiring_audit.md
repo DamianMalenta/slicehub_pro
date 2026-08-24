@@ -61,13 +61,13 @@ a tryb `scheduled` pozostaje martwym kodem.
 ```
 promised = now + (base_prep × load_factor) + channel_buffer
 ```
-- `base_prep_minutes` z `sh_tenant_settings` (default 25)
+- `base_prep_minutes` z `sh_tenant_settings` (default 25) — **od 2026-08-24 (PR #65) edytowalne z UI**: Online Studio → Storefront → „Czas zamówień (PromisedTime)" (5–120 min)
 - `load_factor = min(2.0, 1.0 + active_orders/20)` — aktywne: `accepted`/`preparing`
 - `channel_buffer`: `dine_in=0`, `takeaway=+5`, `delivery=+15` min
 
 **Tryb `scheduled`** (linie 90–109 silnika):
 - Wymaga `requested_time` (ISO 8601)
-- Check 1: `requested ≥ now + min_lead_time_minutes` (default 30)
+- Check 1: `requested ≥ now + min_lead_time_minutes` (default 30) — **od 2026-08-24 (PR #65) edytowalne z UI**: Online Studio → Storefront → „Czas zamówień (PromisedTime)" (15–240 min)
 - Check 2: walidacja `opening_hours_json` z `sh_tenant_settings`
 - Zwraca surowy `requested` jako `promised_time`
 
