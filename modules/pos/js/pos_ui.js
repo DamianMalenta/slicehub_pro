@@ -49,7 +49,7 @@ const PosUI = (() => {
             dots.innerHTML = Array.from({ length: PIN_LEN }, (_, i) => `<div class="pin-dot ${i < pin.length ? 'filled' : ''}"></div>`).join('');
         }
         updateDots();
-        window._pinHandler = (val) => {
+        globalThis._pinHandler = (val) => {
             if (val === 'clear') { pin = ''; updateDots(); return; }
             if (val === 'back') { pin = pin.slice(0, -1); updateDots(); return; }
             if (val === 'ok') {
@@ -847,9 +847,9 @@ const PosUI = (() => {
 
     function _doPrint(htmlContent) {
         const iframe = document.getElementById('print-frame'); if (!iframe) return;
-        const doc = iframe.contentWindow.document;
+        const doc = iframe.contentglobalThis.document;
         doc.open(); doc.write(htmlContent); doc.close();
-        setTimeout(() => { iframe.contentWindow.focus(); iframe.contentWindow.print(); }, 250);
+        setTimeout(() => { iframe.contentglobalThis.focus(); iframe.contentglobalThis.print(); }, 250);
     }
 
     return Object.freeze({

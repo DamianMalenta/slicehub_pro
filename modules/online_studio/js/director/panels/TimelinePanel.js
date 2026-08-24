@@ -179,10 +179,10 @@ export class TimelinePanel {
         if (!u) return '';
         const s = String(u).trim();
         if (/^(https?:|data:|blob:)/i.test(s)) return s;
-        const appBase = (window.SliceHub && window.SliceHub.getAppBase)
-            ? window.SliceHub.getAppBase()
+        const appBase = (globalThis.SliceHub && globalThis.SliceHub.getAppBase)
+            ? globalThis.SliceHub.getAppBase()
             : (function () {
-                const p = window.location.pathname || '';
+                const p = globalThis.location.pathname || '';
                 const i = p.indexOf('/modules/');
                 if (i > 0) return p.slice(0, i);
                 return p.indexOf('/slicehub') !== -1 ? '/slicehub' : '';

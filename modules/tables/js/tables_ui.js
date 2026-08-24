@@ -141,7 +141,7 @@ const TablesUI = (function () {
     // ── Positioned Floating Panel Engine ─────────────────────────────────
     function _positionPanel(anchor, panel) {
         const ar = anchor.getBoundingClientRect();
-        const vw = window.innerWidth, vh = window.innerHeight;
+        const vw = globalThis.innerWidth, vh = globalThis.innerHeight;
 
         panel.style.visibility = 'hidden';
         panel.style.display = 'block';

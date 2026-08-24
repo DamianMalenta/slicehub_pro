@@ -7,21 +7,21 @@
  *   3. Wstrzyknąć subtelny wskaźnik stanu połączenia (pill w rogu topbaru)
  *      niezależny od pos_ui.js — działa już na ekranie PIN login.
  *   4. Obsłużyć 'beforeinstallprompt' → button „Zainstaluj POS" w settings.
- *   5. Eksponować window.SliceHubPOS.connectivity — API dla pos_app.js.
+ *   5. Eksponować globalThis.SliceHubPOS.connectivity — API dla pos_app.js.
  *
  * Ten moduł nie dotyka logiki POS-a. Jedyny kontakt z istniejącym kodem:
- *   window.SliceHubPOS.connectivity.{isOnline, getState, on}
+ *   globalThis.SliceHubPOS.connectivity.{isOnline, getState, on}
  *   — dostępne dla pos_app.js gdy zechce wyświetlić własny wskaźnik
  *   zgodny z motywem aplikacji.
  *
  * Phase 3/4 (Sync Engine) dobuduje do tego API:
- *   window.SliceHubPOS.outbox  — pending ops count
- *   window.SliceHubPOS.store   — PosLocalStore handle
+ *   globalThis.SliceHubPOS.outbox  — pending ops count
+ *   globalThis.SliceHubPOS.store   — PosLocalStore handle
  */
 (function () {
     'use strict';
 
-    const NS = (window.SliceHubPOS = window.SliceHubPOS || {});
+    const NS = (globalThis.SliceHubPOS = globalThis.SliceHubPOS || {});
     const LOG_PREFIX = '[SliceHub POS · SW]';
 
     // ── BASE_PATH — dynamicznie wyliczany z aktualnego URL skryptu ────────
@@ -64,8 +64,8 @@
     };
 
     // ── Online / offline native events ────────────────────────────────────
-    window.addEventListener('online',  () => { state.isOnline = true;  notify(); });
-    window.addEventListener('offline', () => { state.isOnline = false; notify(); });
+    globalThis.addEventListener('online',  () => { state.isOnline = true;  notify(); });
+    globalThis.addEventListener('offline', () => { state.isOnline = false; notify(); });
 
     // ── Visual pill (top-right, niezależne od pos_ui.js) ──────────────────
     let pillEl = null;
@@ -224,7 +224,7 @@
 
     // ── Install prompt (PWA installability) ──────────────────────────────
     let deferredInstallPrompt = null;
-    window.addEventListener('beforeinstallprompt', (e) => {
+    globalThis.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
         deferredInstallPrompt = e;
         NS.installAvailable = true;
@@ -254,7 +254,7 @@
         }
         return false;
     };
-    window.addEventListener('appinstalled', () => {
+    globalThis.addEventListener('appinstalled', () => {
         deferredInstallPrompt = null;
         NS.installAvailable = false;
     });
@@ -268,7 +268,7 @@
 
     // Nie rejestrujemy SW gdy strona została otwarta przez devtools pod HTTP
     // na hoście innym niż localhost (SW wymaga HTTPS lub localhost).
-    const isSecureContext = window.isSecureContext;
+    const isSecureContext = globalThis.isSecureContext;
     const isLocalhost = /^(localhost|127\.0\.0\.1|::1)$/.test(location.hostname);
     if (!isSecureContext && !isLocalhost) {
         console.warn(LOG_PREFIX, 'SW pomijany — brak secure context (ani HTTPS ani localhost)');
@@ -293,7 +293,7 @@
     // ── Local Store (IndexedDB) + Sync Engine bootstrap ──────────────────
     // Dynamic import — PosLocalStore i PosSyncEngine to ES moduły. Ten plik
     // to classical script. Ładujemy bez blokowania SW registration. Eksponu-
-    // jemy na window.SliceHubPOS.{store,sync} dla pos_app.js i debug konsoli.
+    // jemy na globalThis.SliceHubPOS.{store,sync} dla pos_app.js i debug konsoli.
     (async () => {
         try {
             const storeMod = await import(BASE_PATH + '/modules/pos/js/PosLocalStore.js');
@@ -362,7 +362,7 @@
             // pos_app.js może na to zareagować (np. refetch orders).
             engine.onServerEvent((ev) => {
                 try {
-                    window.dispatchEvent(new CustomEvent('slicehub-pos:server-event', { detail: ev }));
+                    globalThis.dispatchEvent(new CustomEvent('slicehub-pos:server-event', { detail: ev }));
                 } catch (_) { /* ignore */ }
             });
             engine.on('pull:done', ({ data }) => {
@@ -390,7 +390,7 @@
                     });
                     // Sygnał do pos_app.js żeby odświeżyło listę zamówień.
                     try {
-                        window.dispatchEvent(new CustomEvent('slicehub-pos:outbox-replayed', { detail: data }));
+                        globalThis.dispatchEvent(new CustomEvent('slicehub-pos:outbox-replayed', { detail: data }));
                     } catch (_) {}
                 }
                 if (data.dead > 0) {
@@ -408,7 +408,7 @@
         }
     })();
 
-    window.addEventListener('load', async () => {
+    globalThis.addEventListener('load', async () => {
         try {
             const reg = await navigator.serviceWorker.register(
                 BASE_PATH + '/modules/pos/sw.js',

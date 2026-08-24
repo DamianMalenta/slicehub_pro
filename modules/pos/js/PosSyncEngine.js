@@ -35,11 +35,11 @@
 const LOG_PREFIX = '[SliceHub POS · Sync]';
 
 function syncEndpoint() {
-    if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.apiUrl) {
-        return window.SliceHub.apiUrl('pos/sync.php');
+    if (typeof globalThis !== 'undefined' && globalThis.SliceHub && globalThis.SliceHub.apiUrl) {
+        return globalThis.SliceHub.apiUrl('pos/sync.php');
     }
-    const base = (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.getApiFallback)
-        ? window.SliceHub.getApiFallback()
+    const base = (typeof globalThis !== 'undefined' && globalThis.SliceHub && globalThis.SliceHub.getApiFallback)
+        ? globalThis.SliceHub.getApiFallback()
         : '/api';
     return base + '/pos/sync.php';
 }
@@ -114,8 +114,8 @@ class PosSyncEngineImpl {
             console.info(LOG_PREFIX, 'network offline — pausing');
             this._emit('sync:network-change', { online: false });
         };
-        window.addEventListener('online', this._onlineHandler);
-        window.addEventListener('offline', this._offlineHandler);
+        globalThis.addEventListener('online', this._onlineHandler);
+        globalThis.addEventListener('offline', this._offlineHandler);
 
         // Reagujemy na outbox:changed z LocalStore — gdy ktoś zrobi enqueueOp,
         // nie czekamy do następnej iteracji idle; od razu kopiemy loop.
@@ -144,8 +144,8 @@ class PosSyncEngineImpl {
         if (this._loopHandle) { clearTimeout(this._loopHandle); this._loopHandle = null; }
         if (this._pullHandle) { clearTimeout(this._pullHandle); this._pullHandle = null; }
         if (this._outboxUnsub) { this._outboxUnsub(); this._outboxUnsub = null; }
-        if (this._onlineHandler)  window.removeEventListener('online',  this._onlineHandler);
-        if (this._offlineHandler) window.removeEventListener('offline', this._offlineHandler);
+        if (this._onlineHandler)  globalThis.removeEventListener('online',  this._onlineHandler);
+        if (this._offlineHandler) globalThis.removeEventListener('offline', this._offlineHandler);
         this._onlineHandler = null;
         this._offlineHandler = null;
         this._emit('sync:stopped', {});

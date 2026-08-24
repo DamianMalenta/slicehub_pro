@@ -71,7 +71,7 @@ const state = {
 };
 
 function qsParam(name) {
-    const u = new URL(window.location.href);
+    const u = new URL(globalThis.location.href);
     return u.searchParams.get(name);
 }
 function escapeHtml(s) {
@@ -200,7 +200,7 @@ async function startTracking() {
 }
 
 function startSse() {
-    if (!window.EventSource) return; // brak wsparcia w przeglądarce
+    if (!globalThis.EventSource) return; // brak wsparcia w przeglądarce
 
     if (state.sse) {
         state.sse.close();
@@ -210,8 +210,8 @@ function startSse() {
 
     const tid = OnlineAPI.getTenantId();
     // Względna ścieżka — działa niezależnie od domeny/subdomeny
-    const sseUrl = `${(window.SliceHub && window.SliceHub.apiUrl)
-        ? window.SliceHub.apiUrl('/online/sse.php')
+    const sseUrl = `${(globalThis.SliceHub && globalThis.SliceHub.apiUrl)
+        ? globalThis.SliceHub.apiUrl('/online/sse.php')
         : '/api/online/sse.php'}?tenant=${encodeURIComponent(tid)}&token=${encodeURIComponent(state.token)}&phone=${encodeURIComponent(state.phone)}`;
 
     try {

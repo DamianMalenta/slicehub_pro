@@ -10,8 +10,8 @@
     const ALLOWED_ROLES = ['owner', 'manager', 'admin'];
 
     function apiBase() {
-        if (window.SliceHub && window.SliceHub.getApiBase) return window.SliceHub.getApiBase();
-        if (window.SliceHub && window.SliceHub.getApiFallback) return window.SliceHub.getApiFallback();
+        if (globalThis.SliceHub && globalThis.SliceHub.getApiBase) return globalThis.SliceHub.getApiBase();
+        if (globalThis.SliceHub && globalThis.SliceHub.getApiFallback) return globalThis.SliceHub.getApiFallback();
         return '/api';
     }
 

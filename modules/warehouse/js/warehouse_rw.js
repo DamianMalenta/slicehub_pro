@@ -15,8 +15,8 @@
     async function loadStockForSelect() {
         await loadWarehousePicker();
 
-        const wid = document.getElementById('warehouse_id')?.value || window.WarehouseApi.DEFAULT_WAREHOUSE_ID;
-        const res = await window.WarehouseApi.stockList(wid);
+        const wid = document.getElementById('warehouse_id')?.value || globalThis.WarehouseApi.DEFAULT_WAREHOUSE_ID;
+        const res = await globalThis.WarehouseApi.stockList(wid);
         if (!res.success || !Array.isArray(res.data)) {
             console.error('[RW] stock_list', res.message);
             return;
@@ -27,7 +27,7 @@
         const whEl = document.getElementById('warehouse_id');
         if (whEl) {
             whEl.addEventListener('change', async () => {
-                const r = await window.WarehouseApi.stockList(whEl.value);
+                const r = await globalThis.WarehouseApi.stockList(whEl.value);
                 if (r.success && Array.isArray(r.data)) {
                     stockRows = r.data;
                     populateProductSelect();
@@ -52,7 +52,7 @@
     async function loadWarehousePicker() {
         const wh = document.getElementById('warehouse_id');
         if (!wh) return;
-        const res = await window.WarehouseApi.getWarehouseList();
+        const res = await globalThis.WarehouseApi.getWarehouseList();
         if (res.success && Array.isArray(res.data) && res.data.length > 0) {
             wh.innerHTML = '';
             res.data.forEach(item => {
@@ -64,7 +64,7 @@
                 wh.appendChild(opt);
             });
         } else {
-            const wid = window.WarehouseApi.DEFAULT_WAREHOUSE_ID;
+            const wid = globalThis.WarehouseApi.DEFAULT_WAREHOUSE_ID;
             wh.innerHTML = `<option value="${wid}" selected>Magazyn główny (${wid})</option>`;
         }
         const saved = localStorage.getItem('sh_warehouse_id');
@@ -78,7 +78,7 @@
         return stockRows.find((r) => r.sku === sku);
     }
 
-    window.sanitizeDocNumber = function () {
+    globalThis.sanitizeDocNumber = function () {
         const input = document.getElementById('doc_number');
         if (!input) return;
         if (typeof SliceValidator !== 'undefined' && SliceValidator.sanitizeKey) {
@@ -91,7 +91,7 @@
         }
     };
 
-    window.addItemToTable = function () {
+    globalThis.addItemToTable = function () {
         const sku = document.getElementById('product_selector')?.value;
         const rawQty = parseFloat(document.getElementById('prod_qty')?.value);
         const reason = document.getElementById('prod_reason')?.value || '';
@@ -171,7 +171,7 @@
         if (tb) tb.innerText = totalBleed.toFixed(2);
     }
 
-    window.saveDocument = async function () {
+    globalThis.saveDocument = async function () {
         const doc = document.getElementById('doc_number')?.value.trim();
         const wid = document.getElementById('warehouse_id')?.value;
         const reqPin = document.getElementById('req_pin')?.checked;
@@ -203,7 +203,7 @@
             const reasons = [...new Set(currentItems.map(i => i.reason).filter(Boolean))];
             const fullReason = [doc, ...reasons].join(' | ').slice(0, 500);
 
-            const res = await window.WarehouseApi.postBatchRw({
+            const res = await globalThis.WarehouseApi.postBatchRw({
                 warehouse_id: wid,
                 reason: fullReason,
                 lines: currentItems.map(item => ({ sku: item.sku, qty: item.sys_qty })),

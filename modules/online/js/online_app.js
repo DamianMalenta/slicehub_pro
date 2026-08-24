@@ -22,7 +22,7 @@ import { openCheckoutOverlay, readLastOrder } from './online_checkout.js';
 import { mountDoorway } from './online_doorway.js';
 
 // Feature flag — dodaj ?legacy=1 do URL, żeby wrócić do akordeonu + get_menu/get_dish.
-const USE_LEGACY_MENU = new URLSearchParams(window.location.search).get('legacy') === '1';
+const USE_LEGACY_MENU = new URLSearchParams(globalThis.location.search).get('legacy') === '1';
 
 const state = {
     channel: 'Delivery',
@@ -50,8 +50,8 @@ function applySurfaceBackground(filename) {
         root.style.removeProperty('--storefront-bg-image');
         return;
     }
-    const url = (window.SliceHub && window.SliceHub.appUrl)
-        ? window.SliceHub.appUrl('/uploads/global_assets/' + encodeURIComponent(filename))
+    const url = (globalThis.SliceHub && globalThis.SliceHub.appUrl)
+        ? globalThis.SliceHub.appUrl('/uploads/global_assets/' + encodeURIComponent(filename))
         : `/slicehub/uploads/global_assets/${encodeURIComponent(filename)}`;
     root.style.setProperty('--storefront-bg-image', `url("${url}")`);
 }
@@ -196,8 +196,8 @@ function refreshCartUi() {
         const last = readLastOrder(OnlineAPI.getTenantId());
         if (last?.trackingToken && last?.phone) {
             lastLink.classList.remove('hidden');
-            const trackBase = (window.SliceHub && window.SliceHub.appUrl)
-                ? window.SliceHub.appUrl('/modules/online/track.html')
+            const trackBase = (globalThis.SliceHub && globalThis.SliceHub.appUrl)
+                ? globalThis.SliceHub.appUrl('/modules/online/track.html')
                 : '/slicehub/modules/online/track.html';
             lastLink.href = `${trackBase}?tenant=${OnlineAPI.getTenantId()}&token=${encodeURIComponent(last.trackingToken)}&phone=${encodeURIComponent(last.phone)}`;
             lastLink.title = `Ostatnie: ${last.orderNumber}`;
@@ -520,13 +520,13 @@ function bindUiOnce() {
     const hero = document.getElementById('hero-welcome');
     if (hero) {
         const onScroll = () => {
-            if (window.scrollY > 60) {
+            if (globalThis.scrollY > 60) {
                 hero.classList.add('is-collapsed');
             } else {
                 hero.classList.remove('is-collapsed');
             }
         };
-        window.addEventListener('scroll', onScroll, { passive: true });
+        globalThis.addEventListener('scroll', onScroll, { passive: true });
     }
 }
 
@@ -550,7 +550,7 @@ function enterAfterDoorway({ channel, preOrder }) {
         recalcCart();
         if (preOrder) {
             // Drobny sygnał dla UX — w przyszłości otworzymy pre-order sheet.
-            try { window.dispatchEvent(new CustomEvent('slicehub:preorder-requested')); } catch (_) {}
+            try { globalThis.dispatchEvent(new CustomEvent('slicehub:preorder-requested')); } catch (_) {}
         }
     });
 }
@@ -573,9 +573,9 @@ function init() {
     });
 
     if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            const swUrl = (window.SliceHub && window.SliceHub.appUrl)
-                ? window.SliceHub.appUrl('/modules/online/sw.js')
+        globalThis.addEventListener('load', () => {
+            const swUrl = (globalThis.SliceHub && globalThis.SliceHub.appUrl)
+                ? globalThis.SliceHub.appUrl('/modules/online/sw.js')
                 : '/slicehub/modules/online/sw.js';
             navigator.serviceWorker.register(swUrl).catch(() => {});
         }, { once: true });

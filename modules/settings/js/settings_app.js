@@ -18,8 +18,8 @@
     // ─── API client ──────────────────────────────────────────────────────
     /** Prefiks API: core/js/sh_api_base.js (SliceHub.apiUrl). */
     function apiUrl(path) {
-        if (window.SliceHub && window.SliceHub.apiUrl) {
-            return window.SliceHub.apiUrl(path);
+        if (globalThis.SliceHub && globalThis.SliceHub.apiUrl) {
+            return globalThis.SliceHub.apiUrl(path);
         }
         return '../../api' + (String(path || '').startsWith('/') ? path : '/' + path);
     }
@@ -202,14 +202,14 @@
     function renderNotificationsPane() {
         const pane = $('#st-pane-notifications');
         if (!pane) return;
-        if (window.NotificationsTab) {
-            window.NotificationsTab.render(pane);
+        if (globalThis.NotificationsTab) {
+            globalThis.NotificationsTab.render(pane);
         } else {
             pane.innerHTML = '<p class="st-empty">Ładowanie modułu powiadomień…</p>';
             const script = document.createElement('script');
             script.src = 'js/notifications.js';
             script.onload = () => {
-                if (window.NotificationsTab) window.NotificationsTab.render(pane);
+                if (globalThis.NotificationsTab) globalThis.NotificationsTab.render(pane);
             };
             document.head.appendChild(script);
         }
@@ -1646,10 +1646,10 @@
     document.addEventListener('DOMContentLoaded', () => {
         // Expose globals for sub-modules (notifications.js)
         const metaTenant = document.querySelector('meta[name="sh-tenant-id"]');
-        window.SLICEHUB_TENANT_ID = metaTenant ? parseInt(metaTenant.content, 10) : 1;
-        window.stToast      = (msg, ok) => toast(msg, ok ? 'ok' : 'err');
-        window.stOpenModal  = openModal;
-        window.stCloseModal = closeModal;
+        globalThis.SLICEHUB_TENANT_ID = metaTenant ? parseInt(metaTenant.content, 10) : 1;
+        globalThis.stToast      = (msg, ok) => toast(msg, ok ? 'ok' : 'err');
+        globalThis.stOpenModal  = openModal;
+        globalThis.stCloseModal = closeModal;
 
         $$('.st-tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
         $('#st-refresh-btn').addEventListener('click', () => loadTab(state.activeTab));

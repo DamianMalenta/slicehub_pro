@@ -3,7 +3,7 @@
  * Tryb: Control Tower
  */
 
-window.WarehouseState = {
+globalThis.WarehouseState = {
     stock: [],
     activeActionSku: null,
     warehouses: [],
@@ -46,7 +46,7 @@ function getActiveWarehouse() {
 }
 
 async function loadWarehouseList() {
-    const result = await window.WarehouseApi.getWarehouseList();
+    const result = await globalThis.WarehouseApi.getWarehouseList();
     const picker = document.getElementById('warehousePicker');
     if (!picker) return;
 
@@ -84,7 +84,7 @@ function updateTimestamp() {
  */
 async function loadStock() {
     const warehouseId = getActiveWarehouse();
-    const result = await window.WarehouseApi.stockList(warehouseId);
+    const result = await globalThis.WarehouseApi.stockList(warehouseId);
 
     if (result.success) {
         WarehouseState.stock = result.data;
@@ -101,7 +101,7 @@ async function loadStock() {
 }
 
 async function loadDraftCount() {
-    const res = await window.WarehouseApi.getDocumentsList({ status: 'draft' });
+    const res = await globalThis.WarehouseApi.getDocumentsList({ status: 'draft' });
     const el = document.getElementById('dashDrafts');
     if (!el) return;
     if (res.success && res.data) {
@@ -228,7 +228,7 @@ function renderMatrix(data) {
 /**
  * 4. OBSŁUGA SMART ACTION PANEL (STREFA C)
  */
-window.triggerActionPanel = function(sku) {
+globalThis.triggerActionPanel = function(sku) {
     WarehouseState.activeActionSku = sku;
     const item = WarehouseState.stock.find(i => i.sku === sku);
 
@@ -279,7 +279,7 @@ window.triggerActionPanel = function(sku) {
                     </div>
                 </button>
 
-                <button onclick="window.location.href='manager_in.html'"
+                <button onclick="globalThis.location.href='manager_in.html'"
                         class="w-full bg-amber-600/20 hover:bg-amber-600/40 text-amber-300 border border-amber-500/30 rounded-lg p-4 flex items-center justify-between transition-all group active:scale-95 mt-4">
                     <div class="flex items-center gap-3">
                         <div class="bg-amber-500/20 p-2 rounded-md group-hover:bg-amber-500 transition-colors">
@@ -309,7 +309,7 @@ if (!document.getElementById('animStyles')) {
 // 5. MODAL PZ — SILNIK (Przyjęcie Zewnętrzne)
 // =============================================================================
 
-window.openPZModal = function(skuPreselect = null) {
+globalThis.openPZModal = function(skuPreselect = null) {
     const modal = document.getElementById('pzModal');
     document.getElementById('pzNotes').value = '';
     document.getElementById('pzItemsContainer').innerHTML = '';
@@ -325,14 +325,14 @@ window.openPZModal = function(skuPreselect = null) {
     }
 };
 
-window.closePZModal = function() {
+globalThis.closePZModal = function() {
     const modal = document.getElementById('pzModal');
     modal.classList.add('hidden');
     modal.classList.remove('flex');
     document.body.style.overflow = '';
 };
 
-window.addPZRow = function(skuPreselect = '') {
+globalThis.addPZRow = function(skuPreselect = '') {
     const container = document.getElementById('pzItemsContainer');
 
     const options = WarehouseState.stock
@@ -391,13 +391,13 @@ window.addPZRow = function(skuPreselect = '') {
     updatePZSummary();
 };
 
-window.removePZRow = function(btn) {
+globalThis.removePZRow = function(btn) {
     btn.closest('.pz-row').remove();
     _pzSyncEmptyState();
     updatePZSummary();
 };
 
-window.updatePZSummary = function() {
+globalThis.updatePZSummary = function() {
     let total = 0;
     document.querySelectorAll('#pzItemsContainer .pz-row').forEach(row => {
         const qty   = parseFloat(row.querySelector('.pz-qty').value)   || 0;
@@ -407,7 +407,7 @@ window.updatePZSummary = function() {
     document.getElementById('pzTotalValue').textContent = formatCurrency.format(total);
 };
 
-window.submitPZ = async function() {
+globalThis.submitPZ = async function() {
     const notes = document.getElementById('pzNotes').value.trim();
     const rows  = document.querySelectorAll('#pzItemsContainer .pz-row');
 
@@ -446,7 +446,7 @@ window.submitPZ = async function() {
     `;
 
     try {
-        const result = await window.WarehouseApi.postReceipt({
+        const result = await globalThis.WarehouseApi.postReceipt({
             warehouse_id:       getActiveWarehouse(),
             supplier_name:      notes || 'PZ — Control Tower',
             supplier_invoice:   '',
@@ -537,7 +537,7 @@ function showToast(type, message) {
 // 7. SILNIK MODALU RW — Rozchód Wewnętrzny / Strata
 // =============================================================================
 
-window.openRWModal = function(skuPreselect = null) {
+globalThis.openRWModal = function(skuPreselect = null) {
     const modal  = document.getElementById('rwModal');
     const select = document.getElementById('rw-item-select');
     const qty    = document.getElementById('rw-qty');
@@ -560,7 +560,7 @@ window.openRWModal = function(skuPreselect = null) {
     document.body.style.overflow = 'hidden';
 };
 
-window.closeRWModal = function() {
+globalThis.closeRWModal = function() {
     const modal = document.getElementById('rwModal');
     modal.classList.add('hidden');
     modal.classList.remove('flex');
@@ -571,7 +571,7 @@ window.closeRWModal = function() {
 // 8. SILNIK MODALU: NOWY SUROWIEC (Słownik sys_items)
 // =============================================================================
 
-window.openAddItemModal = function() {
+globalThis.openAddItemModal = function() {
     const modal = document.getElementById('addItemModal');
     document.getElementById('new-item-name').value  = '';
     document.getElementById('new-item-unit').value  = '';
@@ -586,14 +586,14 @@ window.openAddItemModal = function() {
     setTimeout(() => document.getElementById('new-item-name').focus(), 50);
 };
 
-window.closeAddItemModal = function() {
+globalThis.closeAddItemModal = function() {
     const modal = document.getElementById('addItemModal');
     modal.classList.add('hidden');
     modal.classList.remove('flex');
     document.body.style.overflow = '';
 };
 
-window.saveNewItem = async function() {
+globalThis.saveNewItem = async function() {
     const name     = document.getElementById('new-item-name').value.trim();
     const unit     = document.getElementById('new-item-unit').value;
     const vat      = document.getElementById('new-item-vat').value;
@@ -631,7 +631,7 @@ window.saveNewItem = async function() {
     `;
 
     try {
-        const result = await window.WarehouseApi.postAddItem({
+        const result = await globalThis.WarehouseApi.postAddItem({
             name,
             base_unit: unit,
             sku,
@@ -657,7 +657,7 @@ window.saveNewItem = async function() {
     }
 };
 
-window.submitRW = async function() {
+globalThis.submitRW = async function() {
     const sku    = document.getElementById('rw-item-select').value;
     const qty    = parseFloat(document.getElementById('rw-qty').value);
     const reason = document.getElementById('rw-reason').value;
@@ -676,7 +676,7 @@ window.submitRW = async function() {
     `;
 
     try {
-        const result = await window.WarehouseApi.postInternalRw({
+        const result = await globalThis.WarehouseApi.postInternalRw({
             warehouse_id: getActiveWarehouse(),
             sku,
             qty,

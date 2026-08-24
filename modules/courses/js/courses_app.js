@@ -73,7 +73,7 @@ const App = (() => {
         if (navBadge) navBadge.textContent = uname;
         // Universal nav bar — hard URL redirects
         document.querySelectorAll('#nav-tabs .nav-tab[data-href]').forEach(tab => {
-            tab.addEventListener('click', () => { window.location.href = tab.dataset.href; });
+            tab.addEventListener('click', () => { globalThis.location.href = tab.dataset.href; });
         });
         startClock();
         poll();

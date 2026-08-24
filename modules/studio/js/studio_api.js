@@ -2,17 +2,17 @@
  * Studio Menu — canonical API client (api_menu_studio.php).
  * Wszystkie moduły Studio powinny wołać przez apiStudio() / StudioApi.post().
  */
-window.StudioApi = {
+globalThis.StudioApi = {
     endpoint() {
-        if (window.SliceHub && window.SliceHub.apiUrl) {
-            return window.SliceHub.apiUrl('/backoffice/api_menu_studio.php');
+        if (globalThis.SliceHub && globalThis.SliceHub.apiUrl) {
+            return globalThis.SliceHub.apiUrl('/backoffice/api_menu_studio.php');
         }
         return '../../api/backoffice/api_menu_studio.php';
     },
 
     async post(action, payload = {}) {
         const body = { action, ...payload };
-        return window.ApiClient.post(this.endpoint(), body);
+        return globalThis.ApiClient.post(this.endpoint(), body);
     },
 
     /** Payload z polem action (legacy migrate helper). */
@@ -29,4 +29,4 @@ window.StudioApi = {
 };
 
 /** Skrót używany w całym Studio. */
-window.apiStudio = (action, payload = {}) => window.StudioApi.post(action, payload);
+globalThis.apiStudio = (action, payload = {}) => globalThis.StudioApi.post(action, payload);

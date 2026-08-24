@@ -6,18 +6,18 @@
  */
 
 function studioApiBase() {
-    if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.getApiBase) {
-        return window.SliceHub.getApiBase();
+    if (typeof globalThis !== 'undefined' && globalThis.SliceHub && globalThis.SliceHub.getApiBase) {
+        return globalThis.SliceHub.getApiBase();
     }
-    if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.getApiFallback) {
-        return window.SliceHub.getApiFallback();
+    if (typeof globalThis !== 'undefined' && globalThis.SliceHub && globalThis.SliceHub.getApiFallback) {
+        return globalThis.SliceHub.getApiFallback();
     }
     return '/api';
 }
 
 function studioApiUrl(path) {
-    if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.apiUrl) {
-        return window.SliceHub.apiUrl(path);
+    if (typeof globalThis !== 'undefined' && globalThis.SliceHub && globalThis.SliceHub.apiUrl) {
+        return globalThis.SliceHub.apiUrl(path);
     }
     const base = studioApiBase();
     const p = String(path || '').trim();
@@ -144,7 +144,7 @@ async function callMenuApi(action, payload = {}) {
 }
 
 function redirectToLogin() {
-    window.location.href = studioLoginPath();
+    globalThis.location.href = studioLoginPath();
 }
 
 export const StudioApi = {

@@ -132,7 +132,7 @@
         return { status: 'ok' };
     }
 
-    window.SliceValidator = Object.freeze({
+    globalThis.SliceValidator = Object.freeze({
         UNITS_CANON,
         sanitizeKey,
         standardizeUnit,

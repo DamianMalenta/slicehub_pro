@@ -50,10 +50,10 @@ export function resolveAssetUrl(url) {
     const u = String(url).trim();
     if (!u) return '';
     if (/^(https?:|data:|blob:)/i.test(u)) return u;
-    const appBase = (window.SliceHub && window.SliceHub.getAppBase)
-        ? window.SliceHub.getAppBase()
+    const appBase = (globalThis.SliceHub && globalThis.SliceHub.getAppBase)
+        ? globalThis.SliceHub.getAppBase()
         : (function () {
-            const p = window.location.pathname || '';
+            const p = globalThis.location.pathname || '';
             const i = p.indexOf('/modules/');
             if (i > 0) return p.slice(0, i);
             return p.indexOf('/slicehub') !== -1 ? '/slicehub' : '';
@@ -721,7 +721,7 @@ function bindStageParallax(stageEl) {
     if (!stageEl || stageEl.dataset.parallaxBound === '1') return;
     stageEl.dataset.parallaxBound = '1';
 
-    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const reducedMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     if (reducedMotion) return;
 
     const setVars = (x, y) => {
@@ -739,7 +739,7 @@ function bindStageParallax(stageEl) {
     });
     stageEl.addEventListener('pointerleave', reset);
 
-    window.addEventListener('deviceorientation', (ev) => {
+    globalThis.addEventListener('deviceorientation', (ev) => {
         if (typeof ev.gamma !== 'number' || typeof ev.beta !== 'number') return;
         const x = Math.max(-10, Math.min(10, ev.gamma)) * 0.8;
         const y = Math.max(-8, Math.min(8, ev.beta - 45)) * 0.35;

@@ -8,7 +8,7 @@
   const tenantId = meta ? parseInt(meta.content, 10) : 1;
 
   function apiUrl(path) {
-    if (window.SliceHub && window.SliceHub.apiUrl) return window.SliceHub.apiUrl(path);
+    if (globalThis.SliceHub && globalThis.SliceHub.apiUrl) return globalThis.SliceHub.apiUrl(path);
     return '../../../api' + (String(path || '').startsWith('/') ? path : '/' + path);
   }
 

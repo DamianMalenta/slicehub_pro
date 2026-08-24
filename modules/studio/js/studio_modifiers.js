@@ -1,13 +1,13 @@
 // 🪄 SLICEHUB STUDIO - MODUŁ MODYFIKATORÓW (V3.2 ENTERPRISE + SKU GRUPY)
 
-window.StudioState = window.StudioState || {};
-window.StudioState.modifierGroups = window.StudioState.modifierGroups || [];
-window.StudioState.products = window.StudioState.products || [];
-window.StudioState.warehouseItems = window.StudioState.warehouseItems || [];
-window.StudioState.activeModGroupId = null;
-window.StudioState.compactAssets = window.StudioState.compactAssets || null;
+globalThis.StudioState = globalThis.StudioState || {};
+globalThis.StudioState.modifierGroups = globalThis.StudioState.modifierGroups || [];
+globalThis.StudioState.products = globalThis.StudioState.products || [];
+globalThis.StudioState.warehouseItems = globalThis.StudioState.warehouseItems || [];
+globalThis.StudioState.activeModGroupId = null;
+globalThis.StudioState.compactAssets = globalThis.StudioState.compactAssets || null;
 
-window.ModifierInspector = {
+globalThis.ModifierInspector = {
     _esc(s) {
         const t = document.createElement('div');
         t.textContent = s == null ? '' : String(s);
@@ -15,19 +15,19 @@ window.ModifierInspector = {
     },
 
     async loadCompactAssets() {
-        if (window.StudioState.compactAssets !== null) return window.StudioState.compactAssets;
-        const r = await window.apiStudio('list_assets_compact');
+        if (globalThis.StudioState.compactAssets !== null) return globalThis.StudioState.compactAssets;
+        const r = await globalThis.apiStudio('list_assets_compact');
         if (r.success && r.data && Array.isArray(r.data.assets)) {
-            window.StudioState.compactAssets = r.data.assets;
+            globalThis.StudioState.compactAssets = r.data.assets;
         } else {
-            window.StudioState.compactAssets = [];
+            globalThis.StudioState.compactAssets = [];
             console.warn('[ModifierInspector] list_assets_compact:', r.message || 'empty');
         }
-        return window.StudioState.compactAssets;
+        return globalThis.StudioState.compactAssets;
     },
 
     _buildAssetSelectOptions(selectedId) {
-        const assets = window.StudioState.compactAssets || [];
+        const assets = globalThis.StudioState.compactAssets || [];
         let html = '<option value="">— brak —</option>';
         const sid = selectedId ? parseInt(selectedId, 10) : 0;
         for (const a of assets) {
@@ -49,7 +49,7 @@ window.ModifierInspector = {
     _findAssetById(id) {
         const aid = parseInt(id, 10) || 0;
         if (!aid) return null;
-        const assets = window.StudioState.compactAssets || [];
+        const assets = globalThis.StudioState.compactAssets || [];
         return assets.find(a => parseInt(a.id, 10) === aid) || null;
     },
 
@@ -179,7 +179,7 @@ window.ModifierInspector = {
         const currentId = hidden ? parseInt(hidden.value, 10) || 0 : 0;
 
         const preferred = this._roleHintsForSlot(role);
-        const assets = (window.StudioState.compactAssets || []).slice();
+        const assets = (globalThis.StudioState.compactAssets || []).slice();
 
         assets.sort((a, b) => {
             const aPref = preferred.includes(String(a.roleHint || '').toLowerCase()) ? 0 : 1;
@@ -357,18 +357,18 @@ window.ModifierInspector = {
     },
 
     async init() {
-        if (window.StudioState.products.length === 0) {
-            const result = await window.apiStudio('get_recipes_init');
+        if (globalThis.StudioState.products.length === 0) {
+            const result = await globalThis.apiStudio('get_recipes_init');
             if (result.success && result.data) {
-                window.StudioState.products = result.data.products || [];
+                globalThis.StudioState.products = result.data.products || [];
             } else {
                 console.warn("[ModifierInspector] Nie udało się pobrać słownika magazynu.", result.message);
             }
         }
-        if (window.StudioState.warehouseItems.length === 0) {
-            const whResult = await window.WarehouseApi.stockList();
+        if (globalThis.StudioState.warehouseItems.length === 0) {
+            const whResult = await globalThis.WarehouseApi.stockList();
             if (whResult.success && Array.isArray(whResult.data)) {
-                window.StudioState.warehouseItems = whResult.data;
+                globalThis.StudioState.warehouseItems = whResult.data;
             } else {
                 console.warn("[ModifierInspector] Nie udało się pobrać surowców z magazynu (GET_STOCK).", whResult.message);
             }
@@ -378,9 +378,9 @@ window.ModifierInspector = {
     },
 
     async loadModifiersFromDB() {
-        const result = await window.apiStudio('get_modifiers_full');
+        const result = await globalThis.apiStudio('get_modifiers_full');
         if (result.success === true && result.data) {
-            window.StudioState.modifierGroups = result.data;
+            globalThis.StudioState.modifierGroups = result.data;
         } else {
             console.error("[ModifierInspector] Błąd pobierania modyfikatorów z bazy:", result.message);
         }
@@ -412,7 +412,7 @@ window.ModifierInspector = {
     _showListInDrawer() {
         const drawer = document.getElementById('modifiers-drawer');
         if (!drawer) return;
-        const groups = window.StudioState.modifierGroups || [];
+        const groups = globalThis.StudioState.modifierGroups || [];
 
         const statusCls = {
             Live: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
@@ -426,12 +426,12 @@ window.ModifierInspector = {
                     <div class="text-[9px] font-black uppercase text-slate-500 tracking-widest">Modyfikatory</div>
                     <div class="text-white text-sm font-black">Grupy Modyfikatorów</div>
                 </div>
-                <button onclick="window.ModifierInspector.closeDrawer()" class="text-slate-400 hover:text-white w-9 h-9 rounded-lg hover:bg-white/5 transition flex items-center justify-center">
+                <button onclick="globalThis.ModifierInspector.closeDrawer()" class="text-slate-400 hover:text-white w-9 h-9 rounded-lg hover:bg-white/5 transition flex items-center justify-center">
                     <i class="fa-solid fa-xmark text-lg"></i>
                 </button>
             </header>
             <div class="p-5">
-                <button onclick="window.ModifierInspector._showFormInDrawer(0)" class="w-full mb-4 py-4 bg-green-900/40 text-green-400 border border-green-500/30 rounded-2xl flex items-center justify-center hover:bg-green-600 hover:text-white transition text-[10px] font-black uppercase">
+                <button onclick="globalThis.ModifierInspector._showFormInDrawer(0)" class="w-full mb-4 py-4 bg-green-900/40 text-green-400 border border-green-500/30 rounded-2xl flex items-center justify-center hover:bg-green-600 hover:text-white transition text-[10px] font-black uppercase">
                     <i class="fa-solid fa-plus mr-2"></i> Nowa Grupa
                 </button>
                 ${groups.length === 0 ? `
@@ -443,9 +443,9 @@ window.ModifierInspector = {
                     const optCount = (g.options || []).length;
                     const status = g.publicationStatus || 'Draft';
                     const sc = statusCls[status] || statusCls.Draft;
-                    const isActive = g.id === window.StudioState.activeModGroupId;
+                    const isActive = g.id === globalThis.StudioState.activeModGroupId;
                     return `
-                        <div onclick="window.ModifierInspector._showFormInDrawer(${g.id}).catch(()=>{})" class="bg-white/5 border ${isActive ? 'border-blue-500/50' : 'border-white/10'} rounded-2xl p-4 mb-3 cursor-pointer hover:border-blue-500/50 transition group">
+                        <div onclick="globalThis.ModifierInspector._showFormInDrawer(${g.id}).catch(()=>{})" class="bg-white/5 border ${isActive ? 'border-blue-500/50' : 'border-white/10'} rounded-2xl p-4 mb-3 cursor-pointer hover:border-blue-500/50 transition group">
                             <div class="flex items-center justify-between mb-2">
                                 <h3 class="text-[11px] font-black uppercase text-white group-hover:text-blue-400 transition truncate">${this._esc(g.name)}</h3>
                                 <span class="text-[8px] font-black uppercase ${sc} px-2 py-0.5 rounded border shrink-0">${status}</span>
@@ -478,7 +478,7 @@ window.ModifierInspector = {
         drawer.innerHTML = `
         <header class="sticky top-0 z-50 bg-[#0a0a0f]/95 backdrop-blur-xl border-b border-white/10 px-5 py-4 flex items-center justify-between">
             <div class="flex items-center gap-3">
-                <button onclick="window.ModifierInspector._showListInDrawer()" class="text-slate-400 hover:text-white w-8 h-8 rounded-lg hover:bg-white/5 transition flex items-center justify-center" title="Wróć do listy">
+                <button onclick="globalThis.ModifierInspector._showListInDrawer()" class="text-slate-400 hover:text-white w-8 h-8 rounded-lg hover:bg-white/5 transition flex items-center justify-center" title="Wróć do listy">
                     <i class="fa-solid fa-arrow-left"></i>
                 </button>
                 <div>
@@ -487,10 +487,10 @@ window.ModifierInspector = {
                 </div>
             </div>
             <div class="flex items-center gap-2">
-                <button id="btn-save-modifier" onclick="window.ModifierInspector.saveModifierGroup()" class="bg-blue-600 hover:bg-blue-500 text-white h-10 px-5 rounded-xl font-black uppercase text-[10px] shadow-lg opacity-50 cursor-not-allowed transition-all">
+                <button id="btn-save-modifier" onclick="globalThis.ModifierInspector.saveModifierGroup()" class="bg-blue-600 hover:bg-blue-500 text-white h-10 px-5 rounded-xl font-black uppercase text-[10px] shadow-lg opacity-50 cursor-not-allowed transition-all">
                     <i class="fa-solid fa-floppy-disk mr-1"></i> Zapisz
                 </button>
-                <button onclick="window.ModifierInspector.closeDrawer()" class="text-slate-400 hover:text-white w-9 h-9 rounded-lg hover:bg-white/5 transition flex items-center justify-center">
+                <button onclick="globalThis.ModifierInspector.closeDrawer()" class="text-slate-400 hover:text-white w-9 h-9 rounded-lg hover:bg-white/5 transition flex items-center justify-center">
                     <i class="fa-solid fa-xmark text-lg"></i>
                 </button>
             </div>
@@ -583,24 +583,24 @@ window.ModifierInspector = {
         const container = document.getElementById('dynamic-tree-container');
         if(!container) return;
 
-        const groups = window.StudioState.modifierGroups || [];
+        const groups = globalThis.StudioState.modifierGroups || [];
         
         if(groups.length === 0) {
-            container.innerHTML = `<button onclick="window.ModifierInspector.createNewGroup().catch(()=>{})" class="w-full mb-4 py-3 bg-green-900/40 text-green-400 border border-green-500/30 rounded flex items-center justify-center hover:bg-green-600 hover:text-white transition text-[10px] font-black uppercase"><i class="fa-solid fa-plus mr-2"></i> Nowa Grupa</button>` + 
+            container.innerHTML = `<button onclick="globalThis.ModifierInspector.createNewGroup().catch(()=>{})" class="w-full mb-4 py-3 bg-green-900/40 text-green-400 border border-green-500/30 rounded flex items-center justify-center hover:bg-green-600 hover:text-white transition text-[10px] font-black uppercase"><i class="fa-solid fa-plus mr-2"></i> Nowa Grupa</button>` + 
             '<div class="text-center mt-10 text-slate-500 font-bold text-[10px] uppercase">Brak zapisanych grup w bazie.</div>'; 
             return; 
         }
 
-        container.innerHTML = `<button onclick="window.ModifierInspector.createNewGroup().catch(()=>{})" class="w-full mb-4 py-3 bg-green-900/40 text-green-400 border border-green-500/30 rounded flex items-center justify-center hover:bg-green-600 hover:text-white transition text-[10px] font-black uppercase"><i class="fa-solid fa-plus mr-2"></i> Nowa Grupa</button>` + 
+        container.innerHTML = `<button onclick="globalThis.ModifierInspector.createNewGroup().catch(()=>{})" class="w-full mb-4 py-3 bg-green-900/40 text-green-400 border border-green-500/30 rounded flex items-center justify-center hover:bg-green-600 hover:text-white transition text-[10px] font-black uppercase"><i class="fa-solid fa-plus mr-2"></i> Nowa Grupa</button>` + 
         groups.map(g => `
-            <div onclick="window.ModifierInspector.selectGroup(${g.id}).catch(()=>{})" class="p-4 bg-white/5 border border-white/5 rounded-xl mb-2 cursor-pointer hover:border-blue-500/50 transition flex justify-between items-center group ${g.id === window.StudioState.activeModGroupId ? 'border-blue-500 bg-blue-900/10' : ''}">
+            <div onclick="globalThis.ModifierInspector.selectGroup(${g.id}).catch(()=>{})" class="p-4 bg-white/5 border border-white/5 rounded-xl mb-2 cursor-pointer hover:border-blue-500/50 transition flex justify-between items-center group ${g.id === globalThis.StudioState.activeModGroupId ? 'border-blue-500 bg-blue-900/10' : ''}">
                 <div><h3 class="text-[11px] font-black uppercase text-white group-hover:text-blue-400 transition">${g.name}</h3></div>
                 <i class="fa-solid fa-chevron-right text-[10px] text-slate-700"></i>
             </div>`).join('');
     },
 
     async createNewGroup() {
-        window.StudioState.activeModGroupId = 0;
+        globalThis.StudioState.activeModGroupId = 0;
         this.renderGroupList(); 
         
         document.getElementById('insp-mod-name').innerText = "Nowa Grupa";
@@ -630,10 +630,10 @@ window.ModifierInspector = {
     },
 
     async selectGroup(id) {
-        window.StudioState.activeModGroupId = id;
+        globalThis.StudioState.activeModGroupId = id;
         this.renderGroupList(); 
 
-        const group = window.StudioState.modifierGroups.find(g => g.id === id);
+        const group = globalThis.StudioState.modifierGroups.find(g => g.id === id);
         if(!group) return;
 
         document.getElementById('insp-mod-name').innerText = group.name;
@@ -677,9 +677,9 @@ window.ModifierInspector = {
                </div>
                <div class="flex items-center gap-2">
                    <input type="number" id="quick-mod-price" step="0.01" class="w-20 bg-black p-2 text-[11px] font-bold rounded-xl border border-blue-500/30 text-right text-white outline-none" placeholder="0.00">
-                   <button onclick="window.ModifierInspector.quickAdjust('add')" class="bg-blue-600 text-white w-9 h-9 rounded-xl flex items-center justify-center hover:bg-blue-500 transition shadow"><i class="fa-solid fa-plus text-[10px]"></i></button>
-                   <button onclick="window.ModifierInspector.quickAdjust('sub')" class="bg-red-600 text-white w-9 h-9 rounded-xl flex items-center justify-center hover:bg-red-500 transition shadow"><i class="fa-solid fa-minus text-[10px]"></i></button>
-                   <button onclick="window.ModifierInspector.quickAdjust('set')" class="bg-green-600 text-white w-9 h-9 rounded-xl flex items-center justify-center hover:bg-green-500 transition shadow"><i class="fa-solid fa-equals text-[10px]"></i></button>
+                   <button onclick="globalThis.ModifierInspector.quickAdjust('add')" class="bg-blue-600 text-white w-9 h-9 rounded-xl flex items-center justify-center hover:bg-blue-500 transition shadow"><i class="fa-solid fa-plus text-[10px]"></i></button>
+                   <button onclick="globalThis.ModifierInspector.quickAdjust('sub')" class="bg-red-600 text-white w-9 h-9 rounded-xl flex items-center justify-center hover:bg-red-500 transition shadow"><i class="fa-solid fa-minus text-[10px]"></i></button>
+                   <button onclick="globalThis.ModifierInspector.quickAdjust('set')" class="bg-green-600 text-white w-9 h-9 rounded-xl flex items-center justify-center hover:bg-green-500 transition shadow"><i class="fa-solid fa-equals text-[10px]"></i></button>
                </div>
             </div>
 
@@ -700,7 +700,7 @@ window.ModifierInspector = {
         addBtn.id = 'btn-add-option-row';
         addBtn.className = 'w-full mt-4 py-5 border-2 border-dashed border-green-500/20 rounded-2xl text-[10px] font-black uppercase text-slate-500 hover:text-green-400 hover:border-green-500/50 transition flex items-center justify-center gap-2';
         addBtn.innerHTML = '<i class="fa-solid fa-plus-circle"></i> Kreator Nowego Dodatku';
-        addBtn.onclick = () => window.ModifierInspector.openCreatorPanel();
+        addBtn.onclick = () => globalThis.ModifierInspector.openCreatorPanel();
         list.appendChild(addBtn);
     },
 
@@ -735,9 +735,9 @@ window.ModifierInspector = {
         const qty = opt.linkedQuantity !== undefined ? opt.linkedQuantity : (opt.qty || '');
         const linkedWaste = opt.linkedWastePercent !== undefined ? opt.linkedWastePercent : (opt.wastePercent || '0');
 
-        const warehouseSource = window.StudioState.warehouseItems.length
-            ? window.StudioState.warehouseItems
-            : window.StudioState.products;
+        const warehouseSource = globalThis.StudioState.warehouseItems.length
+            ? globalThis.StudioState.warehouseItems
+            : globalThis.StudioState.products;
         let skuOptions = '<option value="">-- Wybierz surowiec --</option>';
         warehouseSource.forEach(p => {
             const selected = p.sku === linkedSku ? 'selected' : '';
@@ -776,7 +776,7 @@ window.ModifierInspector = {
                 </div>
                 <div class="col-span-1 text-right flex flex-col items-end gap-2 lock-opt-warehouse">
                     <button type="button" onclick="this.closest('.mod-option-row').remove()" class="opt-remove-btn text-slate-600 hover:text-red-500 transition px-2" title="Usuń z grupy"><i class="fa-solid fa-trash-can"></i></button>
-                    <button type="button" onclick="window.ModifierInspector.toggleAdvanced(this)" class="opt-advanced-btn text-[8px] uppercase font-bold text-slate-500 hover:text-blue-400 transition" title="Logika Magazynowa"><i class="fa-solid fa-gear"></i></button>
+                    <button type="button" onclick="globalThis.ModifierInspector.toggleAdvanced(this)" class="opt-advanced-btn text-[8px] uppercase font-bold text-slate-500 hover:text-blue-400 transition" title="Logika Magazynowa"><i class="fa-solid fa-gear"></i></button>
                 </div>
             </div>
 
@@ -788,7 +788,7 @@ window.ModifierInspector = {
                 
                 <div class="col-span-3 lock-opt-warehouse">
                     <label class="block text-[8px] font-black uppercase text-slate-500 mb-1">Akcja Magazynowa</label>
-                    <select class="opt-action w-full bg-black/50 border border-white/10 text-white text-[9px] rounded p-2 outline-none cursor-pointer" onchange="window.ModifierInspector.handleActionChange(this)">
+                    <select class="opt-action w-full bg-black/50 border border-white/10 text-white text-[9px] rounded p-2 outline-none cursor-pointer" onchange="globalThis.ModifierInspector.handleActionChange(this)">
                         <option value="NONE" ${actionType==='NONE'?'selected':''}>Tylko Tekst (NONE)</option>
                         <option value="ADD" ${actionType==='ADD'?'selected':''}>Dodaj Surowiec (ADD)</option>
                         <option value="REMOVE" ${actionType==='REMOVE'?'selected':''}>Usuń z receptury (REMOVE)</option>
@@ -815,7 +815,7 @@ window.ModifierInspector = {
                 <!-- F-S2.1 (2026-05-11): Size Pricing — przycisk otwiera modal z macierzą cen per rozmiar -->
                 <div class="col-span-12 pt-3 mt-1 border-t border-orange-500/15">
                     <button type="button"
-                            onclick="window.ModifierInspector.openSizePricingModal(${id}, '${(name || '').replace(/'/g, "\\'")}')"
+                            onclick="globalThis.ModifierInspector.openSizePricingModal(${id}, '${(name || '').replace(/'/g, "\\'")}')"
                             ${id > 0 ? '' : 'disabled'}
                             class="text-[9px] uppercase font-black bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 text-orange-300 rounded-lg px-3 py-2 transition flex items-center gap-2 disabled:opacity-30 disabled:cursor-not-allowed"
                             title="${id > 0 ? 'Edytuj cenę modyfikatora per rozmiar pizzy (Toast-style)' : 'Najpierw zapisz grupę, potem ustaw Size Pricing'}">
@@ -857,26 +857,26 @@ window.ModifierInspector = {
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
                 const role = btn.dataset.role;
-                window.ModifierInspector.openAssetPickerModal(row, role);
+                globalThis.ModifierInspector.openAssetPickerModal(row, role);
             });
         });
         const impactBox = row.querySelector('.opt-visual-impact');
         if (impactBox) {
             impactBox.addEventListener('change', () => {
-                window.ModifierInspector._refreshRowBadge(row);
-                window.ModifierInspector._refreshRowPreview(row);
+                globalThis.ModifierInspector._refreshRowBadge(row);
+                globalThis.ModifierInspector._refreshRowPreview(row);
             });
         }
         this._refreshRowVisual(row);
 
-        const group = window.StudioState.modifierGroups.find(g => g.id === window.StudioState.activeModGroupId);
+        const group = globalThis.StudioState.modifierGroups.find(g => g.id === globalThis.StudioState.activeModGroupId);
         if (group && group.isLockedByHq) this.applyFranchiseShieldForGroup(true);
     },
 
     toggleAdvanced(btn) {
         const panel = btn.closest('.mod-option-row').querySelector('.advanced-panel');
         panel.classList.toggle('hidden');
-        if(!panel.classList.contains('hidden') && window.StudioState.products.length === 0) {
+        if(!panel.classList.contains('hidden') && globalThis.StudioState.products.length === 0) {
             this.init(); 
         }
     },
@@ -946,19 +946,19 @@ window.ModifierInspector = {
         const slot = document.getElementById('modifier-creator-slot');
         if (!slot) return;
 
-        const warehouseSource = window.StudioState.warehouseItems.length
-            ? window.StudioState.warehouseItems
-            : window.StudioState.products;
+        const warehouseSource = globalThis.StudioState.warehouseItems.length
+            ? globalThis.StudioState.warehouseItems
+            : globalThis.StudioState.products;
 
         const skuOptionsHtml = '<option value="">-- Wybierz surowiec --</option>' +
             warehouseSource.map(p =>
                 `<option value="${p.sku}" data-base-unit="${p.base_unit || ''}">${p.name} (${p.sku})</option>`
             ).join('');
 
-        const activeGroup = window.StudioState.modifierGroups.find(g => g.id === window.StudioState.activeModGroupId);
+        const activeGroup = globalThis.StudioState.modifierGroups.find(g => g.id === globalThis.StudioState.activeModGroupId);
         const prefilledGroup = activeGroup ? activeGroup.name : '';
 
-        const datalistOptions = window.StudioState.modifierGroups.map(g =>
+        const datalistOptions = globalThis.StudioState.modifierGroups.map(g =>
             `<option value="${g.name}">`
         ).join('');
 
@@ -968,7 +968,7 @@ window.ModifierInspector = {
                 <h4 class="text-[10px] font-black uppercase text-green-400 tracking-widest flex items-center gap-2">
                     <i class="fa-solid fa-plus-circle"></i> Kreator Nowego Dodatku / Modyfikatora
                 </h4>
-                <button onclick="window.ModifierInspector.closeCreatorPanel()" class="text-slate-500 hover:text-red-400 transition w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-900/20">
+                <button onclick="globalThis.ModifierInspector.closeCreatorPanel()" class="text-slate-500 hover:text-red-400 transition w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-900/20">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
@@ -1022,7 +1022,7 @@ window.ModifierInspector = {
                 <div class="grid grid-cols-3 gap-3">
                     <div>
                         <label class="block text-[7px] font-black uppercase text-slate-500 mb-1">Typ Akcji</label>
-                        <select id="creator-action" onchange="window.ModifierInspector.handleCreatorActionChange(this)"
+                        <select id="creator-action" onchange="globalThis.ModifierInspector.handleCreatorActionChange(this)"
                             class="w-full bg-black/50 border border-white/10 rounded-xl p-2.5 text-white text-[9px] outline-none focus:border-amber-500 transition cursor-pointer">
                             <option value="NONE">Neutralny (NONE)</option>
                             <option value="ADD">+ Dodaje surowiec (ADD)</option>
@@ -1031,7 +1031,7 @@ window.ModifierInspector = {
                     </div>
                     <div class="col-span-2">
                         <label class="block text-[7px] font-black uppercase text-slate-500 mb-1">Surowiec z Magazynu</label>
-                        <select id="creator-sku" onchange="window.ModifierInspector.onCreatorSkuChange(this)"
+                        <select id="creator-sku" onchange="globalThis.ModifierInspector.onCreatorSkuChange(this)"
                             class="w-full bg-black/50 border border-white/10 rounded-xl p-2.5 text-white text-[9px] font-mono outline-none focus:border-amber-500 transition opacity-30 cursor-not-allowed" disabled>
                             ${skuOptionsHtml}
                         </select>
@@ -1072,11 +1072,11 @@ window.ModifierInspector = {
             </div>
 
             <div class="pt-4 border-t border-white/5 flex gap-3">
-                <button id="btn-save-modifier-draft" onclick="window.ModifierInspector.saveModifier()"
+                <button id="btn-save-modifier-draft" onclick="globalThis.ModifierInspector.saveModifier()"
                     class="flex-1 bg-green-600 hover:bg-green-500 active:scale-95 text-white font-black text-[11px] uppercase tracking-widest py-3 rounded-xl shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-all flex items-center justify-center gap-2">
                     <i class="fa-solid fa-floppy-disk"></i> Zapisz Modyfikator
                 </button>
-                <button onclick="window.ModifierInspector.closeCreatorPanel()"
+                <button onclick="globalThis.ModifierInspector.closeCreatorPanel()"
                     class="px-6 bg-white/5 border border-white/10 text-slate-400 hover:text-white font-black text-[10px] uppercase rounded-xl transition">
                     Anuluj
                 </button>
@@ -1188,7 +1188,7 @@ window.ModifierInspector = {
         }
 
         try {
-            const result = await window.StudioApi.postPayload(payload);
+            const result = await globalThis.StudioApi.postPayload(payload);
 
             if (!result.success) {
                 throw new Error(result.message || 'Błąd API.');
@@ -1196,7 +1196,7 @@ window.ModifierInspector = {
 
             this.closeCreatorPanel();
             await this.loadModifiersFromDB();
-            window.StudioToast.show('Modyfikator zapisany pomyślnie', 'success');
+            globalThis.StudioToast.show('Modyfikator zapisany pomyślnie', 'success');
             this._showListInDrawer();
 
         } catch (err) {
@@ -1204,7 +1204,7 @@ window.ModifierInspector = {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-2"></i> Zapisz Modyfikator';
             }
-            window.StudioToast.show('Błąd zapisu: ' + err.message, 'error');
+            globalThis.StudioToast.show('Błąd zapisu: ' + err.message, 'error');
             console.error('[SliceHub] SAVE_MODIFIER error:', err.message);
         }
     },
@@ -1219,8 +1219,8 @@ window.ModifierInspector = {
             if(type === 'sub') current = Math.max(0, current - val);
             if(type === 'set') current = val;
             
-            if (typeof window.SliceValidator !== 'undefined') {
-                const validated = window.SliceValidator.validatePrice(current);
+            if (typeof globalThis.SliceValidator !== 'undefined') {
+                const validated = globalThis.SliceValidator.validatePrice(current);
                 if (validated === null) current = 0;
             }
 
@@ -1253,12 +1253,12 @@ window.ModifierInspector = {
         const validFrom = document.getElementById('mod-valid-from').value || '';
         const validTo = document.getElementById('mod-valid-to').value || '';
 
-        if (!groupName) { window.StudioToast.show('Nazwa grupy jest wymagana', 'error'); return; }
-        if (!groupAsciiKey) { window.StudioToast.show('SKU Grupy jest wymagane (bez polskich znaków)', 'error'); return; }
-        if (groupAsciiKey.length < 3) { window.StudioToast.show('SKU Grupy musi mieć min. 3 znaki', 'error'); return; }
-        if (groupAsciiKey.length > 50) { window.StudioToast.show('SKU Grupy nie może przekraczać 50 znaków', 'error'); return; }
-        if (!/^[A-Z]/.test(groupAsciiKey)) { window.StudioToast.show('SKU Grupy musi zaczynać się od litery', 'error'); return; }
-        if (minSelection > maxSelection) { window.StudioToast.show('Minimum nie może być większe niż maksimum', 'error'); return; }
+        if (!groupName) { globalThis.StudioToast.show('Nazwa grupy jest wymagana', 'error'); return; }
+        if (!groupAsciiKey) { globalThis.StudioToast.show('SKU Grupy jest wymagane (bez polskich znaków)', 'error'); return; }
+        if (groupAsciiKey.length < 3) { globalThis.StudioToast.show('SKU Grupy musi mieć min. 3 znaki', 'error'); return; }
+        if (groupAsciiKey.length > 50) { globalThis.StudioToast.show('SKU Grupy nie może przekraczać 50 znaków', 'error'); return; }
+        if (!/^[A-Z]/.test(groupAsciiKey)) { globalThis.StudioToast.show('SKU Grupy musi zaczynać się od litery', 'error'); return; }
+        if (minSelection > maxSelection) { globalThis.StudioToast.show('Minimum nie może być większe niż maksimum', 'error'); return; }
 
         const options = [];
         let hasValidationError = false;
@@ -1282,22 +1282,22 @@ window.ModifierInspector = {
             const linkedWaste = parseFloat(row.querySelector('.opt-waste')?.value) || 0;
 
             if (!name || !cleanAscii) return;
-            if (cleanAscii.length < 2) { window.StudioToast.show(`Opcja "${name}": SKU min. 2 znaki`, 'error'); hasValidationError = true; return; }
-            if (cleanAscii.length > 50) { window.StudioToast.show(`Opcja "${name}": SKU max. 50 znaków`, 'error'); hasValidationError = true; return; }
+            if (cleanAscii.length < 2) { globalThis.StudioToast.show(`Opcja "${name}": SKU min. 2 znaki`, 'error'); hasValidationError = true; return; }
+            if (cleanAscii.length > 50) { globalThis.StudioToast.show(`Opcja "${name}": SKU max. 50 znaków`, 'error'); hasValidationError = true; return; }
 
-            if (typeof window.SliceValidator !== 'undefined') {
+            if (typeof globalThis.SliceValidator !== 'undefined') {
                 const channelLabels = ['POS', 'Takeaway', 'Delivery'];
                 [pricePos, priceTakeaway, priceDelivery].forEach((channelPrice, idx) => {
-                    const validated = window.SliceValidator.validatePrice(channelPrice);
+                    const validated = globalThis.SliceValidator.validatePrice(channelPrice);
                     if (validated === null) {
-                        window.StudioToast.show(`Błąd ceny: "${name}" (${channelLabels[idx]})`, 'error');
+                        globalThis.StudioToast.show(`Błąd ceny: "${name}" (${channelLabels[idx]})`, 'error');
                         hasValidationError = true;
                     }
                 });
             }
 
             if (actionType !== 'NONE' && !linkedSku) {
-                window.StudioToast.show(`Opcja "${name}": brak surowca dla akcji magazynowej`, 'error');
+                globalThis.StudioToast.show(`Opcja "${name}": brak surowca dla akcji magazynowej`, 'error');
                 hasValidationError = true;
             }
 
@@ -1327,7 +1327,7 @@ window.ModifierInspector = {
         });
 
         if (hasValidationError) return;
-        if (options.length === 0) { window.StudioToast.show('Dodaj przynajmniej jedną opcję', 'warning'); return; }
+        if (options.length === 0) { globalThis.StudioToast.show('Dodaj przynajmniej jedną opcję', 'warning'); return; }
 
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Zapisywanie...';
         btn.disabled = true;
@@ -1350,11 +1350,11 @@ window.ModifierInspector = {
         }
 
         try {
-            const result = await window.StudioApi.postPayload(payload);
+            const result = await globalThis.StudioApi.postPayload(payload);
 
             if (result.success === true) {
                 btn.innerHTML = '<i class="fa-solid fa-check mr-1"></i> Zapisano!';
-                window.StudioToast.show('Grupa zapisana pomyślnie', 'success');
+                globalThis.StudioToast.show('Grupa zapisana pomyślnie', 'success');
                 
                 const returnedId = result.data ? result.data.id : null;
                 if(groupId === 0 && returnedId) {
@@ -1377,7 +1377,7 @@ window.ModifierInspector = {
                 if (groupId === 0) {
                     const newGroupId = returnedId ? parseInt(returnedId, 10) : 0;
                     if (newGroupId > 0) {
-                        window.StudioState.modifierGroups.push({
+                        globalThis.StudioState.modifierGroups.push({
                             id: newGroupId,
                             name: groupName,
                             asciiKey: groupAsciiKey,
@@ -1390,10 +1390,10 @@ window.ModifierInspector = {
                             validTo: validTo,
                             options: options
                         });
-                        window.StudioState.activeModGroupId = newGroupId;
+                        globalThis.StudioState.activeModGroupId = newGroupId;
                     }
                 } else {
-                    const existingGroup = window.StudioState.modifierGroups.find(g => g.id === groupId);
+                    const existingGroup = globalThis.StudioState.modifierGroups.find(g => g.id === groupId);
                     if (existingGroup) {
                         existingGroup.name = groupName;
                         existingGroup.asciiKey = groupAsciiKey;
@@ -1408,14 +1408,14 @@ window.ModifierInspector = {
                     }
                 }
 
-                setTimeout(() => { window.ModifierInspector._showListInDrawer(); }, 800);
+                setTimeout(() => { globalThis.ModifierInspector._showListInDrawer(); }, 800);
             } else {
-                window.StudioToast.show('Błąd API: ' + (result.message || 'nieznany'), 'error');
+                globalThis.StudioToast.show('Błąd API: ' + (result.message || 'nieznany'), 'error');
                 btn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-1"></i> Zapisz';
                 btn.disabled = false;
             }
         } catch (error) {
-            window.StudioToast.show('Błąd połączenia z serwerem', 'error');
+            globalThis.StudioToast.show('Błąd połączenia z serwerem', 'error');
             btn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-1"></i> Zapisz';
             btn.disabled = false;
         }
@@ -1429,7 +1429,7 @@ window.ModifierInspector = {
 
     async openSizePricingModal(modifierId, modifierName) {
         if (!modifierId || modifierId <= 0) {
-            window.StudioToast.show('Najpierw zapisz grupę', 'warning');
+            globalThis.StudioToast.show('Najpierw zapisz grupę', 'warning');
             return;
         }
 
@@ -1437,11 +1437,11 @@ window.ModifierInspector = {
         let scalesRes, pricingRes;
         try {
             [scalesRes, pricingRes] = await Promise.all([
-                window.apiStudio('list_variant_scales'),
-                window.apiStudio('get_modifier_pricing', { modifier_id: modifierId })
+                globalThis.apiStudio('list_variant_scales'),
+                globalThis.apiStudio('get_modifier_pricing', { modifier_id: modifierId })
             ]);
         } catch (e) {
-            window.StudioToast.show('Błąd pobierania danych: ' + e.message, 'error');
+            globalThis.StudioToast.show('Błąd pobierania danych: ' + e.message, 'error');
             return;
         }
 
@@ -1475,7 +1475,7 @@ window.ModifierInspector = {
                 </div>
                 <div class="px-5 py-4 border-t border-white/10 flex justify-end gap-2">
                     <button onclick="document.getElementById('fs21-size-pricing-modal')?.remove()" class="px-4 py-2 text-[10px] uppercase font-black text-slate-400 hover:text-white">Anuluj</button>
-                    <button onclick="window.ModifierInspector._saveSizePricing(${modifierId})" id="fs21-save-btn" class="px-5 py-2 text-[10px] uppercase font-black bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 rounded-lg flex items-center gap-2"><i class="fa-solid fa-floppy-disk"></i> Zapisz cennik</button>
+                    <button onclick="globalThis.ModifierInspector._saveSizePricing(${modifierId})" id="fs21-save-btn" class="px-5 py-2 text-[10px] uppercase font-black bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 rounded-lg flex items-center gap-2"><i class="fa-solid fa-floppy-disk"></i> Zapisz cennik</button>
                 </div>
             </div>`;
         document.body.appendChild(modal);
@@ -1525,7 +1525,7 @@ window.ModifierInspector = {
         const btn = document.getElementById('fs21-save-btn');
         if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Zapisywanie...'; }
         try {
-            const r = await window.apiStudio('save_modifier_pricing', {
+            const r = await globalThis.apiStudio('save_modifier_pricing', {
                 modifier_id: modifierId,
                 pricing
             });
@@ -1533,26 +1533,26 @@ window.ModifierInspector = {
                 if (btn) btn.innerHTML = '<i class="fa-solid fa-check"></i> Zapisano';
                 setTimeout(() => document.getElementById('fs21-size-pricing-modal')?.remove(), 800);
             } else {
-                window.StudioToast.show('Błąd: ' + (r?.message || 'unknown'), 'error');
+                globalThis.StudioToast.show('Błąd: ' + (r?.message || 'unknown'), 'error');
                 if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Zapisz cennik'; }
             }
         } catch (e) {
             console.error('[F-S2.1] save_modifier_pricing', e);
-            window.StudioToast.show('Krytyczny błąd: ' + e.message, 'error');
+            globalThis.StudioToast.show('Krytyczny błąd: ' + e.message, 'error');
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Zapisz cennik'; }
         }
     }
 };
 
-window.addEventListener('load', () => {
-    window.ModifierInspector.init();
+globalThis.addEventListener('load', () => {
+    globalThis.ModifierInspector.init();
 
-    if(window.Core && typeof window.Core.switchView === 'function') {
-        const originalSwitch = window.Core.switchView;
-        window.Core.switchView = function(viewId) {
-            originalSwitch.call(window.Core, viewId);
+    if(globalThis.Core && typeof globalThis.Core.switchView === 'function') {
+        const originalSwitch = globalThis.Core.switchView;
+        globalThis.Core.switchView = function(viewId) {
+            originalSwitch.call(globalThis.Core, viewId);
             if (viewId === 'menu') {
-                if (window.Core.renderTree) window.Core.renderTree(); 
+                if (globalThis.Core.renderTree) globalThis.Core.renderTree(); 
             }
         };
     }

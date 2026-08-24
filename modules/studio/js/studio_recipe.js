@@ -1,6 +1,6 @@
 const _eR = s => { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; };
 
-window.RecipeMapper = {
+globalThis.RecipeMapper = {
     state: { 
         products: [], 
         currentRecipe: [],
@@ -8,7 +8,7 @@ window.RecipeMapper = {
     },
 
     async fetchApi(action, payload = {}) {
-        return window.apiStudio(action, payload);
+        return globalThis.apiStudio(action, payload);
     },
 
     async init() {
@@ -20,13 +20,13 @@ window.RecipeMapper = {
         }
         // M1: Warehouse items (quantity + avco) — używane przez stock badge i fuzzy search.
         // ModifierInspector też to ładuje; dzielimy cache w StudioState.warehouseItems.
-        window.StudioState = window.StudioState || {};
-        if (!Array.isArray(window.StudioState.warehouseItems) || window.StudioState.warehouseItems.length === 0) {
+        globalThis.StudioState = globalThis.StudioState || {};
+        if (!Array.isArray(globalThis.StudioState.warehouseItems) || globalThis.StudioState.warehouseItems.length === 0) {
             try {
-                if (window.WarehouseApi && typeof window.WarehouseApi.stockList === 'function') {
-                    const wh = await window.WarehouseApi.stockList();
+                if (globalThis.WarehouseApi && typeof globalThis.WarehouseApi.stockList === 'function') {
+                    const wh = await globalThis.WarehouseApi.stockList();
                     if (wh && wh.success && Array.isArray(wh.data)) {
-                        window.StudioState.warehouseItems = wh.data;
+                        globalThis.StudioState.warehouseItems = wh.data;
                     }
                 }
             } catch (err) {
@@ -196,7 +196,7 @@ window.RecipeMapper = {
                 ? `<span class="text-[8px] text-slate-600 ml-1">· ${_eR(entry.aliasTerms.slice(0, 3).join(', '))}</span>`
                 : '';
             return `
-                <div class="search-result-card flex items-center justify-between gap-3 p-2.5 border-b border-white/5 cursor-pointer hover:bg-blue-500/20 transition ${added ? 'opacity-40' : ''}" data-sku="${_eR(entry.sku)}" onclick="window.RecipeMapper.selectSearchResult('${_eR(entry.sku)}')">
+                <div class="search-result-card flex items-center justify-between gap-3 p-2.5 border-b border-white/5 cursor-pointer hover:bg-blue-500/20 transition ${added ? 'opacity-40' : ''}" data-sku="${_eR(entry.sku)}" onclick="globalThis.RecipeMapper.selectSearchResult('${_eR(entry.sku)}')">
                     <div class="flex-1 min-w-0">
                         <div class="text-[11px] font-black text-white truncate">${_eR(entry.name)}${added ? ' <span class=\"text-[8px] text-green-400\">(już w recepturze)</span>' : ''}</div>
                         <div class="text-[8px] font-mono text-slate-500 truncate">${_eR(entry.sku)}${aliasHtml}</div>
@@ -393,7 +393,7 @@ window.RecipeMapper = {
 
     // ─── Stock info helper ─────────────────────────────────────────────────
     _getStockInfo(sku) {
-        const items = window.StudioState?.warehouseItems || [];
+        const items = globalThis.StudioState?.warehouseItems || [];
         const row = items.find(x => x.sku === sku);
         if (!row) return null;
         const qty = parseFloat(row.quantity) || 0;
@@ -618,7 +618,7 @@ window.RecipeMapper = {
     },
 
     async _triggerMarginUpdate() {
-        if (!window.MarginGuardian || !window.MarginGuardian.initialized) return;
+        if (!globalThis.MarginGuardian || !globalThis.MarginGuardian.initialized) return;
         const vatDineIn   = parseFloat(document.getElementById('item-vat-dine-in')?.value)   || 0;
         const vatTakeaway = parseFloat(document.getElementById('item-vat-takeaway')?.value)  || 0;
         const priceTiers = [
@@ -626,12 +626,12 @@ window.RecipeMapper = {
             { channel: 'Takeaway', price: parseFloat(document.getElementById('item-price-takeaway')?.value) || 0, vatRate: vatTakeaway },
             { channel: 'Delivery', price: parseFloat(document.getElementById('item-price-delivery')?.value) || 0, vatRate: vatTakeaway },
         ];
-        await window.MarginGuardian.ensureRecipeCosts(
+        await globalThis.MarginGuardian.ensureRecipeCosts(
             this.state.currentRecipe,
             this.state.currentMenuItemSku
         );
-        const results = window.MarginGuardian.calculate(priceTiers, this.state.currentRecipe);
-        window.MarginGuardian.render('margin-container', results);
+        const results = globalThis.MarginGuardian.calculate(priceTiers, this.state.currentRecipe);
+        globalThis.MarginGuardian.render('margin-container', results);
     },
 
     updateWaste(index, newWaste) {
@@ -658,7 +658,7 @@ window.RecipeMapper = {
         if (!row.isSubrecipe) {
             // Otwórz picker półproduktu — lista kandydatów z list_subrecipe_candidates.
             try {
-                const r = await window.apiStudio('list_subrecipe_candidates', {
+                const r = await globalThis.apiStudio('list_subrecipe_candidates', {
                     exclude_sku: this.state.currentMenuItemSku || ''
                 });
                 const candidates = r?.data?.candidates || [];
@@ -742,8 +742,8 @@ window.RecipeMapper = {
         const container = document.getElementById('recipe-ingredients-list');
         if (!container) return;
 
-        const _avcoDict = (window.MarginGuardian && window.MarginGuardian.initialized)
-            ? window.MarginGuardian.avcoDict
+        const _avcoDict = (globalThis.MarginGuardian && globalThis.MarginGuardian.initialized)
+            ? globalThis.MarginGuardian.avcoDict
             : {};
 
         let totalCost = 0;
@@ -755,8 +755,8 @@ window.RecipeMapper = {
             const targetBaseUnit = ing.baseUnit || 'kg';
 
             let actualQtyInBaseUnits = 0;
-            if (typeof window.SliceValidator !== 'undefined') {
-                const conversion = window.SliceValidator.convert(rawQty, usageUnit, targetBaseUnit);
+            if (typeof globalThis.SliceValidator !== 'undefined') {
+                const conversion = globalThis.SliceValidator.convert(rawQty, usageUnit, targetBaseUnit);
                 actualQtyInBaseUnits = conversion.success ? conversion.value : 0;
             } else {
                 actualQtyInBaseUnits = rawQty;
@@ -841,26 +841,26 @@ window.RecipeMapper = {
                 </div>
                 <input type="number" step="0.001" min="0" value="${d.ing.quantityBase}"
                        class="w-16 bg-transparent border border-white/20 text-white text-center text-[11px] p-1 rounded outline-none focus:border-blue-500"
-                       onchange="window.RecipeMapper.updateQty(${index}, this.value)" title="Ilość w jednostce użytkowej">
+                       onchange="globalThis.RecipeMapper.updateQty(${index}, this.value)" title="Ilość w jednostce użytkowej">
                 <select class="bg-black/50 border border-white/10 text-white text-[10px] rounded p-1 outline-none focus:border-blue-500 cursor-pointer"
-                        onchange="window.RecipeMapper.updateUnit(${index}, this.value)" title="Jednostka">
+                        onchange="globalThis.RecipeMapper.updateUnit(${index}, this.value)" title="Jednostka">
                     ${['g','ml','kg','l','szt','por','opak'].map(u => `<option value="${u}" ${u === d.usageUnit ? 'selected' : ''}>${u}</option>`).join('')}
                 </select>
                 <input type="number" step="0.1" min="0" max="100" value="${d.wastePct}"
                        class="w-12 bg-transparent border border-amber-500/30 text-amber-300 text-center text-[10px] p-1 rounded outline-none focus:border-amber-500"
-                       onchange="window.RecipeMapper.updateWaste(${index}, this.value)" title="Ubytek %">
+                       onchange="globalThis.RecipeMapper.updateWaste(${index}, this.value)" title="Ubytek %">
                 ${isSub
-                    ? `<input type="number" step="0.1" min="0.1" value="${d.ing.subrecipeYield || 1}" title="Yield: liczba porcji z 1 batchu półproduktu" class="w-14 bg-transparent border border-orange-500/40 text-orange-300 text-center text-[10px] p-1 rounded outline-none focus:border-orange-500" onchange="window.RecipeMapper.updateSubrecipeYield(${index}, this.value)" placeholder="yield">`
+                    ? `<input type="number" step="0.1" min="0.1" value="${d.ing.subrecipeYield || 1}" title="Yield: liczba porcji z 1 batchu półproduktu" class="w-14 bg-transparent border border-orange-500/40 text-orange-300 text-center text-[10px] p-1 rounded outline-none focus:border-orange-500" onchange="globalThis.RecipeMapper.updateSubrecipeYield(${index}, this.value)" placeholder="yield">`
                     : '<span class="w-14 inline-block"></span>'
                 }
                 <button class="text-[9px] font-black uppercase px-2 py-1 rounded ${isSub ? 'bg-orange-500/20 border border-orange-500/40 text-orange-300 hover:bg-orange-500/30' : 'bg-slate-800/50 border border-white/10 text-slate-400 hover:bg-slate-700'} transition"
-                        onclick="window.RecipeMapper.toggleSubrecipe(${index})"
+                        onclick="globalThis.RecipeMapper.toggleSubrecipe(${index})"
                         title="F-S5.1: ${isSub ? 'Wyłącz tryb półproduktu (wróci do surowca z magazynu)' : 'Włącz tryb półproduktu (warehouse_sku = ascii_key innej pozycji menu)'}">
                     <i class="fa-solid fa-recycle"></i>
                 </button>
                 <span class="text-slate-400 text-[10px] font-mono w-20 text-right shrink-0" title="Koszt wiersza (AVCO × qty × (1+waste%))">${rowCostStr}</span>
                 <button class="bg-red-900/30 hover:bg-red-600 text-red-200 hover:text-white w-7 h-7 rounded transition text-[10px] flex items-center justify-center shrink-0"
-                        onclick="window.RecipeMapper.removeIngredient(${index})" title="Usuń z receptury">
+                        onclick="globalThis.RecipeMapper.removeIngredient(${index})" title="Usuń z receptury">
                     <i class="fa-solid fa-trash-can"></i>
                 </button>
             </div>
@@ -871,13 +871,13 @@ window.RecipeMapper = {
         html += `
             <div class="recipe-footer sticky bottom-0 mt-3 pt-3 border-t border-white/10 bg-[#0a0a0f]/95 backdrop-blur space-y-2">
                 <button type="button"
-                        onclick="window.RecipeMapper.openCloneRecipeModal()"
+                        onclick="globalThis.RecipeMapper.openCloneRecipeModal()"
                         class="w-full bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 font-black text-[10px] uppercase tracking-widest py-2 rounded-xl transition flex items-center justify-center gap-2"
                         title="F-S4: skopiuj recepturę z innej pozycji menu">
                     <i class="fa-solid fa-copy"></i> Skopiuj z innej pozycji
                 </button>
                 <button type="button" id="btn-save-recipe"
-                        onclick="window.RecipeMapper.saveItemRecipe()"
+                        onclick="globalThis.RecipeMapper.saveItemRecipe()"
                         class="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-black text-[11px] uppercase tracking-widest py-3 rounded-xl shadow-[0_0_15px_rgba(147,51,234,0.3)] transition-all flex items-center justify-center gap-2">
                     <i class="fa-solid fa-floppy-disk"></i> Zapisz Recepturę (${this.state.currentRecipe.length})
                 </button>
@@ -993,7 +993,7 @@ window.RecipeMapper = {
         const targetKey = this.state.currentMenuItemSku;
 
         // Lista dostępnych pozycji z aktualnego StudioState (uniknij ekstra API call).
-        const tree = window.StudioState?.menuTree || [];
+        const tree = globalThis.StudioState?.menuTree || [];
         const allItems = [];
         tree.forEach(cat => (cat.items || []).forEach(it => {
             if (it.asciiKey && it.asciiKey !== targetKey) {
@@ -1052,7 +1052,7 @@ window.RecipeMapper = {
     async confirmCloneRecipe(srcKey, dstKey) {
         if (!confirm(`Skopiować recepturę z "${srcKey}" do "${dstKey}"?\n\nIstniejąca receptura ${dstKey} zostanie ZASTĄPIONA.`)) return;
         try {
-            const r = await window.apiStudio('clone_recipe', {
+            const r = await globalThis.apiStudio('clone_recipe', {
                 source_ascii_key: srcKey,
                 target_ascii_key: dstKey,
             });
@@ -1062,8 +1062,8 @@ window.RecipeMapper = {
                 // Reload bieżącej receptury w UI.
                 if (this.loadItemRecipe) {
                     await this.loadItemRecipe(dstKey);
-                } else if (typeof window.loadMenuTree === 'function') {
-                    await window.loadMenuTree();
+                } else if (typeof globalThis.loadMenuTree === 'function') {
+                    await globalThis.loadMenuTree();
                 }
             } else {
                 alert('❌ ' + (r?.message || 'unknown error'));
@@ -1075,6 +1075,6 @@ window.RecipeMapper = {
     }
 };
 
-window.addEventListener('DOMContentLoaded', () => {
-    window.RecipeMapper.init();
+globalThis.addEventListener('DOMContentLoaded', () => {
+    globalThis.RecipeMapper.init();
 });

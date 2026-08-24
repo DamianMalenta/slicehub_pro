@@ -148,7 +148,7 @@ function hoursToWeekList(week) {
  * Lazy Leaflet loader — avoids shipping 40kB when doorway isn't opened.
  */
 async function ensureLeaflet() {
-    if (window.L) return window.L;
+    if (globalThis.L) return globalThis.L;
     await new Promise((resolve, reject) => {
         const css = document.createElement('link');
         css.rel = 'stylesheet';
@@ -161,7 +161,7 @@ async function ensureLeaflet() {
         script.onerror = reject;
         document.head.appendChild(script);
     });
-    return window.L;
+    return globalThis.L;
 }
 
 function renderMap(container, coords, label) {
@@ -250,7 +250,7 @@ export async function mountDoorway({ api, onEnter, initialChannel = 'Delivery' }
     const body    = document.body;
 
     // ?skip=doors — omija Scenę Drzwi (np. deep-link z SMSa/maila/tracking).
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(globalThis.location.search);
     if (params.get('skip') === 'doors') {
         doorway?.remove();
         body.classList.add('is-door-entered');

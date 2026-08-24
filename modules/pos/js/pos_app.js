@@ -103,7 +103,7 @@ const PosApp = (() => {
 
         // Universal nav bar — hard URL redirects (micro-frontend routing)
         document.querySelectorAll('#nav-tabs .nav-tab[data-href]').forEach(tab => {
-            tab.addEventListener('click', () => { window.location.href = tab.dataset.href; });
+            tab.addEventListener('click', () => { globalThis.location.href = tab.dataset.href; });
         });
 
         // Order type buttons
@@ -145,7 +145,7 @@ const PosApp = (() => {
     // URL INTENT PARSER (Cart-First bridge from Table Map)
     // =========================================================================
     function _parseUrlIntent() {
-        const params = new URLSearchParams(window.location.search);
+        const params = new URLSearchParams(globalThis.location.search);
         if (!params.toString()) return null;
 
         const intent = {
@@ -157,7 +157,7 @@ const PosApp = (() => {
         };
 
         // Clean URL to prevent re-processing on manual refresh
-        history.replaceState(null, '', window.location.pathname);
+        history.replaceState(null, '', globalThis.location.pathname);
 
         if (intent.editOrderId || intent.tableId || intent.orderType) return intent;
         return null;
@@ -313,13 +313,13 @@ const PosApp = (() => {
 
         // P4: po udanym replayu outboxu (offline → online) UI refetchuje listę,
         // żeby pokazać realne server-side IDs i statusy zamiast optymistycznych.
-        window.addEventListener('slicehub-pos:outbox-replayed', () => {
+        globalThis.addEventListener('slicehub-pos:outbox-replayed', () => {
             _fetchOrders();
         });
 
         // P3.5: gdy serwer wypchnie nowe zdarzenie przez pull_since (np. storefront
         // utworzył zamówienie, KDS zmienił status), odświeżamy listę.
-        window.addEventListener('slicehub-pos:server-event', (e) => {
+        globalThis.addEventListener('slicehub-pos:server-event', (e) => {
             const ev = e.detail || {};
             if (!ev.event_type) return;
             // Order-related events — reaguj tylko na ten typ, żeby nie robić
@@ -594,7 +594,7 @@ const PosApp = (() => {
         addBtn.id = 'fs31-add-meal-btn';
         addBtn.className = 'sh-meal-add-btn';
         addBtn.innerHTML = '<i class="fa-solid fa-cart-plus"></i> Dodaj zestaw do koszyka';
-        addBtn.onclick = () => window.PosMealCart._confirm(meal._mealId);
+        addBtn.onclick = () => globalThis.PosMealCart._confirm(meal._mealId);
         footer.appendChild(addBtn);
         panel.appendChild(footer);
 
@@ -603,8 +603,8 @@ const PosApp = (() => {
         document.body.appendChild(modal);
 
         // Eksponuj confirm jako method do button onclick
-        window.PosMealCart = window.PosMealCart || {};
-        window.PosMealCart._confirm = (mealId) => {
+        globalThis.PosMealCart = globalThis.PosMealCart || {};
+        globalThis.PosMealCart._confirm = (mealId) => {
             const picks = [];
             modal.querySelectorAll('.fs31-choice-pick').forEach(sel => {
                 if (sel.value) picks.push({ component_id: parseInt(sel.dataset.componentId, 10), sku: sel.value });

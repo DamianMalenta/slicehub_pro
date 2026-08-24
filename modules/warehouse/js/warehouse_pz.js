@@ -10,11 +10,11 @@
         initPz();
     });
 
-    window.initPz = async function () {
+    globalThis.initPz = async function () {
         await loadWarehousePicker('pz-warehouse');
 
-        const wid = document.getElementById('pz-warehouse')?.value || window.WarehouseApi.DEFAULT_WAREHOUSE_ID;
-        const res = await window.WarehouseApi.stockList(wid);
+        const wid = document.getElementById('pz-warehouse')?.value || globalThis.WarehouseApi.DEFAULT_WAREHOUSE_ID;
+        const res = await globalThis.WarehouseApi.stockList(wid);
         if (!res.success || !Array.isArray(res.data)) {
             console.error('[PZ] stock_list', res.message);
             alert(res.message || 'Brak danych magazynowych.');
@@ -25,18 +25,18 @@
         const whEl = document.getElementById('pz-warehouse');
         if (whEl) {
             whEl.addEventListener('change', async () => {
-                const r = await window.WarehouseApi.stockList(whEl.value);
+                const r = await globalThis.WarehouseApi.stockList(whEl.value);
                 if (r.success && Array.isArray(r.data)) stockRows = r.data;
             });
         }
 
-        window.addRow();
+        globalThis.addRow();
     };
 
     async function loadWarehousePicker(selectId) {
         const sel = document.getElementById(selectId);
         if (!sel) return;
-        const res = await window.WarehouseApi.getWarehouseList();
+        const res = await globalThis.WarehouseApi.getWarehouseList();
         if (res.success && Array.isArray(res.data) && res.data.length > 0) {
             sel.innerHTML = '<option value="">— magazyn —</option>';
             res.data.forEach(wh => {
@@ -45,7 +45,7 @@
                 sel.innerHTML += `<option value="${escapeAttr(id)}">${escapeHtml(label)}</option>`;
             });
         } else {
-            const wid = window.WarehouseApi.DEFAULT_WAREHOUSE_ID;
+            const wid = globalThis.WarehouseApi.DEFAULT_WAREHOUSE_ID;
             sel.innerHTML = `<option value="">— magazyn —</option><option value="${wid}">Magazyn główny (${wid})</option>`;
         }
         const saved = localStorage.getItem('sh_warehouse_id');
@@ -78,7 +78,7 @@
             .replace(/</g, '&lt;');
     }
 
-    window.addRow = function () {
+    globalThis.addRow = function () {
         const tbody = document.getElementById('pz-items');
         if (!tbody) return;
         const rowId = Date.now();
@@ -114,7 +114,7 @@
                 class="w-28 bg-black border border-white/10 rounded-lg p-3 text-center text-white font-mono outline-none focus:border-green-500 transition invoice-price">
         </td>
         <td class="py-4 text-right">
-            <button type="button" onclick="window.removeRow(${rowId})" class="text-slate-600 hover:text-red-500 transition px-3 opacity-0 group-hover:opacity-100">
+            <button type="button" onclick="globalThis.removeRow(${rowId})" class="text-slate-600 hover:text-red-500 transition px-3 opacity-0 group-hover:opacity-100">
                 <i class="fa-solid fa-trash-can"></i>
             </button>
         </td>`;
@@ -159,11 +159,11 @@
 
         try {
             const token = localStorage.getItem('sh_token') || '';
-            const fb = (window.SliceHub && window.SliceHub.getApiFallback)
-                ? window.SliceHub.getApiFallback()
+            const fb = (globalThis.SliceHub && globalThis.SliceHub.getApiFallback)
+                ? globalThis.SliceHub.getApiFallback()
                 : '/api';
-            const suggestUrl = (window.SliceHub && window.SliceHub.apiUrl)
-                ? window.SliceHub.apiUrl('procurement/suggest.php')
+            const suggestUrl = (globalThis.SliceHub && globalThis.SliceHub.apiUrl)
+                ? globalThis.SliceHub.apiUrl('procurement/suggest.php')
                 : fb + '/procurement/suggest.php';
             const res = await fetch(suggestUrl, {
                 method: 'POST',
@@ -226,7 +226,7 @@
                 const ccls = c.match_type === 'EXACT' || c.match_type === 'ALIAS' ? 'text-emerald-400'
                           : c.match_type === 'NAME' ? 'text-amber-400'
                           : 'text-slate-400';
-                html += `<button type="button" class="block text-left text-[10px] ${ccls} hover:underline" onclick="window.applyAutoScanCandidate(this, '${escapeAttr(c.sku)}')"><i class="fa-solid fa-arrow-right text-[8px]"></i> ${escapeHtml(c.sku)} ${c.confidence}% (${escapeHtml(c.match_type)}) — ${escapeHtml(c.name)}</button>`;
+                html += `<button type="button" class="block text-left text-[10px] ${ccls} hover:underline" onclick="globalThis.applyAutoScanCandidate(this, '${escapeAttr(c.sku)}')"><i class="fa-solid fa-arrow-right text-[8px]"></i> ${escapeHtml(c.sku)} ${c.confidence}% (${escapeHtml(c.match_type)}) — ${escapeHtml(c.name)}</button>`;
             });
             html += '</div></details>';
         }
@@ -235,7 +235,7 @@
         statusEl.innerHTML = html;
     }
 
-    window.applyAutoScanCandidate = function (btn, sku) {
+    globalThis.applyAutoScanCandidate = function (btn, sku) {
         const tr = btn.closest('tr');
         if (!tr) return;
         const skuSelect = tr.querySelector('.system-sku');
@@ -250,12 +250,12 @@
         }
     };
 
-    window.removeRow = function (rowId) {
+    globalThis.removeRow = function (rowId) {
         const row = document.getElementById(`row-${rowId}`);
         if (row) row.remove();
     };
 
-    window.savePZ = async function () {
+    globalThis.savePZ = async function () {
         const invoiceNo = document.getElementById('pz-number')?.value.trim();
         const contractor = document.getElementById('pz-contractor')?.value.trim() || 'Dostawca';
         const wid = document.getElementById('pz-warehouse')?.value;
@@ -296,7 +296,7 @@
             btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Zapis…';
         }
 
-        const res = await window.WarehouseApi.postReceipt({
+        const res = await globalThis.WarehouseApi.postReceipt({
             warehouse_id:       wid,
             supplier_name:      contractor,
             supplier_invoice:   invoiceNo,
@@ -317,7 +317,7 @@
             alert(msg);
             document.getElementById('pz-number').value = '';
             document.getElementById('pz-items').innerHTML = '';
-            window.addRow();
+            globalThis.addRow();
         } else {
             // F2.5: jeśli backend zwrócił candidates (UNMAPPED_PRODUCT), pokaż user-friendly hint
             const data = res.data || {};

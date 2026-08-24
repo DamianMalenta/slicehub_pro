@@ -24,7 +24,7 @@
         const params = { limit: String(PAGE), offset: String(currentOffset) };
         if (currentType) params.type = currentType;
 
-        const res = await window.WarehouseApi.getDocumentsList(params);
+        const res = await globalThis.WarehouseApi.getDocumentsList(params);
         if (!res.success || !res.data) { alert(res.message || 'Błąd'); return; }
 
         total = res.data.total || 0;
@@ -60,8 +60,8 @@
         }).join('');
     }
 
-    window.prevPage = function () { if (currentOffset >= PAGE) { currentOffset -= PAGE; load(); } };
-    window.nextPage = function () { if (currentOffset + PAGE < total) { currentOffset += PAGE; load(); } };
+    globalThis.prevPage = function () { if (currentOffset >= PAGE) { currentOffset -= PAGE; load(); } };
+    globalThis.nextPage = function () { if (currentOffset + PAGE < total) { currentOffset += PAGE; load(); } };
 
     function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
 })();

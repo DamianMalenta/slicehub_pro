@@ -75,8 +75,8 @@ export function mountSurface(root, Studio, Api) {
             return;
         }
         $current.innerHTML = `<code>${fn}</code>`;
-        const bgUrl = (window.SliceHub && window.SliceHub.appUrl)
-            ? window.SliceHub.appUrl('/uploads/global_assets/' + fn)
+        const bgUrl = (globalThis.SliceHub && globalThis.SliceHub.appUrl)
+            ? globalThis.SliceHub.appUrl('/uploads/global_assets/' + fn)
             : '/slicehub/uploads/global_assets/' + fn;
         $preview.innerHTML = `
             <div style="position:relative;width:100%;aspect-ratio:16/7;background-image:url('${bgUrl}');background-size:cover;background-position:center;border-radius:10px;overflow:hidden;display:grid;place-items:center">
@@ -185,8 +185,8 @@ export function mountSurface(root, Studio, Api) {
                 fd.append('asset_type', 'surface');
                 fd.append('category', 'misc');
                 fd.append('sub_type', body.querySelector('#su-sub').value || 'surface');
-                const res = await fetch((window.SliceHub && window.SliceHub.apiUrl
-                    ? window.SliceHub.apiUrl('/visual_composer/asset_upload.php')
+                const res = await fetch((globalThis.SliceHub && globalThis.SliceHub.apiUrl
+                    ? globalThis.SliceHub.apiUrl('/visual_composer/asset_upload.php')
                     : '/api/visual_composer/asset_upload.php'), {
                     method: 'POST',
                     credentials: 'include',

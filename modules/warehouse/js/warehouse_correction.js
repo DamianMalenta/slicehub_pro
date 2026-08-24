@@ -4,7 +4,7 @@
 (function () {
     'use strict';
 
-    window.submitKOR = async function () {
+    globalThis.submitKOR = async function () {
         const orderId = document.getElementById('kor-order-id')?.value.trim();
         const reason  = document.getElementById('kor-reason')?.value || '';
         const note    = document.getElementById('kor-note')?.value.trim() || '';
@@ -15,7 +15,7 @@
         const overlay = document.getElementById('loading-overlay');
         if (overlay) overlay.classList.remove('hidden');
 
-        const res = await window.WarehouseApi.postCorrection({
+        const res = await globalThis.WarehouseApi.postCorrection({
             order_id: orderId,
             reason:   fullReason,
         });

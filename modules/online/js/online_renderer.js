@@ -138,11 +138,11 @@ export function mountPizzaScene(root, payload) {
 }
 
 /**
- * Fallback neon (wymaga window.NeonPizza + kontenera kwadratowego).
+ * Fallback neon (wymaga globalThis.NeonPizza + kontenera kwadratowego).
  */
 export function tryNeonFallback(mountEl, modifierNames) {
-    if (!mountEl || typeof window.NeonPizza === 'undefined') return false;
+    if (!mountEl || typeof globalThis.NeonPizza === 'undefined') return false;
     const names = (modifierNames || []).filter(Boolean);
-    window.NeonPizza.renderPizza(mountEl, names, { size: 280 });
+    globalThis.NeonPizza.renderPizza(mountEl, names, { size: 280 });
     return true;
 }

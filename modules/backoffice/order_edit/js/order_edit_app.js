@@ -16,12 +16,12 @@
     'use strict';
 
     function apiUrl(path) {
-        if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.apiUrl) {
-            return window.SliceHub.apiUrl(path);
+        if (typeof globalThis !== 'undefined' && globalThis.SliceHub && globalThis.SliceHub.apiUrl) {
+            return globalThis.SliceHub.apiUrl(path);
         }
-        const base = (window.SliceHub && window.SliceHub.getApiBase)
-            ? window.SliceHub.getApiBase()
-            : ((window.SliceHub && window.SliceHub.getApiFallback) ? window.SliceHub.getApiFallback() : '/api');
+        const base = (globalThis.SliceHub && globalThis.SliceHub.getApiBase)
+            ? globalThis.SliceHub.getApiBase()
+            : ((globalThis.SliceHub && globalThis.SliceHub.getApiFallback) ? globalThis.SliceHub.getApiFallback() : '/api');
         const p = String(path || '').trim();
         if (!p) return base;
         return base + (p.startsWith('/') ? p : '/' + p);
@@ -131,7 +131,7 @@
         $('#oe-btn-cancel').addEventListener('click', onCancel);
 
         // ?order_id=... w URL — auto-load
-        const params = new URLSearchParams(window.location.search || '');
+        const params = new URLSearchParams(globalThis.location.search || '');
         const oid = (params.get('order_id') || '').trim();
         if (oid) {
             $('#oe-order-id').value = oid;

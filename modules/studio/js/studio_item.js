@@ -1,4 +1,4 @@
-window.ItemEditor = {
+globalThis.ItemEditor = {
     _debounceTimers: {},
     _vatInheritEnabled: true,
     // F-S4-fix (2026-05-13): default 'Live' żeby nowo dodana pozycja była natychmiast widoczna w POS.
@@ -70,14 +70,14 @@ window.ItemEditor = {
         this._isDirty = true;
         const ind = document.getElementById('dirty-indicator');
         if (ind) { ind.classList.remove('hidden'); ind.classList.add('flex'); }
-        if (window.StudioState) window.StudioState.markDirty();
+        if (globalThis.StudioState) globalThis.StudioState.markDirty();
     },
 
     _markClean() {
         this._isDirty = false;
         const ind = document.getElementById('dirty-indicator');
         if (ind) { ind.classList.add('hidden'); ind.classList.remove('flex'); }
-        if (window.StudioState) window.StudioState.markClean();
+        if (globalThis.StudioState) globalThis.StudioState.markClean();
     },
 
     scrollToSection(sectionId) {
@@ -129,9 +129,9 @@ window.ItemEditor = {
                 <div class="flex items-center gap-2">
                     <span class="text-[8px] font-black uppercase text-slate-500 tracking-widest hidden lg:block">Publikacja</span>
                     <div class="flex rounded-lg overflow-hidden border border-white/10">
-                        <button type="button" data-status="Draft" onclick="window.ItemEditor.setPubStatus('Draft')" class="pub-btn px-3 py-1.5 text-[9px] font-black uppercase bg-yellow-500/80 text-black transition-all">Draft</button>
-                        <button type="button" data-status="Live" onclick="window.ItemEditor.setPubStatus('Live')" class="pub-btn px-3 py-1.5 text-[9px] font-black uppercase bg-white/5 text-slate-500 hover:text-white hover:bg-white/10 transition-all">Live</button>
-                        <button type="button" data-status="Archived" onclick="window.ItemEditor.setPubStatus('Archived')" class="pub-btn px-3 py-1.5 text-[9px] font-black uppercase bg-white/5 text-slate-500 hover:text-white hover:bg-white/10 transition-all">Archived</button>
+                        <button type="button" data-status="Draft" onclick="globalThis.ItemEditor.setPubStatus('Draft')" class="pub-btn px-3 py-1.5 text-[9px] font-black uppercase bg-yellow-500/80 text-black transition-all">Draft</button>
+                        <button type="button" data-status="Live" onclick="globalThis.ItemEditor.setPubStatus('Live')" class="pub-btn px-3 py-1.5 text-[9px] font-black uppercase bg-white/5 text-slate-500 hover:text-white hover:bg-white/10 transition-all">Live</button>
+                        <button type="button" data-status="Archived" onclick="globalThis.ItemEditor.setPubStatus('Archived')" class="pub-btn px-3 py-1.5 text-[9px] font-black uppercase bg-white/5 text-slate-500 hover:text-white hover:bg-white/10 transition-all">Archived</button>
                     </div>
                 </div>
                 <div id="hq-lock-flag" class="hidden items-center gap-1 bg-red-900/30 border border-red-500/30 rounded-lg px-2.5 py-1">
@@ -144,10 +144,10 @@ window.ItemEditor = {
                 </div>
             </div>
             <div class="flex items-center gap-2">
-                <button type="button" id="btn-duplicate-item" onclick="window.ItemEditor.duplicateItem()" class="bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 active:scale-95" title="Duplikuj danie (Ctrl+D)">
+                <button type="button" id="btn-duplicate-item" onclick="globalThis.ItemEditor.duplicateItem()" class="bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-white px-4 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 active:scale-95" title="Duplikuj danie (Ctrl+D)">
                     <i class="fa-solid fa-copy"></i> KOPIUJ
                 </button>
-                <button type="button" id="btn-save-item" onclick="window.ItemEditor.saveItem()" class="bg-blue-600/80 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 active:scale-95">
+                <button type="button" id="btn-save-item" onclick="globalThis.ItemEditor.saveItem()" class="bg-blue-600/80 hover:bg-blue-500 text-white px-6 py-2 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 active:scale-95">
                     <i class="fa-solid fa-floppy-disk"></i> ZAPISZ DANIE
                 </button>
             </div>
@@ -212,7 +212,7 @@ window.ItemEditor = {
             { n: 7, icon: 'fa-bullhorn',       label: 'Marketing' },
         ];
         const tabBarHtml = `<div class="flex gap-1 border-b border-white/10 pb-1 mb-4 flex-wrap">
-            ${TABS.map(t => `<button type="button" data-tab="${t.n}" onclick="window.ItemEditor.switchTab(${t.n})" class="item-tab-btn px-3 py-2 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all flex items-center gap-1.5 ${t.n === 1 ? 'bg-purple-500/80 text-white' : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'}"><i class="fa-solid ${t.icon} text-[9px]"></i> ${t.label}</button>`).join('')}
+            ${TABS.map(t => `<button type="button" data-tab="${t.n}" onclick="globalThis.ItemEditor.switchTab(${t.n})" class="item-tab-btn px-3 py-2 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all flex items-center gap-1.5 ${t.n === 1 ? 'bg-purple-500/80 text-white' : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10'}"><i class="fa-solid ${t.icon} text-[9px]"></i> ${t.label}</button>`).join('')}
         </div>`;
 
         form.innerHTML = `
@@ -246,8 +246,8 @@ window.ItemEditor = {
                         <div class="flex flex-col gap-1.5">
                             <label class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Typ Dania</label>
                             <div class="flex rounded-xl overflow-hidden border border-white/10">
-                                <button type="button" data-type="standard" onclick="window.ItemEditor.setItemType('standard')" class="type-btn flex-1 px-3 py-3 text-[9px] font-black uppercase bg-purple-500/80 text-white transition-all flex items-center justify-center gap-1.5"><i class="fa-solid fa-circle text-[6px]"></i> Standard</button>
-                                <button type="button" data-type="half_half" onclick="window.ItemEditor.setItemType('half_half')" class="type-btn flex-1 px-3 py-3 text-[9px] font-black uppercase bg-white/5 text-slate-500 hover:text-white transition-all flex items-center justify-center gap-1.5"><i class="fa-solid fa-circle-half-stroke text-[6px]"></i> Pół/Pół</button>
+                                <button type="button" data-type="standard" onclick="globalThis.ItemEditor.setItemType('standard')" class="type-btn flex-1 px-3 py-3 text-[9px] font-black uppercase bg-purple-500/80 text-white transition-all flex items-center justify-center gap-1.5"><i class="fa-solid fa-circle text-[6px]"></i> Standard</button>
+                                <button type="button" data-type="half_half" onclick="globalThis.ItemEditor.setItemType('half_half')" class="type-btn flex-1 px-3 py-3 text-[9px] font-black uppercase bg-white/5 text-slate-500 hover:text-white transition-all flex items-center justify-center gap-1.5"><i class="fa-solid fa-circle-half-stroke text-[6px]"></i> Pół/Pół</button>
                             </div>
                         </div>
                     </div>
@@ -269,8 +269,8 @@ window.ItemEditor = {
                         <div class="col-span-5 flex flex-col gap-1.5">
                             <label class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Akcje</label>
                             <div class="flex gap-2">
-                                <button type="button" onclick="window.ItemEditor.openVariantScaleManager()" class="flex-1 text-[8px] font-black uppercase text-orange-400 bg-orange-500/10 border border-orange-500/20 rounded-lg px-3 py-2 hover:bg-orange-500/20 transition flex items-center justify-center gap-1.5"><i class="fa-solid fa-list"></i> Zarządzaj skalami</button>
-                                <button type="button" onclick="window.ItemEditor.generateVariantFamily()" class="flex-1 text-[8px] font-black uppercase text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2 hover:bg-emerald-500/20 transition flex items-center justify-center gap-1.5" id="btn-generate-variant-family" disabled><i class="fa-solid fa-wand-magic-sparkles"></i> Wygeneruj rodzinę</button>
+                                <button type="button" onclick="globalThis.ItemEditor.openVariantScaleManager()" class="flex-1 text-[8px] font-black uppercase text-orange-400 bg-orange-500/10 border border-orange-500/20 rounded-lg px-3 py-2 hover:bg-orange-500/20 transition flex items-center justify-center gap-1.5"><i class="fa-solid fa-list"></i> Zarządzaj skalami</button>
+                                <button type="button" onclick="globalThis.ItemEditor.generateVariantFamily()" class="flex-1 text-[8px] font-black uppercase text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2 hover:bg-emerald-500/20 transition flex items-center justify-center gap-1.5" id="btn-generate-variant-family" disabled><i class="fa-solid fa-wand-magic-sparkles"></i> Wygeneruj rodzinę</button>
                             </div>
                         </div>
                     </div>
@@ -303,7 +303,7 @@ window.ItemEditor = {
             <div class="item-tab-panel hidden" data-tab="2">
                 ${this._glassCard('sec-matrix', 'cyan', 'fa-table-cells', 'Macierz Cenowa Omnichannel', `
                     <div class="flex items-center justify-end mb-4">
-                        <button type="button" onclick="window.ItemEditor.autoFillOmnichannel()" class="text-[8px] font-black uppercase text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 rounded-lg px-3 py-1.5 hover:bg-cyan-500/20 transition flex items-center gap-1.5">
+                        <button type="button" onclick="globalThis.ItemEditor.autoFillOmnichannel()" class="text-[8px] font-black uppercase text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 rounded-lg px-3 py-1.5 hover:bg-cyan-500/20 transition flex items-center gap-1.5">
                             <span>🪄</span> Autouzupełnianie Omnichannel
                         </button>
                     </div>
@@ -359,7 +359,7 @@ window.ItemEditor = {
                     <div class="grid grid-cols-2 md:grid-cols-3 gap-2" id="modifierGroupsCheckboxContainer">
                         ${modGroupsHtml}
                     </div>
-                    <button type="button" onclick="window.ModifierInspector.openDrawer()" class="mt-4 w-full py-3 bg-purple-900/30 hover:bg-purple-600 text-purple-300 hover:text-white border border-purple-500/30 rounded-xl font-black uppercase text-[10px] tracking-wider transition flex items-center justify-center gap-2">
+                    <button type="button" onclick="globalThis.ModifierInspector.openDrawer()" class="mt-4 w-full py-3 bg-purple-900/30 hover:bg-purple-600 text-purple-300 hover:text-white border border-purple-500/30 rounded-xl font-black uppercase text-[10px] tracking-wider transition flex items-center justify-center gap-2">
                         <i class="fa-solid fa-puzzle-piece"></i> Zarządzaj Grupami Modyfikatorów
                     </button>
                 `)}
@@ -378,13 +378,13 @@ window.ItemEditor = {
                                 </div>
                                 <div class="flex gap-1">
                                     <button type="button" id="btn-item-hero-pick"
-                                            onclick="window.ItemEditor.openItemHeroPicker()"
+                                            onclick="globalThis.ItemEditor.openItemHeroPicker()"
                                             class="flex-1 inline-flex items-center justify-center gap-1.5 bg-amber-900/30 hover:bg-amber-600 text-amber-200 hover:text-black border border-amber-500/40 font-black uppercase tracking-wider text-[8px] px-2 py-1.5 rounded-lg transition">
                                         <i class="fa-solid fa-image text-[9px]"></i>
                                         <span id="btn-item-hero-pick-label">Przypisz Hero</span>
                                     </button>
                                     <button type="button" id="btn-item-hero-unlink"
-                                            onclick="window.ItemEditor.unlinkItemHero()"
+                                            onclick="globalThis.ItemEditor.unlinkItemHero()"
                                             class="hidden bg-red-900/30 hover:bg-red-600 text-red-300 hover:text-white border border-red-500/40 font-black uppercase tracking-wider text-[8px] px-2 py-1.5 rounded-lg transition"
                                             title="Odłącz hero od dania">
                                         <i class="fa-solid fa-link-slash text-[9px]"></i>
@@ -419,7 +419,7 @@ window.ItemEditor = {
                                 <i class="fa-solid fa-arrow-up-right-from-square text-[8px] opacity-70"></i>
                             </a>
                             <button type="button" id="btn-autogenerate-scene"
-                                    onclick="window.ItemEditor.autogenerateScene()"
+                                    onclick="globalThis.ItemEditor.autogenerateScene()"
                                     class="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white font-black uppercase tracking-wider text-[10px] px-4 py-3 rounded-xl transition-all shadow-lg shadow-violet-500/30 disabled:opacity-40 disabled:cursor-not-allowed">
                                 <i class="fa-solid fa-wand-magic-sparkles"></i>
                                 <span>Wygeneruj automatycznie</span>
@@ -578,7 +578,7 @@ window.ItemEditor = {
     },
 
     _renderModifierGroupCheckboxes() {
-        const groups = window.StudioState?.modifierGroups || [];
+        const groups = globalThis.StudioState?.modifierGroups || [];
         if (!groups.length) return '<div class="text-slate-500 text-[9px] font-bold uppercase col-span-full">Brak grup modyfikatorów w systemie.</div>';
         return groups.map(g =>
             `<label class="flex items-center gap-3 cursor-pointer group hover:bg-white/5 p-2.5 rounded-xl transition border border-transparent hover:border-white/10">
@@ -606,7 +606,7 @@ window.ItemEditor = {
         if (catSelect) {
             catSelect.addEventListener('change', () => {
                 const catId = parseInt(catSelect.value, 10);
-                const cat = (window.StudioState?.categories || []).find(c => c.id === catId);
+                const cat = (globalThis.StudioState?.categories || []).find(c => c.id === catId);
                 if (!cat) return;
                 if (this._vatInheritEnabled) {
                     const vatDI = document.getElementById('item-vat-dine-in');
@@ -697,7 +697,7 @@ window.ItemEditor = {
         this._markClean();
 
         const $ = id => document.getElementById(id);
-        const categories = window.StudioState?.categories || [];
+        const categories = globalThis.StudioState?.categories || [];
 
         const catSelect = $('item-category-id');
         if (catSelect && catSelect.options.length <= 1) {
@@ -817,7 +817,7 @@ window.ItemEditor = {
         const sel = document.getElementById('item-composition-profile');
         if (!sel) return;
 
-        const templates = (window.StudioState?.sceneTemplates || []).filter(t => t.kind === 'item');
+        const templates = (globalThis.StudioState?.sceneTemplates || []).filter(t => t.kind === 'item');
         if (templates.length > 0) {
             sel.innerHTML = templates.map(t =>
                 `<option value="${this._esc(t.asciiKey)}">${this._esc(t.name)}</option>`
@@ -827,7 +827,7 @@ window.ItemEditor = {
         let target = (itemData && itemData.compositionProfile) || null;
         if (!target) {
             const catId = parseInt(itemData?.categoryId ?? document.getElementById('item-category-id')?.value, 10);
-            const cat = (window.StudioState?.categories || []).find(c => c.id === catId);
+            const cat = (globalThis.StudioState?.categories || []).find(c => c.id === catId);
             target = cat?.defaultCompositionProfile || 'static_hero';
         }
         // Fallback — jeśli target nie jest w dropdown-ie, ustaw static_hero
@@ -908,7 +908,7 @@ window.ItemEditor = {
         const categoryId = parseInt(val('item-category-id'), 10) || 0;
 
         if (!name || !cleanKey || categoryId <= 0) {
-            if (window.StudioToast) window.StudioToast.show('Wypełnij poprawnie: Nazwa, SKU i Kategoria.', 'warning');
+            if (globalThis.StudioToast) globalThis.StudioToast.show('Wypełnij poprawnie: Nazwa, SKU i Kategoria.', 'warning');
             else alert('Wypełnij poprawnie: Nazwa, SKU i Kategoria.');
             return;
         }
@@ -917,11 +917,11 @@ window.ItemEditor = {
         const priceTakeaway = parseFloat(val('item-price-takeaway')) || 0;
         const priceDelivery = parseFloat(val('item-price-delivery')) || 0;
 
-        if (typeof window.SliceValidator !== 'undefined') {
+        if (typeof globalThis.SliceValidator !== 'undefined') {
             const labels = ['POS', 'Takeaway', 'Delivery'];
             for (let i = 0; i < [pricePos, priceTakeaway, priceDelivery].length; i++) {
-                if (window.SliceValidator.validatePrice([pricePos, priceTakeaway, priceDelivery][i]) === null) {
-                    if (window.StudioToast) window.StudioToast.show(`Błąd walidacji ceny kanału ${labels[i]}.`, 'error');
+                if (globalThis.SliceValidator.validatePrice([pricePos, priceTakeaway, priceDelivery][i]) === null) {
+                    if (globalThis.StudioToast) globalThis.StudioToast.show(`Błąd walidacji ceny kanału ${labels[i]}.`, 'error');
                     else alert(`Błąd walidacji ceny kanału ${labels[i]}.`);
                     return;
                 }
@@ -976,23 +976,23 @@ window.ItemEditor = {
         if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> ZAPISYWANIE...'; }
 
         try {
-            const result = await window.StudioApi.postPayload(payload);
+            const result = await globalThis.StudioApi.postPayload(payload);
             if (result.success === true) {
                 this._markClean();
-                if (window.StudioToast) window.StudioToast.show('Danie zapisane!', 'success');
+                if (globalThis.StudioToast) globalThis.StudioToast.show('Danie zapisane!', 'success');
                 if (btn) { btn.innerHTML = '<i class="fa-solid fa-check mr-2"></i> ZAPISANO!'; btn.classList.replace('from-blue-600', 'from-green-600'); btn.classList.replace('to-blue-500', 'to-green-500'); }
                 setTimeout(() => {
                     if (btn) { btn.innerHTML = '<i class="fa-solid fa-rocket mr-2"></i> ZAPISZ DANIE'; btn.disabled = false; btn.classList.replace('from-green-600', 'from-blue-600'); btn.classList.replace('to-green-500', 'to-blue-500'); }
                 }, 2000);
-                if (typeof window.loadMenuTree === 'function') await window.loadMenuTree();
-                if (window.Core?.renderTree) window.Core.renderTree();
+                if (typeof globalThis.loadMenuTree === 'function') await globalThis.loadMenuTree();
+                if (globalThis.Core?.renderTree) globalThis.Core.renderTree();
             } else {
-                if (window.StudioToast) window.StudioToast.show('Błąd zapisu: ' + result.message, 'error');
+                if (globalThis.StudioToast) globalThis.StudioToast.show('Błąd zapisu: ' + result.message, 'error');
                 else alert('Błąd zapisu: ' + result.message);
                 if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-rocket mr-2"></i> ZAPISZ DANIE'; }
             }
         } catch (error) {
-            if (window.StudioToast) window.StudioToast.show('Krytyczny błąd sieci.', 'error');
+            if (globalThis.StudioToast) globalThis.StudioToast.show('Krytyczny błąd sieci.', 'error');
             else alert('Krytyczny błąd sieci.');
             console.error('[ItemEditor] API error:', error);
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-rocket mr-2"></i> ZAPISZ DANIE'; }
@@ -1002,14 +1002,14 @@ window.ItemEditor = {
     async duplicateItem() {
         const itemId = parseInt(document.getElementById('item-id')?.value, 10) || 0;
         if (!itemId) {
-            if (window.StudioToast) window.StudioToast.show('Najpierw zapisz danie przed duplikowaniem.', 'warning');
+            if (globalThis.StudioToast) globalThis.StudioToast.show('Najpierw zapisz danie przed duplikowaniem.', 'warning');
             return;
         }
         const asciiKey = (document.getElementById('item-ascii-key')?.value || '').trim();
         try {
-            const res = await window.apiStudio('get_item_details', { itemId });
+            const res = await globalThis.apiStudio('get_item_details', { itemId });
             if (!res.success || !res.data) {
-                if (window.StudioToast) window.StudioToast.show('Nie udało się pobrać danych dania.', 'error');
+                if (globalThis.StudioToast) globalThis.StudioToast.show('Nie udało się pobrać danych dania.', 'error');
                 return;
             }
             const src = res.data;
@@ -1026,11 +1026,11 @@ window.ItemEditor = {
             if (nameInput) nameInput.value = newName;
             const skuInput = document.getElementById('item-ascii-key');
             if (skuInput) { skuInput.value = newKey; skuInput.readOnly = false; }
-            if (window.StudioToast) window.StudioToast.show('Duplikat utworzony — zapisz aby zapisać w bazie.', 'info');
+            if (globalThis.StudioToast) globalThis.StudioToast.show('Duplikat utworzony — zapisz aby zapisać w bazie.', 'info');
             this._markDirty();
         } catch (e) {
             console.error('[ItemEditor] duplicateItem error:', e);
-            if (window.StudioToast) window.StudioToast.show('Błąd duplikowania dania.', 'error');
+            if (globalThis.StudioToast) globalThis.StudioToast.show('Błąd duplikowania dania.', 'error');
         }
     },
 
@@ -1042,15 +1042,15 @@ window.ItemEditor = {
     async openItemHeroPicker() {
         const asciiKey = (document.getElementById('item-ascii-key')?.value || '').trim();
         if (!asciiKey) {
-            if (window.StudioToast) window.StudioToast.show('Najpierw zapisz danie (SKU jest wymagany).', 'warning');
+            if (globalThis.StudioToast) globalThis.StudioToast.show('Najpierw zapisz danie (SKU jest wymagany).', 'warning');
             else alert('Najpierw zapisz danie (SKU jest wymagany).');
             return;
         }
 
-        if (window.ModifierInspector && typeof window.ModifierInspector.loadCompactAssets === 'function') {
-            await window.ModifierInspector.loadCompactAssets();
+        if (globalThis.ModifierInspector && typeof globalThis.ModifierInspector.loadCompactAssets === 'function') {
+            await globalThis.ModifierInspector.loadCompactAssets();
         }
-        const assets = (window.StudioState && window.StudioState.compactAssets) || [];
+        const assets = (globalThis.StudioState && globalThis.StudioState.compactAssets) || [];
 
         const sorted = assets.slice().sort((a, b) => {
             const aHero = String(a.roleHint || '').toLowerCase() === 'hero' ? 0 : 1;
@@ -1179,7 +1179,7 @@ window.ItemEditor = {
 
     async linkItemHero(itemSku, assetId, onDone) {
         try {
-            const r = await window.apiStudio('set_item_hero', {
+            const r = await globalThis.apiStudio('set_item_hero', {
                 itemSku: itemSku,
                 assetId: assetId,
             });
@@ -1188,16 +1188,16 @@ window.ItemEditor = {
                 const resultBox = document.getElementById('autogen-result');
                 if (resultBox) resultBox.classList.add('hidden');
                 if (typeof onDone === 'function') onDone();
-                if (typeof window.loadMenuTree === 'function') {
-                    window.loadMenuTree().catch(e => console.warn('[ItemEditor] tree refresh failed:', e));
+                if (typeof globalThis.loadMenuTree === 'function') {
+                    globalThis.loadMenuTree().catch(e => console.warn('[ItemEditor] tree refresh failed:', e));
                 }
             } else {
-                if (window.StudioToast) window.StudioToast.show('Nie udało się przypisać hero: ' + (r?.message || 'nieznany błąd'), 'error');
+                if (globalThis.StudioToast) globalThis.StudioToast.show('Nie udało się przypisać hero: ' + (r?.message || 'nieznany błąd'), 'error');
                 else alert('Nie udało się przypisać hero: ' + (r?.message || 'nieznany błąd'));
             }
         } catch (e) {
             console.error('[ItemEditor] linkItemHero error:', e);
-            if (window.StudioToast) window.StudioToast.show('Błąd sieci podczas przypisywania hero — patrz konsola.', 'error');
+            if (globalThis.StudioToast) globalThis.StudioToast.show('Błąd sieci podczas przypisywania hero — patrz konsola.', 'error');
             else alert('Błąd sieci podczas przypisywania hero — patrz konsola.');
         }
     },
@@ -1207,20 +1207,20 @@ window.ItemEditor = {
         if (!asciiKey) return;
         if (!confirm('Odłączyć hero od tego dania? (Asset pozostanie w bibliotece.)')) return;
         try {
-            const r = await window.apiStudio('unlink_item_hero', {
+            const r = await globalThis.apiStudio('unlink_item_hero', {
                 itemSku: asciiKey,
             });
             if (r && r.success) {
                 this._applyHeroPreview({ imageUrl: '', hasScene: false });
-                if (typeof window.loadMenuTree === 'function') {
-                    window.loadMenuTree().catch(e => console.warn('[ItemEditor] tree refresh failed:', e));
+                if (typeof globalThis.loadMenuTree === 'function') {
+                    globalThis.loadMenuTree().catch(e => console.warn('[ItemEditor] tree refresh failed:', e));
                 }
             } else {
-                if (window.StudioToast) window.StudioToast.show('Nie udało się odłączyć: ' + (r?.message || 'nieznany błąd'), 'error');
+                if (globalThis.StudioToast) globalThis.StudioToast.show('Nie udało się odłączyć: ' + (r?.message || 'nieznany błąd'), 'error');
             }
         } catch (e) {
             console.error('[ItemEditor] unlinkItemHero error:', e);
-            if (window.StudioToast) window.StudioToast.show('Błąd sieci — patrz konsola.', 'error');
+            if (globalThis.StudioToast) globalThis.StudioToast.show('Błąd sieci — patrz konsola.', 'error');
         }
     },
 
@@ -1261,7 +1261,7 @@ window.ItemEditor = {
         try {
             const payload = { action: 'autogenerate_scene', itemSku: asciiKey };
             if (force) payload.force = true;
-            const result = await window.StudioApi.postPayload(payload);
+            const result = await globalThis.StudioApi.postPayload(payload);
 
             if (result.success === true) {
                 const d = result.data || {};
@@ -1338,7 +1338,7 @@ window.ItemEditor = {
         if (!sel) return;
         sel.innerHTML = '<option value="">— Brak (zwykła pozycja standalone) —</option>';
         try {
-            const r = await window.apiStudio('list_variant_scales');
+            const r = await globalThis.apiStudio('list_variant_scales');
             const scales = (r && r.success && r.data && r.data.scales) ? r.data.scales : [];
             scales.forEach(s => {
                 const optsCount = Array.isArray(s.options) ? s.options.length : 0;
@@ -1364,7 +1364,7 @@ window.ItemEditor = {
         if (!parentItemId || parentItemId <= 0) { wrap.classList.add('hidden'); return; }
         try {
             // Czytamy children z aktualnego drzewa (lokalny stan), zamiast osobnego API call.
-            const tree = window.StudioState?.menuTree || [];
+            const tree = globalThis.StudioState?.menuTree || [];
             const children = [];
             tree.forEach(cat => (cat.items || []).forEach(it => {
                 if (parseInt(it.parentItemId, 10) === parseInt(parentItemId, 10)) children.push(it);
@@ -1384,9 +1384,9 @@ window.ItemEditor = {
 
     async generateVariantFamily() {
         const itemId = parseInt(document.getElementById('item-id')?.value || '0', 10);
-        if (!itemId) { if (window.StudioToast) window.StudioToast.show('Najpierw zapisz pozycję (parent), potem wygeneruj rodzinę.', 'warning'); return; }
+        if (!itemId) { if (globalThis.StudioToast) globalThis.StudioToast.show('Najpierw zapisz pozycję (parent), potem wygeneruj rodzinę.', 'warning'); return; }
         const scaleId = parseInt(document.getElementById('item-variant-scale')?.value || '0', 10);
-        if (!scaleId) { if (window.StudioToast) window.StudioToast.show('Wybierz skalę rozmiarów.', 'warning'); return; }
+        if (!scaleId) { if (globalThis.StudioToast) globalThis.StudioToast.show('Wybierz skalę rozmiarów.', 'warning'); return; }
 
         if (!confirm('Wygenerować rodzinę wariantów na podstawie wybranej skali?\n\nKażdy wariant dostanie własne SKU (np. PIZZA_X_S, _M, _L) i własną cenę. Istniejące warianty z tym samym SKU zostaną pominięte.')) return;
 
@@ -1394,22 +1394,22 @@ window.ItemEditor = {
             // Najpierw zapisz parent (żeby variant_scale_id było w bazie).
             await this.saveItem();
             // Następnie wygeneruj rodzinę.
-            const r = await window.apiStudio('create_variant_family', {
+            const r = await globalThis.apiStudio('create_variant_family', {
                 parent_item_id: itemId
             });
             if (r && r.success) {
                 const created = (r.data && r.data.created) || [];
                 const skipped = (r.data && r.data.skipped) || [];
-                if (window.StudioToast) window.StudioToast.show(`Utworzono ${created.length} wariantów. Pominięto: ${skipped.length}.`, 'success');
-                if (typeof window.loadMenuTree === 'function') await window.loadMenuTree();
-                if (window.Core?.renderTree) window.Core.renderTree();
+                if (globalThis.StudioToast) globalThis.StudioToast.show(`Utworzono ${created.length} wariantów. Pominięto: ${skipped.length}.`, 'success');
+                if (typeof globalThis.loadMenuTree === 'function') await globalThis.loadMenuTree();
+                if (globalThis.Core?.renderTree) globalThis.Core.renderTree();
                 this._renderVariantChildrenPreview(itemId);
             } else {
-                if (window.StudioToast) window.StudioToast.show('Błąd: ' + (r?.message || 'unknown'), 'error');
+                if (globalThis.StudioToast) globalThis.StudioToast.show('Błąd: ' + (r?.message || 'unknown'), 'error');
             }
         } catch (e) {
             console.error('[ItemEditor] generateVariantFamily', e);
-            if (window.StudioToast) window.StudioToast.show('Krytyczny błąd: ' + e.message, 'error');
+            if (globalThis.StudioToast) globalThis.StudioToast.show('Krytyczny błąd: ' + e.message, 'error');
         }
     },
 
@@ -1424,8 +1424,8 @@ window.ItemEditor = {
     async openNewPizzaWizard() {
         // Pobierz potrzebne dane.
         const [categoriesData, scalesRes] = await Promise.all([
-            Promise.resolve(window.StudioState?.categories || []),
-            window.apiStudio('list_variant_scales'),
+            Promise.resolve(globalThis.StudioState?.categories || []),
+            globalThis.apiStudio('list_variant_scales'),
         ]);
         const scales = scalesRes?.data?.scales || [];
 
@@ -1487,7 +1487,7 @@ window.ItemEditor = {
                                 <option value="">— brak (zwykła pozycja standalone) —</option>
                                 ${scales.map(s => `<option value="${s.id}" data-options='${JSON.stringify(s.options || [])}'>${s.name} (${(s.options || []).length} opcji)</option>`).join('')}
                             </select>
-                            <button onclick="document.getElementById('fs6-new-pizza-wizard')?.remove(); window.ItemEditor.openVariantScaleManager();" class="text-[10px] text-orange-300 hover:text-orange-200 underline">+ Utwórz nową skalę (zarządzaj)</button>
+                            <button onclick="document.getElementById('fs6-new-pizza-wizard')?.remove(); globalThis.ItemEditor.openVariantScaleManager();" class="text-[10px] text-orange-300 hover:text-orange-200 underline">+ Utwórz nową skalę (zarządzaj)</button>
                             <div id="fs6-scale-preview" class="mt-3 p-3 bg-black/30 rounded-xl border border-white/5 hidden">
                                 <div class="text-[10px] text-orange-300 uppercase font-bold mb-2">Podgląd opcji:</div>
                                 <div id="fs6-scale-preview-list" class="grid grid-cols-3 gap-2 text-center"></div>
@@ -1515,10 +1515,10 @@ window.ItemEditor = {
                     </div>
                 </div>
                 <div class="px-5 py-4 border-t border-white/10 flex items-center justify-between">
-                    <button id="fs6-back" onclick="window.ItemEditor._fs6Step(-1)" class="px-4 py-2 text-[10px] uppercase font-black text-slate-400 hover:text-white" disabled>← Wstecz</button>
+                    <button id="fs6-back" onclick="globalThis.ItemEditor._fs6Step(-1)" class="px-4 py-2 text-[10px] uppercase font-black text-slate-400 hover:text-white" disabled>← Wstecz</button>
                     <div class="flex gap-2">
-                        <button id="fs6-next" onclick="window.ItemEditor._fs6Step(1)" class="px-5 py-2 text-[10px] uppercase font-black bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/30 rounded-lg">Dalej →</button>
-                        <button id="fs6-generate" onclick="window.ItemEditor._fs6Generate()" class="hidden px-5 py-2 text-[10px] uppercase font-black bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 rounded-lg"><i class="fa-solid fa-wand-magic-sparkles"></i> Generuj rodzinę</button>
+                        <button id="fs6-next" onclick="globalThis.ItemEditor._fs6Step(1)" class="px-5 py-2 text-[10px] uppercase font-black bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/30 rounded-lg">Dalej →</button>
+                        <button id="fs6-generate" onclick="globalThis.ItemEditor._fs6Generate()" class="hidden px-5 py-2 text-[10px] uppercase font-black bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 rounded-lg"><i class="fa-solid fa-wand-magic-sparkles"></i> Generuj rodzinę</button>
                     </div>
                 </div>
             </div>`;
@@ -1564,9 +1564,9 @@ window.ItemEditor = {
             const n = document.getElementById('fs6-name').value.trim();
             const a = document.getElementById('fs6-ascii').value.trim();
             const c = parseInt(document.getElementById('fs6-category').value, 10);
-            if (!n) { if (window.StudioToast) window.StudioToast.show('Podaj nazwę.', 'warning'); return; }
-            if (!a) { if (window.StudioToast) window.StudioToast.show('Klucz SKU jest wymagany.', 'warning'); return; }
-            if (!c) { if (window.StudioToast) window.StudioToast.show('Wybierz kategorię.', 'warning'); return; }
+            if (!n) { if (globalThis.StudioToast) globalThis.StudioToast.show('Podaj nazwę.', 'warning'); return; }
+            if (!a) { if (globalThis.StudioToast) globalThis.StudioToast.show('Klucz SKU jest wymagany.', 'warning'); return; }
+            if (!c) { if (globalThis.StudioToast) globalThis.StudioToast.show('Wybierz kategorię.', 'warning'); return; }
             this._fs6Data.name = n;
             this._fs6Data.ascii = a;
             this._fs6Data.categoryId = c;
@@ -1617,7 +1617,7 @@ window.ItemEditor = {
         if (!listEl) return;
         listEl.innerHTML = '<p class="text-slate-500 text-[10px] italic text-center py-4">⏳ Ładowanie grup...</p>';
         try {
-            const r = await window.apiStudio('get_modifiers_full');
+            const r = await globalThis.apiStudio('get_modifiers_full');
             const groups = (r?.data?.groups || r?.data?.modifierGroups || []);
             if (!groups.length) {
                 listEl.innerHTML = '<p class="text-slate-500 text-[10px] italic text-center py-4">Brak grup modyfikatorów w tenancie. Możesz pominąć krok 4 i dodać je później ręcznie.</p>';
@@ -1711,22 +1711,22 @@ window.ItemEditor = {
                 variantScaleId: d.scaleId || null,
                 isVariantParent: d.scaleId ? 1 : 0,
             };
-            const r1 = await window.StudioApi.postPayload(parentPayload);
+            const r1 = await globalThis.StudioApi.postPayload(parentPayload);
             if (!r1 || !r1.success) throw new Error('Save parent: ' + (r1?.message || 'unknown'));
 
             // 2. Jeśli scale → create_variant_family.
             if (d.scaleId) {
                 // Pobierz nowo utworzony parent ID przez get_menu_tree (lub list_variant_scales na obejście).
                 // Najprościej: get_item_details po asciiKey via menu tree.
-                if (typeof window.loadMenuTree === 'function') await window.loadMenuTree();
-                const tree = window.StudioState?.menuTree || [];
+                if (typeof globalThis.loadMenuTree === 'function') await globalThis.loadMenuTree();
+                const tree = globalThis.StudioState?.menuTree || [];
                 let parentId = 0;
                 tree.forEach(cat => (cat.items || []).forEach(it => {
                     if (it.asciiKey === d.ascii) parentId = parseInt(it.id, 10);
                 }));
                 if (!parentId) throw new Error('Parent zapisany, ale nie znaleziony w drzewie. Odśwież ręcznie.');
 
-                const r2 = await window.apiStudio('create_variant_family', {
+                const r2 = await globalThis.apiStudio('create_variant_family', {
                     parent_item_id: parentId,
                 });
                 if (!r2 || !r2.success) throw new Error('Generate family: ' + (r2?.message || 'unknown'));
@@ -1745,16 +1745,16 @@ window.ItemEditor = {
                     // Reload tree, znajdź item id, wywołaj update_item_full z priceTiers.
                 }
                 // Reload tree raz na końcu.
-                if (typeof window.loadMenuTree === 'function') await window.loadMenuTree();
-                const fresh = window.StudioState?.menuTree || [];
+                if (typeof globalThis.loadMenuTree === 'function') await globalThis.loadMenuTree();
+                const fresh = globalThis.StudioState?.menuTree || [];
                 const updateOne = async (childKey, prices) => {
                     let cid = 0;
                     fresh.forEach(cat => (cat.items || []).forEach(it => { if (it.asciiKey === childKey) cid = parseInt(it.id, 10); }));
                     if (!cid) return;
                     // Pobierz pełne dane dziecka (żeby zachować pola).
-                    const detRes = await window.apiStudio('get_item_details', { itemId: cid });
+                    const detRes = await globalThis.apiStudio('get_item_details', { itemId: cid });
                     const det = detRes?.data || {};
-                    await window.apiStudio('update_item_full', {
+                    await globalThis.apiStudio('update_item_full', {
                         itemId: cid,
                         name: det.name,
                         asciiKey: det.asciiKey,
@@ -1780,12 +1780,12 @@ window.ItemEditor = {
                 if (this._fs6Data.modifierGroupIds && this._fs6Data.modifierGroupIds.length) {
                     for (const c of created) {
                         let cid = 0;
-                        const fresh2 = window.StudioState?.menuTree || [];
+                        const fresh2 = globalThis.StudioState?.menuTree || [];
                         fresh2.forEach(cat => (cat.items || []).forEach(it => { if (it.asciiKey === c.ascii_key) cid = parseInt(it.id, 10); }));
                         if (!cid) continue;
-                        const detRes = await window.apiStudio('get_item_details', { itemId: cid });
+                        const detRes = await globalThis.apiStudio('get_item_details', { itemId: cid });
                         const det = detRes?.data || {};
-                        await window.apiStudio('update_item_full', {
+                        await globalThis.apiStudio('update_item_full', {
                             itemId: cid,
                             name: det.name, asciiKey: det.asciiKey, categoryId: det.categoryId,
                             type: det.type || 'standard', publicationStatus: 'Live',
@@ -1797,14 +1797,14 @@ window.ItemEditor = {
                 }
             } else {
                 // Standalone — zapisz ceny dla parent.
-                const fresh = (await window.loadMenuTree?.(), window.StudioState?.menuTree || []);
+                const fresh = (await globalThis.loadMenuTree?.(), globalThis.StudioState?.menuTree || []);
                 let parentId = 0;
                 fresh.forEach(cat => (cat.items || []).forEach(it => { if (it.asciiKey === d.ascii) parentId = parseInt(it.id, 10); }));
                 const price = d.prices._standalone;
                 if (parentId && price) {
-                    const detRes = await window.apiStudio('get_item_details', { itemId: parentId });
+                    const detRes = await globalThis.apiStudio('get_item_details', { itemId: parentId });
                     const det = detRes?.data || {};
-                    await window.apiStudio('update_item_full', {
+                    await globalThis.apiStudio('update_item_full', {
                         itemId: parentId,
                         name: det.name, asciiKey: det.asciiKey, categoryId: det.categoryId,
                         type: 'standard', publicationStatus: 'Live',
@@ -1819,20 +1819,20 @@ window.ItemEditor = {
                 }
             }
 
-            if (window.StudioToast) window.StudioToast.show('Pizza utworzona! Drzewo odświeżone.', 'success');
+            if (globalThis.StudioToast) globalThis.StudioToast.show('Pizza utworzona! Drzewo odświeżone.', 'success');
             document.getElementById('fs6-new-pizza-wizard')?.remove();
-            if (typeof window.loadMenuTree === 'function') await window.loadMenuTree();
-            if (window.Core?.renderTree) window.Core.renderTree();
+            if (typeof globalThis.loadMenuTree === 'function') await globalThis.loadMenuTree();
+            if (globalThis.Core?.renderTree) globalThis.Core.renderTree();
         } catch (e) {
             console.error('[F-S6] generate', e);
-            if (window.StudioToast) window.StudioToast.show('Błąd: ' + e.message, 'error');
+            if (globalThis.StudioToast) globalThis.StudioToast.show('Błąd: ' + e.message, 'error');
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Generuj rodzinę'; }
         }
     },
 
     async openVariantScaleManager() {
         // Lekki modal: lista skal + edycja inline.
-        let r = await window.apiStudio('list_variant_scales');
+        let r = await globalThis.apiStudio('list_variant_scales');
         const scales = (r && r.success && r.data && r.data.scales) ? r.data.scales : [];
 
         const modal = document.createElement('div');
@@ -1850,9 +1850,9 @@ window.ItemEditor = {
                 <div class="flex-1 overflow-y-auto p-6 space-y-4">
                     <div id="vs-list" class="space-y-3"></div>
                     <div class="flex gap-2">
-                        <button onclick="window.ItemEditor._vsAddNew()" class="flex-1 bg-orange-500/10 border border-dashed border-orange-500/30 text-orange-300 rounded-xl py-3 text-[10px] font-black uppercase tracking-wider hover:bg-orange-500/20 transition"><i class="fa-solid fa-plus mr-2"></i> Nowa Skala</button>
+                        <button onclick="globalThis.ItemEditor._vsAddNew()" class="flex-1 bg-orange-500/10 border border-dashed border-orange-500/30 text-orange-300 rounded-xl py-3 text-[10px] font-black uppercase tracking-wider hover:bg-orange-500/20 transition"><i class="fa-solid fa-plus mr-2"></i> Nowa Skala</button>
                         <!-- F-S1.2 (2026-05-11): Presety z gotowymi multiplier-ami -->
-                        <button onclick="window.ItemEditor._vsAddPreset()" class="bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-wider hover:bg-amber-500/20 transition" title="F-S1.2: gotowe presety (Pizza S/M/L/XL, Coffee S/M/L, etc.)"><i class="fa-solid fa-magic-wand-sparkles mr-2"></i> Preset</button>
+                        <button onclick="globalThis.ItemEditor._vsAddPreset()" class="bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-wider hover:bg-amber-500/20 transition" title="F-S1.2: gotowe presety (Pizza S/M/L/XL, Coffee S/M/L, etc.)"><i class="fa-solid fa-magic-wand-sparkles mr-2"></i> Preset</button>
                     </div>
                 </div>
             </div>`;
@@ -1877,7 +1877,7 @@ window.ItemEditor = {
                             <input data-vs-idx="${idx}" data-vs-field="key_ascii" class="w-full bg-black/50 border border-white/10 rounded-lg p-2 text-xs font-mono text-white uppercase" value="${s.key_ascii || ''}" placeholder="SCALE_PIZZA">
                         </div>
                         <div class="col-span-2 flex items-end">
-                            <button onclick="window.ItemEditor._vsSave(${idx})" class="w-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg py-2 text-[9px] font-black uppercase hover:bg-emerald-500/30"><i class="fa-solid fa-floppy-disk"></i></button>
+                            <button onclick="globalThis.ItemEditor._vsSave(${idx})" class="w-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg py-2 text-[9px] font-black uppercase hover:bg-emerald-500/30"><i class="fa-solid fa-floppy-disk"></i></button>
                         </div>
                     </div>
                     <div class="space-y-1.5 mt-3" id="vs-opts-${idx}">
@@ -1888,12 +1888,12 @@ window.ItemEditor = {
                                 <input type="number" step="0.01" data-vs-idx="${idx}" data-vs-opt="${oi}" data-vs-field="multiplier" class="col-span-2 bg-black/50 border border-white/5 rounded p-1.5 text-[11px] text-white text-center" value="${o.multiplier ?? 1}" placeholder="1.0">
                                 <input type="number" data-vs-idx="${idx}" data-vs-opt="${oi}" data-vs-field="diameter_cm" class="col-span-2 bg-black/50 border border-white/5 rounded p-1.5 text-[11px] text-white text-center" value="${o.diameter_cm ?? ''}" placeholder="cm">
                                 <div class="col-span-1 text-[8px] text-slate-500 text-center">× recipe</div>
-                                <button onclick="window.ItemEditor._vsRemoveOpt(${idx}, ${oi})" class="col-span-2 bg-rose-500/10 border border-rose-500/20 rounded py-1.5 text-rose-400 text-[9px] font-black uppercase hover:bg-rose-500/20"><i class="fa-solid fa-trash"></i> Usuń</button>
+                                <button onclick="globalThis.ItemEditor._vsRemoveOpt(${idx}, ${oi})" class="col-span-2 bg-rose-500/10 border border-rose-500/20 rounded py-1.5 text-rose-400 text-[9px] font-black uppercase hover:bg-rose-500/20"><i class="fa-solid fa-trash"></i> Usuń</button>
                             </div>
                         `).join('')}
                     </div>
-                    <button onclick="window.ItemEditor._vsAddOpt(${idx})" class="mt-2 text-[9px] text-orange-300 hover:text-orange-200"><i class="fa-solid fa-plus"></i> dodaj opcję</button>
-                    <button onclick="window.ItemEditor._vsDelete(${idx})" class="mt-2 ml-3 text-[9px] text-rose-400 hover:text-rose-300"><i class="fa-solid fa-trash"></i> usuń skalę</button>
+                    <button onclick="globalThis.ItemEditor._vsAddOpt(${idx})" class="mt-2 text-[9px] text-orange-300 hover:text-orange-200"><i class="fa-solid fa-plus"></i> dodaj opcję</button>
+                    <button onclick="globalThis.ItemEditor._vsDelete(${idx})" class="mt-2 ml-3 text-[9px] text-rose-400 hover:text-rose-300"><i class="fa-solid fa-trash"></i> usuń skalę</button>
                 </div>
             `).join('');
 
@@ -1912,13 +1912,13 @@ window.ItemEditor = {
             });
         };
 
-        window.ItemEditor._vsAddNew = () => {
+        globalThis.ItemEditor._vsAddNew = () => {
             scales.push({ id: 0, name: 'Nowa Skala', key_ascii: 'SCALE_NEW_' + Math.floor(Math.random()*1000), options: [{ name: 'Mała', key_ascii: 'S', multiplier: 0.7, display_order: 0 }] });
             renderList();
         };
 
         // F-S1.2 — Presety
-        window.ItemEditor._vsAddPreset = () => {
+        globalThis.ItemEditor._vsAddPreset = () => {
             const presets = [
                 { label: '🍕 Pizza 4 rozmiary (26/32/36/40 cm)', scale: { name: 'Rozmiary pizzy', key_ascii: 'SCALE_PIZZA_4',
                     options: [
@@ -1989,18 +1989,18 @@ window.ItemEditor = {
             });
             document.body.appendChild(presetModal);
         };
-        window.ItemEditor._vsAddOpt = (i) => {
+        globalThis.ItemEditor._vsAddOpt = (i) => {
             if (!scales[i].options) scales[i].options = [];
             scales[i].options.push({ name: 'Nowy', key_ascii: 'NEW' + scales[i].options.length, multiplier: 1.0, display_order: scales[i].options.length });
             renderList();
         };
-        window.ItemEditor._vsRemoveOpt = (i, oi) => {
+        globalThis.ItemEditor._vsRemoveOpt = (i, oi) => {
             scales[i].options.splice(oi, 1);
             renderList();
         };
-        window.ItemEditor._vsSave = async (i) => {
+        globalThis.ItemEditor._vsSave = async (i) => {
             const s = scales[i];
-            const r = await window.apiStudio('save_variant_scale', {
+            const r = await globalThis.apiStudio('save_variant_scale', {
                 id: s.id || 0,
                 name: s.name,
                 key_ascii: s.key_ascii,
@@ -2008,20 +2008,20 @@ window.ItemEditor = {
                 options: s.options || []
             });
             if (r && r.success) {
-                if (window.StudioToast) window.StudioToast.show('Zapisano skalę.', 'success');
+                if (globalThis.StudioToast) globalThis.StudioToast.show('Zapisano skalę.', 'success');
                 if (r.data && r.data.scale_id) scales[i].id = r.data.scale_id;
                 // Reload select w głównym widoku
                 this._loadVariantScalesIntoSelect(this._currentVariantScaleId);
             } else {
-                if (window.StudioToast) window.StudioToast.show((r?.message || 'unknown'), 'error');
+                if (globalThis.StudioToast) globalThis.StudioToast.show((r?.message || 'unknown'), 'error');
             }
         };
-        window.ItemEditor._vsDelete = async (i) => {
+        globalThis.ItemEditor._vsDelete = async (i) => {
             if (!confirm('Usunąć tę skalę?')) return;
             const s = scales[i];
             if (s.id) {
-                const r = await window.apiStudio('delete_variant_scale', { id: s.id });
-                if (!r || !r.success) { if (window.StudioToast) window.StudioToast.show((r?.message || 'unknown'), 'error'); return; }
+                const r = await globalThis.apiStudio('delete_variant_scale', { id: s.id });
+                if (!r || !r.success) { if (globalThis.StudioToast) globalThis.StudioToast.show((r?.message || 'unknown'), 'error'); return; }
             }
             scales.splice(i, 1);
             renderList();

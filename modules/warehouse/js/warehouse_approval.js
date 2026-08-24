@@ -8,7 +8,7 @@
     document.addEventListener('DOMContentLoaded', load);
 
     async function load() {
-        const res = await window.WarehouseApi.getDocumentsList({ type: 'INW', status: 'pending_approval', limit: '100' });
+        const res = await globalThis.WarehouseApi.getDocumentsList({ type: 'INW', status: 'pending_approval', limit: '100' });
         const container = document.getElementById('queue');
         if (!container) return;
 
@@ -69,7 +69,7 @@
         if (decision === 'approve' && !confirm('Zatwierdź inwentaryzację? Stany magazynowe zostaną wyrównane.')) return;
         if (decision === 'reject' && !confirm('Odrzucić inwentaryzację? Stany nie zostaną zmienione.')) return;
 
-        const res = await window.WarehouseApi.postApproval({ document_id: docId, decision });
+        const res = await globalThis.WarehouseApi.postApproval({ document_id: docId, decision });
         if (res.success) {
             card.remove();
             const remaining = document.querySelectorAll('[data-id]');

@@ -4,11 +4,11 @@
 
 const OnlineAPI = (() => {
     function apiBase() {
-        if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.getApiBase) {
-            return window.SliceHub.getApiBase();
+        if (typeof globalThis !== 'undefined' && globalThis.SliceHub && globalThis.SliceHub.getApiBase) {
+            return globalThis.SliceHub.getApiBase();
         }
-        if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.getApiFallback) {
-            return window.SliceHub.getApiFallback();
+        if (typeof globalThis !== 'undefined' && globalThis.SliceHub && globalThis.SliceHub.getApiFallback) {
+            return globalThis.SliceHub.getApiFallback();
         }
         return '/api';
     }
@@ -16,13 +16,13 @@ const OnlineAPI = (() => {
     function _tenantScope() {
         const meta = document.querySelector('meta[name="sh-tenant-id"]');
         const fromMeta = meta ? parseInt(meta.getAttribute('content') || '0', 10) : 0;
-        const params = new URLSearchParams(window.location.search);
+        const params = new URLSearchParams(globalThis.location.search);
         const fromUrl = parseInt(params.get('tenant') || params.get('tenantId') || '0', 10);
         return fromUrl > 0 ? fromUrl : fromMeta;
     }
 
     function _channelFromUrl() {
-        const params = new URLSearchParams(window.location.search);
+        const params = new URLSearchParams(globalThis.location.search);
         const c = (params.get('channel') || 'Delivery').trim();
         if (c === 'Takeaway' || c === 'Delivery' || c === 'POS') return c;
         return 'Delivery';

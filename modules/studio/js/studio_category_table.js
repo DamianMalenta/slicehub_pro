@@ -24,10 +24,10 @@
         };
     }
 
-    window.CategoryTableEditor = {
+    globalThis.CategoryTableEditor = {
         async open(categoryId) {
             try {
-                const r = await window.apiStudio('get_category_scene_editor', { categoryId });
+                const r = await globalThis.apiStudio('get_category_scene_editor', { categoryId });
                 if (!r.success) {
                     alert(r.message || 'Błąd pobierania sceny kategorii.');
                     return;
@@ -45,7 +45,7 @@
 
             const items = data.items || [];
             const templateKey = data.templateKey || 'category_flat_table';
-            const catTemplates = (window.StudioState?.sceneTemplates || []).filter((t) => t.kind === 'category');
+            const catTemplates = (globalThis.StudioState?.sceneTemplates || []).filter((t) => t.kind === 'category');
             let tplOptions = '';
             if (catTemplates.length > 0) {
                 const hasCurrent = catTemplates.some((t) => t.asciiKey === templateKey);
@@ -209,15 +209,15 @@
                     });
                 });
                 try {
-                    const r = await window.apiStudio('save_category_scene_layout', {
+                    const r = await globalThis.apiStudio('save_category_scene_layout', {
                         categoryId,
                         templateKey: tplSel.value || templateKey,
                         placements,
                     });
                     if (r.success) {
-                        if (typeof window.loadMenuTree === 'function') {
-                            await window.loadMenuTree();
-                            if (window.Core && typeof window.Core.renderTree === 'function') window.Core.renderTree();
+                        if (typeof globalThis.loadMenuTree === 'function') {
+                            await globalThis.loadMenuTree();
+                            if (globalThis.Core && typeof globalThis.Core.renderTree === 'function') globalThis.Core.renderTree();
                         }
                         close();
                     } else {

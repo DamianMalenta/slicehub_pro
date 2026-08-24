@@ -11,7 +11,7 @@
         initWarehouseSelect();
     });
 
-    window.toggleOption = function (el) {
+    globalThis.toggleOption = function (el) {
         const icon = el.querySelector('i.fa-toggle-on, i.fa-toggle-off');
         if (!icon) return;
         const isOn = icon.classList.contains('fa-toggle-on');
@@ -28,7 +28,7 @@
         const wh = document.getElementById('warehouse_id');
         if (!wh) return;
 
-        const res = await window.WarehouseApi.getWarehouseList();
+        const res = await globalThis.WarehouseApi.getWarehouseList();
         if (res.success && Array.isArray(res.data) && res.data.length > 0) {
             wh.innerHTML = '<option value="">— wybierz magazyn —</option>';
             res.data.forEach(item => {
@@ -40,7 +40,7 @@
                 wh.appendChild(opt);
             });
         } else {
-            const wid = window.WarehouseApi.DEFAULT_WAREHOUSE_ID;
+            const wid = globalThis.WarehouseApi.DEFAULT_WAREHOUSE_ID;
             wh.innerHTML =
                 `<option value="">— wybierz magazyn —</option>` +
                 `<option value="${wid}">Magazyn główny (${wid})</option>`;
@@ -51,17 +51,17 @@
             const exists = Array.from(wh.options).some(o => o.value === saved);
             if (exists) wh.value = saved;
         }
-        if (wh.value) window.loadInventoryData();
+        if (wh.value) globalThis.loadInventoryData();
     }
 
-    window.loadInventoryData = async function () {
+    globalThis.loadInventoryData = async function () {
         const wid = document.getElementById('warehouse_id')?.value;
         if (!wid) return;
 
         const overlay = document.getElementById('loading-overlay');
         if (overlay) overlay.classList.remove('hidden');
 
-        const res = await window.WarehouseApi.stockList(wid);
+        const res = await globalThis.WarehouseApi.stockList(wid);
 
         if (overlay) overlay.classList.add('hidden');
 
@@ -78,10 +78,10 @@
             sys_qty:   parseFloat(row.quantity) || 0,
             actual_qty: null,
         }));
-        window.renderInventory();
+        globalThis.renderInventory();
     };
 
-    window.renderInventory = function () {
+    globalThis.renderInventory = function () {
         const tbody = document.getElementById('inventory-list');
         if (!tbody) return;
 
@@ -108,7 +108,7 @@
             <td class="py-4 px-4 text-center">
                 <input type="number" step="0.001" min="0" placeholder="0.000"
                     class="w-32 bg-black border border-white/10 rounded-xl p-2 text-center text-amber-500 font-black outline-none focus:border-amber-500 transition shadow-inner"
-                    oninput="window.updateActualQty(${idx}, this.value)">
+                    oninput="globalThis.updateActualQty(${idx}, this.value)">
             </td>
             <td class="py-4 text-center text-[10px] font-black text-slate-600 uppercase tracking-tighter bg-black/20 rounded-lg">
                 ${escapeHtml(item.base_unit)}
@@ -118,7 +118,7 @@
             )
             .join('');
 
-        window.applyBlindModeStyles();
+        globalThis.applyBlindModeStyles();
     };
 
     function escapeHtml(str) {
@@ -127,7 +127,7 @@
         return d.innerHTML;
     }
 
-    window.updateActualQty = function (idx, val) {
+    globalThis.updateActualQty = function (idx, val) {
         const qty = parseFloat(val);
         inventoryData[idx].actual_qty = Number.isFinite(qty) ? qty : null;
 
@@ -143,7 +143,7 @@
         }
     };
 
-    window.toggleBlindMode = function () {
+    globalThis.toggleBlindMode = function () {
         isBlindMode = !isBlindMode;
         const icon = document.getElementById('icon-blind');
         if (icon) {
@@ -151,7 +151,7 @@
                 ? 'fa-solid fa-toggle-on text-amber-500 text-xl transition-colors'
                 : 'fa-solid fa-toggle-off text-slate-600 text-xl transition-colors';
         }
-        window.applyBlindModeStyles();
+        globalThis.applyBlindModeStyles();
         inventoryData.forEach((item, idx) => {
             const cell = document.getElementById(`diff-${idx}`);
             if (!cell) return;
@@ -168,13 +168,13 @@
         });
     };
 
-    window.applyBlindModeStyles = function () {
+    globalThis.applyBlindModeStyles = function () {
         const table = document.getElementById('in-table');
         if (!table) return;
         table.classList.toggle('blind-mode-active', isBlindMode);
     };
 
-    window.saveInventory = async function () {
+    globalThis.saveInventory = async function () {
         const wid = document.getElementById('warehouse_id')?.value;
         if (!wid) {
             alert('Wybierz magazyn.');
@@ -201,7 +201,7 @@
         const overlay = document.getElementById('loading-overlay');
         if (overlay) overlay.classList.remove('hidden');
 
-        const res = await window.WarehouseApi.postInventory({
+        const res = await globalThis.WarehouseApi.postInventory({
             warehouse_id: wid,
             lines,
             tolerances: {
@@ -214,7 +214,7 @@
 
         if (res.success) {
             alert('Inwentaryzacja zaksięgowana.');
-            window.location.reload();
+            globalThis.location.reload();
         } else {
             alert(res.message || 'Błąd zapisu inwentaryzacji.');
         }

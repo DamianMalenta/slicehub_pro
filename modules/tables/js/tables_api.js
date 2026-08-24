@@ -6,22 +6,22 @@ const TablesAPI = (function () {
     'use strict';
 
     function apiFallback() {
-        if (window.SliceHub && window.SliceHub.getApiFallback) return window.SliceHub.getApiFallback();
+        if (globalThis.SliceHub && globalThis.SliceHub.getApiFallback) return globalThis.SliceHub.getApiFallback();
         return '/api';
     }
     function authUrl() {
-        return (window.SliceHub && window.SliceHub.apiUrl)
-            ? window.SliceHub.apiUrl('auth/login.php')
+        return (globalThis.SliceHub && globalThis.SliceHub.apiUrl)
+            ? globalThis.SliceHub.apiUrl('auth/login.php')
             : apiFallback() + '/auth/login.php';
     }
     function engineUrl() {
-        return (window.SliceHub && window.SliceHub.apiUrl)
-            ? window.SliceHub.apiUrl('tables/engine.php')
+        return (globalThis.SliceHub && globalThis.SliceHub.apiUrl)
+            ? globalThis.SliceHub.apiUrl('tables/engine.php')
             : apiFallback() + '/tables/engine.php';
     }
 
     function _tenantId() {
-        if (typeof window !== 'undefined' && window.__SH_TENANT_ID__) return window.__SH_TENANT_ID__;
+        if (typeof globalThis !== 'undefined' && globalThis.__SH_TENANT_ID__) return globalThis.__SH_TENANT_ID__;
         const meta = document.querySelector('meta[name="sh-tenant-id"]');
         if (meta && meta.content) return parseInt(meta.content, 10) || 1;
         return 1;

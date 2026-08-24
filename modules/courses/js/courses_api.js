@@ -5,12 +5,12 @@
  */
 const CoursesAPI = (() => {
     function apiFallback() {
-        if (window.SliceHub && window.SliceHub.getApiFallback) return window.SliceHub.getApiFallback();
+        if (globalThis.SliceHub && globalThis.SliceHub.getApiFallback) return globalThis.SliceHub.getApiFallback();
         return '/api';
     }
     function engineUrl() {
-        return (window.SliceHub && window.SliceHub.apiUrl)
-            ? window.SliceHub.apiUrl('courses/engine.php')
+        return (globalThis.SliceHub && globalThis.SliceHub.apiUrl)
+            ? globalThis.SliceHub.apiUrl('courses/engine.php')
             : apiFallback() + '/courses/engine.php';
     }
     let _token = localStorage.getItem('sh_token') || '';
@@ -38,8 +38,8 @@ const CoursesAPI = (() => {
 
         loginPin: (tenantId, pin) => {
             const headers = { 'Content-Type': 'application/json' };
-            return fetch((window.SliceHub && window.SliceHub.apiUrl)
-                ? window.SliceHub.apiUrl('auth/login.php')
+            return fetch((globalThis.SliceHub && globalThis.SliceHub.apiUrl)
+                ? globalThis.SliceHub.apiUrl('auth/login.php')
                 : apiFallback() + '/auth/login.php', {
                 method: 'POST', headers,
                 body: JSON.stringify({ mode: 'kiosk', tenant_id: tenantId, pin_code: pin }),

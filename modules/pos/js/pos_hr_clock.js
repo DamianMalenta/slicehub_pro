@@ -141,7 +141,7 @@ export function initPosHrClock(PosAPI, PosUI, tenantId) {
         PosUI.toast(res.message || 'Błąd', 'error');
     }
 
-    window._hrclkPin = (v) => {
+    globalThis._hrclkPin = (v) => {
         if (v === 'clear') {
             pinBuf = '';
         } else if (v === 'back') {

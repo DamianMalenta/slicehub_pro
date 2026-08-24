@@ -4,12 +4,12 @@
  */
 const KdsApp = (() => {
     function apiUrl(path) {
-        if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.apiUrl) {
-            return window.SliceHub.apiUrl(path);
+        if (typeof globalThis !== 'undefined' && globalThis.SliceHub && globalThis.SliceHub.apiUrl) {
+            return globalThis.SliceHub.apiUrl(path);
         }
-        const base = (window.SliceHub && window.SliceHub.getApiBase)
-            ? window.SliceHub.getApiBase()
-            : ((window.SliceHub && window.SliceHub.getApiFallback) ? window.SliceHub.getApiFallback() : '/api');
+        const base = (globalThis.SliceHub && globalThis.SliceHub.getApiBase)
+            ? globalThis.SliceHub.getApiBase()
+            : ((globalThis.SliceHub && globalThis.SliceHub.getApiFallback) ? globalThis.SliceHub.getApiFallback() : '/api');
         const p = String(path || '').trim();
         if (!p) return base;
         return base + (p.startsWith('/') ? p : '/' + p);
@@ -129,7 +129,7 @@ const KdsApp = (() => {
     }
 
     function _initStationFilter() {
-        const params = new URLSearchParams(window.location.search || '');
+        const params = new URLSearchParams(globalThis.location.search || '');
         const q = (params.get('station') || '').trim();
         if (q) {
             _stationFilter = q;
@@ -190,12 +190,12 @@ const KdsApp = (() => {
             if (_stationFilter) localStorage.setItem(LS_STATION, _stationFilter);
             else localStorage.removeItem(LS_STATION);
         } catch (_) {}
-        const params = new URLSearchParams(window.location.search || '');
+        const params = new URLSearchParams(globalThis.location.search || '');
         if (_stationFilter) params.set('station', _stationFilter);
         else params.delete('station');
         const qs = params.toString();
-        const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
-        window.history.replaceState({}, '', url);
+        const url = qs ? `${globalThis.location.pathname}?${qs}` : globalThis.location.pathname;
+        globalThis.history.replaceState({}, '', url);
         refresh();
     }
 
