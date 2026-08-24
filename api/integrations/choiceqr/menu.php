@@ -36,6 +36,7 @@ function cqr_menu_error(int $code, string $msg): never
 try {
     require_once __DIR__ . '/../../../core/db_config.php';
     require_once __DIR__ . '/../../../core/CredentialVault.php';
+    require_once __DIR__ . '/../../../core/MenuVisibilityFilter.php';
 
     if (!isset($pdo)) {
         cqr_menu_error(500, 'Database connection unavailable');
@@ -98,27 +99,33 @@ try {
     }
 
     // -------------------------------------------------------------------------
-    // 3. LOAD CATEGORIES
+    // 3. LOAD CATEGORIES — public channel: is_menu = 1 AND is_deleted = 0
     // -------------------------------------------------------------------------
+    $cqrCatWhere = MenuVisibilityFilter::publicCategoriesWhere('c');
     $stmtCats = $pdo->prepare(
-        "SELECT id, name, display_order
-         FROM sh_categories
-         WHERE tenant_id = :tid AND is_deleted = 0 AND is_menu = 1
-         ORDER BY display_order, id"
+        "SELECT c.id, c.name, c.display_order
+         FROM sh_categories c
+         WHERE c.tenant_id = :tid AND {$cqrCatWhere}
+         ORDER BY c.display_order, c.id"
     );
     $stmtCats->execute([':tid' => $tenantId]);
     $categories = $stmtCats->fetchAll(PDO::FETCH_ASSOC);
 
     // -------------------------------------------------------------------------
-    // 4. LOAD MENU ITEMS (all active, not deleted)
+    // 4. LOAD MENU ITEMS — all non-deleted; filtered in PHP by visibility
+    //    (publication_status + is_secret + temporal). PHP filter below uses
+    //    MenuVisibilityFilter::PUBLISHED_STATUSES for canonical check.
     // -------------------------------------------------------------------------
+    $cqrItemWhere = MenuVisibilityFilter::publicItemsWhere($pdo, 'mi');
     $stmtItems = $pdo->prepare(
-        "SELECT id, category_id, name, ascii_key, description, is_active,
-                is_deleted, vat_rate_dine_in, allergens_json, image_url,
-                badge_type, publication_status
-         FROM sh_menu_items
-         WHERE tenant_id = :tid AND is_deleted = 0
-         ORDER BY display_order, id"
+        "SELECT mi.id, mi.category_id, mi.name, mi.ascii_key, mi.description,
+                mi.is_active, mi.is_deleted, mi.is_secret,
+                mi.vat_rate_dine_in, mi.allergens_json, mi.image_url,
+                mi.badge_type, mi.publication_status,
+                mi.valid_from, mi.valid_to
+         FROM sh_menu_items mi
+         WHERE mi.tenant_id = :tid AND {$cqrItemWhere}
+         ORDER BY mi.display_order, mi.id"
     );
     $stmtItems->execute([':tid' => $tenantId]);
     $allItems = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
@@ -162,14 +169,15 @@ try {
     // -------------------------------------------------------------------------
     // 6. LOAD MODIFIER GROUPS + MODIFIERS + ITEM_MODIFIERS
     // -------------------------------------------------------------------------
-    // Item → modifier groups mapping
+    // Item → modifier groups mapping — unified visibility filter
+    $cqrModGroupWhere = MenuVisibilityFilter::modifierGroupsWhere($pdo, 'g');
     $stmtItemMods = $pdo->prepare(
         "SELECT im.item_id, im.group_id,
                 g.name AS group_name, g.ascii_key AS group_key,
                 g.min_selection, g.max_selection, g.is_active AS group_active
          FROM sh_item_modifiers im
          JOIN sh_modifier_groups g ON g.id = im.group_id
-         WHERE g.is_active = 1 AND g.is_deleted = 0
+         WHERE {$cqrModGroupWhere}
            AND g.tenant_id = :tid"
     );
     $stmtItemMods->execute([':tid' => $tenantId]);
@@ -188,13 +196,14 @@ try {
         ];
     }
 
-    // Modifier items per group
+    // Modifier items per group — unified visibility filter
+    $cqrModWhere = MenuVisibilityFilter::modifiersWhere('m');
     $stmtMods = $pdo->prepare(
         "SELECT m.id, m.group_id, m.name, m.ascii_key, m.price,
                 m.is_active, m.is_deleted
          FROM sh_modifiers m
          JOIN sh_modifier_groups g ON g.id = m.group_id
-         WHERE g.tenant_id = :tid AND m.is_deleted = 0"
+         WHERE g.tenant_id = :tid AND {$cqrModWhere}"
     );
     $stmtMods->execute([':tid' => $tenantId]);
     $modsByGroup = [];
@@ -242,16 +251,8 @@ try {
         ];
 
         foreach ($catItems as $item) {
-            if ((int)$item['is_active'] !== 1) {
-                continue;
-            }
-
-            // Skip items not published (if publication_status is set)
-            $pubStatus = $item['publication_status'];
-            if ($pubStatus !== null && $pubStatus === 'draft') {
-                continue;
-            }
-
+            // Visibility already filtered in SQL via MenuVisibilityFilter::publicItemsWhere
+            // (is_deleted=0, is_secret=0, publication_status IN Live/published, temporal).
             $sku = $item['ascii_key'];
 
             // Resolve price — prefer POS channel, then any channel, then modifier.price

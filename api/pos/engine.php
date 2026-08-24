@@ -60,6 +60,7 @@ try {
     require_once __DIR__ . '/../../core/SlaThresholds.php';
     require_once __DIR__ . '/../../core/HrSessionGate.php';
     require_once __DIR__ . '/../../core/Uuid.php';
+    require_once __DIR__ . '/../../core/MenuVisibilityFilter.php';
     require_once __DIR__ . '/../orders/DeltaEngine.php';
 
     $raw   = file_get_contents('php://input');
@@ -136,6 +137,11 @@ try {
         try { $pdo->query("SELECT variant_scale_id FROM sh_menu_items LIMIT 0"); $hasVariantCols = true; }
         catch (\PDOException $e) {}
 
+        // Faza 1 (2026-08-24): unified visibility via MenuVisibilityFilter::internalItemsWhere
+        // (POS = internal — widzi is_secret=1, ale respektuje publication_status + temporal).
+        $posItemVisibility = MenuVisibilityFilter::internalItemsWhere($pdo, 'mi');
+        $posItemVisibilityNoAlias = MenuVisibilityFilter::internalItemsWhere($pdo);
+
         if ($schemaV2) {
             // F-S1 + F5-D + F-S4 — wspólne klauzule:
             //   * is_variant_parent=0 (parents niesprzedawalne, F-S1)
@@ -159,11 +165,8 @@ try {
                        LEFT JOIN sh_variant_scale_options opt
                             ON opt.id = mi.variant_option_id AND opt.tenant_id = mi.tenant_id
                       WHERE mi.tenant_id = ?
-                        AND mi.is_deleted = 0
+                        AND {$posItemVisibility}
                         AND mi.is_variant_parent = 0
-                        AND (mi.publication_status IS NULL OR mi.publication_status IN ('Live','published'))
-                        AND (mi.valid_from IS NULL OR mi.valid_from <= NOW())
-                        AND (mi.valid_to   IS NULL OR mi.valid_to   >= NOW())
                       ORDER BY mi.display_order ASC, mi.name ASC"
                 );
             } else {
@@ -172,10 +175,7 @@ try {
                             vat_rate_dine_in, vat_rate_takeaway
                        FROM sh_menu_items
                       WHERE tenant_id = ?
-                        AND is_deleted = 0
-                        AND (publication_status IS NULL OR publication_status IN ('Live','published'))
-                        AND (valid_from IS NULL OR valid_from <= NOW())
-                        AND (valid_to   IS NULL OR valid_to   >= NOW())
+                        AND {$posItemVisibilityNoAlias}
                       ORDER BY display_order ASC, name ASC"
                 );
             }
@@ -186,10 +186,7 @@ try {
                         vat_rate AS vat_rate_dine_in, vat_rate AS vat_rate_takeaway, price
                  FROM sh_menu_items
                  WHERE tenant_id = ?
-                   AND is_deleted = 0
-                   AND (publication_status IS NULL OR publication_status IN ('Live','published'))
-                   AND (valid_from IS NULL OR valid_from <= NOW())
-                   AND (valid_to   IS NULL OR valid_to   >= NOW())
+                   AND {$posItemVisibilityNoAlias}
                  ORDER BY display_order ASC, name ASC"
             );
         }
@@ -444,19 +441,19 @@ try {
         }
 
         // F-S3 (2026-05-11): meal_packages — combo/bundle/meal.
+        // Faza 1 (2026-08-24): unified visibility via MenuVisibilityFilter::mealsWhere
+        // (opuszcza sztywny is_active=1, opiera się na publication_status + temporal —
+        // spójnie ze zwykłymi daniami w POS).
         $mealPackages = [];
         try {
+            $posMealVisibility = MenuVisibilityFilter::mealsWhere($pdo, 'mp');
             $stmtMeals = $pdo->prepare(
-                "SELECT id, ascii_key, name, description, category_id, type,
-                        final_price_grosze, discount_percent, image_url
-                   FROM sh_meal_packages
-                  WHERE tenant_id = :tid
-                    AND is_deleted = 0
-                    AND is_active = 1
-                    AND (publication_status IS NULL OR publication_status IN ('Live','published'))
-                    AND (valid_from IS NULL OR valid_from <= NOW())
-                    AND (valid_to   IS NULL OR valid_to   >= NOW())
-                  ORDER BY display_order ASC, name ASC"
+                "SELECT mp.id, mp.ascii_key, mp.name, mp.description, mp.category_id, mp.type,
+                        mp.final_price_grosze, mp.discount_percent, mp.image_url
+                   FROM sh_meal_packages mp
+                  WHERE mp.tenant_id = :tid
+                    AND {$posMealVisibility}
+                  ORDER BY mp.display_order ASC, mp.name ASC"
             );
             $stmtMeals->execute([':tid' => $tenant_id]);
             $mealPackages = $stmtMeals->fetchAll(PDO::FETCH_ASSOC);
@@ -693,9 +690,10 @@ try {
                     ];
                 }
                 $ceResult = CartEngine::calculate($pdo, $tenant_id, [
-                    'channel'    => $channelMap[$orderType] ?? 'POS',
-                    'order_type' => $orderType,
-                    'lines'      => $cartLinesForEngine,
+                    'channel'     => $channelMap[$orderType] ?? 'POS',
+                    'order_type'  => $orderType,
+                    'lines'       => $cartLinesForEngine,
+                    'is_internal' => true, // Faza 1: POS = internal (widzi is_secret, jak POS menu)
                 ]);
                 // Wynik CartEngine: response.total_grosze + lines z item_sku + line_total_grosze
                 $authoritativeTotal = (int)($ceResult['response']['totals']['total_grosze']
