@@ -1190,15 +1190,26 @@ try {
         $lngRaw  = $getSetting('storefront_lng', null);
         $surfaceBg = (string)$getSetting('storefront_surface_bg', '');
 
-        // Opening hours — osobna kolumna opening_hours_json na wierszu setting_key=''
-        $openingHoursRaw = null;
+        // Opening hours + PromisedTime params — osobne kolumny na wierszu setting_key=''
+        // (opening_hours_json, base_prep_minutes, min_lead_time_minutes).
+        // PromisedTimeEngine czyta te kolumny jako fallbacki dla wyliczania ETA ASAP
+        // i gate'a scheduled. Edycja z panelu Storefront (Faza 2026-08-24).
+        $openingHoursRaw   = null;
+        $basePrepMinutes   = null;
+        $minLeadTimeMinutes = null;
         try {
             $stH = $pdo->prepare(
-                "SELECT opening_hours_json FROM sh_tenant_settings
+                "SELECT opening_hours_json, base_prep_minutes, min_lead_time_minutes
+                 FROM sh_tenant_settings
                  WHERE tenant_id = :tid AND setting_key = '' LIMIT 1"
             );
             $stH->execute([':tid' => $tenant_id]);
-            $openingHoursRaw = $stH->fetchColumn();
+            $rowCols = $stH->fetch(PDO::FETCH_ASSOC);
+            if (is_array($rowCols)) {
+                $openingHoursRaw    = $rowCols['opening_hours_json'] ?? null;
+                $basePrepMinutes    = $rowCols['base_prep_minutes'] ?? null;
+                $minLeadTimeMinutes = $rowCols['min_lead_time_minutes'] ?? null;
+            }
         } catch (\PDOException $e) { /* legacy tenants may lack column */ }
 
         $openingHours = [];
@@ -1206,6 +1217,11 @@ try {
             $decoded = json_decode((string)$openingHoursRaw, true);
             if (is_array($decoded)) $openingHours = $decoded;
         }
+
+        // PromisedTime — fallbacki zgodne z core/PromisedTimeEngine.php
+        // (DEFAULT_BASE_PREP=25, DEFAULT_MIN_LEAD_TIME=30).
+        $basePrepMinutes    = ($basePrepMinutes !== null)    ? (int)$basePrepMinutes    : 25;
+        $minLeadTimeMinutes = ($minLeadTimeMinutes !== null) ? (int)$minLeadTimeMinutes : 30;
 
         // Kanały i preorder
         $channelsRaw = $getSetting('storefront_channels_json', null);
@@ -1245,6 +1261,10 @@ try {
                 'active'          => $channels,
                 'preorderEnabled' => $preorderEnabled,
                 'preorderLeadMin' => $preorderLeadMin,
+            ],
+            'promisedTime' => [
+                'basePrepMinutes'    => $basePrepMinutes,
+                'minLeadTimeMinutes' => $minLeadTimeMinutes,
             ],
             'visual' => [
                 'surfaceBg' => $surfaceBg,
@@ -1389,6 +1409,82 @@ try {
                 ]);
             } catch (\PDOException $e) {
                 $errors[] = 'Godziny otwarcia: nie udało się zapisać (' . $e->getMessage() . ').';
+            }
+        }
+
+        // PromisedTime — zapis kolumn base_prep_minutes / min_lead_time_minutes
+        // na wierszu setting_key='' (transakcja z blokadą tenant_id).
+        // Walidacja: base_prep_minutes 5–120, min_lead_time_minutes 15–240
+        // (zgodne z zakresami UI; PromisedTimeEngine stosuje własne fallbacki
+        // gdy kolumna NULL, ale po zapisie wartość jest kanoniczna).
+        if (isset($input['promisedTime']) && is_array($input['promisedTime'])) {
+            $pt = $input['promisedTime'];
+            $newBasePrep    = null;
+            $newMinLeadTime = null;
+
+            if (array_key_exists('basePrepMinutes', $pt)) {
+                $bpm = (int)$pt['basePrepMinutes'];
+                if ($bpm < 5 || $bpm > 120) {
+                    $errors[] = 'Bazowy czas przygotowania: liczba w zakresie 5–120 min.';
+                } else {
+                    $newBasePrep = $bpm;
+                }
+            }
+            if (array_key_exists('minLeadTimeMinutes', $pt)) {
+                $mlt = (int)$pt['minLeadTimeMinutes'];
+                if ($mlt < 15 || $mlt > 240) {
+                    $errors[] = 'Minimalne wyprzedzenie: liczba w zakresie 15–240 min.';
+                } else {
+                    $newMinLeadTime = $mlt;
+                }
+            }
+
+            // Atomowy zapis w transakcji z blokadą wiersza tenant_id
+            if ($newBasePrep !== null || $newMinLeadTime !== null) {
+                try {
+                    $pdo->beginTransaction();
+                    $stLock = $pdo->prepare(
+                        "SELECT id FROM sh_tenant_settings
+                         WHERE tenant_id = :tid AND setting_key = ''
+                         FOR UPDATE"
+                    );
+                    $stLock->execute([':tid' => $tenant_id]);
+                    $exists = $stLock->fetchColumn();
+
+                    if (!$exists) {
+                        // Legacy tenant bez wiersza setting_key='' — tworzymy go
+                        $pdo->prepare(
+                            "INSERT INTO sh_tenant_settings (tenant_id, setting_key, base_prep_minutes, min_lead_time_minutes)
+                             VALUES (:tid, '', :bpm, :mlt)"
+                        )->execute([
+                            ':tid' => $tenant_id,
+                            ':bpm' => $newBasePrep    ?? 25,
+                            ':mlt' => $newMinLeadTime ?? 30,
+                        ]);
+                    } else {
+                        // UPDATE tylko przekazanych kolumn (NULL = pozostaw bez zmian)
+                        $sets = [];
+                        $params = [':tid' => $tenant_id];
+                        if ($newBasePrep !== null) {
+                            $sets[] = 'base_prep_minutes = :bpm';
+                            $params[':bpm'] = $newBasePrep;
+                        }
+                        if ($newMinLeadTime !== null) {
+                            $sets[] = 'min_lead_time_minutes = :mlt';
+                            $params[':mlt'] = $newMinLeadTime;
+                        }
+                        if ($sets) {
+                            $pdo->prepare(
+                                "UPDATE sh_tenant_settings SET " . implode(', ', $sets) . "
+                                 WHERE tenant_id = :tid AND setting_key = ''"
+                            )->execute($params);
+                        }
+                    }
+                    $pdo->commit();
+                } catch (\PDOException $e) {
+                    if ($pdo->inTransaction()) $pdo->rollBack();
+                    $errors[] = 'Czasy PromisedTime: nie udało się zapisać (' . $e->getMessage() . ').';
+                }
             }
         }
 

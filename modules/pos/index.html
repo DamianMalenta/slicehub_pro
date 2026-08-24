@@ -77,7 +77,7 @@
                 <i class="fa-solid fa-clock" style="font-size:10px"></i> <span id="hr-clock-badge">Zmiana</span>
             </button>
             <div class="topbar-spacer"></div>
-            <button class="topbar-btn danger-subtle" id="btn-panic"><i class="fa-solid fa-triangle-exclamation" style="font-size:9px"></i> PANIC (+20M)</button>
+            <button class="topbar-btn danger-subtle" id="btn-panic"><i class="fa-solid fa-clock" style="font-size:9px"></i> CENTRUM CZASU</button>
             <button class="topbar-btn" id="btn-fiscal-daily" title="Raport dobowy  zamknij dobę fiskalnš"><i class="fa-solid fa-receipt" style="font-size:10px"></i> RAPORT DOBOWY</button>
             <div class="topbar-spacer"></div>
             <button class="topbar-btn" id="btn-view-routes"><i class="fa-solid fa-route" style="font-size:10px"></i> KURSY <span id="fcnt-routes" style="font-size:8px;background:rgba(255,255,255,0.1);padding:1px 5px;border-radius:8px;margin-left:2px">0</span></button>
@@ -170,6 +170,66 @@
     <div id="payment-modal" class="modal-overlay"></div>
     <div id="cancel-modal" class="modal-overlay"></div>
     <div id="unified-order-modal" class="modal-overlay"></div>
+
+    <!-- ===== CENTRUM KONTROLI CZASU (Shift/Panic + Ready) ===== -->
+    <div id="time-control-modal" class="modal-overlay">
+        <div class="dc-backdrop" data-tc-close="1"></div>
+        <div class="tc-card">
+            <div class="tc-head">
+                <h3 class="tc-title"><i class="fa-solid fa-clock"></i> Centrum Kontroli Czasu</h3>
+                <button type="button" class="dc-close" id="tc-close-x" title="Zamknij">×</button>
+            </div>
+
+            <!-- Zakres działania -->
+            <div class="tc-section">
+                <div class="tc-section-label">Zakres</div>
+                <div class="tc-scope-row">
+                    <button type="button" class="tc-scope-btn active" data-tc-scope="all">Wszystkie aktywne na kuchni</button>
+                    <button type="button" class="tc-scope-btn" data-tc-scope="delivery">Tylko dostawy</button>
+                    <button type="button" class="tc-scope-btn" data-tc-scope="selected">Zaznaczone zamówienia</button>
+                </div>
+                <div class="tc-selected-count" id="tc-selected-count"></div>
+            </div>
+
+            <!-- Szybkie przesunięcie (kafelki) -->
+            <div class="tc-section">
+                <div class="tc-section-label">Przesuń czas o</div>
+                <div class="tc-tiles">
+                    <button type="button" class="tc-tile" data-tc-delay="10">+10m</button>
+                    <button type="button" class="tc-tile" data-tc-delay="15">+15m</button>
+                    <button type="button" class="tc-tile" data-tc-delay="20">+20m</button>
+                    <button type="button" class="tc-tile" data-tc-delay="30">+30m</button>
+                    <button type="button" class="tc-tile" data-tc-delay="45">+45m</button>
+                </div>
+            </div>
+
+            <!-- Konkretna godzina -->
+            <div class="tc-section">
+                <div class="tc-section-label">Albo ustaw konkretną godzinę</div>
+                <div class="tc-time-row">
+                    <input type="time" id="tc-target-time" class="tc-time-input" />
+                    <button type="button" class="tc-apply-time" id="tc-apply-time">Ustaw godzinę</button>
+                </div>
+            </div>
+
+            <!-- Akcja Ready -->
+            <div class="tc-section tc-ready-section">
+                <button type="button" class="tc-ready-btn" id="tc-mark-ready">
+                    <i class="fa-solid fa-bell-concierge"></i> OZNACZ JAKO GOTOWE DO WYDANIA / ODBIORU
+                </button>
+            </div>
+
+            <!-- Powiadomienia -->
+            <div class="tc-section tc-notify-row">
+                <label class="tc-checkbox">
+                    <input type="checkbox" id="tc-notify" checked />
+                    <span>Powiadom klientów (SMS / Tracker)</span>
+                </label>
+            </div>
+
+            <div class="tc-status" id="tc-status"></div>
+        </div>
+    </div>
 
     <!-- HR clock (zmiana) -->
     <div id="hr-clock-modal" class="modal-overlay">

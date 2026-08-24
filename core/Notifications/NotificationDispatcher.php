@@ -37,6 +37,7 @@ final class NotificationDispatcher
         'order.delivered',
         'order.completed',
         'order.cancelled',
+        'order.delayed',
         'marketing.campaign',
     ];
 

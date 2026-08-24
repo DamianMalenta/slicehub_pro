@@ -7,10 +7,12 @@
  *   - Kontakt (adres, miasto, telefon, email)
  *   - Godziny otwarcia (monday..sunday, zamknięte lub HH:MM–HH:MM)
  *   - Kanały sprzedaży (delivery/takeaway/dine_in) + preorder
+ *   - Czasy zamówień PromisedTime (base_prep_minutes, min_lead_time_minutes)
  *   - Mapa (lat/lng — Scena Drzwi pokaże modal z mapą)
  *
- * Dane = `sh_tenant_settings` (klucze `storefront_*`) + kolumna
- * `opening_hours_json`. Backend: api/online_studio/engine.php
+ * Dane = `sh_tenant_settings` (klucze `storefront_*`) + kolumny
+ * `opening_hours_json`, `base_prep_minutes`, `min_lead_time_minutes`
+ * na wierszu setting_key=''. Backend: api/online_studio/engine.php
  *   → storefront_settings_get  (payload bez parametrów)
  *   → storefront_settings_save (częściowy payload — akceptuje sekcje osobno)
  *
@@ -174,6 +176,27 @@ export function mountStorefront(root, Studio, Api) {
             <section class="card sf-section">
                 <div class="card__head">
                     <div>
+                        <div class="card__title"><i class="fa-solid fa-stopwatch"></i> Czasy zamówień (PromisedTime)</div>
+                        <div class="card__sub">Parametry silnika ETA — używane przy wyliczaniu czasu ASAP i walidacji zamówień na godzinę.</div>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div>
+                        <label class="label">Bazowy czas przygotowania (minuty)</label>
+                        <input type="number" class="input" id="sf-base-prep-min" min="5" max="120" step="5" value="25">
+                        <div class="muted" style="margin-top:4px;font-size:11px">5–120 min. Baza do wzoru ETA = round(base × load_factor) + bufor kanału.</div>
+                    </div>
+                    <div>
+                        <label class="label">Minimalne wyprzedzenie zamówień na godzinę (minuty)</label>
+                        <input type="number" class="input" id="sf-min-lead-min" min="15" max="240" step="5" value="30">
+                        <div class="muted" style="margin-top:4px;font-size:11px">15–240 min. Gate dla trybu scheduled — klient nie może wybrać godziny wcześniejszej niż now + ten czas.</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="card sf-section">
+                <div class="card__head">
+                    <div>
                         <div class="card__title"><i class="fa-solid fa-map-location-dot"></i> Mapa</div>
                         <div class="card__sub">Współrzędne lokalu (GPS). Scena Drzwi pokaże modal z mapą OSM.</div>
                     </div>
@@ -251,6 +274,10 @@ export function mountStorefront(root, Studio, Api) {
                 preorderEnabled: $('#sf-preorder-enabled').checked,
                 preorderLeadMin: parseInt($('#sf-preorder-lead').value, 10) || 0,
             },
+            promisedTime: {
+                basePrepMinutes:    parseInt($('#sf-base-prep-min').value, 10) || 25,
+                minLeadTimeMinutes: parseInt($('#sf-min-lead-min').value, 10) || 30,
+            },
             openingHours: {},
         };
 
@@ -288,6 +315,10 @@ export function mountStorefront(root, Studio, Api) {
         });
         $('#sf-preorder-enabled').checked = !!data?.channels?.preorderEnabled;
         $('#sf-preorder-lead').value      = data?.channels?.preorderLeadMin ?? 30;
+
+        // PromisedTime — fallbacki zgodne z core/PromisedTimeEngine.php
+        $('#sf-base-prep-min').value  = data?.promisedTime?.basePrepMinutes    ?? 25;
+        $('#sf-min-lead-min').value   = data?.promisedTime?.minLeadTimeMinutes ?? 30;
 
         // Godziny — backend może zwrócić {} (nigdy nie ustawiono)
         const oh = data?.openingHours || {};

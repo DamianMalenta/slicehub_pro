@@ -782,7 +782,7 @@ Ten dokument opisuje **logikę złota standardu** niezależnie od kolejności im
 
   | Factor | Source | Default |
   |--------|--------|---------|
-  | `base_prep_time` | `sh_tenant_settings.base_prep_minutes` | 25 min |
+  | `base_prep_time` | `sh_tenant_settings.base_prep_minutes` (edytowalne z UI: Online Studio → Storefront, 5–120 min, od PR #65) | 25 min |
   | `channel_buffer` | Per-channel: `dine_in = 0`, `takeaway = 5`, `delivery = 15` | varies |
 
   **Dynamic load adjustment (optional, phase 2):**

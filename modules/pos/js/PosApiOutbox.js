@@ -45,6 +45,7 @@ const MUTATION_METHODS = new Set([
     'settleAndClose',
     'cancelOrder',
     'panicMode',
+    'shiftTime',
     'assignRoute',
     'createCourse',
     'assignDriverToCourse',

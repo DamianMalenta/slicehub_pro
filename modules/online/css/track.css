@@ -602,6 +602,25 @@
     to   { transform: scale(1);  opacity: 1; }
 }
 
+/* ─── Delayed Banner (order.delayed — zaktualizowany czas realizacji) ── */
+.track-delayed-banner {
+    text-align: center;
+    margin: 8px auto 4px;
+    padding: 12px 18px;
+    background: rgba(245, 158, 11, 0.10);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    border-radius: 14px;
+    font-size: 13px;
+    color: #b45309;
+    font-weight: 600;
+    animation: tr-banner-pop .4s cubic-bezier(.22,.9,.3,1);
+}
+.track-delayed-banner__icon {
+    display: inline-block;
+    margin-right: 6px;
+    font-size: 15px;
+}
+
 /* ─── Notification Channel Badge ────────────────────────────────────── */
 /* Subtelny badge pod ETA: "Powiadomimy Cię via SMS" */
 .track-notif-badge {

@@ -329,8 +329,8 @@ Te kolumny manager edytuje per lokal i mają **realny wpływ na pipeline zamówi
 | `min_prep_time_minutes` | 30 | `api/orders/sla_monitor.php` (l. 55) | Twarda minimalna „obietnica" prep'u (cooking floor) — używane do detekcji breachu SLA. |
 | `sla_green_min` | 10 | `sla_monitor.php` | Próg SLA „zielony" (KDS / Dispatcher). |
 | `sla_yellow_min` | 5 | `sla_monitor.php` | Próg SLA „żółty" — alert 86 (§6 — `text-red-500 font-bold` po przekroczeniu). |
-| `base_prep_minutes` | 25 | `core/PromisedTimeEngine.php::calculate` (l. 63, 80) | Bazowy czas przygotowania, mnożony przez **load-factor** (`1 + active_orders/20`, max 2.0×). To jest fundament obietnicy ETA dla kanałów online/POS. |
-| `min_lead_time_minutes` | 30 | `core/PromisedTimeEngine.php::calculate` (l. 64, 98–104) | Minimum „w przyszłość" dla zamówień scheduled — chroni kuchnię przed „daj za 5 minut" o 17:55. |
+| `base_prep_minutes` | 25 | `core/PromisedTimeEngine.php::calculate` (l. 63, 80) | Bazowy czas przygotowania, mnożony przez **load-factor** (`1 + active_orders/20`, max 2.0×). To jest fundament obietnicy ETA dla kanałów online/POS. **Edytowalne z UI od 2026-08-24 (PR #65):** Online Studio → Storefront → „Czas zamówień (PromisedTime)" (5–120 min). |
+| `min_lead_time_minutes` | 30 | `core/PromisedTimeEngine.php::calculate` (l. 64, 98–104) | Minimum „w przyszłość" dla zamówień scheduled — chroni kuchnię przed „daj za 5 minut" o 17:55. **Edytowalne z UI od 2026-08-24 (PR #65):** Online Studio → Storefront → „Czas zamówień (PromisedTime)" (15–240 min). |
 
 ### 3.3 Flagi KV (oddzielne wiersze `setting_key=<nazwa>`)
 
@@ -426,8 +426,8 @@ wpisać ręcznie do bazy, choć UI nie istnieje).
 |-----------------|--------------------------------------|
 | **Otwarcie/zamknięcie lokalu** | `is_active`, `opening_hours_json` |
 | **Akceptacja zamówienia (intake)** | `min_order_value`, `online_min_order_value`, `storefront_channels_json`, `online_guest_checkout` |
-| **Pre-order / scheduled** | `min_lead_time_minutes`, `storefront_preorder_enabled`, `storefront_preorder_min_lead_minutes` |
-| **Wycena (`promised_time`)** | `base_prep_minutes` (× load-factor), `min_prep_time_minutes`, `online_default_eta_min` |
+| **Pre-order / scheduled** | `min_lead_time_minutes` (UI: Online Studio → Storefront), `storefront_preorder_enabled`, `storefront_preorder_min_lead_minutes` |
+| **Wycena (`promised_time`)** | `base_prep_minutes` (× load-factor; UI: Online Studio → Storefront), `min_prep_time_minutes`, `online_default_eta_min` |
 | **Pricing zaawansowany** | `half_half_surcharge` |
 | **Monitorowanie SLA** | `sla_green_min`, `sla_yellow_min` |
 | **Globalna interwencja kuchni** | (nie z `tenant_settings` — z `sh_panic_log` przez `panic_mode`) |
