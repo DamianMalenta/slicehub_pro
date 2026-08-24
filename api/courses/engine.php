@@ -232,6 +232,8 @@ try {
 
         $stmtDrivers = $pdo->prepare(
             "SELECT u.id, u.first_name, u.last_name, u.name, d.status AS driver_status,
+                    u.last_seen,
+                    (u.last_seen IS NOT NULL AND u.last_seen >= DATE_SUB(NOW(), INTERVAL 120 SECOND)) AS is_online,
                     dl.lat AS loc_lat, dl.lng AS loc_lng, dl.updated_at AS loc_updated,
                     ds.shift_id, ds.initial_cash, ds.shift_status,
                     COALESCE(cash_agg.cash_collected, 0) AS cash_collected_today
@@ -276,6 +278,12 @@ try {
         );
         $stmtCourses->execute([':tid' => $tenant_id, ':tid2' => $tenant_id]);
         $courses = $stmtCourses->fetchAll(PDO::FETCH_ASSOC);
+
+        // Normalize is_online flag (MySQL returns int/string, frontend expects bool)
+        foreach ($drivers as &$drv) {
+            $drv['is_online'] = (bool)($drv['is_online'] ?? false);
+        }
+        unset($drv);
 
         // SLA thresholds (Phase A — unifikacja progów SLA w frontendach).
         // SSOT: core/SlaThresholds.php — czytane z sh_tenant_settings, default 10/5.

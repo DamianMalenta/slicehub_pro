@@ -58,7 +58,8 @@ const CoursesUI = (() => {
     function renderDriversList(drivers, selectedDriverId) {
         const el = document.getElementById('drivers-list');
         const cnt = document.getElementById('drv-count');
-        const online = drivers.filter(d => d.driver_status !== 'offline');
+        // is_online comes from backend (last_seen <= 120s). Busy drivers are always shown.
+        const online = drivers.filter(d => d.is_online || d.driver_status === 'busy');
         cnt.textContent = online.length;
 
         if (online.length === 0) {
@@ -69,7 +70,8 @@ const CoursesUI = (() => {
         el.innerHTML = online.map(d => {
             const displayName = d.first_name || d.name || 'Kierowca';
             const isSelected = String(d.id) === String(selectedDriverId);
-            const status = d.driver_status || 'offline';
+            // Effective status: offline driver with busy = busy (in delivery), otherwise use driver_status
+            const status = d.is_online ? (d.driver_status || 'offline') : (d.driver_status === 'busy' ? 'busy' : 'offline');
             const cash = d.cash_collected_today ? formatGrosze(d.cash_collected_today) : '0.00';
             const initCash = d.initial_cash ? formatGrosze(d.initial_cash) : '0.00';
 

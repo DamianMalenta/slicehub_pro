@@ -965,8 +965,8 @@ ORDERS_DATA = [
         'order_number': 'FORNO-006',
         'channel':      'delivery',
         'order_type':   'delivery',
-        'status':       'ready',
-        'delivery_status': 'in_delivery',
+        'status':       'completed',
+        'delivery_status': 'delivered',
         'payment_status': 'online_paid',
         'payment_method': 'online',
         'tracking_token': True,
@@ -1802,11 +1802,9 @@ SET @wh  := {esc(WAREHOUSE_ID)};
         W("SET @uid_driver  = (SELECT id FROM sh_users WHERE tenant_id=@tid AND username='forno_driver');")
         W("")
         # Drivers
-        W("INSERT INTO sh_drivers (user_id, tenant_id, status) VALUES (@uid_driver, @tid, 'available')")
-        W("ON DUPLICATE KEY UPDATE status='available';")
-        W("INSERT INTO sh_driver_shifts (tenant_id, driver_id, initial_cash, status)")
-        W("VALUES (@tid, @uid_driver, 10000, 'active')")
-        W("ON DUPLICATE KEY UPDATE status='active';")
+        W("INSERT INTO sh_drivers (user_id, tenant_id, status) VALUES (@uid_driver, @tid, 'offline')")
+        W("ON DUPLICATE KEY UPDATE status='offline';")
+        W("-- Note: no active shift in seed — driver must clock in via driver_app to become available")
         W("")
 
         # ── 2.20 sh_employees + rates + work_sessions + payroll_ledger ─────────
@@ -2115,12 +2113,10 @@ SET @wh  := {esc(WAREHOUSE_ID)};
     W("SET @uid_driver  = (SELECT id FROM sh_users WHERE tenant_id=@tid AND username='forno_driver');")
     W("")
 
-    # sh_drivers + sh_driver_shifts
-    W("INSERT INTO sh_drivers (user_id, tenant_id, status) VALUES (@uid_driver, @tid, 'available')")
-    W("ON DUPLICATE KEY UPDATE status='available';")
-    W("INSERT INTO sh_driver_shifts (tenant_id, driver_id, initial_cash, status)")
-    W("VALUES (@tid, @uid_driver, 10000, 'active')")
-    W("ON DUPLICATE KEY UPDATE status='active';")
+    # sh_drivers — offline in seed (driver must clock in via driver_app to become available)
+    W("INSERT INTO sh_drivers (user_id, tenant_id, status) VALUES (@uid_driver, @tid, 'offline')")
+    W("ON DUPLICATE KEY UPDATE status='offline';")
+    W("-- Note: no active shift in seed — driver must clock in via driver_app to become available")
     W("")
 
     # ── SEKCJA 2b: sh_employees (5 profili HR) ─────────────────────────────────
