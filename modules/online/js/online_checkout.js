@@ -350,6 +350,19 @@ export function openCheckoutOverlay({ state, api, onSuccess, cartLinesForApi, pe
             });
         });
         loadAsapEstimate();
+
+        // Wpięcie B — Doorway preorder → auto-aktywacja scheduled.
+        // Gdy klient wszedł przez „Zamów z wyprzedzeniem" (state.preOrder),
+        // automatycznie zaznacz radio 'scheduled' — istniejący change handler
+        // pokaże sloty i wywoła loadSlots(). Zero nowej logiki — czysty wiring.
+        if (state.preOrder) {
+            const scheduledRadio = timeGroup.querySelector('input[name="timeMode"][value="scheduled"]');
+            if (scheduledRadio) {
+                scheduledRadio.checked = true;
+                if (scheduledWrap) scheduledWrap.hidden = false;
+                loadSlots();
+            }
+        }
     }
 
     const form = overlay.querySelector('#checkout-form');

@@ -814,7 +814,24 @@ try {
 
             $cartJson  = json_encode($cart, JSON_UNESCAPED_UNICODE) ?: '[]';
             $promisedTs = ($promisedRaw !== null && $promisedRaw !== '') ? strtotime($promisedRaw) : false;
-            $promised  = ($promisedTs !== false) ? date('Y-m-d H:i:s', $promisedTs) : date('Y-m-d H:i:s');
+            if ($promisedTs !== false) {
+                $promised = date('Y-m-d H:i:s', $promisedTs);
+            } else {
+                // Wpięcie D (L5) — fallback przez PromisedTimeEngine ASAP zamiast
+                // sztywnego now() — spójność z accept_order (Faza B). Pillsy POS
+                // zwykle wysyłają custom_datetime, ale gdy go brak, silnik da
+                // inteligentny default (prep × load + channel buffer).
+                require_once __DIR__ . '/../../core/PromisedTimeEngine.php';
+                $ptChannel = strtolower($orderType);
+                try {
+                    $ptCalc = PromisedTimeEngine::calculate($pdo, $tenant_id, 'asap', $ptChannel);
+                    $promised = (new \DateTime($ptCalc['promised_time'], new \DateTimeZone('Europe/Warsaw')))
+                        ->format('Y-m-d H:i:s');
+                } catch (\Throwable $e) {
+                    error_log('[POS.process_order.promised] ' . $e->getMessage());
+                    $promised = date('Y-m-d H:i:s'); // fallback — nie blokuj zamówienia
+                }
+            }
 
             $channelMap = ['dine_in' => 'POS', 'takeaway' => 'Takeaway', 'delivery' => 'Delivery'];
             $channel = $channelMap[$orderType] ?? 'POS';

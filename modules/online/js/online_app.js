@@ -30,6 +30,7 @@ const state = {
     categories: [],
     cart: [],
     lastCalc: null,
+    preOrder: false,
 };
 
 function syncChannelFromUi() {
@@ -564,6 +565,15 @@ function init() {
 
     loadCart();
     bindUiOnce();
+
+    // Wpięcie B — Doorway preorder → Checkout scheduled.
+    // Doorway emituje 'slicehub:preorder-requested' gdy klient wchodzi przez
+    // przycisk „Zamów z wyprzedzeniem" (lokal zamknięty + preOrderEnabled).
+    // Zapisujemy flagę w stanie; openCheckoutOverlay ją odczyta i automatycznie
+    // aktywuje tryb scheduled + załaduje sloty (zero nowego kodu — wiring).
+    globalThis.addEventListener('slicehub:preorder-requested', () => {
+        state.preOrder = true;
+    });
 
     // M4 · Scena Drzwi — pierwszy ekran. Po wejściu ładujemy menu z właściwym kanałem.
     mountDoorway({
