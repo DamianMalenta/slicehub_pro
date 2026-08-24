@@ -178,12 +178,37 @@ export function openCheckoutOverlay({ state, api, onSuccess, cartLinesForApi, pe
                 <fieldset class="checkout-field-group">
                     <legend class="checkout-legend"><i class="fa-solid fa-bag-shopping"></i> Odbiór osobisty</legend>
                     <p class="checkout-note">Powiadomimy Cię SMS-em, gdy zamówienie będzie gotowe do odbioru.</p>
-                    <label class="checkout-label">
-                        <span>Preferowana godzina odbioru <small>(opcjonalnie)</small></span>
-                        <input type="text" name="requestedTime" value="${escapeHtml(saved.requestedTime || '')}" placeholder="np. 19:30" maxlength="5">
-                    </label>
                 </fieldset>
                 `}
+
+                <fieldset class="checkout-field-group" id="checkout-time-group">
+                    <legend class="checkout-legend"><i class="fa-solid fa-clock"></i> Czas realizacji</legend>
+                    <div class="checkout-payment-grid">
+                        <label class="checkout-payment-option">
+                            <input type="radio" name="timeMode" value="asap" checked>
+                            <span class="checkout-payment-option__body">
+                                <strong><i class="fa-solid fa-bolt"></i> Jak najszybciej</strong>
+                                <small id="checkout-asap-eta">Szacujemy czas…</small>
+                            </span>
+                        </label>
+                        <label class="checkout-payment-option">
+                            <input type="radio" name="timeMode" value="scheduled">
+                            <span class="checkout-payment-option__body">
+                                <strong><i class="fa-solid fa-calendar-day"></i> Wybierz godzinę</strong>
+                                <small>rezerwacja na konkretny czas</small>
+                            </span>
+                        </label>
+                    </div>
+                    <div id="checkout-scheduled-wrap" class="checkout-scheduled" hidden>
+                        <label class="checkout-label">
+                            <span>Godzina ${orderType === 'delivery' ? 'dostawy' : 'odbioru'}</span>
+                            <select name="requestedTimeSlot" id="checkout-time-slot" disabled>
+                                <option value="">Ładuję dostępne godziny…</option>
+                            </select>
+                        </label>
+                        <p class="checkout-note" id="checkout-slot-note">Dostępne godziny uwzględniają godziny otwarcia i czas przygotowania.</p>
+                    </div>
+                </fieldset>
 
                 <fieldset class="checkout-field-group">
                     <legend class="checkout-legend"><i class="fa-solid fa-credit-card"></i> Metoda płatności</legend>
@@ -243,6 +268,90 @@ export function openCheckoutOverlay({ state, api, onSuccess, cartLinesForApi, pe
     overlay.querySelector('.checkout-close')?.addEventListener('click', close);
     overlay.querySelector('#checkout-cancel')?.addEventListener('click', close);
 
+    // ── Promised time wiring (PromisedTimeEngine — ASAP / scheduled) ──────────
+    // ASAP: pokazujemy estymowany czas (prep × load + channel buffer).
+    // Scheduled: ładujemy sloty z backendu (filtrowane po godzinach otwarcia),
+    //            wybór trafia do requested_time jako ISO — backend waliduje
+    //            przez PromisedTimeEngine::calculate('scheduled').
+    const timeGroup   = overlay.querySelector('#checkout-time-group');
+    const asapEtaEl   = overlay.querySelector('#checkout-asap-eta');
+    const scheduledWrap = overlay.querySelector('#checkout-scheduled-wrap');
+    const slotSelect  = overlay.querySelector('#checkout-time-slot');
+    const slotNote    = overlay.querySelector('#checkout-slot-note');
+    let slotsCache = [];
+    let slotsLoaded = false;
+
+    async function loadAsapEstimate() {
+        if (!asapEtaEl) return;
+        try {
+            const res = await api.estimateTime({ mode: 'asap', order_type: orderType });
+            if (res.success && res.data?.estimated_minutes != null) {
+                const mins = res.data.estimated_minutes;
+                const eta  = res.data.promised_time
+                    ? new Date(res.data.promised_time).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })
+                    : null;
+                asapEtaEl.textContent = eta
+                    ? `~${mins} min (ok. ${eta})`
+                    : `~${mins} min`;
+            } else {
+                asapEtaEl.textContent = res.message || 'Jak najszybciej';
+            }
+        } catch (_) {
+            asapEtaEl.textContent = 'Jak najszybciej';
+        }
+    }
+
+    async function loadSlots() {
+        if (slotsLoaded || !slotSelect) return;
+        slotSelect.disabled = true;
+        slotSelect.innerHTML = '<option value="">Ładuję dostępne godziny…</option>';
+        try {
+            const res = await api.estimateTime({
+                mode: 'slots',
+                order_type: orderType,
+                interval: 15,
+                count: 12,
+            });
+            if (res.success && Array.isArray(res.data?.slots)) {
+                slotsCache = res.data.slots;
+                if (slotsCache.length === 0) {
+                    slotSelect.innerHTML = '<option value="">Brak dostępnych godzin — wybierz ASAP.</option>';
+                    if (slotNote) slotNote.textContent = 'Lokal jest obecnie zamknięty. Spróbuj później lub wybierz ASAP.';
+                } else {
+                    slotSelect.innerHTML = '<option value="">— wybierz godzinę —</option>'
+                        + slotsCache.map((s) =>
+                            `<option value="${escapeHtml(s.iso)}">${escapeHtml(s.label)}</option>`
+                        ).join('');
+                    if (slotNote) slotNote.textContent = 'Dostępne godziny uwzględniają godziny otwarcia i czas przygotowania.';
+                }
+            } else {
+                slotSelect.innerHTML = '<option value="">Nie udało się pobrać godzin.</option>';
+                if (slotNote) slotNote.textContent = res.message || 'Spróbuj wybrać ASAP.';
+            }
+        } catch (e) {
+            slotSelect.innerHTML = '<option value="">Nie udało się pobrać godzin.</option>';
+            if (slotNote) slotNote.textContent = e.message || 'Spróbuj wybrać ASAP.';
+        } finally {
+            slotSelect.disabled = false;
+            slotsLoaded = true;
+        }
+    }
+
+    if (timeGroup) {
+        timeGroup.querySelectorAll('input[name="timeMode"]').forEach((radio) => {
+            radio.addEventListener('change', () => {
+                const mode = radio.value;
+                if (mode === 'scheduled') {
+                    if (scheduledWrap) scheduledWrap.hidden = false;
+                    loadSlots();
+                } else {
+                    if (scheduledWrap) scheduledWrap.hidden = true;
+                }
+            });
+        });
+        loadAsapEstimate();
+    }
+
     const form = overlay.querySelector('#checkout-form');
     form.addEventListener('submit', async (ev) => {
         ev.preventDefault();
@@ -250,18 +359,29 @@ export function openCheckoutOverlay({ state, api, onSuccess, cartLinesForApi, pe
         const submitBtn = overlay.querySelector('#checkout-submit');
 
         const fd = new FormData(form);
+        const timeMode = (fd.get('timeMode') || 'asap').toString();
+        const selectedSlot = (fd.get('requestedTimeSlot') || '').toString().trim();
+        // scheduled wymaga wybranego slotu (ISO z backendu); ASAP = pusty string
+        const requestedTime = (timeMode === 'scheduled' && selectedSlot) ? selectedSlot : '';
         const values = {
             customerName:     (fd.get('customerName') || '').toString().trim(),
             customerPhone:    normalizePhonePl(fd.get('customerPhone') || ''),
             customerEmail:    (fd.get('customerEmail') || '').toString().trim(),
             deliveryAddress:  (fd.get('deliveryAddress') || '').toString().trim(),
             deliveryNotes:    (fd.get('deliveryNotes') || '').toString().trim(),
-            requestedTime:    (fd.get('requestedTime') || '').toString().trim(),
+            requestedTime:    requestedTime,
+            timeMode:         timeMode,
             paymentMethod:    (fd.get('paymentMethod') || 'cash_on_delivery').toString(),
             consent:          fd.get('consent') === 'on' || fd.get('consent') === 'true',
             smsConsent:       fd.get('smsConsent') === 'on',
             marketingConsent: fd.get('marketingConsent') === 'on',
         };
+
+        // Scheduled bez wybranego slotu = błąd walidacji (nie wysyłaj do backendu)
+        if (timeMode === 'scheduled' && !requestedTime) {
+            renderErrorsInto(errEl, [{ field: 'requestedTime', msg: 'Wybierz godzinę realizacji lub przełącz na „Jak najszybciej".' }]);
+            return;
+        }
 
         if (!values.consent) {
             renderErrorsInto(errEl, [{ field: 'consent', msg: 'Zaznacz zgodę, aby złożyć zamówienie.' }]);

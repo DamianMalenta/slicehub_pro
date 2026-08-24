@@ -2704,6 +2704,36 @@ html, body {
     .checkout-payment-option { min-height: 58px; }
 }
 
+/* ── Time mode (ASAP / scheduled) + slot picker ────────────────────────── */
+#checkout-time-group .checkout-payment-grid {
+    grid-template-columns: repeat(2, 1fr);
+}
+.checkout-scheduled {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1.5px solid rgba(194,65,12,.25);
+    border-radius: 12px;
+    background: rgba(255, 237, 213, .18);
+}
+.checkout-scheduled[hidden] { display: none; }
+.checkout-scheduled .checkout-label { display: block; }
+.checkout-scheduled select {
+    width: 100%;
+    padding: 11px 12px;
+    border: 1.5px solid rgba(0,0,0,.12);
+    border-radius: 10px;
+    font-size: 14px;
+    background: #fff;
+    color: #1c1917;
+    cursor: pointer;
+}
+.checkout-scheduled select:focus {
+    outline: none;
+    border-color: #c2410c;
+    box-shadow: 0 0 0 3px rgba(194, 65, 12, .14);
+}
+.checkout-scheduled select:disabled { opacity: .6; cursor: wait; }
+
 /* ── Consent + actions + errors ────────────────────────────────────────── */
 .checkout-consent {
     display: flex; align-items: flex-start; gap: 10px;

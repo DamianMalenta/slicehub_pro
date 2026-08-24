@@ -72,6 +72,7 @@ Spine czytania: [`2026-05-11_STUDIO_RELEASE_INDEX.md`](2026-05-11_STUDIO_RELEASE
 - [`2026-07-29_phase_b_promised_time_engine.md`](2026-07-29_phase_b_promised_time_engine.md) — Faza B: wpięcie `PromisedTimeEngine` ASAP w 4 ścieżki (online, gateway, choiceqr, POS accept_order).
 - [`2026-07-29_phase_c_sla_breach_panel.md`](2026-07-29_phase_c_sla_breach_panel.md) — Faza C: SLA breach panel w Dispatcher + cron `worker_sla_monitor.php`.
 - [`2026-08-03_promised_time_wiring_audit.md`](2026-08-03_promised_time_wiring_audit.md) — **Audyt follow-up Faza B**: 3 luki krytyczne (POS "ZAAKCEPTUJ" wysyła `now` zamiast pustego → silnik ASAP nie odpala; online scheduled zapis surowy bez walidacji; tryb `scheduled` silnika = martwy kod) + 2 kosmetyczne.
+- [`2026-08-24_online_promised_time_scheduled_wiring.md`](2026-08-24_online_promised_time_scheduled_wiring.md) — **Domknięcie L2+L3**: publiczny wrapper `estimate_time` w `api/online/engine.php` (slots filtrowane po opening hours); walidacja scheduled w `guest_checkout` przez silnik; przebudowa UI checkoutu (toggle ASAP/scheduled + selector slotów, delivery + takeaway). 62/62 PASS, deno lint 0.
 
 ### SPARK (materiały wniosku — bez zmian runtime)
 

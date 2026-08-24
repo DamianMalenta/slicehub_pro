@@ -1148,6 +1148,130 @@ try {
     }
 
     // =========================================================================
+    // ACTION: estimate_time — PromisedTimeEngine wrapper for public storefront
+    //
+    // Publiczny odpowiednik api/orders/estimate.php (który jest za auth_guard/JWT
+    // i nieosiągalny dla gościa ze sklepu). Bez autoryzacji — tenant z POST body.
+    //
+    // Modes:
+    //   asap       — zwraca estymowany promised_time (prep × load + channel buffer)
+    //   scheduled  — waliduje requested_time (lead-time + business-hours gaty)
+    //   slots      — lista dostępnych slotów co `interval` min, filtrowana po
+    //                godzinach otwarcia (blokuje sloty poza otwarciem / w przeszłości)
+    //
+    // Params:
+    //   mode            — "asap" | "scheduled" | "slots"
+    //   order_type      — "dine_in" | "takeaway" | "delivery" (default: delivery)
+    //   requested_time  — ISO 8601 (wymagane dla mode=scheduled)
+    //   interval        — minuty między slotami (default 15, zakres 5–60)
+    //   count           — liczba slotów (default 12, zakres 4–24)
+    // =========================================================================
+    if ($action === 'estimate_time') {
+        $mode        = inputStr($input, 'mode');
+        $orderType   = strtolower(inputStr($input, 'order_type', 'delivery'));
+        if (!in_array($orderType, ['dine_in', 'takeaway', 'delivery'], true)) {
+            $orderType = 'delivery';
+        }
+
+        $enginePath = __DIR__ . '/../../core/PromisedTimeEngine.php';
+        if (!file_exists($enginePath)) {
+            onlineResponse(false, null, 'PromisedTimeEngine niedostepny.');
+        }
+        require_once $enginePath;
+
+        if ($mode === 'slots') {
+            $interval = max(5, min(60, inputInt($input, 'interval', 15)));
+            $count    = max(4, min(24, inputInt($input, 'count', 12)));
+
+            // ASAP estimate jako punkt startowy (uwzględnia load + channel buffer)
+            $asap = PromisedTimeEngine::calculate($pdo, $tenantId, 'asap', $orderType);
+
+            $tz       = new DateTimeZone('Europe/Warsaw');
+            $earliest = new DateTime($asap['promised_time'], $tz);
+            // Zaokrąglij w górę do najbliższego granicznego interwału
+            $mins = (int)$earliest->format('i');
+            $nextSlot = (int)ceil($mins / $interval) * $interval;
+            $earliest->setTime((int)$earliest->format('H'), 0, 0);
+            $earliest->modify("+{$nextSlot} minutes");
+
+            // Pobierz opening_hours do filtrowania slotów
+            $openingHoursRaw = null;
+            if ($hasTenantSettings) {
+                try {
+                    $stmtOh = $pdo->prepare(
+                        "SELECT opening_hours_json FROM sh_tenant_settings
+                         WHERE tenant_id = :tid AND setting_key = '' LIMIT 1"
+                    );
+                    $stmtOh->execute([':tid' => $tenantId]);
+                    $openingHoursRaw = $stmtOh->fetchColumn();
+                } catch (\PDOException $e) { /* ignore */ }
+            }
+            $openingHours = [];
+            if ($openingHoursRaw) {
+                $decoded = json_decode((string)$openingHoursRaw, true);
+                if (is_array($decoded)) $openingHours = $decoded;
+            }
+
+            $dayEnNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+            $slots = [];
+            $cursor = clone $earliest;
+            $attempts = 0;
+            while (count($slots) < $count && $attempts < 400) {
+                $attempts++;
+                $dayKey  = strtolower($cursor->format('l'));
+                $dayHours = $openingHours[$dayKey] ?? null;
+                $hhmm = $cursor->format('H:i');
+
+                // Brak konfiguracji godzin = zawsze otwarte (fail-open, jak w silniku)
+                if (empty($openingHours)) {
+                    $slots[] = [
+                        'time'  => $cursor->format('H:i'),
+                        'iso'   => $cursor->format('Y-m-d\TH:i'),
+                        'label' => $cursor->format('H:i'),
+                        'day'   => $cursor->format('Y-m-d'),
+                    ];
+                    $cursor->modify("+{$interval} minutes");
+                    continue;
+                }
+
+                if (is_array($dayHours) && !empty($dayHours['open']) && !empty($dayHours['close'])) {
+                    $openStr  = (string)$dayHours['open'];
+                    $closeStr = (string)$dayHours['close'];
+                    if ($hhmm >= $openStr && $hhmm < $closeStr) {
+                        $slots[] = [
+                            'time'  => $cursor->format('H:i'),
+                            'iso'   => $cursor->format('Y-m-d\TH:i'),
+                            'label' => $cursor->format('H:i'),
+                            'day'   => $cursor->format('Y-m-d'),
+                        ];
+                    }
+                }
+                $cursor->modify("+{$interval} minutes");
+            }
+
+            onlineResponse(true, [
+                'asap_estimate'    => $asap,
+                'slots'            => $slots,
+                'interval_minutes' => $interval,
+                'opening_hours'    => $openingHours,
+            ], 'OK');
+        }
+
+        // mode = asap | scheduled
+        $requestedTime = inputStr($input, 'requested_time');
+        try {
+            $result = PromisedTimeEngine::calculate($pdo, $tenantId, $mode, $orderType, $requestedTime !== '' ? $requestedTime : null);
+            onlineResponse(true, $result, 'OK');
+        } catch (\InvalidArgumentException $e) {
+            onlineResponse(false, null, $e->getMessage());
+        } catch (\Throwable $e) {
+            error_log('[OnlineEngine.estimate_time] ' . $e->getMessage());
+            onlineResponse(false, null, 'Nie udalo sie obliczyc czasu realizacji.');
+        }
+    }
+
+    // =========================================================================
     // ACTION: guest_checkout — atomic order creation for public storefront (Faza 5.1)
     //
     // Wymaga: lock_token z init_checkout (weryfikuje że koszyk nie został zmieniony)
@@ -1306,6 +1430,36 @@ try {
             }
         }
 
+        // 3.6. Promised time resolution (Faza B + L2 fix 2026-08-24)
+        // ASAP  → PromisedTimeEngine::calculate('asap')  (fallback null przy błędzie)
+        // Scheduled → PromisedTimeEngine::calculate('scheduled') z walidacją
+        //             lead-time + business-hours. Błąd silnika BLOKUJE checkout
+        //             z konkretną wiadomością (zamiast zapisu surowego stringa).
+        // Obliczamy PRZED transakcją — żeby błąd walidacji nie zostawiał rollbacku.
+        $promisedEnginePath = __DIR__ . '/../../core/PromisedTimeEngine.php';
+        require_once $promisedEnginePath;
+        $resolvedPromisedTime = null;
+        try {
+            if ($requestedTime !== '') {
+                $calcPromised = PromisedTimeEngine::calculate(
+                    $pdo, $tenantId, 'scheduled', $orderType, $requestedTime
+                );
+                $resolvedPromisedTime = $calcPromised['promised_time'];
+            } else {
+                $calcPromised = PromisedTimeEngine::calculate(
+                    $pdo, $tenantId, 'asap', $orderType
+                );
+                $resolvedPromisedTime = $calcPromised['promised_time'];
+            }
+        } catch (\InvalidArgumentException $e) {
+            // Błąd walidacji scheduled (za wcześnie / poza godzinami) — blokuj
+            onlineResponse(false, null, $e->getMessage());
+        } catch (\Throwable $e) {
+            // Silnik niedostępny / błąd DB — nie blokuj checkoutu (fallback null)
+            error_log('[GuestCheckout.promised] ' . $e->getMessage());
+            $resolvedPromisedTime = null;
+        }
+
         // 4. Atomic transaction
         $trackingToken = bin2hex(random_bytes(8)); // 16 hex chars
 
@@ -1377,19 +1531,7 @@ try {
                 ':addr'             => $deliveryAddress !== '' ? $deliveryAddress : null,
                 ':lat'              => $deliveryLat,
                 ':lng'              => $deliveryLng,
-                ':promised'         => (function() use ($pdo, $tenantId, $orderType, $requestedTime) {
-                    // Faza B — ASAP: PromisedTimeEngine zamiast null.
-                    // Scheduled: surowy requested_time (klient wybrał godzinę).
-                    if ($requestedTime !== '') return $requestedTime;
-                    require_once __DIR__ . '/../../core/PromisedTimeEngine.php';
-                    try {
-                        $calc = PromisedTimeEngine::calculate($pdo, $tenantId, 'asap', $orderType);
-                        return $calc['promised_time'];
-                    } catch (\Throwable $e) {
-                        error_log('[GuestCheckout.promised] ' . $e->getMessage());
-                        return null; // fallback — nie blokuj checkoutu
-                    }
-                })(),
+                ':promised'         => $resolvedPromisedTime,
                 ':now'              => $nowTs,
             ]);
 

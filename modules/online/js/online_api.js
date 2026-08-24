@@ -85,6 +85,10 @@ const OnlineAPI = (() => {
 
         cartCalculate: (payload) => _post({ action: 'cart_calculate', ...payload }),
 
+        // ── Promised time (PromisedTimeEngine — ASAP/scheduled/slots) ────────
+        // Publiczny wrapper silnika (estimate.php jest za JWT, niedostępny dla gościa).
+        estimateTime: (payload) => _post({ action: 'estimate_time', ...payload }),
+
         // ── Checkout (Faza 5.1 — guest order lifecycle) ─────────────────────
         initCheckout: (payload) => _post({ action: 'init_checkout', ...payload }),
 
