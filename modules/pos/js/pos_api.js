@@ -79,6 +79,8 @@ const PosAPI = (() => {
         },
         cancelOrder:    (orderId, returnStock) => engine('cancel_order', { order_id: orderId, return_stock: returnStock ? 1 : 0 }),
         panicMode:      () => engine('panic_mode'),
+        // Centrum Kontroli Czasu — selektywna bulk zmiana promised_time + opcjonalne mark_ready
+        shiftTime:      (payload) => engine('shift_time', payload),
 
         // Fiscal printer — Elzab Zeta Online
         fiscalPrint:       (orderId, force) => engine('fiscal_print', { order_id: orderId, force: force ? 1 : 0 }),

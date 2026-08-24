@@ -92,7 +92,8 @@ const PosApp = (() => {
         _on('#btn-new-order', 'click', _openOrderTypeSelector);
         _on('#btn-show-battlefield', 'click', _exitTableContext);
         _on('#btn-back-to-bf', 'click', _exitTableContext);
-        _on('#btn-panic', 'click', _triggerPanic);
+        _on('#btn-panic', 'click', _openTimeControl);
+        _initTimeControlModal();
         _on('#btn-fiscal-daily', 'click', _fiscalDailyReport);
         _on('#btn-checkout', 'click', _openCheckout);
         _on('#btn-clear-cart', 'click', () => { PosCart.clear(); PosUI.toast('Koszyk wyczyszczony', 'info'); });
@@ -952,12 +953,154 @@ const PosApp = (() => {
     }
 
     // =========================================================================
-    // PANIC MODE
+    // CENTRUM KONTROLI CZASU (Shift/Panic + Ready)
     // =========================================================================
-    async function _triggerPanic() {
-        if (!confirm('Dodać +20 minut do wszystkich zamówień w toku?')) return;
-        const r = await PosAPI.panicMode();
-        if (r.success) { PosUI.toast('Wydłużono czasy o 20 minut!', 'success'); _fetchOrders(); }
+    let _tcScope = 'all'; // 'all' | 'delivery' | 'selected'
+
+    function _tcActiveOrders() {
+        // Aktywne kuchenne = nie-terminalne + nie w in_delivery (te na kanban)
+        const terminal = ['completed', 'cancelled'];
+        return _orders.filter(o =>
+            !terminal.includes(o.status)
+            && o.delivery_status !== 'in_delivery'
+        );
+    }
+
+    function _tcResolveOrderIds() {
+        if (_tcScope === 'all') {
+            return _tcActiveOrders().map(o => o.id);
+        }
+        if (_tcScope === 'delivery') {
+            return _tcActiveOrders().filter(o => o.order_type === 'delivery').map(o => o.id);
+        }
+        // selected — użyj rozwiniętego zamówienia z kanban
+        if (_expandedOrderId) return [_expandedOrderId];
+        return [];
+    }
+
+    function _tcUpdateSelectedCount() {
+        const el = document.getElementById('tc-selected-count');
+        if (!el) return;
+        const ids = _tcResolveOrderIds();
+        if (_tcScope === 'selected' && ids.length === 0) {
+            el.textContent = 'Kliknij zamówienie na kanbanie, aby je zaznaczyć.';
+            el.classList.remove('has');
+        } else {
+            el.textContent = `Zastosuje się do ${ids.length} zamówień.`;
+            el.classList.toggle('has', ids.length > 0);
+        }
+    }
+
+    function _tcSetStatus(msg, type) {
+        const el = document.getElementById('tc-status');
+        if (!el) return;
+        el.textContent = msg || '';
+        el.className = 'tc-status' + (type ? ' ' + type : '');
+    }
+
+    function _openTimeControl() {
+        const modal = document.getElementById('time-control-modal');
+        if (!modal) return;
+        _tcScope = 'all';
+        document.querySelectorAll('.tc-scope-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.tcScope === 'all');
+        });
+        const timeInput = document.getElementById('tc-target-time');
+        if (timeInput) timeInput.value = '';
+        const notify = document.getElementById('tc-notify');
+        if (notify) notify.checked = true;
+        _tcSetStatus('');
+        _tcUpdateSelectedCount();
+        modal.classList.add('active');
+    }
+
+    function _closeTimeControl() {
+        const modal = document.getElementById('time-control-modal');
+        if (modal) modal.classList.remove('active');
+    }
+
+    async function _tcSubmit(opts) {
+        const orderIds = _tcResolveOrderIds();
+        if (orderIds.length === 0) {
+            _tcSetStatus('Brak zamówień w wybranym zakresie.', 'err');
+            return;
+        }
+        const notify = document.getElementById('tc-notify')?.checked ?? true;
+        const payload = {
+            order_ids: orderIds,
+            notify_customers: notify ? 1 : 0,
+        };
+        if (opts.delayMinutes != null) payload.delay_minutes = opts.delayMinutes;
+        if (opts.targetDatetime != null) payload.target_datetime = opts.targetDatetime;
+        if (opts.markReady) payload.mark_ready = 1;
+
+        _tcSetStatus('Wysyłanie...', '');
+        const r = await PosAPI.shiftTime(payload);
+        if (r.success) {
+            const d = r.data || {};
+            const parts = [];
+            if (d.affected_time) parts.push(`czas: ${d.affected_time}`);
+            if (d.affected_ready) parts.push(`gotowe: ${d.affected_ready}`);
+            _tcSetStatus(`OK — ${parts.join(' · ')}`, 'ok');
+            PosUI.toast(`Centrum Czasu: zastosowano (${parts.join(', ') || 'brak zmian'})`, 'success');
+            _fetchOrders();
+            // Zamknij modal po krótkiej pauzie (pokazujemy status)
+            setTimeout(_closeTimeControl, 1200);
+        } else {
+            _tcSetStatus(r.message || 'Błąd operacji.', 'err');
+            PosUI.toast(r.message || 'Centrum Czasu: błąd', 'error');
+        }
+    }
+
+    function _initTimeControlModal() {
+        const modal = document.getElementById('time-control-modal');
+        if (!modal) return;
+
+        // Zamknięcie (backdrop + X)
+        modal.querySelectorAll('[data-tc-close]').forEach(el => {
+            el.addEventListener('click', _closeTimeControl);
+        });
+        document.getElementById('tc-close-x')?.addEventListener('click', _closeTimeControl);
+
+        // Zakres
+        modal.querySelectorAll('.tc-scope-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                _tcScope = btn.dataset.tcScope;
+                modal.querySelectorAll('.tc-scope-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                _tcUpdateSelectedCount();
+                _tcSetStatus('');
+            });
+        });
+
+        // Kafelki szybkiego przesunięcia
+        modal.querySelectorAll('.tc-tile').forEach(tile => {
+            tile.addEventListener('click', () => {
+                const delay = parseInt(tile.dataset.tcDelay, 10);
+                void _tcSubmit({ delayMinutes: delay });
+            });
+        });
+
+        // Konkretna godzina
+        document.getElementById('tc-apply-time')?.addEventListener('click', () => {
+            const timeVal = document.getElementById('tc-target-time')?.value;
+            if (!timeVal) {
+                _tcSetStatus('Wybierz godzinę.', 'err');
+                return;
+            }
+            // Buduj datetime z dzisiejszą datą + wybranym czasem
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            const targetDatetime = `${yyyy}-${mm}-${dd} ${timeVal}:00`;
+            void _tcSubmit({ targetDatetime });
+        });
+
+        // Mark ready
+        document.getElementById('tc-mark-ready')?.addEventListener('click', () => {
+            void _tcSubmit({ markReady: true });
+        });
     }
 
     // =========================================================================

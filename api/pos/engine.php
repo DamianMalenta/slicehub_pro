@@ -1967,6 +1967,228 @@ try {
     }
 
     // =========================================================================
+    // SHIFT_TIME — Centrum Kontroli Czasu (selektywna bulk zmiana promised_time
+    // + opcjonalne mark_ready). Przejmuje wzorzec order_ids[] z assign_route,
+    // ale zamiast przypisywać kierowcę — przesuwa czas i/lub fiskalizuje ready.
+    //
+    // Payload:
+    //   order_ids        : string[] (wymagane, niepuste)
+    //   delay_minutes    : int|null    — względne przesunięcie (+N min)
+    //   target_datetime  : string|null — konkretna godzina (Y-m-d H:i:s lub ISO)
+    //   mark_ready       : bool (default false) — transitionOrder → 'ready'
+    //   notify_customers : bool (default true)  — publikuj order.delayed/order.ready do outboxu
+    //
+    // Reguły:
+    //   - Dokładnie jedno z (delay_minutes, target_datetime) wymagane, chyba że
+    //     mark_ready===true (wtedy przesunięcie czasu opcjonalne).
+    //   - delay_minutes ∈ [1, 240]; target_datetime parsowany przez strtotime.
+    //   - Wszystkie order_ids muszą należeć do tenanta i mieć status nie-terminalny.
+    //   - mark_ready wymaga statusu ∈ {new, accepted, pending, preparing} (przejście
+    //     dozwolone przez STRICT/DINE_IN map; skip_kitchen FF rozszerza).
+    // =========================================================================
+    if ($action === 'shift_time') {
+        require_once __DIR__ . '/../../core/OrderEventPublisher.php';
+
+        $orderIds = $input['order_ids'] ?? [];
+        if (!is_array($orderIds)) $orderIds = [];
+        $orderIds = array_values(array_unique(array_map('strval', array_filter($orderIds, fn($v) => is_string($v) || is_int($v)))));
+
+        $delayMinutes   = isset($input['delay_minutes']) ? (int)$input['delay_minutes'] : null;
+        $targetDatetime = isset($input['target_datetime']) ? trim((string)$input['target_datetime']) : null;
+        if ($targetDatetime === '') $targetDatetime = null;
+        $markReady      = !empty($input['mark_ready']);
+        $notifyCustomers = isset($input['notify_customers']) ? (bool)$input['notify_customers'] : true;
+
+        if (empty($orderIds)) {
+            http_response_code(400);
+            posResponse(false, null, 'order_ids[] is required and must not be empty.');
+        }
+        if ($delayMinutes === null && $targetDatetime === null && !$markReady) {
+            http_response_code(400);
+            posResponse(false, null, 'Provide delay_minutes or target_datetime (or mark_ready=true).');
+        }
+        if ($delayMinutes !== null && $targetDatetime !== null) {
+            http_response_code(400);
+            posResponse(false, null, 'Provide either delay_minutes OR target_datetime, not both.');
+        }
+        if ($delayMinutes !== null && ($delayMinutes < 1 || $delayMinutes > 240)) {
+            http_response_code(400);
+            posResponse(false, null, 'delay_minutes must be between 1 and 240.');
+        }
+
+        // Rozwiąż docelowy promised_time (gdy przesunięcie podane)
+        $resolvedPromised = null;
+        if ($delayMinutes !== null) {
+            $resolvedPromised = date('Y-m-d H:i:s', time() + $delayMinutes * 60);
+            // Przesunięcie względem obecnego promised_time, nie "teraz" — spójne z PanicEngine
+            // (finalny SQL używa DATE_ADD(COALESCE(promised_time, created_at), INTERVAL :delay)).
+        } elseif ($targetDatetime !== null) {
+            $ts = strtotime($targetDatetime);
+            if ($ts === false) {
+                http_response_code(400);
+                posResponse(false, null, 'target_datetime is not parseable.');
+            }
+            $resolvedPromised = date('Y-m-d H:i:s', $ts);
+        }
+
+        // Walidacja zamówień (tenant isolation + status nie-terminalny)
+        $phO = []; $prmO = [':tid' => $tenant_id];
+        foreach ($orderIds as $i => $oid) {
+            $k = ":o{$i}"; $phO[] = $k; $prmO[$k] = (string)$oid;
+        }
+        $stmtVal = $pdo->prepare(
+            "SELECT id, status, order_type, promised_time, created_at
+             FROM sh_orders
+             WHERE id IN (" . implode(',', $phO) . ") AND tenant_id = :tid
+             FOR UPDATE"
+        );
+        $stmtVal->execute($prmO);
+        $validOrders = $stmtVal->fetchAll(PDO::FETCH_ASSOC);
+
+        if (count($validOrders) !== count($orderIds)) {
+            http_response_code(404);
+            posResponse(false, null, 'One or more orders not found for this tenant.');
+        }
+
+        $terminal = ['completed', 'cancelled'];
+        foreach ($validOrders as $vo) {
+            if (in_array($vo['status'], $terminal, true)) {
+                http_response_code(409);
+                posResponse(false, null, "Order {$vo['id']} is in terminal status '{$vo['status']}'.");
+            }
+        }
+
+        $tenantFlags = OrderStateMachine::loadTenantFlags($pdo, (int)$tenant_id);
+        $now = date('Y-m-d H:i:s');
+        $affected = 0;
+        $readyAffected = 0;
+        $errors = [];
+
+        try {
+            $pdo->beginTransaction();
+
+            // — (a) Przesunięcie czasu (per-order UPDATE z blokadą FOR UPDATE już założoną) —
+            if ($resolvedPromised !== null) {
+                if ($delayMinutes !== null) {
+                    // Względne: DATE_ADD(COALESCE(promised_time, created_at), INTERVAL delay)
+                    $stmtShift = $pdo->prepare(
+                        "UPDATE sh_orders
+                         SET promised_time = DATE_ADD(
+                                 COALESCE(promised_time, created_at),
+                                 INTERVAL :delay MINUTE
+                             ),
+                             updated_at = :now
+                         WHERE id = :oid AND tenant_id = :tid"
+                    );
+                    foreach ($validOrders as $vo) {
+                        $stmtShift->execute([
+                            ':delay' => $delayMinutes,
+                            ':now'   => $now,
+                            ':oid'   => $vo['id'],
+                            ':tid'   => $tenant_id,
+                        ]);
+                        if ($stmtShift->rowCount() > 0) $affected++;
+                    }
+                } else {
+                    // Bezwzględny target_datetime
+                    $stmtAbs = $pdo->prepare(
+                        "UPDATE sh_orders
+                         SET promised_time = :pt, updated_at = :now
+                         WHERE id = :oid AND tenant_id = :tid"
+                    );
+                    foreach ($validOrders as $vo) {
+                        $stmtAbs->execute([
+                            ':pt'  => $resolvedPromised,
+                            ':now' => $now,
+                            ':oid' => $vo['id'],
+                            ':tid' => $tenant_id,
+                        ]);
+                        if ($stmtAbs->rowCount() > 0) $affected++;
+                    }
+                }
+            }
+
+            // — (b) mark_ready przez OrderStateMachine (kanoniczne przejście + audit) —
+            if ($markReady) {
+                foreach ($validOrders as $vo) {
+                    $oid = (string)$vo['id'];
+                    if ($vo['status'] === 'ready') {
+                        // już ready — skip, nie błąd
+                        continue;
+                    }
+                    $extraCols = [
+                        'ready_at'           => $now,
+                        'edited_since_print' => 0,
+                        'kitchen_delta'      => null,
+                    ];
+                    $r = OrderStateMachine::transitionOrder(
+                        $pdo, $oid, (int)$tenant_id, (int)($user_id ?? 0),
+                        'ready', $tenantFlags, $extraCols
+                    );
+                    if (!$r['success']) {
+                        $errors[] = "{$oid}: {$r['message']}";
+                        continue;
+                    }
+                    $readyAffected++;
+                    if ($notifyCustomers) {
+                        OrderEventPublisher::publishOrderLifecycle(
+                            $pdo, $tenant_id, 'order.ready', $oid,
+                            ['from_status' => $r['old_status'], 'to_status' => 'ready', 'source_action' => 'shift_time'],
+                            [
+                                'source'         => 'pos',
+                                'actorType'      => 'staff',
+                                'actorId'        => (string)($user_id ?? ''),
+                                'idempotencyKey' => $oid . ':order.ready:' . $r['old_status'] . ':' . date('YmdHis'),
+                            ]
+                        );
+                    }
+                }
+            }
+
+            // — (c) Publikuj order.delayed dla przesuniętych (jeśli nie mark_ready —
+            //       przy mark_ready ready już pokrywa komunikat; jeśli oba, delayed też
+            //       informuje o nowym czasie). Publikujemy tylko gdy notify_customers. —
+            if ($notifyCustomers && $resolvedPromised !== null) {
+                foreach ($validOrders as $vo) {
+                    $oid = (string)$vo['id'];
+                    OrderEventPublisher::publishOrderLifecycle(
+                        $pdo, $tenant_id, 'order.delayed', $oid,
+                        [
+                            'delay_minutes'    => $delayMinutes,
+                            'target_datetime'  => $resolvedPromised,
+                            'old_promised_time'=> $vo['promised_time'],
+                            'mark_ready'       => $markReady,
+                            'source_action'    => 'shift_time',
+                        ],
+                        [
+                            'source'         => 'pos',
+                            'actorType'      => 'staff',
+                            'actorId'        => (string)($user_id ?? ''),
+                            'idempotencyKey' => $oid . ':order.delayed:' . date('YmdHis'),
+                        ]
+                    );
+                }
+            }
+
+            $pdo->commit();
+        } catch (\Throwable $tx) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log('[POS shift_time] ' . $tx->getMessage());
+            http_response_code(500);
+            posResponse(false, null, 'shift_time transaction failed.');
+        }
+
+        posResponse(true, [
+            'affected_time'   => $affected,
+            'affected_ready'  => $readyAffected,
+            'requested_count' => count($orderIds),
+            'errors'           => $errors,
+            'resolved_promised'=> $resolvedPromised,
+            'mark_ready'       => $markReady,
+        ]);
+    }
+
+    // =========================================================================
     // PANIC_MODE — shift promised_time on all active orders (debounce + configurable delay)
     // Absorbed from api/orders/panic.php → core/PanicEngine.php
     // =========================================================================

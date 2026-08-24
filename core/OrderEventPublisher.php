@@ -35,6 +35,7 @@ declare(strict_types=1);
  *   order.cancelled   — anulowane (status=cancelled)
  *   order.edited      — edytowane po przyjęciu (partial payload w context)
  *   order.recalled    — KDS rollback (ready → preparing)
+ *   order.delayed     — promised_time przesunięte (Centrum Kontroli Czasu / Panic per-order)
  *
  * @see _docs/09_EVENT_SYSTEM.md
  */
@@ -53,6 +54,7 @@ final class OrderEventPublisher
         'order.cancelled',
         'order.edited',
         'order.recalled',
+        'order.delayed',
         'order.fiscalized',
         'payment.settled',
         'payment.refunded',

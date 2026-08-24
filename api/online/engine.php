@@ -1761,11 +1761,16 @@ try {
 
         try {
             $extraCols = $hasDeliveryStatus ? ', delivery_status' : '';
+            // delivery_lat/lng (migracja 047) — opcjonalne, graceful gdy nie istnieją
+            $hasDeliveryCoords = false;
+            try { $pdo->query("SELECT delivery_lat FROM sh_orders LIMIT 0"); $hasDeliveryCoords = true; }
+            catch (\PDOException $e) {}
+            $coordsCols = $hasDeliveryCoords ? ', delivery_lat, delivery_lng' : '';
             $stmtO = $pdo->prepare(
                 "SELECT id, order_number, channel, order_type, status, payment_status,
                         grand_total, customer_name, customer_phone, delivery_address,
                         promised_time, driver_id, course_id, created_at, updated_at
-                        {$extraCols}
+                        {$extraCols}{$coordsCols}
                  FROM sh_orders
                  WHERE tenant_id = :tid AND tracking_token = :tok AND customer_phone = :phone
                  LIMIT 1"
@@ -1829,6 +1834,7 @@ try {
                          FROM sh_driver_locations dl
                          LEFT JOIN sh_users u ON u.id = dl.driver_id
                          WHERE dl.tenant_id = :tid AND dl.driver_id = :did
+                         ORDER BY dl.updated_at DESC
                          LIMIT 1"
                     );
                     $stmtD->execute([':tid' => $tenantId, ':did' => $order['driver_id']]);
@@ -1904,6 +1910,46 @@ try {
                 } catch (\Throwable $e) {}
             }
 
+            // --- Live GPS ETA (Faza GPS-ETA) -------------------------------------
+            // Gdy zamówienie w drodze (in_delivery) i mamy pozycję kierowcy + adres
+            // klienta (delivery_lat/lng), przejmujemy kontrolę nad ETA: liczymy
+            // odległość Haversine driver→klient i estymujemy czas dojazdu zamiast
+            // polegać na statycznym promised_time.
+            //
+            // Formuła: etaSeconds_gps = round((dystans_km / 25) * 3600) + 180
+            //   - 25 km/h = uśredniona prędkość miejska (korki + ostatnie 200 m pieszo)
+            //   - +180 s = bufor na parking/winda/handover
+            //
+            // Ekran klienta (online_track.js renderEta) konsumuje o.etaSeconds bez
+            // zmian — wystarczy że serwer zwróci GPS-ETA zamiast promised-ETA.
+            $gpsEta = null;
+            if ($logicalStatus === 'in_delivery'
+                && $driverGps !== null
+                && $hasDeliveryCoords
+                && isset($order['delivery_lat'], $order['delivery_lng'])
+                && is_numeric($order['delivery_lat'])
+                && is_numeric($order['delivery_lng'])
+            ) {
+                try {
+                    $dLat = (float)$driverGps['lat'];
+                    $dLng = (float)$driverGps['lng'];
+                    $cLat = (float)$order['delivery_lat'];
+                    $cLng = (float)$order['delivery_lng'];
+                    // Haversine (R = 6371 km)
+                    $radLat1 = deg2rad($dLat);
+                    $radLat2 = deg2rad($cLat);
+                    $dLatRad = deg2rad($cLat - $dLat);
+                    $dLngRad = deg2rad($cLng - $dLng);
+                    $a = sin($dLatRad / 2) * sin($dLatRad / 2)
+                       + cos($radLat1) * cos($radLat2) * sin($dLngRad / 2) * sin($dLngRad / 2);
+                    $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+                    $distanceKm = 6371.0 * $c;
+                    $gpsEta = (int)round(($distanceKm / 25.0) * 3600) + 180;
+                    // Nadpisuj ETA serwerowe GPS-ETA (tracker przejmuje kontrolę)
+                    $etaSeconds = $gpsEta;
+                } catch (\Throwable $e) {}
+            }
+
             onlineResponse(true, [
                 'order' => [
                     'id'              => $order['id'],
@@ -1919,6 +1965,7 @@ try {
                     'deliveryAddress' => $order['delivery_address'],
                     'promisedTime'    => $order['promised_time'],
                     'etaSeconds'      => $etaSeconds,
+                    'etaSource'       => $gpsEta !== null ? 'gps' : 'promised',
                     'heroImage'       => $heroImage,
                     'createdAt'       => $order['created_at'],
                     'updatedAt'       => $order['updated_at'],

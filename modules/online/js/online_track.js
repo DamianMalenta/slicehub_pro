@@ -223,11 +223,15 @@ function startSse() {
         });
 
         // Nasłuchuj na eventy statusu zamówienia
-        const orderEvents = ['order.accepted','order.preparing','order.ready','order.dispatched','order.in_delivery','order.delivered','order.completed','order.cancelled'];
+        const orderEvents = ['order.accepted','order.preparing','order.ready','order.dispatched','order.in_delivery','order.delivered','order.completed','order.cancelled','order.delayed'];
         orderEvents.forEach(evType => {
             es.addEventListener(evType, () => {
                 // Natychmiastowy fetch po otrzymaniu push event
                 tick();
+                // order.delayed — pokaż baner informacyjny o zaktualizowanym czasie
+                if (evType === 'order.delayed') {
+                    showDelayedBanner();
+                }
             });
         });
 
@@ -548,6 +552,25 @@ function renderStageBanner(status, orderType) {
 
     el.innerHTML = `<span class="track-stage-banner__emoji">${b.emoji}</span>${escapeHtml(msg)}`;
     el.classList.remove('hidden');
+}
+
+/**
+ * Baner informacyjny po odebraniu order.delayed (Centrum Kontroli Czasu).
+ * Pokazuje komunikat o zaktualizowanym czasie realizacji i automatycznie
+ * chowa się po 8 sekundach. tick() odświeży ETA countdown z nowym etaSeconds.
+ */
+let _delayedBannerTimer = null;
+function showDelayedBanner() {
+    const el = document.getElementById('tr-delayed-banner');
+    if (!el) return;
+    el.innerHTML = `<span class="track-delayed-banner__icon"><i class="fa-solid fa-clock-rotate-left"></i></span>`
+        + escapeHtml('Zaktualizowaliśmy czas realizacji Twojego zamówienia. Nowy czas poniżej.');
+    el.classList.remove('hidden');
+    if (_delayedBannerTimer) clearTimeout(_delayedBannerTimer);
+    _delayedBannerTimer = setTimeout(() => {
+        el.classList.add('hidden');
+        _delayedBannerTimer = null;
+    }, 8000);
 }
 
 function renderLiveDot() {
