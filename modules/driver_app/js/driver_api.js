@@ -89,6 +89,7 @@ const DriverAPI = (() => {
         cancelOrder:      (orderId, reason) => _post('cancel_order', { order_id: orderId, reason }),
         updateLocation:   (lat, lng, heading, speed, accuracy) => _post('update_location', { lat, lng, heading, speed, accuracy }),
         startShift:       (initialCash)   => _post('start_shift', { initial_cash: initialCash }),
+        linkHrSession:    (sessionUuid)   => _post('link_hr_session', { work_session_uuid: sessionUuid }),
         checkRecall:      ()              => _post('check_recall'),
         clearRecall:      ()              => _post('clear_recall'),
         setDriverStatus:  (status)        => _post('set_driver_status', { driver_user_id: '', status }),

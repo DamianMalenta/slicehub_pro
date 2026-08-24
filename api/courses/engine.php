@@ -35,6 +35,18 @@ function coursesResponse(bool $ok, $data = null, ?string $msg = null): void
     exit;
 }
 
+/** @return ?string  Canonical UUID (lowercase) or null when input is not a valid UUID. */
+function slicehubSanitizeSessionUuid($raw): ?string
+{
+    if (!is_string($raw)) {
+        return null;
+    }
+    $uuid = strtolower(trim($raw));
+    return preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $uuid) === 1
+        ? $uuid
+        : null;
+}
+
 /** @return bool  True if payment_status means "paid" */
 function isPaid(string $ps): bool
 {
@@ -1012,6 +1024,7 @@ try {
     if ($action === 'start_shift') {
         $driverUserId = (string)($input['driver_user_id'] ?? $user_id);
         $initialCash  = isset($input['initial_cash']) ? (int)round((float)$input['initial_cash'] * 100) : 0;
+        $workSessionUuid = slicehubSanitizeSessionUuid($input['work_session_uuid'] ?? null);
 
         slicehubEnsureDriverFleetRow($pdo, (int)$tenant_id, (int)$driverUserId, 'offline');
 
@@ -1027,14 +1040,34 @@ try {
         }
 
         $pdo->prepare(
-            "INSERT INTO sh_driver_shifts (tenant_id, driver_id, initial_cash, status, created_at)
-             VALUES (:tid, :did, :ic, 'active', NOW())"
-        )->execute([':tid'=>$tenant_id, ':did'=>$driverUserId, ':ic'=>$initialCash]);
+            "INSERT INTO sh_driver_shifts (tenant_id, driver_id, initial_cash, status, work_session_uuid, created_at)
+             VALUES (:tid, :did, :ic, 'active', :ws, NOW())"
+        )->execute([':tid'=>$tenant_id, ':did'=>$driverUserId, ':ic'=>$initialCash, ':ws'=>$workSessionUuid]);
 
         $pdo->prepare("UPDATE sh_drivers SET status='available' WHERE user_id=:did AND tenant_id=:tid")
             ->execute([':did'=>$driverUserId, ':tid'=>$tenant_id]);
 
         coursesResponse(true, ['shift_started' => true, 'initial_cash_grosze' => $initialCash]);
+    }
+
+    // =========================================================================
+    // ACTION: link_hr_session — korelacja aktywnego shiftu kasowego z sesją HR.
+    // UUID pochodzi z odpowiedzi clock_in (api/backoffice/hr/engine.php);
+    // zapisujemy tylko klucz VARCHAR, bez FK cross-silo (_docs/18 §9.3).
+    // =========================================================================
+    if ($action === 'link_hr_session') {
+        $workSessionUuid = slicehubSanitizeSessionUuid($input['work_session_uuid'] ?? null);
+        if ($workSessionUuid === null) {
+            http_response_code(400);
+            coursesResponse(false, null, 'work_session_uuid (UUID v4) required.');
+        }
+        $stmt = $pdo->prepare(
+            "UPDATE sh_driver_shifts
+             SET work_session_uuid = :ws
+             WHERE driver_id = :did AND tenant_id = :tid AND status = 'active'"
+        );
+        $stmt->execute([':ws'=>$workSessionUuid, ':did'=>(string)$user_id, ':tid'=>$tenant_id]);
+        coursesResponse(true, ['linked' => $stmt->rowCount() > 0]);
     }
 
     // =========================================================================

@@ -470,6 +470,8 @@ const DriverApp = (() => {
             const uuid = (hr.data && hr.data.session_uuid) ? hr.data.session_uuid : state.hrSessionUuid;
             _setHrSession(uuid);
             updateHrBadge('active');
+            // Korelacja shift kasowy ↔ sesja HR — best effort
+            if (uuid) { DriverAPI.linkHrSession(uuid).catch(() => {}); }
         } else {
             console.warn('[DriverApp] HR clock_in failed:', hr.message);
             updateHrBadge('error');
