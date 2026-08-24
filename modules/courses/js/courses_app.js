@@ -7,7 +7,7 @@ const App = (() => {
     // Faza C — SLA breaches poll co 30s (rzadziej niż główny poll; breachy nie
     // wymagają sub-10s świeżości, a get_sla_breaches robi JOIN po 3 tabelach).
     const SLA_BREACH_POLL_INTERVAL = 30000;
-    const TENANT_ID = 1;
+    const TENANT_ID = parseInt(document.querySelector('meta[name="sh-tenant-id"]')?.content, 10) || 1;
 
     const state = {
         pin: '',
