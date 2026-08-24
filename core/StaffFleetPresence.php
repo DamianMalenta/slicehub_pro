@@ -18,7 +18,7 @@ function slicehubTouchStaffPresence(PDO $pdo, int $tenantId, int $userId): void
         return;
     }
     $pdo->prepare(
-        'UPDATE sh_users SET last_seen = NOW() WHERE id = :id AND tenant_id = :tid AND is_deleted = 0'
+        'UPDATE sh_users SET last_seen = NOW() WHERE id = :id AND tenant_id = :tid AND is_active = 1 AND is_deleted = 0'
     )->execute([':id' => $userId, ':tid' => $tenantId]);
 }
 
