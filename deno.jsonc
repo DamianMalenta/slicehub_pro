@@ -1,0 +1,40 @@
+{
+  // Deno lint configuration for SliceHub Pro
+  //
+  // SliceHub is a pure LAMP-stack app (PHP 8.3 + vanilla JS + Tailwind CDN).
+  // Deno lint is used ONLY as a JS static-analysis tool — the app never runs
+  // under Deno. The following rules are disabled because they are either
+  // false positives in a classic-<script> codebase (no ES modules / no bundler)
+  // or intentional patterns documented in
+  // _docs/audits/ui_handlers_order_audit_2026-08-24.md.
+  //
+  // Disabled rules:
+  //   no-unused-vars   — false positives: cross-file classic-script globals
+  //                      (App, CoursesAPI, DriverApp, TablesAPI, etc.) are
+  //                      called from inline onclick in HTML but Deno analyses
+  //                      each .js file in isolation.
+  //   no-empty         — intentional empty catch blocks (error swallowed with
+  //                      hardcoded fallback message).
+  //   require-await    — async stubs / handlers that are async for API
+  //                      consistency but don't yet await (e.g. onColumnToggle).
+  //   prefer-const     — stylistic; let vs const in pre-existing code.
+  //   no-node-globals  — Deno 1.x rule (process.* in .cjs test runner).
+  //   no-process-global— Deno 2.x equivalent of no-node-globals.
+  //   no-this-alias    — pre-existing pattern in one file.
+  //
+  // The no-window / no-window-prefix rules are NOT disabled — they were fixed
+  // by replacing window.* with globalThis.* (PR #60).
+  "lint": {
+    "rules": {
+      "exclude": [
+        "no-unused-vars",
+        "no-empty",
+        "require-await",
+        "prefer-const",
+        "no-node-globals",
+        "no-process-global",
+        "no-this-alias"
+      ]
+    }
+  }
+}

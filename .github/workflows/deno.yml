@@ -36,5 +36,9 @@ jobs:
       - name: Run linter
         run: deno lint
 
-      - name: Run tests
-        run: deno test -A
+      # SliceHub has no Deno-native tests (tests are browser-based via
+      # puppeteer-core: node scripts/run_test_runner_headless.cjs).
+      # `deno test -A` fails with "No test modules found" — skip until
+      # Deno test files are added to the repo.
+      # - name: Run tests
+      #   run: deno test -A
