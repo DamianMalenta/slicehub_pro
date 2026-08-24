@@ -1471,9 +1471,10 @@ try {
             posResponse(false, null, 'order_id is required.');
         }
 
-        // Pre-check: fetch current status + order_type (dla kanału PromisedTimeEngine)
+        // Pre-check: fetch current status + order_type + promised_time (dla zachowania
+        // czasu klienta przy akceptacji bez jawnego czasu kasjera — fix 2026-08-24)
         $stmtOrder = $pdo->prepare(
-            "SELECT status, order_type FROM sh_orders WHERE id = :oid AND tenant_id = :tid LIMIT 1"
+            "SELECT status, order_type, promised_time FROM sh_orders WHERE id = :oid AND tenant_id = :tid LIMIT 1"
         );
         $stmtOrder->execute([':oid' => $oid, ':tid' => $tenant_id]);
         $orderRow = $stmtOrder->fetch(PDO::FETCH_ASSOC);
@@ -1482,17 +1483,25 @@ try {
             posResponse(false, null, 'Order not found.');
         }
 
-        // Faza B — default promised_time przez silnik gdy kasjer nie podał czasu
+        // Faza B — default promised_time gdy kasjer nie podał czasu.
+        // Fix 2026-08-24: ZACHOWAJ istniejący promised_time klienta (scheduled/ASAP z checkoutu)
+        // zamiast nadpisywać nowym wyliczeniem ASAP. Tylko gdy promised_time jest pusty/NULL,
+        // wyliczamy przez PromisedTimeEngine::calculate('asap').
         if ($parsedTime === null) {
-            require_once __DIR__ . '/../../core/PromisedTimeEngine.php';
-            $ptChannel = strtolower((string)($orderRow['order_type'] ?? 'delivery'));
-            try {
-                $ptCalc = PromisedTimeEngine::calculate($pdo, $tenant_id, 'asap', $ptChannel);
-                $parsedTime = (new DateTime($ptCalc['promised_time'], new DateTimeZone('Europe/Warsaw')))
-                    ->format('Y-m-d H:i:s');
-            } catch (\Throwable $e) {
-                error_log('[POS.accept_order.promised] ' . $e->getMessage());
-                $parsedTime = date('Y-m-d H:i:s'); // fallback — nie blokuj akceptu
+            if (!empty($orderRow['promised_time'])) {
+                // Klient ustalił czas w checkout (scheduled lub ASAP estymacja) — zachowaj.
+                $parsedTime = $orderRow['promised_time'];
+            } else {
+                require_once __DIR__ . '/../../core/PromisedTimeEngine.php';
+                $ptChannel = strtolower((string)($orderRow['order_type'] ?? 'delivery'));
+                try {
+                    $ptCalc = PromisedTimeEngine::calculate($pdo, $tenant_id, 'asap', $ptChannel);
+                    $parsedTime = (new DateTime($ptCalc['promised_time'], new DateTimeZone('Europe/Warsaw')))
+                        ->format('Y-m-d H:i:s');
+                } catch (\Throwable $e) {
+                    error_log('[POS.accept_order.promised] ' . $e->getMessage());
+                    $parsedTime = date('Y-m-d H:i:s'); // fallback — nie blokuj akceptu
+                }
             }
         }
 

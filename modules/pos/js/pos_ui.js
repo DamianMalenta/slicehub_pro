@@ -542,7 +542,23 @@ const PosUI = (() => {
                 // Time slot picker — loaded from backend PromisedTimeEngine
                 const slotsHtml = `<div class="pulse-slots-loading" data-slots-for="${o.id}" data-channel="${o.order_type}">Ładuję sloty...</div>`;
 
-                expandHtml = `<div class="pulse-expand">${custSection}<div class="pulse-items">${lines}</div>${requestedSection}<div class="pulse-time-section"><div class="pulse-section-label">Czas realizacji</div><div class="pulse-accept-btns">${pillsHtml}</div><div class="pulse-section-label pulse-section-label-slots">Lub wybierz godzinę</div><div class="pulse-slots">${slotsHtml}</div></div><div class="pulse-actions"><button class="pulse-accept-now" data-accept-now="${o.id}">ASAP</button><button class="pulse-reject" data-reject="${o.id}">Odrzuć</button></div></div>`;
+                // Dynamic accept button label — pokaż czas klienta jeśli ustalony
+                // (scheduled → "AKCEPTUJ NA HH:MM", ASAP z estymacją → "AKCEPTUJ ASAP (HH:MM)")
+                // Heurystyka: > 60 min w przyszłość = klient wybrał konkretną godzinę.
+                const hasPromised = !!o.promised_time;
+                let acceptNowLabel = 'AKCEPTUJ ASAP';
+                if (hasPromised) {
+                    const ptDate = new Date(o.promised_time);
+                    const ptHh = String(ptDate.getHours()).padStart(2, '0');
+                    const ptMm = String(ptDate.getMinutes()).padStart(2, '0');
+                    const ptTime = `${ptHh}:${ptMm}`;
+                    const diffMin = Math.ceil((ptDate - new Date()) / 60000);
+                    acceptNowLabel = diffMin > 60
+                        ? `AKCEPTUJ NA ${ptTime}`
+                        : `AKCEPTUJ ASAP (${ptTime})`;
+                }
+
+                expandHtml = `<div class="pulse-expand">${custSection}<div class="pulse-items">${lines}</div>${requestedSection}<div class="pulse-time-section"><div class="pulse-section-label">Czas realizacji</div><div class="pulse-accept-btns">${pillsHtml}</div><div class="pulse-section-label pulse-section-label-slots">Lub wybierz godzinę</div><div class="pulse-slots">${slotsHtml}</div></div><div class="pulse-actions"><button class="pulse-accept-now" data-accept-now="${o.id}" data-promised="${o.promised_time || ''}">${acceptNowLabel}</button><button class="pulse-reject" data-reject="${o.id}">Odrzuć</button></div></div>`;
             }
 
             target.insertAdjacentHTML('beforeend', `<div class="pulse-card ${borderClass}" data-pulse-id="${o.id}"><div class="pulse-card-top"><span class="pulse-num">#${num}</span><span class="pulse-total">${total}zł</span></div><div class="pulse-card-meta">${custAddr ? `<span class="pulse-addr">${custAddr}</span>` : (custName || '')}</div><div class="pulse-card-bottom"><span class="pulse-source">${_e(o.source || 'online')}</span><span class="pulse-time">${elapsed}m</span></div>${expandHtml}</div>`);
@@ -593,9 +609,13 @@ const PosUI = (() => {
         });
         container.outerHTML = `<div class="pulse-slots">${html}</div>`;
 
-        // Update ASAP button label with estimate
+        // Update ASAP button label with estimate — tylko gdy zamówienie NIE MA
+        // ustalonego promised_time (inaczej nadpisalibyśmy dynamiczną etykietę
+        // "AKCEPTUJ NA HH:MM" / "AKCEPTUJ ASAP (HH:MM)" ustawioną w renderPulse).
         const asapBtn = document.querySelector(`[data-accept-now="${orderId}"]`);
-        if (asapBtn) asapBtn.textContent = `ASAP (~${asapMin}min)`;
+        if (asapBtn && !asapBtn.dataset.promised) {
+            asapBtn.textContent = `ASAP (~${asapMin}min)`;
+        }
 
         // Re-wire slot click events
         document.querySelectorAll(`[data-slot="${orderId}"]`).forEach(btn => btn.addEventListener('click', e => {
