@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'slicehub-online-v3';
+const CACHE_VERSION = 'slicehub-online-v4';
 const SW_DIR = self.location.pathname.replace(/\/sw\.js$/, '');
 const BASE_PATH = SW_DIR.replace(/\/modules\/online$/, '');
 const OFFLINE_URL = BASE_PATH + '/modules/online/offline.html';

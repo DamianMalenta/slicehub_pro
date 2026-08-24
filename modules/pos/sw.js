@@ -18,7 +18,7 @@
  * wszystkich klientów — `pos_sw_register.js` pokazuje toast z opcją reload.
  */
 
-const CACHE_VERSION = 'slicehub-pos-v9';
+const CACHE_VERSION = 'slicehub-pos-v10';
 const STATIC_CACHE  = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const API_CACHE     = `${CACHE_VERSION}-api`;

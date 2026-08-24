@@ -10,7 +10,7 @@
  * Wersjonowanie: bump CACHE_VERSION przy każdej zmianie precache listy.
  */
 
-const CACHE_VERSION = 'slicehub-driver-v1';
+const CACHE_VERSION = 'slicehub-driver-v2';
 const STATIC_CACHE  = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
