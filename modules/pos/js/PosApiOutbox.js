@@ -132,7 +132,7 @@ class PosApiOutboxImpl {
             this._currentBackoff = REPLAY_ACTIVE_DELAY;
             this.triggerReplay();
         };
-        window.addEventListener('online', this._onlineHandler);
+        globalThis.addEventListener('online', this._onlineHandler);
 
         this._scheduleNext(REPLAY_ACTIVE_DELAY);
         console.info(LOG_PREFIX, 'started');
@@ -145,7 +145,7 @@ class PosApiOutboxImpl {
         this._running = false;
         if (this._handle) { clearTimeout(this._handle); this._handle = null; }
         if (this._outboxUnsub) { this._outboxUnsub(); this._outboxUnsub = null; }
-        if (this._onlineHandler) window.removeEventListener('online', this._onlineHandler);
+        if (this._onlineHandler) globalThis.removeEventListener('online', this._onlineHandler);
         this._onlineHandler = null;
     }
 
@@ -233,8 +233,8 @@ class PosApiOutboxImpl {
         // UX: natychmiastowy toast, żeby kasjer wiedział że nie zgubiliśmy
         // intencji. Pomijamy jeśli toast API jeszcze nie wstało.
         try {
-            if (typeof window !== 'undefined' && window.SliceHubPOS?.toast) {
-                window.SliceHubPOS.toast(humanMsg, {
+            if (typeof globalThis !== 'undefined' && globalThis.SliceHubPOS?.toast) {
+                globalThis.SliceHubPOS.toast(humanMsg, {
                     variant:    reason === 'offline' ? 'warn' : 'info',
                     durationMs: 3500,
                 });

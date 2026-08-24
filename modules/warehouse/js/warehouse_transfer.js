@@ -11,7 +11,7 @@
     document.addEventListener('DOMContentLoaded', init);
 
     async function init() {
-        const whRes = await window.WarehouseApi.getWarehouseList();
+        const whRes = await globalThis.WarehouseApi.getWarehouseList();
         if (whRes.success && Array.isArray(whRes.data)) {
             warehouses = whRes.data;
         }
@@ -35,7 +35,7 @@
 
     async function loadSourceStock() {
         const wid = document.getElementById('mm-source')?.value || 'MAIN';
-        const res = await window.WarehouseApi.stockList(wid);
+        const res = await globalThis.WarehouseApi.stockList(wid);
         stockRows = res.success && Array.isArray(res.data) ? res.data : [];
         const sel = document.getElementById('mm-sku');
         if (!sel) return;
@@ -45,7 +45,7 @@
             ).join('');
     }
 
-    window.mmAddLine = function () {
+    globalThis.mmAddLine = function () {
         const sku = document.getElementById('mm-sku')?.value;
         const qty = parseFloat(document.getElementById('mm-qty')?.value);
         if (!sku || !Number.isFinite(qty) || qty <= 0) { alert('Wybierz SKU i ilość > 0.'); return; }
@@ -74,7 +74,7 @@
         });
     }
 
-    window.submitMM = async function () {
+    globalThis.submitMM = async function () {
         const source = document.getElementById('mm-source')?.value;
         const target = document.getElementById('mm-target')?.value;
         if (!source || !target) { alert('Wybierz oba magazyny.'); return; }
@@ -84,7 +84,7 @@
         const overlay = document.getElementById('loading-overlay');
         if (overlay) overlay.classList.remove('hidden');
 
-        const res = await window.WarehouseApi.postTransfer({
+        const res = await globalThis.WarehouseApi.postTransfer({
             source_warehouse_id: source,
             target_warehouse_id: target,
             lines: lines.map(l => ({ sku: l.sku, quantity: l.qty })),

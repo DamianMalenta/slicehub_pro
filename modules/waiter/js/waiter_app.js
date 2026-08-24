@@ -6,8 +6,8 @@
 
 const WaiterApp = (() => {
     function apiBase() {
-        if (window.SliceHub && window.SliceHub.getApiBase) return window.SliceHub.getApiBase();
-        if (window.SliceHub && window.SliceHub.getApiFallback) return window.SliceHub.getApiFallback();
+        if (globalThis.SliceHub && globalThis.SliceHub.getApiBase) return globalThis.SliceHub.getApiBase();
+        if (globalThis.SliceHub && globalThis.SliceHub.getApiFallback) return globalThis.SliceHub.getApiFallback();
         return '/api';
     }
     const TOKEN_KEY = 'sh_token';
@@ -579,7 +579,7 @@ const WaiterApp = (() => {
         Object.entries(params).forEach(([k, v]) => {
             if (v !== null && v !== undefined && v !== '') qs.set(k, v);
         });
-        window.location.href = `../pos/index.html?${qs.toString()}`;
+        globalThis.location.href = `../pos/index.html?${qs.toString()}`;
     }
 
     // =========================================================================

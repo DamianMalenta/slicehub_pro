@@ -1,10 +1,10 @@
-window.BulkEditor = {
+globalThis.BulkEditor = {
     init: function() {
     },
 
     async executeBulkUpdate() {
-        if (!window.StudioState || !window.StudioState.bulkSelectedItems || window.StudioState.bulkSelectedItems.length === 0) {
-            if (window.StudioToast) window.StudioToast.show('Zaznacz przynajmniej jedno danie w drzewie!', 'warning');
+        if (!globalThis.StudioState || !globalThis.StudioState.bulkSelectedItems || globalThis.StudioState.bulkSelectedItems.length === 0) {
+            if (globalThis.StudioToast) globalThis.StudioToast.show('Zaznacz przynajmniej jedno danie w drzewie!', 'warning');
             return;
         }
 
@@ -24,7 +24,7 @@ window.BulkEditor = {
         // POTĘŻNY PAYLOAD ZGODNY Z NOWYM BACKENDEM
         const payload = {
             action: 'save_bulk', // TEGO BRAKOWAŁO!
-            itemIds: window.StudioState.bulkSelectedItems,
+            itemIds: globalThis.StudioState.bulkSelectedItems,
             kdsGroup: document.getElementById('bulk-printer')?.value || '',
             badgeType: document.getElementById('bulk-badge')?.value || '',
             isSecret: document.getElementById('bulk-secret')?.value || '',
@@ -48,15 +48,15 @@ window.BulkEditor = {
         };
         
         try {
-            const result = await window.StudioApi.postPayload(payload);
+            const result = await globalThis.StudioApi.postPayload(payload);
             
             if (result.success === true) {
-                if (window.StudioToast) window.StudioToast.show(result.message || 'Masowo zaktualizowano!', 'success');
+                if (globalThis.StudioToast) globalThis.StudioToast.show(result.message || 'Masowo zaktualizowano!', 'success');
                 
                 // Resetujemy zaznaczenia i UI po udanej operacji
-                window.StudioState.bulkSelectedItems = [];
-                if (typeof window.loadMenuTree === 'function') await window.loadMenuTree();
-                if (window.Core && typeof window.Core.renderTree === 'function') window.Core.renderTree();
+                globalThis.StudioState.bulkSelectedItems = [];
+                if (typeof globalThis.loadMenuTree === 'function') await globalThis.loadMenuTree();
+                if (globalThis.Core && typeof globalThis.Core.renderTree === 'function') globalThis.Core.renderTree();
                 
                 const bulkView = document.getElementById('bulk-inspector-view');
                 if (bulkView) {
@@ -66,15 +66,15 @@ window.BulkEditor = {
                     });
                 }
             } else {
-                if (window.StudioToast) window.StudioToast.show('Błąd: ' + result.message, 'error');
+                if (globalThis.StudioToast) globalThis.StudioToast.show('Błąd: ' + result.message, 'error');
             }
         } catch (error) {
-            if (window.StudioToast) window.StudioToast.show('Krytyczny błąd sieci podczas masowego zapisu.', 'error');
+            if (globalThis.StudioToast) globalThis.StudioToast.show('Krytyczny błąd sieci podczas masowego zapisu.', 'error');
             console.error(error);
         }
     }
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-    window.BulkEditor.init();
+    globalThis.BulkEditor.init();
 });

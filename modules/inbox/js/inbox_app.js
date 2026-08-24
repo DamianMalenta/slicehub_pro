@@ -7,8 +7,8 @@
  * Polling co 30s dla nowych wiadomości.
  */
 
-const API_BASE = (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.apiUrl)
-    ? window.SliceHub.apiUrl('/inbox/engine.php')
+const API_BASE = (typeof globalThis !== 'undefined' && globalThis.SliceHub && globalThis.SliceHub.apiUrl)
+    ? globalThis.SliceHub.apiUrl('/inbox/engine.php')
     : '/api/inbox/engine.php';
 const TENANT_ID = parseInt(
     document.querySelector('meta[name="sh-tenant-id"]')?.content ?? '1', 10
@@ -142,7 +142,7 @@ function renderList() {
 
 // ── Detail view ──────────────────────────────────────────
 
-window.openMessage = async function(id) {
+globalThis.openMessage = async function(id) {
     const msg = state.messages.find(m => m.id == id);
     if (!msg) return;
     state.currentMsg = msg;

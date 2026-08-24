@@ -394,8 +394,8 @@ function renderSuccessScreen(overlay, orderData, values, { close, tenantId }) {
     const panel = overlay.querySelector('.checkout-panel');
     if (!panel) return;
 
-    const trackBase = (window.SliceHub && window.SliceHub.appUrl)
-        ? window.SliceHub.appUrl('/modules/online/track.html')
+    const trackBase = (globalThis.SliceHub && globalThis.SliceHub.appUrl)
+        ? globalThis.SliceHub.appUrl('/modules/online/track.html')
         : '/slicehub/modules/online/track.html';
     const trackingUrl = orderData.trackingUrl
         || `${trackBase}?tenant=${tenantId}&token=${encodeURIComponent(orderData.trackingToken)}&phone=${encodeURIComponent(values.customerPhone)}`;

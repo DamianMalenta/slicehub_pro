@@ -1,12 +1,12 @@
 const _e = s => { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; };
 
-window.Core = {
+globalThis.Core = {
     _treeSearchQuery: '',
     _treeFilter: 'all',
 
     switchView: function(viewId) {
         console.log("[UI] Przełączanie na widok:", viewId);
-        window.StudioState.currentView = viewId;
+        globalThis.StudioState.currentView = viewId;
         const container = document.getElementById('view-container');
         if (!container) return;
         Array.from(container.children).forEach(child => {
@@ -23,12 +23,12 @@ window.Core = {
         if (viewId === 'modifiers') {
             // Faza 3: Modifiers are now in a drawer, not a view.
             // If somehow called, open drawer instead.
-            if (window.ModifierInspector) window.ModifierInspector.openDrawer();
+            if (globalThis.ModifierInspector) globalThis.ModifierInspector.openDrawer();
         }
-        if (viewId === 'meals' && window.MealEditor) {
-            window.MealEditor.init();
+        if (viewId === 'meals' && globalThis.MealEditor) {
+            globalThis.MealEditor.init();
             if (!document.getElementById('meal-id')?.value || document.getElementById('meal-id').value === '0') {
-                window.MealEditor.newMeal();
+                globalThis.MealEditor.newMeal();
             }
         }
 
@@ -52,7 +52,7 @@ window.Core = {
     },
 
     updateDashboard: function() {
-        const items = window.StudioState?.items || [];
+        const items = globalThis.StudioState?.items || [];
         const dash = document.getElementById('navigator-dashboard');
         if (!dash) return;
         const total = items.length;
@@ -68,7 +68,7 @@ window.Core = {
     renderDashboard: function() {
         const container = document.getElementById('inspector-dashboard-content');
         if (!container) return;
-        const items = window.StudioState?.items || [];
+        const items = globalThis.StudioState?.items || [];
         const total = items.length;
         const live = items.filter(i => i.isActive && i.publicationStatus === 'Live').length;
         const draft = items.filter(i => !i.isActive || i.publicationStatus === 'Draft').length;
@@ -103,7 +103,7 @@ window.Core = {
                     </div>
                     <div class="space-y-1.5 max-h-40 overflow-y-auto hide-scrollbar">
                         ${alerts.map(a => `
-                            <div class="flex items-center justify-between gap-2 text-[10px] cursor-pointer hover:bg-red-500/10 rounded p-1.5 transition" onclick="window.Core.openItemEditor(${a.id}, '${_e(a.asciiKey)}')">
+                            <div class="flex items-center justify-between gap-2 text-[10px] cursor-pointer hover:bg-red-500/10 rounded p-1.5 transition" onclick="globalThis.Core.openItemEditor(${a.id}, '${_e(a.asciiKey)}')">
                                 <span class="text-red-300 font-bold truncate flex-1">${_e(a.name)}</span>
                                 <span class="text-red-400 font-mono shrink-0">${a.fcPct.toFixed(0)}%</span>
                             </div>
@@ -118,7 +118,7 @@ window.Core = {
                     ${recent.length > 0 ? `
                         <div class="space-y-1.5">
                             ${recent.map(r => `
-                                <div class="flex items-center gap-2 bg-black/30 border border-white/5 rounded-lg p-2 cursor-pointer hover:bg-blue-500/10 transition" onclick="window.Core.openItemEditor(${r.id}, '${_e(r.asciiKey)}')">
+                                <div class="flex items-center gap-2 bg-black/30 border border-white/5 rounded-lg p-2 cursor-pointer hover:bg-blue-500/10 transition" onclick="globalThis.Core.openItemEditor(${r.id}, '${_e(r.asciiKey)}')">
                                     <div class="w-8 h-8 rounded-lg bg-black/60 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
                                         ${r.imageUrl ? `<img src="${_e(r.imageUrl)}" class="w-full h-full object-cover" loading="lazy" onerror="this.remove();">` : `<i class="fa-solid fa-utensils text-slate-700 text-[10px]"></i>`}
                                     </div>
@@ -134,10 +134,10 @@ window.Core = {
 
                 <div class="border-t border-white/5 pt-3 space-y-2">
                     <div class="text-[9px] font-black uppercase text-slate-500 tracking-widest mb-1">Szybkie akcje</div>
-                    <button onclick="window.Core.addCategory()" class="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white text-[10px] font-black uppercase tracking-wider py-2 rounded-lg transition flex items-center justify-center gap-2">
+                    <button onclick="globalThis.Core.addCategory()" class="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white text-[10px] font-black uppercase tracking-wider py-2 rounded-lg transition flex items-center justify-center gap-2">
                         <i class="fa-solid fa-folder-plus"></i> Nowa Kategoria
                     </button>
-                    <button onclick="window.ItemEditor.openNewPizzaWizard()" class="w-full bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 text-orange-300 text-[10px] font-black uppercase tracking-wider py-2 rounded-lg transition flex items-center justify-center gap-2">
+                    <button onclick="globalThis.ItemEditor.openNewPizzaWizard()" class="w-full bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 text-orange-300 text-[10px] font-black uppercase tracking-wider py-2 rounded-lg transition flex items-center justify-center gap-2">
                         <i class="fa-solid fa-pizza-slice"></i> Kreator Pizzy
                     </button>
                 </div>
@@ -187,16 +187,16 @@ window.Core = {
     },
 
     _getMarginAlerts: function() {
-        const items = window.StudioState?.items || [];
+        const items = globalThis.StudioState?.items || [];
         const alerts = [];
-        if (!window.MarginGuardian?.initialized) return alerts;
+        if (!globalThis.MarginGuardian?.initialized) return alerts;
         items.forEach(it => {
             const posTier = it.priceTiers?.find(t => t.channel === 'POS');
             const price = posTier?.price || it.price || 0;
             if (price <= 0) return;
-            const recipe = window.RecipeMapper?.state?.currentRecipe;
+            const recipe = globalThis.RecipeMapper?.state?.currentRecipe;
             if (!recipe || recipe.length === 0) return;
-            const results = window.MarginGuardian.calculate(
+            const results = globalThis.MarginGuardian.calculate(
                 [{ channel: 'POS', price, vatRate: it.vatRateDineIn || 8 }],
                 recipe
             );
@@ -211,7 +211,7 @@ window.Core = {
     updateInspector: function() {
         const inspector = document.getElementById('studio-inspector');
         if (!inspector) return;
-        const mode = window.StudioState.routeToMode();
+        const mode = globalThis.StudioState.routeToMode();
         const recipePanel = document.getElementById('inspector-recipe');
         const bulkPanel = document.getElementById('inspector-bulk');
         const dashPanel = document.getElementById('inspector-dashboard');
@@ -231,7 +231,7 @@ window.Core = {
             if (bulkPanel) bulkPanel.classList.remove('hidden');
             if (dashPanel) dashPanel.classList.add('hidden');
             if (title) title.textContent = 'Edycja Masowa';
-            if (subtitle) subtitle.textContent = window.StudioState.bulkSelectedItems.length + ' dań zaznaczonych';
+            if (subtitle) subtitle.textContent = globalThis.StudioState.bulkSelectedItems.length + ' dań zaznaczonych';
             this._renderBulkInspectorList();
         } else {
             inspector.classList.remove('hidden');
@@ -247,8 +247,8 @@ window.Core = {
     _renderBulkInspectorList: function() {
         const container = document.getElementById('inspector-bulk-list');
         if (!container) return;
-        const selected = window.StudioState.bulkSelectedItems || [];
-        const items = window.StudioState?.items || [];
+        const selected = globalThis.StudioState.bulkSelectedItems || [];
+        const items = globalThis.StudioState?.items || [];
         const selectedItems = items.filter(it => selected.includes(it.id));
         if (selectedItems.length === 0) {
             container.innerHTML = '<div class="text-[10px] text-slate-600 italic text-center py-4">Zaznacz dania w drzewie menu</div>';
@@ -263,7 +263,7 @@ window.Core = {
                     <div class="text-[11px] font-bold text-slate-300 truncate">${_e(it.name)}</div>
                     <div class="text-[8px] text-slate-600 font-mono">${_e(it.asciiKey)}</div>
                 </div>
-                <button onclick="window.Core.toggleBulkSelection(${it.id})" class="text-red-400 hover:text-red-300 text-[10px] w-6 h-6 rounded transition shrink-0">
+                <button onclick="globalThis.Core.toggleBulkSelection(${it.id})" class="text-red-400 hover:text-red-300 text-[10px] w-6 h-6 rounded transition shrink-0">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
@@ -287,10 +287,10 @@ window.Core = {
     renderTree: function() {
         const container = document.getElementById('dynamic-tree-container');
         if (!container) return;
-        const categories = window.StudioState?.categories || [];
-        const items = window.StudioState?.items || [];
+        const categories = globalThis.StudioState?.categories || [];
+        const items = globalThis.StudioState?.items || [];
         
-        window.StudioState.bulkSelectedItems = window.StudioState.bulkSelectedItems || [];
+        globalThis.StudioState.bulkSelectedItems = globalThis.StudioState.bulkSelectedItems || [];
         this.updateDashboard();
 
         if (categories.length === 0) {
@@ -303,7 +303,7 @@ window.Core = {
             if (catItems.length === 0 && (this._treeSearchQuery || this._treeFilter !== 'all')) return;
             html += `
             <div class="bg-black/30 border border-white/5 rounded-lg overflow-hidden">
-                <div class="px-3 py-2.5 flex items-center justify-between cursor-pointer hover:bg-white/5 transition" onclick="window.Core.toggleCategory(${cat.id})">
+                <div class="px-3 py-2.5 flex items-center justify-between cursor-pointer hover:bg-white/5 transition" onclick="globalThis.Core.toggleCategory(${cat.id})">
                     <div class="flex items-center gap-2 min-w-0">
                         <i id="icon-cat-${cat.id}" class="fa-solid fa-chevron-down text-[8px] text-slate-500 transition-transform shrink-0"></i>
                         <span class="text-[10px] font-black uppercase text-slate-200 tracking-wider truncate">${_e(cat.name)}</span>
@@ -311,16 +311,16 @@ window.Core = {
                     </div>
                     <div class="flex items-center gap-0.5 shrink-0">
                         ${cat.layoutMode && cat.layoutMode !== 'legacy_list' ? `
-                        <button onclick="event.stopPropagation(); window.CategoryTableEditor && window.CategoryTableEditor.open(${cat.id})" class="w-6 h-6 rounded text-slate-600 hover:text-violet-400 hover:bg-white/5 text-[9px] transition" title="Układ stołu">
+                        <button onclick="event.stopPropagation(); globalThis.CategoryTableEditor && globalThis.CategoryTableEditor.open(${cat.id})" class="w-6 h-6 rounded text-slate-600 hover:text-violet-400 hover:bg-white/5 text-[9px] transition" title="Układ stołu">
                             <i class="fa-solid fa-table-cells"></i>
                         </button>` : ''}
-                        <button onclick="event.stopPropagation(); window.Core.editCategory(${cat.id})" class="w-6 h-6 rounded text-slate-600 hover:text-blue-400 hover:bg-white/5 text-[9px] transition" title="Edytuj kategorię">
+                        <button onclick="event.stopPropagation(); globalThis.Core.editCategory(${cat.id})" class="w-6 h-6 rounded text-slate-600 hover:text-blue-400 hover:bg-white/5 text-[9px] transition" title="Edytuj kategorię">
                             <i class="fa-solid fa-gear"></i>
                         </button>
-                        <button onclick="event.stopPropagation(); window.Core.addNewItem(${cat.id})" class="w-6 h-6 rounded text-green-400 hover:text-green-300 hover:bg-green-500/10 text-[9px] transition" title="Nowe danie">
+                        <button onclick="event.stopPropagation(); globalThis.Core.addNewItem(${cat.id})" class="w-6 h-6 rounded text-green-400 hover:text-green-300 hover:bg-green-500/10 text-[9px] transition" title="Nowe danie">
                             <i class="fa-solid fa-plus"></i>
                         </button>
-                        <button onclick="event.stopPropagation(); window.ItemEditor.openNewPizzaWizard()" class="w-6 h-6 rounded text-orange-400 hover:text-orange-300 hover:bg-orange-500/10 text-[9px] transition" title="Kreator pizzy">
+                        <button onclick="event.stopPropagation(); globalThis.ItemEditor.openNewPizzaWizard()" class="w-6 h-6 rounded text-orange-400 hover:text-orange-300 hover:bg-orange-500/10 text-[9px] transition" title="Kreator pizzy">
                             <i class="fa-solid fa-pizza-slice"></i>
                         </button>
                     </div>
@@ -351,7 +351,7 @@ window.Core = {
                     const statusIcon = item.isActive 
                         ? '<i class="fa-solid fa-circle-check text-green-500 text-[10px]" title="Aktywne"></i>' 
                         : '<i class="fa-solid fa-eye-slash text-red-500 text-[10px]" title="Ukryte na POS"></i>';
-                    const isChecked = window.StudioState.bulkSelectedItems.includes(item.id) ? 'checked' : '';
+                    const isChecked = globalThis.StudioState.bulkSelectedItems.includes(item.id) ? 'checked' : '';
                     const thumbHtml = item.imageUrl
                         ? `<img src="${_e(item.imageUrl)}" alt="" class="w-full h-full object-cover" loading="lazy" onerror="this.remove(); this.parentElement.innerHTML='<i class=\\'fa-solid fa-image text-slate-700 text-[11px]\\'></i>';">`
                         : `<i class="fa-solid fa-image text-slate-700 text-[11px]" title="Brak zdjęcia — dodaj w Asset Studio"></i>`;
@@ -363,14 +363,14 @@ window.Core = {
                     return `
                     <div class="px-3 py-2 flex items-center justify-between border-b border-white/5 last:border-0 hover:bg-blue-500/10 cursor-pointer transition group" data-item-id="${item.id}" data-item-sku="${_e(item.asciiKey)}" draggable="true" style="${indentStyle}">
                         <div class="flex items-center gap-2.5 min-w-0 flex-1">
-                            <input type="checkbox" ${isChecked} class="w-3.5 h-3.5 rounded bg-black/50 border-white/20 cursor-pointer accent-cyan-500 shrink-0" onclick="event.stopPropagation(); window.Core.toggleBulkSelection(${item.id})">
+                            <input type="checkbox" ${isChecked} class="w-3.5 h-3.5 rounded bg-black/50 border-white/20 cursor-pointer accent-cyan-500 shrink-0" onclick="event.stopPropagation(); globalThis.Core.toggleBulkSelection(${item.id})">
                             <i class="fa-solid fa-grip-vertical text-slate-700 text-[9px] opacity-0 group-hover:opacity-100 transition-opacity shrink-0 cursor-grab"></i>
                             <div class="item-thumb w-8 h-8 rounded-lg bg-black/60 border ${thumbRing} overflow-hidden flex items-center justify-center shrink-0">${thumbHtml}</div>
                             <span class="text-[11px] font-bold ${indent ? 'text-slate-400' : 'text-slate-300'} group-hover:text-blue-400 transition-colors truncate">${_e(item.name)}</span>
                         </div>
                         <div class="flex items-center gap-2 shrink-0">
                             <span class="text-[8px] text-slate-600 font-mono hidden group-hover:block transition-all">${_e(item.asciiKey)}</span>
-                            <button onclick="event.stopPropagation(); window.Core.quickEditPrice(${item.id})" class="text-[9px] text-blue-400 hover:text-blue-300 font-bold opacity-0 group-hover:opacity-100 transition-opacity" title="Szybka edycja ceny">
+                            <button onclick="event.stopPropagation(); globalThis.Core.quickEditPrice(${item.id})" class="text-[9px] text-blue-400 hover:text-blue-300 font-bold opacity-0 group-hover:opacity-100 transition-opacity" title="Szybka edycja ceny">
                                 <i class="fa-solid fa-pen-to-square"></i>
                             </button>
                             <span class="text-[10px] text-yellow-500 font-bold font-mono bg-black/40 px-1.5 py-0.5 rounded border border-white/5">${displayPrice} zł</span>
@@ -389,7 +389,7 @@ window.Core = {
                         <div class="variant-parent-group">
                             <div class="px-3 py-2 flex items-center justify-between border-b border-white/5 last:border-0 hover:bg-blue-500/10 cursor-pointer transition group" data-item-id="${parent.id}" data-item-sku="${_e(parent.asciiKey)}">
                                 <div class="flex items-center gap-2.5 min-w-0 flex-1">
-                                    <input type="checkbox" class="w-3.5 h-3.5 rounded bg-black/50 border-white/20 cursor-pointer accent-cyan-500 shrink-0" onclick="event.stopPropagation(); window.Core.toggleBulkSelection(${parent.id})">
+                                    <input type="checkbox" class="w-3.5 h-3.5 rounded bg-black/50 border-white/20 cursor-pointer accent-cyan-500 shrink-0" onclick="event.stopPropagation(); globalThis.Core.toggleBulkSelection(${parent.id})">
                                     <i class="fa-solid fa-chevron-right text-[8px] text-orange-400 transition-transform shrink-0 variant-toggle" onclick="event.stopPropagation(); this.closest('.variant-parent-group').classList.toggle('expanded'); this.style.transform=this.closest('.variant-parent-group').classList.contains('expanded')?'rotate-90deg':'';"></i>
                                     <div class="item-thumb w-8 h-8 rounded-lg bg-black/60 border border-orange-500/20 bg-orange-900/10 overflow-hidden flex items-center justify-center shrink-0">
                                         ${parent.imageUrl ? `<img src="${_e(parent.imageUrl)}" alt="" class="w-full h-full object-cover" loading="lazy" onerror="this.remove();">` : `<i class="fa-solid fa-clone text-orange-500 text-[10px]"></i>`}
@@ -419,7 +419,7 @@ window.Core = {
         html += '</div>';
         container.innerHTML = html;
         container.querySelectorAll('[data-item-id][data-item-sku]').forEach(el => {
-            el.addEventListener('click', () => window.Core.openItemEditor(parseInt(el.dataset.itemId), el.dataset.itemSku));
+            el.addEventListener('click', () => globalThis.Core.openItemEditor(parseInt(el.dataset.itemId), el.dataset.itemSku));
         });
         this.bindTreeDragDrop();
     },
@@ -449,7 +449,7 @@ window.Core = {
         if (target) {
             const itemId = parseInt(target.dataset.itemId, 10);
             const sku = target.dataset.itemSku;
-            if (itemId) window.Core.openItemEditor(itemId, sku);
+            if (itemId) globalThis.Core.openItemEditor(itemId, sku);
         }
     },
 
@@ -495,17 +495,17 @@ window.Core = {
             const rect = row.getBoundingClientRect();
             const isAbove = e.clientY < rect.top + rect.height / 2;
             try {
-                const res = await window.apiStudio('reorder_item', {
+                const res = await globalThis.apiStudio('reorder_item', {
                     itemId: this._draggedItemId,
                     targetItemId: targetId,
                     position: isAbove ? 'before' : 'after',
                 });
                 if (res.success) {
-                    if (window.StudioToast) window.StudioToast.show('Kolejność zaktualizowana.', 'success');
-                    await window.loadMenuTree();
-                    window.Core.renderTree();
+                    if (globalThis.StudioToast) globalThis.StudioToast.show('Kolejność zaktualizowana.', 'success');
+                    await globalThis.loadMenuTree();
+                    globalThis.Core.renderTree();
                 } else {
-                    if (window.StudioToast) window.StudioToast.show('Błąd zmiany kolejności: ' + (res.message || ''), 'error');
+                    if (globalThis.StudioToast) globalThis.StudioToast.show('Błąd zmiany kolejności: ' + (res.message || ''), 'error');
                 }
             } catch (err) {
                 console.error('[UI] DnD reorder error:', err);
@@ -514,7 +514,7 @@ window.Core = {
     },
 
     quickEditPrice: async function(itemId) {
-        const items = window.StudioState?.items || [];
+        const items = globalThis.StudioState?.items || [];
         const item = items.find(i => i.id === itemId);
         if (!item) return;
         const posTier = item.priceTiers?.find(t => t.channel === 'POS');
@@ -553,7 +553,7 @@ window.Core = {
         document.getElementById('quick-edit-save').onclick = async () => {
             const newPrice = parseFloat(priceInput.value) || 0;
             try {
-                const res = await window.apiStudio('save_bulk', {
+                const res = await globalThis.apiStudio('save_bulk', {
                     itemIds: [itemId],
                     omnichannelPricePatch: {
                         apply: true,
@@ -563,37 +563,37 @@ window.Core = {
                     },
                 });
                 if (res.success) {
-                    if (window.StudioToast) window.StudioToast.show('Cena zaktualizowana: ' + newPrice.toFixed(2) + ' PLN', 'success');
-                    await window.loadMenuTree();
-                    window.Core.renderTree();
+                    if (globalThis.StudioToast) globalThis.StudioToast.show('Cena zaktualizowana: ' + newPrice.toFixed(2) + ' PLN', 'success');
+                    await globalThis.loadMenuTree();
+                    globalThis.Core.renderTree();
                 } else {
-                    if (window.StudioToast) window.StudioToast.show('Błąd: ' + (res.message || ''), 'error');
+                    if (globalThis.StudioToast) globalThis.StudioToast.show('Błąd: ' + (res.message || ''), 'error');
                 }
             } catch (err) {
-                if (window.StudioToast) window.StudioToast.show('Błąd sieci.', 'error');
+                if (globalThis.StudioToast) globalThis.StudioToast.show('Błąd sieci.', 'error');
             }
             close();
         };
     },
 
     toggleBulkSelection: function(itemId) {
-        window.StudioState.bulkSelectedItems = window.StudioState.bulkSelectedItems || [];
+        globalThis.StudioState.bulkSelectedItems = globalThis.StudioState.bulkSelectedItems || [];
         
-        const index = window.StudioState.bulkSelectedItems.indexOf(itemId);
+        const index = globalThis.StudioState.bulkSelectedItems.indexOf(itemId);
         if (index > -1) {
-            window.StudioState.bulkSelectedItems.splice(index, 1);
+            globalThis.StudioState.bulkSelectedItems.splice(index, 1);
         } else {
-            window.StudioState.bulkSelectedItems.push(itemId);
+            globalThis.StudioState.bulkSelectedItems.push(itemId);
         }
         
         // Faza 4: auto-switch workspace based on selection count
-        const count = window.StudioState.bulkSelectedItems.length;
+        const count = globalThis.StudioState.bulkSelectedItems.length;
         if (count > 1) {
-            window.StudioState.selectedItemId = null;
-            window.Core.switchView('bulk');
+            globalThis.StudioState.selectedItemId = null;
+            globalThis.Core.switchView('bulk');
         } else {
-            if (window.StudioState.currentView === 'bulk') {
-                window.Core.switchView('menu');
+            if (globalThis.StudioState.currentView === 'bulk') {
+                globalThis.Core.switchView('menu');
             }
         }
 
@@ -603,8 +603,8 @@ window.Core = {
             if (label) label.textContent = `Zaznaczono: ${count} dań`;
         }
         
-        window.Core.renderTree(); // Odśwież widok, aby checkbox zareagował
-        window.Core.updateInspector(); // Faza 4: odśwież inspektor
+        globalThis.Core.renderTree(); // Odśwież widok, aby checkbox zareagował
+        globalThis.Core.updateInspector(); // Faza 4: odśwież inspektor
     },
     toggleCategory: function(catId) {
         const container = document.getElementById(`cat-items-${catId}`);
@@ -613,15 +613,15 @@ window.Core = {
     },
     openItemEditor: async function(itemId, asciiKey) {
         console.log("[UI] Wybrano danie SKU:", asciiKey);
-        window.Core.switchView('menu');
+        globalThis.Core.switchView('menu');
 
-        window.StudioState.selectedItemId = itemId;
-        window.StudioState.bulkSelectedItems = [];
+        globalThis.StudioState.selectedItemId = itemId;
+        globalThis.StudioState.bulkSelectedItems = [];
 
         // 1. Zasilenie listy kategorii w select (żeby menedżer miał z czego wybierać)
         const catSelect = document.getElementById('item-category-id');
         if (catSelect && catSelect.options.length <= 1) {
-            const categories = window.StudioState?.categories || [];
+            const categories = globalThis.StudioState?.categories || [];
             categories.forEach(cat => {
                 catSelect.add(new Option(cat.name, cat.id));
             });
@@ -629,14 +629,14 @@ window.Core = {
 
         // 2. Uderzenie do bazy po PEŁNE dane księgowe (Cena, VAT, Drukarka)
         try {
-            const result = await window.apiStudio('get_item_details', { itemId: itemId });
+            const result = await globalThis.apiStudio('get_item_details', { itemId: itemId });
 
-            if (result.success === true && window.ItemEditor) {
+            if (result.success === true && globalThis.ItemEditor) {
                 // Wstrzykujemy twarde dane z bazy do formularza po lewej stronie
-                window.ItemEditor.loadItemDataToForm(result.data);
+                globalThis.ItemEditor.loadItemDataToForm(result.data);
                 // Track recent item
                 const itemData = result.data;
-                const treeItem = (window.StudioState?.items || []).find(i => i.id === itemId);
+                const treeItem = (globalThis.StudioState?.items || []).find(i => i.id === itemId);
                 this._addRecentItem({
                     id: itemId,
                     name: itemData.name || treeItem?.name || '',
@@ -654,33 +654,33 @@ window.Core = {
         const skuDisplay = document.getElementById('current-sku-display');
         if(skuDisplay) skuDisplay.innerText = "SKU: " + asciiKey;
 
-        if(typeof window.RecipeMapper !== 'undefined') {
-            window.RecipeMapper.loadItemRecipe(asciiKey);
+        if(typeof globalThis.RecipeMapper !== 'undefined') {
+            globalThis.RecipeMapper.loadItemRecipe(asciiKey);
         }
 
         // 4. Przełącz inspektor na tryb edytora
         this.updateInspector();
     },
     addNewItem: function(categoryId) {
-        window.Core.switchView('menu');
+        globalThis.Core.switchView('menu');
 
-        window.StudioState.selectedItemId = null;
-        window.StudioState.bulkSelectedItems = [];
+        globalThis.StudioState.selectedItemId = null;
+        globalThis.StudioState.bulkSelectedItems = [];
 
         const catSelect = document.getElementById('item-category-id');
         if (catSelect && catSelect.options.length <= 1) {
-            const categories = window.StudioState?.categories || [];
+            const categories = globalThis.StudioState?.categories || [];
             categories.forEach(cat => {
                 catSelect.add(new Option(cat.name, cat.id));
             });
         }
 
-        const cat = (window.StudioState?.categories || []).find(c => c.id == categoryId);
+        const cat = (globalThis.StudioState?.categories || []).find(c => c.id == categoryId);
         const vatDineIn = cat?.defaultVatDineIn ?? 8;
         const vatTakeaway = cat?.defaultVatTakeaway ?? 5;
 
-        if (window.ItemEditor && typeof window.ItemEditor.loadItemDataToForm === 'function') {
-            window.ItemEditor.loadItemDataToForm({
+        if (globalThis.ItemEditor && typeof globalThis.ItemEditor.loadItemDataToForm === 'function') {
+            globalThis.ItemEditor.loadItemDataToForm({
                 id: 0,
                 categoryId: categoryId,
                 name: '',
@@ -712,7 +712,7 @@ window.Core = {
         if (existing) existing.remove();
 
         // M022: Scene templates dla dropdown — weź z cache'u
-        const itemTemplates = (window.StudioState?.sceneTemplates || []).filter(t => t.kind === 'item');
+        const itemTemplates = (globalThis.StudioState?.sceneTemplates || []).filter(t => t.kind === 'item');
         const profileOptions = itemTemplates.length > 0
             ? itemTemplates.map(t =>
                 `<option value="${t.asciiKey}" ${defaultProfile === t.asciiKey ? 'selected' : ''}>${t.name}</option>`
@@ -828,65 +828,65 @@ window.Core = {
     },
 
     addCategory: async function() {
-        const result = await window.Core._renderCategoryModal(null);
+        const result = await globalThis.Core._renderCategoryModal(null);
         if (!result || !result.name) return;
 
         try {
-            const response = await window.apiStudio('add_category', result);
+            const response = await globalThis.apiStudio('add_category', result);
             if (response && response.success === true) {
-                await window.loadMenuTree();
-                window.Core.renderTree();
+                await globalThis.loadMenuTree();
+                globalThis.Core.renderTree();
             } else {
-                if (window.StudioToast) window.StudioToast.show('Błąd: ' + (response?.message || 'Nie udało się dodać kategorii.'), 'error');
+                if (globalThis.StudioToast) globalThis.StudioToast.show('Błąd: ' + (response?.message || 'Nie udało się dodać kategorii.'), 'error');
             }
         } catch (e) {
-            if (window.StudioToast) window.StudioToast.show('Błąd sieci przy dodawaniu kategorii.', 'error');
+            if (globalThis.StudioToast) globalThis.StudioToast.show('Błąd sieci przy dodawaniu kategorii.', 'error');
             console.error("[UI] addCategory error:", e);
         }
     },
 
     editCategory: async function(catId) {
-        const cat = (window.StudioState?.categories || []).find(c => c.id == catId);
+        const cat = (globalThis.StudioState?.categories || []).find(c => c.id == catId);
         if (!cat) return;
 
-        const result = await window.Core._renderCategoryModal(cat);
+        const result = await globalThis.Core._renderCategoryModal(cat);
         if (!result || !result.name) return;
 
         try {
-            const response = await window.apiStudio('update_category', { categoryId: catId, ...result });
+            const response = await globalThis.apiStudio('update_category', { categoryId: catId, ...result });
             if (response && response.success === true) {
-                await window.loadMenuTree();
-                window.Core.renderTree();
+                await globalThis.loadMenuTree();
+                globalThis.Core.renderTree();
             } else {
-                if (window.StudioToast) window.StudioToast.show('Błąd: ' + (response?.message || 'Nie udało się zaktualizować kategorii.'), 'error');
+                if (globalThis.StudioToast) globalThis.StudioToast.show('Błąd: ' + (response?.message || 'Nie udało się zaktualizować kategorii.'), 'error');
             }
         } catch (e) {
-            if (window.StudioToast) window.StudioToast.show('Błąd sieci przy edycji kategorii.', 'error');
+            if (globalThis.StudioToast) globalThis.StudioToast.show('Błąd sieci przy edycji kategorii.', 'error');
             console.error("[UI] editCategory error:", e);
         }
     }
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
-    if (window.MarginGuardian) await window.MarginGuardian.init();
+    if (globalThis.MarginGuardian) await globalThis.MarginGuardian.init();
 
     const treeContainer = document.getElementById('dynamic-tree-container');
-    if (typeof window.loadMenuTree !== 'function') {
+    if (typeof globalThis.loadMenuTree !== 'function') {
         if(treeContainer) treeContainer.innerHTML = '<div class="text-center mt-10 text-red-500 font-bold text-[10px]">Błąd Krytyczny: Brak pliku Mózgu (studio_core.js)</div>';
         return;
     }
 
     // M022: Scene templates loading (parallel, non-blocking — cache'owane)
-    if (typeof window.loadSceneTemplates === 'function') {
-        window.loadSceneTemplates().catch(() => {
+    if (typeof globalThis.loadSceneTemplates === 'function') {
+        globalThis.loadSceneTemplates().catch(() => {
             // cicho — migracja 022 może jeszcze nie przejść, formularz dania użyje fallback hard-coded listy
         });
     }
 
-    const data = await window.loadMenuTree();
+    const data = await globalThis.loadMenuTree();
     if (data) {
-        window.Core.renderTree();
-        window.Core.updateInspector(); // Faza 4: pokaż dashboard w inspektorze na starcie
+        globalThis.Core.renderTree();
+        globalThis.Core.updateInspector(); // Faza 4: pokaż dashboard w inspektorze na starcie
     }
     else if(treeContainer) treeContainer.innerHTML = '<div class="text-center mt-10 text-red-500 font-bold text-[10px]">Błąd pobierania danych z API. Sprawdź konsolę.</div>';
 });

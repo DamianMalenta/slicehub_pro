@@ -29,7 +29,7 @@ const CHROME = process.env.CHROME_PATH || '/usr/local/bin/google-chrome';
     await page.goto(URL, { waitUntil: 'networkidle2', timeout: 120000 });
     await page.waitForSelector('#btn-run-all', { timeout: 30000 });
     await page.waitForFunction(
-      () => typeof window.runAllTests === 'function' || document.querySelectorAll('[id^="suite-"]').length > 0,
+      () => typeof globalThis.runAllTests === 'function' || document.querySelectorAll('[id^="suite-"]').length > 0,
       { timeout: 30000 },
     );
     await page.click('#btn-run-all');

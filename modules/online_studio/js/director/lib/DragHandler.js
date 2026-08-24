@@ -27,16 +27,16 @@ export class DragHandler {
         this._onPointerUp = this._onPointerUp.bind(this);
 
         viewportEl.addEventListener('pointerdown', this._onPointerDown);
-        window.addEventListener('pointermove', this._onPointerMove);
-        window.addEventListener('pointerup', this._onPointerUp);
-        window.addEventListener('pointercancel', this._onPointerUp);
+        globalThis.addEventListener('pointermove', this._onPointerMove);
+        globalThis.addEventListener('pointerup', this._onPointerUp);
+        globalThis.addEventListener('pointercancel', this._onPointerUp);
     }
 
     destroy() {
         this._vp.removeEventListener('pointerdown', this._onPointerDown);
-        window.removeEventListener('pointermove', this._onPointerMove);
-        window.removeEventListener('pointerup', this._onPointerUp);
-        window.removeEventListener('pointercancel', this._onPointerUp);
+        globalThis.removeEventListener('pointermove', this._onPointerMove);
+        globalThis.removeEventListener('pointerup', this._onPointerUp);
+        globalThis.removeEventListener('pointercancel', this._onPointerUp);
     }
 
     _vpRect() { return this._vp.getBoundingClientRect(); }

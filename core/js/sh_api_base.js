@@ -1,6 +1,6 @@
 /**
  * SliceHub — jeden prefiks API dla wszystkich modułów (SSOT).
- * Kolejność: meta sh-api-base → window.__SH_API_BASE__ → pathname przed /modules/
+ * Kolejność: meta sh-api-base → globalThis.__SH_API_BASE__ → pathname przed /modules/
  * → pierwszy segment ścieżki + /api (gdy brak /modules/) → fallback (/api lub /slicehub/api).
  * Fallback: /api (hosting root); /slicehub/api tylko gdy w URL jest folder slicehub.
  */
@@ -16,7 +16,7 @@
     function getApiFallback(pathname) {
         const p = pathname != null
             ? String(pathname)
-            : (typeof window !== 'undefined' ? (window.location.pathname || '') : '');
+            : (typeof globalThis !== 'undefined' ? (globalThis.location.pathname || '') : '');
         return pathnameHasSlicehubFolder(p) ? '/slicehub/api' : '/api';
     }
 
@@ -28,12 +28,12 @@
                 if (b) return b;
             }
         }
-        if (typeof window !== 'undefined' && typeof window.__SH_API_BASE__ === 'string') {
-            const env = window.__SH_API_BASE__.trim().replace(/\/+$/, '');
+        if (typeof globalThis !== 'undefined' && typeof globalThis.__SH_API_BASE__ === 'string') {
+            const env = globalThis.__SH_API_BASE__.trim().replace(/\/+$/, '');
             if (env) return env;
         }
-        if (typeof window === 'undefined') return '/api';
-        const path = window.location.pathname || '';
+        if (typeof globalThis === 'undefined') return '/api';
+        const path = globalThis.location.pathname || '';
         const marker = '/modules/';
         const idx = path.indexOf(marker);
         if (idx > 0) return path.slice(0, idx) + '/api';
@@ -57,7 +57,7 @@
             const app = api.slice(0, -4);
             return app === '/' ? '' : app;
         }
-        const p = typeof window !== 'undefined' ? (window.location.pathname || '') : '';
+        const p = typeof globalThis !== 'undefined' ? (globalThis.location.pathname || '') : '';
         return pathnameHasSlicehubFolder(p) ? '/slicehub' : '';
     }
 
@@ -69,11 +69,11 @@
         return (base || '') + segment;
     }
 
-    const root = window.SliceHub || {};
+    const root = globalThis.SliceHub || {};
     root.getApiBase = getApiBase;
     root.getApiFallback = getApiFallback;
     root.apiUrl = apiUrl;
     root.getAppBase = getAppBase;
     root.appUrl = appUrl;
-    window.SliceHub = root;
+    globalThis.SliceHub = root;
 })();

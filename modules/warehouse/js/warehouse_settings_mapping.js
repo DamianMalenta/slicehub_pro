@@ -5,7 +5,7 @@
     'use strict';
 
     async function refresh() {
-        const res = await window.WarehouseApi.getMappingList();
+        const res = await globalThis.WarehouseApi.getMappingList();
         if (!res.success || !res.data) {
             alert(res.message || 'Błąd pobierania mapowań.');
             return;
@@ -61,7 +61,7 @@
             btn.addEventListener('click', async () => {
                 const id = parseInt(btn.getAttribute('data-del'), 10);
                 if (!confirm('Usunąć to mapowanie?')) return;
-                const r = await window.WarehouseApi.deleteMapping(id);
+                const r = await globalThis.WarehouseApi.deleteMapping(id);
                 if (r.success) await refresh();
                 else alert(r.message || 'Błąd usuwania');
             });
@@ -81,7 +81,7 @@
             .replace(/</g, '&lt;');
     }
 
-    window.saveMapping = async function () {
+    globalThis.saveMapping = async function () {
         let extName = document.getElementById('map-ext-name')?.value.trim() || '';
         const sku = document.getElementById('map-int-id')?.value || '';
 
@@ -92,7 +92,7 @@
 
         extName = extName.replace(/</g, '').replace(/>/g, '').trim();
 
-        const res = await window.WarehouseApi.saveMapping(extName, sku);
+        const res = await globalThis.WarehouseApi.saveMapping(extName, sku);
         if (res.success) {
             document.getElementById('map-ext-name').value = '';
             await refresh();

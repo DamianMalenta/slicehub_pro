@@ -4,11 +4,11 @@
  * Prefiks API: core/js/sh_api_base.js (SliceHub.getApiBase).
  */
 function posApiBase() {
-    if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.getApiBase) {
-        return window.SliceHub.getApiBase();
+    if (typeof globalThis !== 'undefined' && globalThis.SliceHub && globalThis.SliceHub.getApiBase) {
+        return globalThis.SliceHub.getApiBase();
     }
-    if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.getApiFallback) {
-        return window.SliceHub.getApiFallback();
+    if (typeof globalThis !== 'undefined' && globalThis.SliceHub && globalThis.SliceHub.getApiFallback) {
+        return globalThis.SliceHub.getApiFallback();
     }
     return '/api';
 }

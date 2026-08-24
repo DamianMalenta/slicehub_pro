@@ -6,7 +6,7 @@
  *   2. Routing — event × kanał matrix z fallback_order + consent flags
  *   3. Szablony — edytor per event+channel z podglądem zmiennych
  *
- * Wymaga window.stOpenModal / window.stCloseModal / window.stToast
+ * Wymaga globalThis.stOpenModal / globalThis.stCloseModal / globalThis.stToast
  * eksponowanych przez settings_app.js po DOMContentLoaded.
  */
 (function () {
@@ -16,8 +16,8 @@
 
     // Prefiks API: core/js/sh_api_base.js (SliceHub.apiUrl).
     function apiUrl(path) {
-        if (window.SliceHub && window.SliceHub.apiUrl) {
-            return window.SliceHub.apiUrl(path);
+        if (globalThis.SliceHub && globalThis.SliceHub.apiUrl) {
+            return globalThis.SliceHub.apiUrl(path);
         }
         return '../../api' + (String(path || '').startsWith('/') ? path : '/' + path);
     }
@@ -117,7 +117,7 @@
     }
 
     async function api(action, data = {}) {
-        const tid  = window.SLICEHUB_TENANT_ID || 1;
+        const tid  = globalThis.SLICEHUB_TENANT_ID || 1;
         const hdrs = _authHeaders({ 'Content-Type': 'application/json' });
         if (!READ_ONLY.has(action)) {
             const tok = await getToken();
@@ -140,7 +140,7 @@
     };
 
     function toast(msg, ok = true) {
-        if (typeof window.stToast === 'function') { window.stToast(msg, ok); return; }
+        if (typeof globalThis.stToast === 'function') { globalThis.stToast(msg, ok); return; }
         const root = document.getElementById('st-toast-root');
         if (!root) return;
         const t = document.createElement('div');
@@ -151,8 +151,8 @@
     }
 
     function openModal(content) {
-        if (typeof window.stOpenModal === 'function') {
-            window.stOpenModal(content);
+        if (typeof globalThis.stOpenModal === 'function') {
+            globalThis.stOpenModal(content);
         } else {
             // Fallback: bezpośredni DOM jeśli settings_app.js jeszcze nie uruchomił
             const root = document.getElementById('st-modal-root');
@@ -165,8 +165,8 @@
     }
 
     function closeModal() {
-        if (typeof window.stCloseModal === 'function') {
-            window.stCloseModal();
+        if (typeof globalThis.stCloseModal === 'function') {
+            globalThis.stCloseModal();
         } else {
             const root = document.getElementById('st-modal-root');
             if (root) { root.classList.remove('st-modal-root--open'); setTimeout(() => root.innerHTML = '', 250); }
@@ -821,6 +821,6 @@
     }
 
     // ── Eksport ───────────────────────────────────────────────────────────────
-    window.NotificationsTab = { render: renderNotifications };
+    globalThis.NotificationsTab = { render: renderNotifications };
 
 })();

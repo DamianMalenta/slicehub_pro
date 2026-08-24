@@ -599,8 +599,8 @@ export function mountAssets(root, Studio, Api) {
         // Dopasuj do viewportu
         requestAnimationFrame(() => {
             const pr = pop.getBoundingClientRect();
-            if (pr.right > window.innerWidth - 8) pop.style.left = (window.innerWidth - pr.width - 8) + 'px';
-            if (pr.bottom > window.innerHeight - 8) pop.style.top = (rect.top - pr.height - 6) + 'px';
+            if (pr.right > globalThis.innerWidth - 8) pop.style.left = (globalThis.innerWidth - pr.width - 8) + 'px';
+            if (pr.bottom > globalThis.innerHeight - 8) pop.style.top = (rect.top - pr.height - 6) + 'px';
         });
 
         pop.querySelectorAll('[data-val]').forEach(btn => {

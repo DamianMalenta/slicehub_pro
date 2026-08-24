@@ -6,12 +6,12 @@
  *   - WarehouseApi.avcoDict() → api/warehouse/avco_dict.php
  *
  * Użycie:
- *   await window.MarginGuardian.init();
- *   const results = window.MarginGuardian.calculate(priceTiers, ingredients);
- *   window.MarginGuardian.render('containerId', results);
+ *   await globalThis.MarginGuardian.init();
+ *   const results = globalThis.MarginGuardian.calculate(priceTiers, ingredients);
+ *   globalThis.MarginGuardian.render('containerId', results);
  */
 
-window.MarginGuardian = (() => {
+globalThis.MarginGuardian = (() => {
 
     // -------------------------------------------------------------------------
     // Stan wewnętrzny
@@ -40,7 +40,7 @@ window.MarginGuardian = (() => {
     // 1. INIT — pobiera słownik AVCO z magazynu
     // -------------------------------------------------------------------------
     async function init() {
-        const json = await window.WarehouseApi.avcoDict();
+        const json = await globalThis.WarehouseApi.avcoDict();
 
         if (!json.success) {
             console.error('[MarginGuardian] API error:', json.message);
@@ -76,8 +76,8 @@ window.MarginGuardian = (() => {
             visit.add(menuSku);
 
             let lines = [];
-            if (typeof window.apiStudio === 'function') {
-                const res = await window.apiStudio('get_item_recipe', { menuItemSku: menuSku });
+            if (typeof globalThis.apiStudio === 'function') {
+                const res = await globalThis.apiStudio('get_item_recipe', { menuItemSku: menuSku });
                 if (res?.success && res.data?.ingredients) {
                     lines = res.data.ingredients;
                 }
@@ -135,8 +135,8 @@ window.MarginGuardian = (() => {
 
         const targetBaseUnit = ing.baseUnit || 'kg';
         const usageUnit      = ing.unit || targetBaseUnit;
-        const conversion     = (typeof window.SliceValidator !== 'undefined')
-            ? window.SliceValidator.convert(rawQty, usageUnit, targetBaseUnit)
+        const conversion     = (typeof globalThis.SliceValidator !== 'undefined')
+            ? globalThis.SliceValidator.convert(rawQty, usageUnit, targetBaseUnit)
             : { success: true, value: rawQty };
 
         let actualQtyInBaseUnits = 0;

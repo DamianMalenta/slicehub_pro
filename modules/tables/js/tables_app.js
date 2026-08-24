@@ -280,7 +280,7 @@
     function handleOpenTable(table, guestCount) {
         const count = Math.max(1, parseInt(guestCount) || 1);
         TablesUI.toast(`Stolik ${table.table_number} → POS`, 'success');
-        window.location.href = `../pos/index.html?table_id=${table.id}`
+        globalThis.location.href = `../pos/index.html?table_id=${table.id}`
             + `&table_number=${encodeURIComponent(table.table_number)}`
             + `&guest_count=${count}&order_type=dine_in`;
     }
@@ -292,7 +292,7 @@
 
     function redirectToPOS(table) {
         const oid = table.order?.id || '';
-        window.location.href = `../pos/index.html?edit_order_id=${oid}`
+        globalThis.location.href = `../pos/index.html?edit_order_id=${oid}`
             + `&table_id=${table.id}`
             + `&table_number=${encodeURIComponent(table.table_number)}`;
     }
@@ -467,7 +467,7 @@
 
         // Universal nav bar — hard URL redirects (micro-frontend routing)
         document.querySelectorAll('#nav-tabs .nav-tab[data-href]').forEach(tab => {
-            tab.addEventListener('click', () => { window.location.href = tab.dataset.href; });
+            tab.addEventListener('click', () => { globalThis.location.href = tab.dataset.href; });
         });
 
         $('btn-refresh').addEventListener('click', () => {
@@ -501,9 +501,9 @@
         });
 
         $('btn-logout').addEventListener('click', () => {
-            fetch((window.SliceHub && window.SliceHub.apiUrl)
-                ? window.SliceHub.apiUrl('auth/logout.php')
-                : ((window.SliceHub && window.SliceHub.getApiFallback) ? window.SliceHub.getApiFallback() : '/api') + '/auth/logout.php', {
+            fetch((globalThis.SliceHub && globalThis.SliceHub.apiUrl)
+                ? globalThis.SliceHub.apiUrl('auth/logout.php')
+                : ((globalThis.SliceHub && globalThis.SliceHub.getApiFallback) ? globalThis.SliceHub.getApiFallback() : '/api') + '/auth/logout.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'same-origin',
@@ -530,7 +530,7 @@
             }
         });
 
-        window.addEventListener('beforeunload', e => {
+        globalThis.addEventListener('beforeunload', e => {
             if (state.editMode && Object.keys(state.pendingPositions).length > 0) {
                 e.preventDefault();
                 e.returnValue = '';

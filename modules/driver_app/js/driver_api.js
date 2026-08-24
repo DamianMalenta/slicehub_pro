@@ -5,12 +5,12 @@
  */
 const DriverAPI = (() => {
     function apiFallback() {
-        if (window.SliceHub && window.SliceHub.getApiFallback) return window.SliceHub.getApiFallback();
+        if (globalThis.SliceHub && globalThis.SliceHub.getApiFallback) return globalThis.SliceHub.getApiFallback();
         return '/api';
     }
     function engineUrl() {
-        return (window.SliceHub && window.SliceHub.apiUrl)
-            ? window.SliceHub.apiUrl('courses/engine.php')
+        return (globalThis.SliceHub && globalThis.SliceHub.apiUrl)
+            ? globalThis.SliceHub.apiUrl('courses/engine.php')
             : apiFallback() + '/courses/engine.php';
     }
     let _token = localStorage.getItem('sh_token') || '';
@@ -38,8 +38,8 @@ const DriverAPI = (() => {
     }
 
     async function _hrPost(action, maxAttempts = 3) {
-        const hrUrl = (window.SliceHub && window.SliceHub.apiUrl)
-            ? window.SliceHub.apiUrl('backoffice/hr/engine.php')
+        const hrUrl = (globalThis.SliceHub && globalThis.SliceHub.apiUrl)
+            ? globalThis.SliceHub.apiUrl('backoffice/hr/engine.php')
             : apiFallback() + '/backoffice/hr/engine.php';
         let last = { success: false, message: 'Brak połączenia', transient: true };
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -70,8 +70,8 @@ const DriverAPI = (() => {
         /** Login + hasło (aplikacja mobilna kierowcy). */
         loginSystem: (username, password) => {
             const headers = { 'Content-Type': 'application/json' };
-            return fetch((window.SliceHub && window.SliceHub.apiUrl)
-                ? window.SliceHub.apiUrl('auth/login.php')
+            return fetch((globalThis.SliceHub && globalThis.SliceHub.apiUrl)
+                ? globalThis.SliceHub.apiUrl('auth/login.php')
                 : apiFallback() + '/auth/login.php', {
                 method: 'POST', headers,
                 body: JSON.stringify({
@@ -95,8 +95,8 @@ const DriverAPI = (() => {
         setDriverStatus:  (status)        => _post('set_driver_status', { driver_user_id: '', status }),
         reconcile:        (countedCash)   => _post('reconcile', { counted_cash: countedCash }),
         sseUrl: () => {
-            const base = (window.SliceHub && window.SliceHub.apiUrl)
-                ? window.SliceHub.apiUrl('courses/sse_driver.php')
+            const base = (globalThis.SliceHub && globalThis.SliceHub.apiUrl)
+                ? globalThis.SliceHub.apiUrl('courses/sse_driver.php')
                 : apiFallback() + '/courses/sse_driver.php';
             return base + '?token=' + encodeURIComponent(_token);
         },

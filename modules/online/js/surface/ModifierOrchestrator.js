@@ -10,7 +10,7 @@ export class ModifierOrchestrator {
     constructor(ctx, handlers = {}) {
         this._ctx = ctx;
         this._handlers = handlers;
-        this._reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+        this._reducedMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     }
 
     bind(root) {

@@ -12,20 +12,20 @@
     const PIN_LEN = 4;
 
     function apiBase() {
-        if (window.SliceHub && window.SliceHub.getApiBase) return window.SliceHub.getApiBase();
-        if (window.SliceHub && window.SliceHub.getApiFallback) return window.SliceHub.getApiFallback();
+        if (globalThis.SliceHub && globalThis.SliceHub.getApiBase) return globalThis.SliceHub.getApiBase();
+        if (globalThis.SliceHub && globalThis.SliceHub.getApiFallback) return globalThis.SliceHub.getApiFallback();
         return '/api';
     }
 
     function hrUrl() {
-        if (window.SliceHub && window.SliceHub.apiUrl) {
-            return window.SliceHub.apiUrl('backoffice/hr/engine.php');
+        if (globalThis.SliceHub && globalThis.SliceHub.apiUrl) {
+            return globalThis.SliceHub.apiUrl('backoffice/hr/engine.php');
         }
         return apiBase() + '/backoffice/hr/engine.php';
     }
     function loginUrl() {
-        if (window.SliceHub && window.SliceHub.apiUrl) {
-            return window.SliceHub.apiUrl('auth/login.php');
+        if (globalThis.SliceHub && globalThis.SliceHub.apiUrl) {
+            return globalThis.SliceHub.apiUrl('auth/login.php');
         }
         return apiBase() + '/auth/login.php';
     }
@@ -153,7 +153,7 @@
         applyWorkView(r.data, pinStr);
     }
 
-    window._kaPin = function (v) {
+    globalThis._kaPin = function (v) {
         if (v === 'clear') {
             _pinBuf = '';
         } else if (v === 'back') {

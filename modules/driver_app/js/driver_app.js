@@ -139,9 +139,9 @@ const DriverApp = (() => {
         if (tok) {
             h['Authorization'] = 'Bearer ' + tok;
         }
-        fetch((window.SliceHub && window.SliceHub.apiUrl)
-            ? window.SliceHub.apiUrl('auth/logout.php')
-            : ((window.SliceHub && window.SliceHub.getApiFallback) ? window.SliceHub.getApiFallback() : '/api') + '/auth/logout.php', {
+        fetch((globalThis.SliceHub && globalThis.SliceHub.apiUrl)
+            ? globalThis.SliceHub.apiUrl('auth/logout.php')
+            : ((globalThis.SliceHub && globalThis.SliceHub.getApiFallback) ? globalThis.SliceHub.getApiFallback() : '/api') + '/auth/logout.php', {
             method: 'POST',
             headers: h,
             credentials: 'same-origin',
@@ -267,7 +267,7 @@ const DriverApp = (() => {
 
     // ── SSE (pattern from online_track.js:202-249) ──
     function startSse() {
-        if (!window.EventSource) return;
+        if (!globalThis.EventSource) return;
         if (!DriverAPI.getToken()) return;
         if (state.sse) { state.sse.close(); state.sse = null; state.sseConnected = false; }
 
@@ -886,8 +886,8 @@ const DriverApp = (() => {
     // ── SERVICE WORKER REGISTRATION (pattern from pos_sw_register.js) ──
     function registerServiceWorker() {
         if (!('serviceWorker' in navigator)) return;
-        const swUrl = (window.SliceHub && window.SliceHub.appUrl)
-            ? window.SliceHub.appUrl('modules/driver_app/sw.js')
+        const swUrl = (globalThis.SliceHub && globalThis.SliceHub.appUrl)
+            ? globalThis.SliceHub.appUrl('modules/driver_app/sw.js')
             : new URL('sw.js', location.href).href;
         navigator.serviceWorker.register(swUrl, { scope: './' })
             .then(() => { console.log('[DriverApp] SW registered'); })

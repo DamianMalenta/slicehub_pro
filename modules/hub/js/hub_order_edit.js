@@ -7,9 +7,9 @@ const HubOrderEdit = (() => {
     'use strict';
 
     function apiUrl(path) {
-        if (window.SliceHub && window.SliceHub.apiUrl) return window.SliceHub.apiUrl(path);
-        const base = (window.SliceHub && window.SliceHub.getApiBase)
-            ? window.SliceHub.getApiBase()
+        if (globalThis.SliceHub && globalThis.SliceHub.apiUrl) return globalThis.SliceHub.apiUrl(path);
+        const base = (globalThis.SliceHub && globalThis.SliceHub.getApiBase)
+            ? globalThis.SliceHub.getApiBase()
             : '/api';
         return base + (path.startsWith('/') ? path : '/' + path);
     }

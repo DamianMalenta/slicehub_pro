@@ -238,7 +238,7 @@ async function boot() {
     });
 
     // Browser-level dirty-state guard
-    window.addEventListener('beforeunload', (e) => {
+    globalThis.addEventListener('beforeunload', (e) => {
         if (Studio._dirty) { e.preventDefault(); e.returnValue = ''; }
     });
 
@@ -253,14 +253,14 @@ async function boot() {
 
     document.getElementById('btn-open-preview').onclick = async () => {
         const r = await StudioApi.previewUrl('');
-        if (r.success && r.data?.iframeUrl) window.open(r.data.iframeUrl, '_blank');
+        if (r.success && r.data?.iframeUrl) globalThis.open(r.data.iframeUrl, '_blank');
         else Studio.toast(r.message || 'Nie można uzyskać URL.', 'err');
     };
 
     // Deep-link from Menu Studio: ?tab=director&item=SKU
     // Kluczowa kolejność: najpierw ustawiamy pendingItemSku, DOPIERO potem switchTab().
     // Inaczej DirectorApp.onEnter() zobaczy null i auto-select dania się nie uruchomi.
-    const qs = new URLSearchParams(window.location.search);
+    const qs = new URLSearchParams(globalThis.location.search);
     const initialTab  = qs.get('tab');
     const initialItem = qs.get('item');
     const validTabs = new Set(['library', 'director', 'conductor', 'companions', 'surface', 'preview']);
@@ -276,5 +276,5 @@ async function boot() {
     }
 }
 
-window.Studio = Studio; // debug handle
+globalThis.Studio = Studio; // debug handle
 boot();

@@ -43,7 +43,7 @@ export class SharedSceneRenderer {
         if (requested !== 'canvas') {
             return 'dom';
         }
-        if (typeof window === 'undefined' || typeof window.HTMLCanvasElement === 'undefined') {
+        if (typeof globalThis === 'undefined' || typeof globalThis.HTMLCanvasElement === 'undefined') {
             return 'dom';
         }
         return 'canvas';

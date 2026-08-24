@@ -11,8 +11,8 @@
  *   modules/tables/index.html  — api_client (sh_api_base załadowany)
  *
  * Użycie:
- *   const res = await window.ApiClient.post('/api/endpoint.php', { action: 'DO_THING', id: 5 });
- *   const res = await window.ApiClient.get('/api/endpoint.php', { action: 'GET_LIST' });
+ *   const res = await globalThis.ApiClient.post('/api/endpoint.php', { action: 'DO_THING', id: 5 });
+ *   const res = await globalThis.ApiClient.get('/api/endpoint.php', { action: 'GET_LIST' });
  *
  * Gwarantowany format odpowiedzi: { success: bool, message: string, data: any }
  */
@@ -27,7 +27,7 @@
         if (!ep) return ep;
         if (/^(https?:|data:|blob:)/i.test(ep)) return ep;
 
-        const sh = typeof window !== 'undefined' && window.SliceHub;
+        const sh = typeof globalThis !== 'undefined' && globalThis.SliceHub;
         if (!sh || typeof sh.apiUrl !== 'function') return ep;
 
         if (ep.startsWith('/api/')) {
@@ -71,8 +71,8 @@
             if (response.status === 401) {
                 console.warn('[ApiClient] 401 — token expired or invalid. Redirecting to login.');
                 localStorage.removeItem('sh_token');
-                const loginPath = window.location.pathname.replace(/modules\/.*$/, '') + 'login.html';
-                window.location.href = loginPath;
+                const loginPath = globalThis.location.pathname.replace(/modules\/.*$/, '') + 'login.html';
+                globalThis.location.href = loginPath;
                 return { success: false, message: 'Sesja wygasła. Przekierowanie do logowania...', data: null };
             }
 
@@ -120,6 +120,6 @@
         return request(url, { method: 'GET' });
     }
 
-    window.ApiClient = Object.freeze({ request, post, get });
+    globalThis.ApiClient = Object.freeze({ request, post, get });
 
 })();

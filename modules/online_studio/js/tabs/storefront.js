@@ -393,7 +393,7 @@ export function mountStorefront(root, Studio, Api) {
         }
         // OSM permalink (no API key needed)
         const url = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=17/${lat}/${lng}`;
-        window.open(url, '_blank', 'noreferrer');
+        globalThis.open(url, '_blank', 'noreferrer');
     };
 
     return {

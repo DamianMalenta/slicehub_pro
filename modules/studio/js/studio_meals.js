@@ -13,7 +13,7 @@
     let _editingId = 0;
 
     async function loadMeals() {
-        const res = await window.apiStudio('list_meals');
+        const res = await globalThis.apiStudio('list_meals');
         _meals = (res.success && res.data && res.data.meals) ? res.data.meals : [];
         renderList();
     }
@@ -26,7 +26,7 @@
             return;
         }
         el.innerHTML = _meals.map(m => `
-            <button type="button" onclick="window.MealEditor.open(${m.id})"
+            <button type="button" onclick="globalThis.MealEditor.open(${m.id})"
                 class="w-full text-left p-4 rounded-xl border border-white/10 bg-black/40 hover:border-amber-500/40 transition flex justify-between items-center gap-3">
                 <div>
                     <div class="text-[11px] font-black uppercase text-white">${_e(m.name)}</div>
@@ -41,7 +41,7 @@
         const sel = document.getElementById('meal-category-id');
         if (!sel) return;
         sel.innerHTML = '<option value="">— bez kategorii (wszystkie w POS) —</option>';
-        (window.StudioState.categories || []).forEach(c => {
+        (globalThis.StudioState.categories || []).forEach(c => {
             const opt = document.createElement('option');
             opt.value = c.id;
             opt.textContent = c.name;
@@ -63,7 +63,7 @@
                 <input type="text" class="meal-comp-sku col-span-4 bg-black/50 border border-white/10 rounded p-2 text-[10px] text-white font-mono" placeholder="item_sku" value="${_e(c.item_sku || '')}">
                 <input type="number" class="meal-comp-cat col-span-2 bg-black/50 border border-white/10 rounded p-2 text-[10px] text-white" placeholder="cat_id" value="${c.category_id || ''}">
                 <input type="number" class="meal-comp-qty col-span-1 bg-black/50 border border-white/10 rounded p-2 text-[10px] text-white" min="1" value="${c.qty || 1}">
-                <button type="button" onclick="window.MealEditor.removeCompRow(${i})" class="col-span-2 text-red-400 text-[10px] font-bold uppercase">Usuń</button>
+                <button type="button" onclick="globalThis.MealEditor.removeCompRow(${i})" class="col-span-2 text-red-400 text-[10px] font-bold uppercase">Usuń</button>
             </div>
         `).join('');
     }
@@ -87,7 +87,7 @@
         return out;
     }
 
-    window.MealEditor = {
+    globalThis.MealEditor = {
         init: function () {
             loadMeals();
         },
@@ -108,9 +108,9 @@
         },
 
         open: async function (mealId) {
-            const res = await window.apiStudio('get_meal_details', { meal_id: mealId });
+            const res = await globalThis.apiStudio('get_meal_details', { meal_id: mealId });
             if (!res.success || !res.data) {
-                if (window.StudioToast) window.StudioToast.show(res.message || 'Nie udało się wczytać zestawu', 'error');
+                if (globalThis.StudioToast) globalThis.StudioToast.show(res.message || 'Nie udało się wczytać zestawu', 'error');
                 return;
             }
             const m = res.data;
@@ -156,18 +156,18 @@
                 components: collectComponents(),
             };
             if (!payload.ascii_key || !payload.name) {
-                if (window.StudioToast) window.StudioToast.show('SKU i nazwa są wymagane', 'warning');
+                if (globalThis.StudioToast) globalThis.StudioToast.show('SKU i nazwa są wymagane', 'warning');
                 return;
             }
-            const res = await window.apiStudio('save_meal', payload);
+            const res = await globalThis.apiStudio('save_meal', payload);
             if (res.success) {
-                if (window.StudioToast) window.StudioToast.show(res.message || 'Zapisano', 'success');
+                if (globalThis.StudioToast) globalThis.StudioToast.show(res.message || 'Zapisano', 'success');
                 await loadMeals();
                 if (res.data && res.data.meal_id) {
-                    await window.MealEditor.open(res.data.meal_id);
+                    await globalThis.MealEditor.open(res.data.meal_id);
                 }
             } else {
-                if (window.StudioToast) window.StudioToast.show(res.message || 'Błąd zapisu', 'error');
+                if (globalThis.StudioToast) globalThis.StudioToast.show(res.message || 'Błąd zapisu', 'error');
             }
         },
 
@@ -175,13 +175,13 @@
             const id = parseInt(document.getElementById('meal-id').value, 10);
             if (!id) return;
             if (!confirm('Usunąć ten zestaw (soft delete)?')) return;
-            const res = await window.apiStudio('delete_meal', { id });
+            const res = await globalThis.apiStudio('delete_meal', { id });
             if (res.success) {
-                if (window.StudioToast) window.StudioToast.show('Usunięto', 'success');
-                window.MealEditor.newMeal();
+                if (globalThis.StudioToast) globalThis.StudioToast.show('Usunięto', 'success');
+                globalThis.MealEditor.newMeal();
                 await loadMeals();
             } else {
-                if (window.StudioToast) window.StudioToast.show(res.message || 'Błąd', 'error');
+                if (globalThis.StudioToast) globalThis.StudioToast.show(res.message || 'Błąd', 'error');
             }
         },
     };

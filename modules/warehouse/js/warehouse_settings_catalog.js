@@ -27,7 +27,7 @@
             <option value="pcs">pcs</option>`;
     }
 
-    window.createItem = async function () {
+    globalThis.createItem = async function () {
         const nameInput = document.getElementById('new-item-name');
         const unitInput = document.getElementById('new-item-unit');
         const name = nameInput?.value.trim() || '';
@@ -52,7 +52,7 @@
         }
         if (!sku) sku = 'SKU_' + Date.now();
 
-        const res = await window.WarehouseApi.postAddItem({
+        const res = await globalThis.WarehouseApi.postAddItem({
             name,
             base_unit: unit,
             sku,
@@ -61,13 +61,13 @@
         if (res.success) {
             nameInput.value = '';
             unitInput.value = '';
-            await window.initCatalogMatrix();
+            await globalThis.initCatalogMatrix();
         } else {
             alert(res.message || 'Błąd zapisu surowca.');
         }
     };
 
-    window.initCatalogMatrix = async function () {
+    globalThis.initCatalogMatrix = async function () {
         const tbody = document.getElementById('matrix-body');
         const thead = document.getElementById('matrix-head');
         if (!tbody || !thead) return;
@@ -75,12 +75,12 @@
         tbody.innerHTML =
             '<tr><td colspan="4" class="py-10 text-center text-blue-500 font-bold uppercase text-xs"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Ładowanie…</td></tr>';
 
-        const res = await window.WarehouseApi.stockList();
+        const res = await globalThis.WarehouseApi.stockList();
 
         thead.innerHTML = `
             <th class="pb-4 pr-4">Surowiec (sys_items)</th>
             <th class="pb-4 pr-4 text-center">J.m.</th>
-            <th class="pb-4 text-center">Stan (${window.WarehouseApi.DEFAULT_WAREHOUSE_ID})</th>
+            <th class="pb-4 text-center">Stan (${globalThis.WarehouseApi.DEFAULT_WAREHOUSE_ID})</th>
             <th class="pb-4 text-right">AVCO netto</th>`;
 
         if (!res.success || !Array.isArray(res.data)) {
@@ -119,6 +119,6 @@
 
     document.addEventListener('DOMContentLoaded', () => {
         loadUnitDictionary();
-        window.initCatalogMatrix();
+        globalThis.initCatalogMatrix();
     });
 })();

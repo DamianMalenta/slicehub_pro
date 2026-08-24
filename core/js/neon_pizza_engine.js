@@ -13,7 +13,7 @@
 //   NeonPizza.getColor(type)
 // =============================================================================
 
-window.NeonPizza = (() => {
+globalThis.NeonPizza = (() => {
 
     // =========================================================================
     // NEON PALETTE — each ingredient type gets a signature glow color

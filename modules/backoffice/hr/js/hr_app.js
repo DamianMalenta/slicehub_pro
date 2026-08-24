@@ -6,8 +6,8 @@
     'use strict';
 
     function hrApiUrl() {
-        if (window.SliceHub && window.SliceHub.apiUrl) {
-            return window.SliceHub.apiUrl('/backoffice/hr/engine.php');
+        if (globalThis.SliceHub && globalThis.SliceHub.apiUrl) {
+            return globalThis.SliceHub.apiUrl('/backoffice/hr/engine.php');
         }
         return '../../../api/backoffice/hr/engine.php';
     }
@@ -685,17 +685,17 @@
                 await callHr('advance_approve', { advance_id: advanceId });
                 toast('Zaliczka zatwierdzona', true);
             } else if (act === 'reject') {
-                const reason = window.prompt('Powód odrzucenia (wymagany):');
+                const reason = globalThis.prompt('Powód odrzucenia (wymagany):');
                 if (!reason || !reason.trim()) return;
                 await callHr('advance_reject', { advance_id: advanceId, reason: reason.trim() });
                 toast('Zaliczka odrzucona', true);
             } else if (act === 'pay-cash' || act === 'pay-transfer') {
                 const method = act === 'pay-cash' ? 'cash' : 'transfer';
-                if (!window.confirm('Oznaczyć zaliczkę jako wypłaconą (' + method + ')? Utworzy wpis w ledgerze i harmonogram spłat.')) return;
+                if (!globalThis.confirm('Oznaczyć zaliczkę jako wypłaconą (' + method + ')? Utworzy wpis w ledgerze i harmonogram spłat.')) return;
                 await callHr('advance_mark_paid', { advance_id: advanceId, method });
                 toast('Zaliczka wypłacona', true);
             } else if (act === 'void') {
-                const reason = window.prompt('Powód wycofania (wymagany, audit trail):');
+                const reason = globalThis.prompt('Powód wycofania (wymagany, audit trail):');
                 if (!reason || !reason.trim()) return;
                 await callHr('advance_void', { advance_id: advanceId, reason: reason.trim() });
                 toast('Zaliczka wycofana (reversal w ledgerze)', true);
@@ -825,8 +825,8 @@
     }
 
     function newIdempotencyKey() {
-        if (window.crypto && typeof window.crypto.randomUUID === 'function') {
-            return window.crypto.randomUUID();
+        if (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
+            return globalThis.crypto.randomUUID();
         }
         // Fallback dla starszych przeglądarek / kontekstów bez secure origin.
         return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {

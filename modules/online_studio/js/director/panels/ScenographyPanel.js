@@ -464,7 +464,7 @@ export class ScenographyPanel {
 
     _toast(msg) {
         // Lekki toast — jeśli Studio (parent window) ma toast, użyj. Inaczej fallback.
-        try { window.Studio?.toast?.(msg, 'ok', 1600); }
+        try { globalThis.Studio?.toast?.(msg, 'ok', 1600); }
         catch (_) {}
     }
 

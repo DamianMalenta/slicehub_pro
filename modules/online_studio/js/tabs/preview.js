@@ -35,14 +35,14 @@ export function mountPreview(root, Studio, Api) {
         if (!r.success) { Studio.toast(r.message || 'Brak URL.', 'err'); return; }
         state.url = r.data.iframeUrl;
         // Cache-bust to force fresh fetch even when SKU unchanged
-        const u = new URL(r.data.iframeUrl, window.location.origin);
+        const u = new URL(r.data.iframeUrl, globalThis.location.origin);
         u.searchParams.set('_t', Date.now().toString());
         $frame.src = u.toString();
         $url.textContent = u.pathname + u.search;
     }
 
     root.querySelector('#pv-reload').onclick = reload;
-    root.querySelector('#pv-open').onclick   = () => { if (state.url) window.open(state.url, '_blank'); };
+    root.querySelector('#pv-open').onclick   = () => { if (state.url) globalThis.open(state.url, '_blank'); };
     $sku.onchange = () => { state.sku = $sku.value; reload(); };
 
     return {

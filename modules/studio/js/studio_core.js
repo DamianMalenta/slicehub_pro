@@ -1,4 +1,4 @@
-window.StudioState = {
+globalThis.StudioState = {
     items: [], categories: [], menuTree: [], bulkSelectedItems: [], sceneTemplates: null,
     selectedItemId: null, mode: 'dashboard', currentView: 'menu', isDirty: false,
     markDirty() { this.isDirty = true; this._updateSaveIndicator(); },
@@ -17,7 +17,7 @@ window.StudioState = {
     }
 };
 
-window.StudioToast = {
+globalThis.StudioToast = {
     show(msg, type = 'info', duration = 3000) {
         const colors = { success: 'bg-emerald-600', error: 'bg-red-600', warning: 'bg-amber-600', info: 'bg-blue-600' };
         const toast = document.createElement('div');
@@ -31,16 +31,16 @@ window.StudioToast = {
     }
 };
 
-window.loadMenuTree = async function() {
-    const res = await window.apiStudio('get_menu_tree');
+globalThis.loadMenuTree = async function() {
+    const res = await globalThis.apiStudio('get_menu_tree');
     if (res.success === true && res.data) {
-        window.StudioState.categories = res.data.categories || [];
-        window.StudioState.items = res.data.items || [];
-        window.StudioState.menuTree = (res.data.categories || []).map(cat => ({
+        globalThis.StudioState.categories = res.data.categories || [];
+        globalThis.StudioState.items = res.data.items || [];
+        globalThis.StudioState.menuTree = (res.data.categories || []).map(cat => ({
             ...cat,
             items: (res.data.items || []).filter(it => it.categoryId === cat.id),
         }));
-        window.StudioState.modifierGroups = res.data.modifierGroups || window.StudioState.modifierGroups || [];
+        globalThis.StudioState.modifierGroups = res.data.modifierGroups || globalThis.StudioState.modifierGroups || [];
         return res.data;
     }
     console.error('Błąd API:', res.message);
@@ -48,7 +48,7 @@ window.loadMenuTree = async function() {
 };
 
 /** Zgrupowane pozycje menu (menuTree lub fallback z flat items). */
-window.StudioState.getItemsGrouped = function() {
+globalThis.StudioState.getItemsGrouped = function() {
     if (this.menuTree && this.menuTree.length) return this.menuTree;
     return (this.categories || []).map(cat => ({
         ...cat,
@@ -57,8 +57,8 @@ window.StudioState.getItemsGrouped = function() {
 };
 
 // Dodana funkcja ładująca szczegóły, w pełni zintegrowana z camelCase z backendu
-window.loadItemDetails = async function(itemId) {
-    const res = await window.apiStudio('get_item_details', { itemId: itemId });
+globalThis.loadItemDetails = async function(itemId) {
+    const res = await globalThis.apiStudio('get_item_details', { itemId: itemId });
     if (res.success === true && res.data) {
         return res.data;
     }
@@ -66,21 +66,21 @@ window.loadItemDetails = async function(itemId) {
     return null;
 };
 
-// M022: lista scene templates (cache per-session w window.StudioState.sceneTemplates)
+// M022: lista scene templates (cache per-session w globalThis.StudioState.sceneTemplates)
 // Zwraca [{asciiKey, name, kind, photographerBrief, isSystem}]
 // Kind: 'item' | 'category' | null (wszystko)
-window.loadSceneTemplates = async function(kind = null, force = false) {
-    if (!force && window.StudioState.sceneTemplates) {
+globalThis.loadSceneTemplates = async function(kind = null, force = false) {
+    if (!force && globalThis.StudioState.sceneTemplates) {
         return kind
-            ? window.StudioState.sceneTemplates.filter(t => t.kind === kind)
-            : window.StudioState.sceneTemplates;
+            ? globalThis.StudioState.sceneTemplates.filter(t => t.kind === kind)
+            : globalThis.StudioState.sceneTemplates;
     }
     const payload = kind ? { kind } : {};
-    const res = await window.apiStudio('list_scene_templates', payload);
+    const res = await globalThis.apiStudio('list_scene_templates', payload);
     if (res.success === true && res.data) {
         // Gdy pobieramy wszystko — cache'uj. Gdy filtrujemy po kind — nie nadpisuj full cache.
         if (!kind) {
-            window.StudioState.sceneTemplates = res.data.templates || [];
+            globalThis.StudioState.sceneTemplates = res.data.templates || [];
         }
         return res.data.templates || [];
     }
@@ -97,32 +97,32 @@ window.loadSceneTemplates = async function(kind = null, force = false) {
         // Ctrl+S — always works (even in inputs)
         if (e.ctrlKey && (e.key === 's' || e.key === 'S')) {
             e.preventDefault();
-            if (window.StudioState.mode === 'editor' && window.ItemEditor && typeof window.ItemEditor.saveItem === 'function') {
-                window.ItemEditor.saveItem();
+            if (globalThis.StudioState.mode === 'editor' && globalThis.ItemEditor && typeof globalThis.ItemEditor.saveItem === 'function') {
+                globalThis.ItemEditor.saveItem();
             }
             return;
         }
 
         // Esc — close drawer or go back to dashboard
         if (e.key === 'Escape') {
-            if (window.ModifierInspector && document.getElementById('modifiers-drawer')?.classList.contains('open')) {
-                window.ModifierInspector.closeDrawer();
+            if (globalThis.ModifierInspector && document.getElementById('modifiers-drawer')?.classList.contains('open')) {
+                globalThis.ModifierInspector.closeDrawer();
                 return;
             }
             // Close any open modal overlay
             const modal = document.getElementById('category-modal-overlay');
             if (modal) { modal.remove(); return; }
             // If in editor, go back to dashboard
-            if (window.StudioState.mode === 'editor' || window.StudioState.mode === 'bulk') {
-                if (window.StudioState.isDirty) {
+            if (globalThis.StudioState.mode === 'editor' || globalThis.StudioState.mode === 'bulk') {
+                if (globalThis.StudioState.isDirty) {
                     if (!confirm('Nie zapisano zmian. Kontynuować?')) return;
-                    window.StudioState.markClean();
+                    globalThis.StudioState.markClean();
                 }
-                window.StudioState.selectedItemId = null;
-                window.StudioState.bulkSelectedItems = [];
-                window.Core.switchView('menu');
-                window.Core.updateInspector();
-                window.Core.renderTree();
+                globalThis.StudioState.selectedItemId = null;
+                globalThis.StudioState.bulkSelectedItems = [];
+                globalThis.Core.switchView('menu');
+                globalThis.Core.updateInspector();
+                globalThis.Core.renderTree();
             }
             return;
         }
@@ -130,9 +130,9 @@ window.loadSceneTemplates = async function(kind = null, force = false) {
         // Ctrl+D — duplicate current item
         if (e.ctrlKey && (e.key === 'd' || e.key === 'D')) {
             e.preventDefault();
-            if (window.StudioState.mode === 'editor' && window.StudioState.selectedItemId) {
-                if (window.ItemEditor && typeof window.ItemEditor.duplicateItem === 'function') {
-                    window.ItemEditor.duplicateItem();
+            if (globalThis.StudioState.mode === 'editor' && globalThis.StudioState.selectedItemId) {
+                if (globalThis.ItemEditor && typeof globalThis.ItemEditor.duplicateItem === 'function') {
+                    globalThis.ItemEditor.duplicateItem();
                 }
             }
             return;
@@ -141,14 +141,14 @@ window.loadSceneTemplates = async function(kind = null, force = false) {
         // Ctrl+B — toggle bulk mode
         if (e.ctrlKey && (e.key === 'b' || e.key === 'B')) {
             e.preventDefault();
-            if (window.StudioState.bulkSelectedItems.length > 0) {
-                window.StudioState.bulkSelectedItems = [];
-                window.Core.switchView('menu');
+            if (globalThis.StudioState.bulkSelectedItems.length > 0) {
+                globalThis.StudioState.bulkSelectedItems = [];
+                globalThis.Core.switchView('menu');
             } else {
-                window.Core.switchView('bulk');
+                globalThis.Core.switchView('bulk');
             }
-            window.Core.renderTree();
-            window.Core.updateInspector();
+            globalThis.Core.renderTree();
+            globalThis.Core.updateInspector();
             return;
         }
 
@@ -157,13 +157,13 @@ window.loadSceneTemplates = async function(kind = null, force = false) {
 
         if (e.key === 'ArrowDown') {
             e.preventDefault();
-            if (window.Core && typeof window.Core.navigateTree === 'function') window.Core.navigateTree(1);
+            if (globalThis.Core && typeof globalThis.Core.navigateTree === 'function') globalThis.Core.navigateTree(1);
         } else if (e.key === 'ArrowUp') {
             e.preventDefault();
-            if (window.Core && typeof window.Core.navigateTree === 'function') window.Core.navigateTree(-1);
+            if (globalThis.Core && typeof globalThis.Core.navigateTree === 'function') globalThis.Core.navigateTree(-1);
         } else if (e.key === 'Enter') {
             e.preventDefault();
-            if (window.Core && typeof window.Core.openSelectedItem === 'function') window.Core.openSelectedItem();
+            if (globalThis.Core && typeof globalThis.Core.openSelectedItem === 'function') globalThis.Core.openSelectedItem();
         }
     });
 })();

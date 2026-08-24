@@ -14,17 +14,17 @@
 
     /** Prefiks API: core/js/sh_api_base.js (SliceHub.getApiBase). */
     function apiBase() {
-        if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.getApiBase) {
-            return window.SliceHub.getApiBase();
+        if (typeof globalThis !== 'undefined' && globalThis.SliceHub && globalThis.SliceHub.getApiBase) {
+            return globalThis.SliceHub.getApiBase();
         }
-        if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.getApiFallback) {
-            return window.SliceHub.getApiFallback();
+        if (typeof globalThis !== 'undefined' && globalThis.SliceHub && globalThis.SliceHub.getApiFallback) {
+            return globalThis.SliceHub.getApiFallback();
         }
         return '/api';
     }
     function apiUrl(path) {
-        if (typeof window !== 'undefined' && window.SliceHub && window.SliceHub.apiUrl) {
-            return window.SliceHub.apiUrl(path);
+        if (typeof globalThis !== 'undefined' && globalThis.SliceHub && globalThis.SliceHub.apiUrl) {
+            return globalThis.SliceHub.apiUrl(path);
         }
         const base = apiBase();
         const p = String(path || '').trim();
@@ -269,8 +269,8 @@
         skuDropdown.activeCombo = null;
         skuDropdown.host = null;
         if (skuDropdown.reposition) {
-            window.removeEventListener('scroll', skuDropdown.reposition, true);
-            window.removeEventListener('resize', skuDropdown.reposition);
+            globalThis.removeEventListener('scroll', skuDropdown.reposition, true);
+            globalThis.removeEventListener('resize', skuDropdown.reposition);
             skuDropdown.reposition = null;
         }
     }
@@ -281,7 +281,7 @@
         const rect = wrap.getBoundingClientRect();
         const pad = 6;
         let top = rect.bottom + 4;
-        let maxH = window.innerHeight - top - pad;
+        let maxH = globalThis.innerHeight - top - pad;
         if (maxH < 100) {
             maxH = Math.max(120, rect.top - pad * 2);
             top = Math.max(pad, rect.top - maxH - 4);
@@ -323,8 +323,8 @@
             positionSkuDropdown(combo, host);
         };
         skuDropdown.reposition = fn;
-        window.addEventListener('scroll', fn, true);
-        window.addEventListener('resize', fn);
+        globalThis.addEventListener('scroll', fn, true);
+        globalThis.addEventListener('resize', fn);
     }
 
     function openSkuDropdown(combo, query) {

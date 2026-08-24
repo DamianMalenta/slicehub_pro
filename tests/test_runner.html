@@ -896,16 +896,16 @@ const SUITES = [
                 }
             },
             {
-                id: 'T24', label: 'studio_recipe.js — wywołania przez wrapper window.apiStudio',
-                desc: 'RecipeMapper musi wołać API przez window.apiStudio() (canoncial wrapper z studio_api.js), nie api_recipes.php ani hardcodowany URL',
+                id: 'T24', label: 'studio_recipe.js — wywołania przez wrapper apiStudio (globalThis/window)',
+                desc: 'RecipeMapper musi wołać API przez apiStudio() (canoncial wrapper z studio_api.js), nie api_recipes.php ani hardcodowany URL',
                 async run() {
                     const src = await fetchJs(CFG.jsClients.studioRecipe);
                     if (!src) return ['fail', 'Nie udało się pobrać studio_recipe.js'];
                     const usesOldUrl = /api_recipes\.php/.test(src);
-                    const usesWrapper = /window\.apiStudio\s*\(/.test(src);
-                    if (usesOldUrl) return ['fail', `ZNALEZIONO: api_recipes.php — plik po fuzji nie istnieje!\nURL musi wskazywać na api_menu_studio.php (przez wrapper window.apiStudio)`];
-                    if (!usesWrapper) return ['warn', 'Brak window.apiStudio() — RecipeMapper.fetchApi() powinien wołać przez canonical wrapper z studio_api.js'];
-                    return ['pass', 'studio_recipe.js woła API przez window.apiStudio() (wrapper na api_menu_studio.php)'];
+                    const usesWrapper = /(?:window|globalThis)\.apiStudio\s*\(/.test(src);
+                    if (usesOldUrl) return ['fail', `ZNALEZIONO: api_recipes.php — plik po fuzji nie istnieje!\nURL musi wskazywać na api_menu_studio.php (przez wrapper apiStudio)`];
+                    if (!usesWrapper) return ['warn', 'Brak apiStudio() — RecipeMapper.fetchApi() powinien wołać przez canonical wrapper z studio_api.js'];
+                    return ['pass', 'studio_recipe.js woła API przez apiStudio() (wrapper na api_menu_studio.php)'];
                 }
             },
             {
