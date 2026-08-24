@@ -12,6 +12,7 @@ const DriverApp = (() => {
     const LS_DISMISSED = 'sh_dismissed_courses';
     const LS_AGE_VERIFIED = 'sh_age_verified';
     const LS_SHIFT_ACTIVE = 'sh_driver_shift_active';
+    const LS_HR_SESSION = 'sh_hr_session_uuid';
 
     function _loadSet(key) {
         try { const raw = localStorage.getItem(key); return raw ? new Set(JSON.parse(raw)) : new Set(); }
@@ -40,6 +41,7 @@ const DriverApp = (() => {
         sseConnected: false,
         shiftActive: localStorage.getItem(LS_SHIFT_ACTIVE) === '1',
         driverStatus: 'offline',
+        hrSessionUuid: localStorage.getItem(LS_HR_SESSION) || '',
         // Phase A — SLA thresholds z get_driver_runs (sh_tenant_settings). Default 10/5.
         slaThresholds: { green_min: 10, yellow_min: 5 },
     };
@@ -109,6 +111,7 @@ const DriverApp = (() => {
         if (!state.shiftActive) {
             showStartShiftModal();
         } else {
+            if (state.hrSessionUuid) updateHrBadge('active');
             startPollingAndSSE();
         }
     }
@@ -153,6 +156,8 @@ const DriverApp = (() => {
         state.shiftActive = false;
         state.driverStatus = 'offline';
         localStorage.removeItem(LS_SHIFT_ACTIVE);
+        localStorage.removeItem(LS_HR_SESSION);
+        state.hrSessionUuid = '';
         state.user = null;
         document.getElementById('pin-screen').classList.remove('hidden');
         document.getElementById('app-root').classList.add('hidden');
@@ -332,11 +337,7 @@ const DriverApp = (() => {
             startPollingAndSSE();
 
             // HR clock_in — best effort, does not block shift
-            DriverAPI.hrClockIn().then(hr => {
-                if (!hr.success && hr.message && !hr.message.includes('ALREADY_CLOCKED_IN')) {
-                    console.warn('[DriverApp] HR clock_in failed:', hr.message);
-                }
-            });
+            _hrClockInFlow();
         } else {
             toast(res.message || 'Błąd rozpoczynania zmiany', 'error');
             btn.disabled = false;
@@ -426,11 +427,7 @@ const DriverApp = (() => {
             updateStatusUI('offline');
 
             // HR clock_out — best effort, does not block
-            DriverAPI.hrClockOut().then(hr => {
-                if (!hr.success) {
-                    console.warn('[DriverApp] HR clock_out failed:', hr.message);
-                }
-            });
+            _hrClockOutFlow();
 
             // After reconcile: stay logged in, show start shift modal for next shift
             setTimeout(() => showStartShiftModal(), 2000);
@@ -439,6 +436,66 @@ const DriverApp = (() => {
             btn.disabled = false;
             btn.innerHTML = '<i class="fa-solid fa-check-double"></i> Zakończ zmianę';
         }
+    }
+
+    // ── HR CLOCK STATE (badge + retry) ──
+    function _setHrSession(uuid) {
+        state.hrSessionUuid = uuid || '';
+        if (uuid) { localStorage.setItem(LS_HR_SESSION, uuid); }
+        else { localStorage.removeItem(LS_HR_SESSION); }
+    }
+
+    function updateHrBadge(status) {
+        const badge = document.getElementById('topbar-hr-badge');
+        if (!badge) return;
+        badge.classList.remove('hidden', 'hr-ok', 'hr-err');
+        if (status === 'active') {
+            badge.classList.add('hr-ok');
+            badge.innerHTML = '<i class="fa-solid fa-user-clock"></i> HR';
+            badge.title = 'Zmiana HR aktywna';
+        } else if (status === 'error') {
+            badge.classList.add('hr-err');
+            badge.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> HR — ponów';
+            badge.title = 'Zmiana HR nieaktywna — dotknij, aby ponówić';
+        } else {
+            badge.classList.add('hidden');
+        }
+    }
+
+    async function _hrClockInFlow() {
+        const hr = await DriverAPI.hrClockIn();
+        const already = !hr.success && (hr.code === 'ALREADY_CLOCKED_IN'
+            || (hr.message && hr.message.includes('ALREADY_CLOCKED_IN')));
+        if (hr.success || already) {
+            const uuid = (hr.data && hr.data.session_uuid) ? hr.data.session_uuid : state.hrSessionUuid;
+            _setHrSession(uuid);
+            updateHrBadge('active');
+        } else {
+            console.warn('[DriverApp] HR clock_in failed:', hr.message);
+            updateHrBadge('error');
+            state._hrRetryAction = 'clock_in';
+            toast('Zmiana HR nieaktywna — dotknij ikony HR, aby ponówić', 'error');
+        }
+    }
+
+    async function _hrClockOutFlow() {
+        const hr = await DriverAPI.hrClockOut();
+        const noSession = hr.code === 'NO_OPEN_SESSION'
+            || (hr.message && hr.message.includes('NO_OPEN_SESSION'));
+        if (hr.success || noSession) {
+            _setHrSession('');
+            updateHrBadge('off');
+        } else {
+            console.warn('[DriverApp] HR clock_out failed:', hr.message);
+            updateHrBadge('error');
+            state._hrRetryAction = 'clock_out';
+            toast('Zmiana HR niezamknięta — dotknij ikony HR, aby ponówić', 'error');
+        }
+    }
+
+    function retryHrClock() {
+        if (state._hrRetryAction === 'clock_out') { _hrClockOutFlow(); }
+        else { _hrClockInFlow(); }
     }
 
     // ── DRIVER ACTION HELPERS ──
@@ -848,7 +905,7 @@ const DriverApp = (() => {
         acknowledgeRecall, loadWallet,
         openCancelModal, closeCancelModal, confirmCancelOrder,
         verifyAge,
-        toggleStatus,
+        toggleStatus, retryHrClock,
         showStartShiftModal, closeStartShiftModal, confirmStartShift,
         showReconcileModal, closeReconcileModal, confirmReconcile,
     });

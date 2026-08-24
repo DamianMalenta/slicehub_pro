@@ -37,6 +37,33 @@ const DriverAPI = (() => {
         }
     }
 
+    async function _hrPost(action, maxAttempts = 3) {
+        const hrUrl = (window.SliceHub && window.SliceHub.apiUrl)
+            ? window.SliceHub.apiUrl('backoffice/hr/engine.php')
+            : apiFallback() + '/backoffice/hr/engine.php';
+        let last = { success: false, message: 'Brak połączenia', transient: true };
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                const res = await fetch(hrUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_token}` },
+                    body: JSON.stringify({ action, auth: { self: true }, source: 'mobile' }),
+                });
+                const json = await res.json();
+                json.transient = false;
+                if (json.success === true || res.status < 500) return json;
+                last = json;
+                last.transient = true;
+            } catch (e) {
+                last = { success: false, message: 'Brak połączenia', transient: true };
+            }
+            if (attempt < maxAttempts) {
+                await new Promise(r => setTimeout(r, attempt * 1000));
+            }
+        }
+        return last;
+    }
+
     return Object.freeze({
         setToken, getToken,
 
@@ -73,28 +100,12 @@ const DriverAPI = (() => {
             return base + '?token=' + encodeURIComponent(_token);
         },
 
-        /** HR clock_in — best effort, does not block shift start. */
-        hrClockIn: () => {
-            const hrUrl = (window.SliceHub && window.SliceHub.apiUrl)
-                ? window.SliceHub.apiUrl('backoffice/hr/engine.php')
-                : apiFallback() + '/backoffice/hr/engine.php';
-            return fetch(hrUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_token}` },
-                body: JSON.stringify({ action: 'clock_in', auth: { self: true }, source: 'mobile' }),
-            }).then(r => r.json()).catch(() => ({ success: false }));
-        },
-
-        /** HR clock_out — best effort, does not block reconcile. */
-        hrClockOut: () => {
-            const hrUrl = (window.SliceHub && window.SliceHub.apiUrl)
-                ? window.SliceHub.apiUrl('backoffice/hr/engine.php')
-                : apiFallback() + '/backoffice/hr/engine.php';
-            return fetch(hrUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${_token}` },
-                body: JSON.stringify({ action: 'clock_out', auth: { self: true }, source: 'mobile' }),
-            }).then(r => r.json()).catch(() => ({ success: false }));
-        },
+        /**
+         * HR clock_in / clock_out — best effort, does not block shift start
+         * or reconcile. Retries transient (network) failures with backoff;
+         * business errors from the HR engine are returned as-is.
+         */
+        hrClockIn:  () => _hrPost('clock_in'),
+        hrClockOut: () => _hrPost('clock_out'),
     });
 })();
