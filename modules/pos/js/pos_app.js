@@ -320,12 +320,22 @@ const PosApp = (() => {
 
         // P3.5: gdy serwer wypchnie nowe zdarzenie przez pull_since (np. storefront
         // utworzył zamówienie, KDS zmienił status), odświeżamy listę.
+        // Naprawa 2026-08-24: wcześniej sprawdzaliśmy nieistniejący typ 'order.status'
+        // (martwy branch — OrderEventPublisher nigdy takiego nie publikuje).
+        // Teraz reagujemy na pełną listę eventów cyklu życia zamówienia + płatności.
+        const ORDER_LIFECYCLE_EVENTS = new Set([
+            'order.created', 'order.accepted', 'order.preparing', 'order.ready',
+            'order.dispatched', 'order.in_delivery', 'order.delivered',
+            'order.completed', 'order.cancelled', 'order.edited', 'order.recalled',
+            'order.delayed', 'order.fiscalized',
+            'payment.settled', 'payment.refunded',
+        ]);
         globalThis.addEventListener('slicehub-pos:server-event', (e) => {
             const ev = e.detail || {};
             if (!ev.event_type) return;
-            // Order-related events — reaguj tylko na ten typ, żeby nie robić
+            // Order-related events — reaguj tylko na te typy, żeby nie robić
             // niepotrzebnych fetchów przy menu.updated czy system.test.
-            if (ev.event_type === 'order.created' || ev.event_type === 'order.status') {
+            if (ORDER_LIFECYCLE_EVENTS.has(ev.event_type)) {
                 _fetchOrders();
             }
         });
@@ -1223,6 +1233,11 @@ const PosApp = (() => {
         const r = await PosAPI.fiscalPrint(orderId, true);
         if (r.success && r.data?.fiscal_receipt_number) {
             PosUI.toast(`Paragon fiskalny nr ${r.data.fiscal_receipt_number}`, 'success');
+            // Optymistyczny update: badge FISKAL + PARAGON
+            _optimisticUpdateOrder(orderId, {
+                fiscal_receipt_number: r.data.fiscal_receipt_number,
+                receipt_printed: 1,
+            });
             _fetchOrders();
         } else {
             PosUI.toast(r.message || r.data?.error || 'Błąd fiskalizacji', 'error');
@@ -1239,6 +1254,28 @@ const PosApp = (() => {
         } catch {
             _fiscalReady = false;
         }
+    }
+
+    // =========================================================================
+    // OPTIMISTIC UPDATE HELPERS (Naprawa 5, 2026-08-24)
+    //
+    // Po każdej mutacji UI aktualizuje lokalny model _orders natychmiast,
+    // żeby karta reagowała bez czekania na roundtrip _fetchOrders(). Jeśli
+    // serwer odrzuci mutację, _fetchOrders() i tak nadpisze stan z serwera
+    // (server-authoritative reconcile).
+    // =========================================================================
+    function _optimisticUpdateOrder(orderId, patch) {
+        const o = _orders.find(x => String(x.id) === String(orderId));
+        if (!o) return;
+        Object.assign(o, patch);
+        _renderBattlefield();
+    }
+
+    function _optimisticRemoveOrder(orderId) {
+        const idx = _orders.findIndex(x => String(x.id) === String(orderId));
+        if (idx < 0) return;
+        _orders.splice(idx, 1);
+        _renderBattlefield();
     }
 
     // =========================================================================
@@ -1282,9 +1319,12 @@ const PosApp = (() => {
                     const t = new Date(); t.setMinutes(t.getMinutes() + mins);
                     iso = t.toISOString().slice(0, 16);
                 }
+                // Optymistyczny update: status → accepted, wyjdzie z Pulse natychmiast
+                _optimisticUpdateOrder(id, { status: 'accepted' });
                 const r = await PosAPI.acceptOrder(id, iso || null);
                 if (!r.success) {
                     PosUI.toast(r.message || 'Nie udało się przyjąć zamówienia', 'error');
+                    _fetchOrders(); // rollback przez server-authoritative reconcile
                     return;
                 }
                 PosUI.toast('Zamówienie przyjęte', 'success');
@@ -1292,9 +1332,11 @@ const PosApp = (() => {
             },
             onAcceptDate: async (id, dateStr) => {
                 if (!dateStr) return;
+                _optimisticUpdateOrder(id, { status: 'accepted' });
                 const r = await PosAPI.acceptOrder(id, dateStr);
                 if (!r.success) {
                     PosUI.toast(r.message || 'Nie udało się przyjąć zamówienia', 'error');
+                    _fetchOrders();
                     return;
                 }
                 const time = new Date(dateStr).toLocaleTimeString('pl-PL', { hour:'2-digit', minute:'2-digit' });
@@ -1303,9 +1345,11 @@ const PosApp = (() => {
             },
             onReject: async (id) => {
                 if (!confirm('Odrzucić zamówienie?')) return;
+                _optimisticRemoveOrder(id);
                 const r = await PosAPI.updateStatus(id, 'cancelled');
                 if (!r.success) {
                     PosUI.toast(r.message || 'Nie udało się odrzucić', 'error');
+                    _fetchOrders();
                     return;
                 }
                 PosUI.toast('Zamówienie odrzucone', 'info');
@@ -1349,6 +1393,8 @@ const PosApp = (() => {
             onPrintKitchen: async (id) => {
                 const o = _orders.find(x => x.id === id);
                 if (o) PosUI.printOrderTemplate(o, true, { waiterName: _user?.name || 'POS' });
+                // Optymistyczny update: kitchen_ticket_printed=1, edited_since_print=0
+                _optimisticUpdateOrder(id, { kitchen_ticket_printed: 1, edited_since_print: 0 });
                 await PosAPI.printKitchen(id);
                 PosUI.toast('Bon na kuchnię wysłany', 'success');
                 _fetchOrders();
@@ -1360,7 +1406,20 @@ const PosApp = (() => {
             onSettle:       (id) => _openPaymentModal(id, 'settle'),
             onCancel:       (id) => _openCancelModal(id),
             onStatusChange: async (id, status) => {
-                await PosAPI.updateStatus(id, status);
+                // Optymistyczny update: natychmiastowa zmiana statusu na karcie.
+                // Jeśli status → completed, zamówienie znika z listy (get_orders
+                // filtruje completed/cancelled), więc usuwamy z lokalnego modelu.
+                if (status === 'completed' || status === 'cancelled') {
+                    _optimisticRemoveOrder(id);
+                } else {
+                    _optimisticUpdateOrder(id, { status });
+                }
+                const r = await PosAPI.updateStatus(id, status);
+                if (!r.success) {
+                    PosUI.toast(r.message || 'Nie udało się zmienić statusu', 'error');
+                    _fetchOrders(); // rollback
+                    return;
+                }
                 _fetchOrders();
             },
             onColumnToggle: (colIdx) => {
@@ -1470,10 +1529,22 @@ const PosApp = (() => {
             fiscalReady: _fiscalReady,
             onSettle: async (methodOrPayments, printReceipt) => {
                 const r = await PosAPI.settleAndClose(orderId, methodOrPayments, printReceipt);
+                // NAPRAWA 6 (2026-08-24): outbox zwraca success=true + queued=true
+                // gdy offline. Nie traktuj tego jako pełnego sukcesu — pokaż ostrzeżenie.
+                if (r.success && r.data?.queued) {
+                    PosUI.toast('Zakolejkowane offline — potwierdź po odzyskaniu sieci', 'warn');
+                    _fetchOrders();
+                    return;
+                }
                 if (r.success) {
                     if (printReceipt && !_fiscalReady) PosUI.printOrderTemplate(o, false, { waiterName: _user?.name || 'POS' });
                     const msg = r.data?.split_tender ? 'Zamknięto (split)!' : 'Zamknięto pomyślnie!';
                     PosUI.toast(msg, 'success');
+
+                    // Optymistyczny update: zamówienie zamykane → usuń z lokalnego modelu.
+                    // get_orders filtruje completed/cancelled, więc po _fetchOrders()
+                    // i tak by zniknęło — ale dzięki temu karta znika natychmiast.
+                    _optimisticRemoveOrder(orderId);
 
                     // Fiskalizacja — best effort, nie blokuj jeśli drukarka nie odpowiada
                     if (_fiscalReady) {
@@ -1496,11 +1567,20 @@ const PosApp = (() => {
                 } else PosUI.toast(r.message || 'Błąd', 'error');
             },
             onPrintOnly: async (method) => {
+                // Optymistyczny update: po druku paragonu ustaw badge PARAGON +
+                // payment_status (gdy method to cash/card — NAPRAWA 3 na backendzie).
+                const payStatusMap = { cash: 'cash', card: 'card', online: 'online_paid' };
+                const optimisticPatch = { receipt_printed: 1 };
+                if (payStatusMap[method]) {
+                    optimisticPatch.payment_status = payStatusMap[method];
+                    optimisticPatch.payment_method = method;
+                }
                 if (_fiscalReady) {
                     try {
                         const fr = await PosAPI.fiscalPrint(orderId);
                         if (fr.success && fr.data?.fiscal_receipt_number) {
                             PosUI.toast(`Paragon fiskalny nr ${fr.data.fiscal_receipt_number}`, 'success');
+                            optimisticPatch.fiscal_receipt_number = fr.data.fiscal_receipt_number;
                         } else {
                             PosUI.toast(fr.message || fr.data?.error || 'Błąd fiskalizacji', 'error');
                             PosUI.printOrderTemplate(o, false, { waiterName: _user?.name || 'POS' });
@@ -1513,7 +1593,10 @@ const PosApp = (() => {
                     PosUI.printOrderTemplate(o, false, { waiterName: _user?.name || 'POS' });
                 }
                 const r = await PosAPI.printReceipt(orderId, method);
-                if (r.success) { _fetchOrders(); }
+                if (r.success) {
+                    _optimisticUpdateOrder(orderId, optimisticPatch);
+                    _fetchOrders();
+                }
             },
         });
     }
@@ -1523,9 +1606,14 @@ const PosApp = (() => {
     // =========================================================================
     function _openCancelModal(orderId) {
         PosUI.showCancelModal(orderId, async (returnStock) => {
+            // Optymistyczny update: usuń z lokalnego modelu (anulowane znika z listy)
+            _optimisticRemoveOrder(orderId);
             const r = await PosAPI.cancelOrder(orderId, returnStock);
             if (r.success) { PosUI.toast('Anulowano', 'success'); _fetchOrders(); }
-            else PosUI.toast(r.message || 'Błąd', 'error');
+            else {
+                PosUI.toast(r.message || 'Błąd', 'error');
+                _fetchOrders(); // rollback
+            }
         });
     }
 

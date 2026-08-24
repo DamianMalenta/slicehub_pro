@@ -124,8 +124,12 @@ final class ElzabFiscalEngine
         }
 
         // 9. Zapisz numer paragonu do DB
+        //    Naprawa 2026-08-24: przekaż payment_method z zamówienia, aby
+        //    saveFiscalReceiptNumber mogło zaktualizować payment_status gdy
+        //    zamówienie jest jeszcze nieopłacone (tryb "tylko fiskalizacja").
         if ($receiptNumber !== '') {
-            self::saveFiscalReceiptNumber($pdo, $orderId, $tenantId, $receiptNumber);
+            $orderPaymentMethod = (string)($order['payment_method'] ?? '');
+            self::saveFiscalReceiptNumber($pdo, $orderId, $tenantId, $receiptNumber, $orderPaymentMethod);
         }
 
         return ['success' => true, 'fiscal_receipt_number' => $receiptNumber];
@@ -351,7 +355,7 @@ final class ElzabFiscalEngine
     {
         $stmt = $pdo->prepare(
             "SELECT id, order_number, grand_total, subtotal, discount_amount,
-                    delivery_fee, tip_amount, payment_method, channel,
+                    delivery_fee, tip_amount, payment_method, payment_status, channel,
                     customer_name, status, order_type, fiscal_receipt_number
              FROM sh_orders
              WHERE id = :oid AND tenant_id = :tid"
@@ -466,25 +470,61 @@ final class ElzabFiscalEngine
 
     /**
      * Zapisz numer paragonu fiskalnego do sh_orders.
+     *
+     * Naprawa 2026-08-24: gdy zamówienie ma metodę płatności (cash/card) ale
+     * payment_status to 'to_pay'/'online_unpaid' (np. fiskalizacja w trybie
+     * "tylko drukuj paragon" bez settle_and_close), aktualizujemy też
+     * payment_status. Zapobiega to wiszeniu etykiety "DO ZAPŁATY" na karcie
+     * POS po udanej fiskalizacji z wybraną metodą płatności.
+     *
+     * Nie nadpisujemy już rozliczonych statusów (cash/card/online_paid) —
+     * chroni to przed nadpisaniem przy repryncie (force=true).
+     *
+     * @param string $paymentMethod Opcjonalna metoda płatności z order.payment_method.
+     *                              Gdy null, brak aktualizacji payment_status.
      */
-    private static function saveFiscalReceiptNumber(\PDO $pdo, string $orderId, int $tenantId, string $receiptNumber): void
+    private static function saveFiscalReceiptNumber(\PDO $pdo, string $orderId, int $tenantId, string $receiptNumber, ?string $paymentMethod = null): void
     {
         require_once dirname(__DIR__) . '/OrderEventPublisher.php';
 
+        // Map metody płatności na payment_status (spójne z SettlementEngine::PAY_STATUS_MAP)
+        $payStatusMap = ['cash' => 'cash', 'card' => 'card', 'online' => 'online_paid'];
+        $newPayStatus = ($paymentMethod !== null && isset($payStatusMap[$paymentMethod]))
+            ? $payStatusMap[$paymentMethod]
+            : null;
+
         $pdo->beginTransaction();
         try {
-            $stmt = $pdo->prepare(
-                "UPDATE sh_orders
-                 SET fiscal_receipt_number = :num,
-                     receipt_printed = 1,
-                     updated_at = NOW()
-                 WHERE id = :oid AND tenant_id = :tid"
-            );
-            $stmt->execute([
-                ':num' => $receiptNumber,
-                ':oid' => $orderId,
-                ':tid' => $tenantId,
-            ]);
+            if ($newPayStatus !== null) {
+                // Aktualizuj payment_status tylko dla niepłatnych statusów (CASE WHEN).
+                $stmt = $pdo->prepare(
+                    "UPDATE sh_orders
+                     SET fiscal_receipt_number = :num,
+                         receipt_printed = 1,
+                         payment_status = CASE WHEN payment_status IN ('to_pay','online_unpaid') THEN :ps ELSE payment_status END,
+                         updated_at = NOW()
+                     WHERE id = :oid AND tenant_id = :tid"
+                );
+                $stmt->execute([
+                    ':num' => $receiptNumber,
+                    ':ps'  => $newPayStatus,
+                    ':oid' => $orderId,
+                    ':tid' => $tenantId,
+                ]);
+            } else {
+                $stmt = $pdo->prepare(
+                    "UPDATE sh_orders
+                     SET fiscal_receipt_number = :num,
+                         receipt_printed = 1,
+                         updated_at = NOW()
+                     WHERE id = :oid AND tenant_id = :tid"
+                );
+                $stmt->execute([
+                    ':num' => $receiptNumber,
+                    ':oid' => $orderId,
+                    ':tid' => $tenantId,
+                ]);
+            }
 
             \OrderEventPublisher::publishOrderLifecycle(
                 $pdo,
@@ -494,6 +534,7 @@ final class ElzabFiscalEngine
                 [
                     'source'                => 'elzab_fiscal',
                     'fiscal_receipt_number' => $receiptNumber,
+                    'payment_status_set'    => $newPayStatus,
                 ]
             );
 

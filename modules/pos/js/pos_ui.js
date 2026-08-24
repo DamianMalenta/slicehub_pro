@@ -702,11 +702,23 @@ const PosUI = (() => {
 
                 const pColor = (o.kitchen_ticket_printed == 0 || o.edited_since_print == 1) ? 'bf-btn-warn' : '';
                 const pText = o.edited_since_print == 1 ? 'Drukuj Zmiany' : 'Drukuj Kuchnia';
+                // Naprawa 2026-08-24: pełny zestaw przycisków tranzycji statusu.
+                // Wcześniej brakowało przycisku dla 'accepted' (zamówienia online po
+                // akceptacji z Pulse utykały bez możliwości przejścia do preparing z POS)
+                // oraz dla 'ready' (kasjer nie mógł zakończyć opłaconego zamówienia
+                // bez przejścia przez modal płatności).
+                // 'ready' → 'completed' dostępny tylko gdy zamówienie jest opłacone
+                // (online_paid/cash/card), żeby nie zamknąć nieopłaconego jednym kliknięciem.
+                const isPaid = ['cash', 'card', 'online_paid'].includes(o.payment_status);
                 let statusBtn = '';
                 if (o.status === 'pending' || o.status === 'new') {
                     statusBtn = `<button class="bf-action bf-preparing" data-act="status_preparing" data-oid="${o.id}">🔥 PRZYGOTUJ</button>`;
+                } else if (o.status === 'accepted') {
+                    statusBtn = `<button class="bf-action bf-preparing" data-act="status_preparing" data-oid="${o.id}">🔥 ROZPOCZNIJ</button>`;
                 } else if (o.status === 'preparing') {
                     statusBtn = `<button class="bf-action bf-ready" data-act="status_ready" data-oid="${o.id}">✅ GOTOWE</button>`;
+                } else if (o.status === 'ready' && isPaid) {
+                    statusBtn = `<button class="bf-action bf-complete" data-act="status_completed" data-oid="${o.id}">✔️ ZAKOŃCZ</button>`;
                 }
 
                 const receiptBtn = callbacks.fiscalReady
@@ -823,6 +835,7 @@ const PosUI = (() => {
                 else if (act === 'cancel') callbacks.onCancel(oid);
                 else if (act === 'status_preparing') callbacks.onStatusChange(oid, 'preparing');
                 else if (act === 'status_ready') callbacks.onStatusChange(oid, 'ready');
+                else if (act === 'status_completed') callbacks.onStatusChange(oid, 'completed');
             });
         });
     }

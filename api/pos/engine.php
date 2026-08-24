@@ -1630,6 +1630,16 @@ try {
 
     // =========================================================================
     // PRINT_RECEIPT
+    //
+    // Naprawa 2026-08-24: gdy kasjer wybiera metodę płatności (cash/card) przy
+    // druku paragonu, aktualizujemy też payment_status. Wcześniej print_receipt
+    // ustawiał tylko receipt_printed=1 i payment_method — karta na POS nadal
+    // pokazywała "DO ZAPŁATY" mimo wydrukowanego paragonu z wybraną metodą.
+    //
+    // Bezpieczeństwo: nie nadpisujemy już rozliczonych statusów (cash/card/
+    // online_paid) — aktualizujemy tylko gdy obecny payment_status to 'to_pay'
+    // lub 'online_unpaid'. Zapobiega to nadpisaniu statusu przy repryncie
+    // paragonu dla zamówienia już rozliczonego przez settle_and_close.
     // =========================================================================
     if ($action === 'print_receipt') {
         $oid    = inputStr($input, 'order_id');
@@ -1639,6 +1649,12 @@ try {
         if ($method !== '') {
             $sql .= ", payment_method=?";
             $params[] = $method;
+            // Map metody na payment_status — tylko dla niepłatnych statusów.
+            $payStatusMap = ['cash' => 'cash', 'card' => 'card', 'online' => 'online_paid'];
+            if (isset($payStatusMap[$method])) {
+                $sql .= ", payment_status=CASE WHEN payment_status IN ('to_pay','online_unpaid') THEN ? ELSE payment_status END";
+                $params[] = $payStatusMap[$method];
+            }
         }
         $sql .= " WHERE id=? AND tenant_id=?";
         $params[] = $oid;
