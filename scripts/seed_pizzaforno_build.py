@@ -1955,7 +1955,7 @@ SET @wh  := {esc(WAREHOUSE_ID)};
         W("UNION ALL")
         W("SELECT 'work_sessions', COUNT(*) FROM sh_work_sessions WHERE tenant_id=@tid AND employee_id IN (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code LIKE 'EMP-FORNO-%')")
         W("UNION ALL")
-        W("SELECT 'payroll_ledger', COUNT(*) FROM sh_payroll_ledger WHERE tenant_id=@tid AND employee_id IN (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code LIKE 'EMP-FORNO-%'));")
+        W("SELECT 'payroll_ledger', COUNT(*) FROM sh_payroll_ledger WHERE tenant_id=@tid AND employee_id IN (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code LIKE 'EMP-FORNO-%');")
     else:
         W(";")
     W("")
@@ -2464,7 +2464,7 @@ SET @wh  := {esc(WAREHOUSE_ID)};
     W("UNION ALL")
     W("SELECT 'work_sessions', COUNT(*) FROM sh_work_sessions WHERE tenant_id=@tid AND employee_id IN (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code LIKE 'EMP-FORNO-%')")
     W("UNION ALL")
-    W("SELECT 'payroll_ledger', COUNT(*) FROM sh_payroll_ledger WHERE tenant_id=@tid AND employee_id IN (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code LIKE 'EMP-FORNO-%'));")
+    W("SELECT 'payroll_ledger', COUNT(*) FROM sh_payroll_ledger WHERE tenant_id=@tid AND employee_id IN (SELECT id FROM sh_employees WHERE tenant_id=@tid AND employee_code LIKE 'EMP-FORNO-%');")
     W("")
     W("-- ✅ Seed Pizza Forno OPS załadowany pomyślnie (dane operacyjne)!")
     W("")
