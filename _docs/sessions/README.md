@@ -77,7 +77,7 @@ Spine czytania: [`2026-05-11_STUDIO_RELEASE_INDEX.md`](2026-05-11_STUDIO_RELEASE
 
 ### RFC_001 — Historia, Oś Czasu, Bezpieczna Edycja Zamówień
 
-- [`2026-08-25_rfc_001_phases_1_3.md`](2026-08-25_rfc_001_phases_1_3.md) — **Domknięcie luk wdrożeniowych**: testy T63-T80 (18 testów pokrywających history/audit/edit_scope/revert/reopen + BiEngine), weryfikacja migracji 068/069, sesja audytowa (Prawo X). Fazy 1-3 wdrożone w commitach 9c3822e/3b13c0b/9fd5ad4. 78 pass / 0 fail / 2 warn (T78/T79 — brak owner token na tenant 2).
+- [`2026-08-25_rfc_001_phases_1_3.md`](2026-08-25_rfc_001_phases_1_3.md) — **Domknięcie luk wdrożeniowych**: testy T63-T80 (18 testów pokrywających history/audit/edit_scope/revert/reopen + BiEngine), weryfikacja migracji 068/069, sesja audytowa (Prawo X). Fazy 1-3 wdrożone w commitach 9c3822e/3b13c0b/9fd5ad4. **80/80 PASS, 0 fail, 0 warn** — domknięte T58 (clear panic_log), T78/T79 (ownerTokenTenant2), T80 (numeryczna asercja KOR redukuje COGS).
 
 ### SPARK (materiały wniosku — bez zmian runtime)
 
