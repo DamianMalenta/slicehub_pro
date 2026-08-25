@@ -368,6 +368,11 @@ const PosUI = (() => {
         modal.querySelector('#ck-submit')?.addEventListener('click', () => {
             printKitchen = modal.querySelector('#ck-print-kitchen')?.checked || false;
             printReceipt = modal.querySelector('#ck-print-receipt')?.checked || false;
+            // Bugfix 2026-08-25: naive ISO (bez offsetu) jest OK, bo backend
+            // date_default_timezone_set('Europe/Warsaw') w db_config.php sprawia,
+            // że strtotime("2026-08-25T15:30") interpretuje jako Warsaw local —
+            // spójne z browser tz (Polska). Gdyby PHP tz ≠ browser tz, trzeba
+            // by wysyłać pełny ISO z offsetem (+02:00).
             const iso = new Date(targetTime.getTime() - (targetTime.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
             modal.classList.remove('active');
             callbacks.onSubmit({ payMethod, payStatus, printKitchen, printReceipt, promisedTime: iso });
@@ -644,8 +649,15 @@ const PosUI = (() => {
         const now = new Date();
 
         function fmtTime(dateStr, type) {
+            // Bugfix 2026-08-25: brak promised_time = ASAP (neutralny), NIE fallback
+            // na created_at (które jest zawsze w przeszłości → diff zawsze ujemny →
+            // karta świeci na czerwono z -Xm natychmiast po utworzeniu zamówienia).
             if (!dateStr) return { text: '<span class="time-indicator">ASAP</span>', cls: 'sla-white' };
-            const d = new Date(dateStr), diff = Math.ceil((d - now) / 60000);
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return { text: '<span class="time-indicator">ASAP</span>', cls: 'sla-white' };
+            // Bugfix 2026-08-25: Math.round zamiast Math.ceil — ceil dla ujemnych
+            // daje 0 dla -30s i -1 dla -90s (niespójne z kierunkiem dodatnim).
+            const diff = Math.round((d - now) / 60000);
             const hh = String(d.getHours()).padStart(2, '0');
             const mm = String(d.getMinutes()).padStart(2, '0');
             const absTime = `${hh}:${mm}`;
@@ -666,7 +678,10 @@ const PosUI = (() => {
         }
 
         function buildCard(o) {
-            const timeInfo = fmtTime(o.promised_time || o.created_at, o.order_type);
+            // Bugfix 2026-08-25: przekaż TYLKO promised_time — fmtTime zwróci
+            // neutralne "ASAP" gdy brak. Wcześniej fallback na created_at
+            // powodował ujemny diff od razu po utworzeniu zamówienia.
+            const timeInfo = fmtTime(o.promised_time, o.order_type);
             const num = fmtNum(o.order_number, o.created_at);
             const total = o.grand_total_formatted || (parseInt(o.grand_total || 0) / 100).toFixed(2);
             let payText, payCls;
@@ -902,13 +917,74 @@ const PosUI = (() => {
         setTimeout(() => { iframe.contentWindow.focus(); iframe.contentWindow.print(); }, 250);
     }
 
+    // === COUNTDOWN TICK (Bugfix 2026-08-25) ===
+    // Lekki tick co 30s — aktualizuje tylko teksty .time-rel (Kanban) i
+    // .pulse-countdown (Pulse) bez pełnego re-renderu. Eliminuje "zamrożenie"
+    // czasu między pollami (POLL_INTERVAL=8s) i skoki co 8s.
+    // SLA klasa na .bf-card jest też aktualizowana (red/yellow/green).
+    function tickCountdowns(orders) {
+        if (!Array.isArray(orders)) return;
+        const now = Date.now();
+        const byId = new Map(orders.map(o => [o.id, o]));
+
+        // Kanban: .bf-card[data-order-id] → .time-rel + SLA class
+        document.querySelectorAll('.bf-card[data-order-id]').forEach(card => {
+            const o = byId.get(card.dataset.orderId);
+            if (!o || !o.promised_time) return;
+            const ptMs = new Date(o.promised_time).getTime();
+            if (!Number.isFinite(ptMs)) return;
+            const diff = Math.round((ptMs - now) / 60000);
+            const relEl = card.querySelector('.time-rel');
+            if (relEl) {
+                const sign = diff >= 0 ? '+' : '';
+                relEl.textContent = `${sign}${diff}m`;
+            }
+            // Aktualizuj SLA class (sla-green/sla-yellow/sla-red)
+            card.classList.remove('sla-green', 'sla-yellow', 'sla-red');
+            let cls = 'sla-green';
+            if (diff < 0) cls = 'sla-red';
+            else if (diff <= _slaThresholds.yellow_min) cls = 'sla-yellow';
+            card.classList.add(cls);
+        });
+
+        // Pulse: .pulse-card[data-pulse-id] → .pulse-countdown + .pulse-time
+        document.querySelectorAll('.pulse-card[data-pulse-id]').forEach(card => {
+            const o = byId.get(card.dataset.pulseId);
+            if (!o) return;
+            // elapsed (od created_at) — .pulse-time
+            if (o.created_at) {
+                const elapsed = Math.floor((now - new Date(o.created_at).getTime()) / 60000);
+                const timeEl = card.querySelector('.pulse-time');
+                if (timeEl) timeEl.textContent = `${elapsed}m`;
+            }
+            // countdown (do promised_time) — .pulse-countdown
+            if (o.promised_time) {
+                const ptMs = new Date(o.promised_time).getTime();
+                if (Number.isFinite(ptMs)) {
+                    const diffMin = Math.round((ptMs - now) / 60000);
+                    const existing = card.querySelector('.pulse-countdown');
+                    const html = diffMin >= 0
+                        ? `<span class="pulse-countdown pulse-countdown--ok">Za ${diffMin}m</span>`
+                        : `<span class="pulse-countdown pulse-countdown--late">Spóźnione ${Math.abs(diffMin)}m</span>`;
+                    if (existing) {
+                        existing.outerHTML = html;
+                    } else {
+                        // Brak countdownu (np. zamówienie dostało promised_time po renderze)
+                        const bottom = card.querySelector('.pulse-card-bottom');
+                        if (bottom) bottom.insertAdjacentHTML('beforeend', html);
+                    }
+                }
+            }
+        });
+    }
+
     return Object.freeze({
         toast, renderPinScreen, hidePinScreen, renderUserBadge,
         renderCategories, renderItemGrid, renderCart,
         showDishCard, showDishCardEdit, showOrderTypeModal, showTableSelectorModal,
         showCheckoutModal, showPaymentModal, showCancelModal,
         renderPulse, renderKanban, renderDrivers, renderWaiters,
-        printTemplate, printOrderTemplate, setSlaThresholds,
+        printTemplate, printOrderTemplate, setSlaThresholds, tickCountdowns,
     });
 })();
 

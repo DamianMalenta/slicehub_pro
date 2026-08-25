@@ -14,6 +14,7 @@ import { initPosHrClock } from './pos_hr_clock.js';
 const PosApp = (() => {
     const TENANT_ID = parseInt(document.querySelector('meta[name="sh-tenant-id"]')?.content, 10) || 1;
     const POLL_INTERVAL = 8000;
+    const TICK_INTERVAL = 30000; // Bugfix 2026-08-25: lekki tick countdownów bez re-renderu
 
     let _user = null;
     let _menuData = { categories: [], items: [], ingredients: [], drivers: [], waiters: [], modifierGroups: [] };
@@ -30,6 +31,7 @@ const PosApp = (() => {
     let _settleOrderId = null;
     let _settleMethod = null;
     let _pollTimer = null;
+    let _tickTimer = null; // Bugfix 2026-08-25: countdown tick
     let _tableLocked = false;
 
     // Route builder state
@@ -312,6 +314,11 @@ const PosApp = (() => {
         if (_pollTimer) clearInterval(_pollTimer);
         _pollTimer = setInterval(_fetchOrders, POLL_INTERVAL);
 
+        // Bugfix 2026-08-25: lekki tick countdownów co 30s — aktualizuje tylko
+        // teksty .time-rel / .pulse-countdown + SLA class bez pełnego re-renderu.
+        // Eliminuje "zamrożenie" czasu między pollami (8s) i skoki co 8s.
+        _startCountdownTick();
+
         // P4: po udanym replayu outboxu (offline → online) UI refetchuje listę,
         // żeby pokazać realne server-side IDs i statusy zamiast optymistycznych.
         globalThis.addEventListener('slicehub-pos:outbox-replayed', () => {
@@ -339,6 +346,17 @@ const PosApp = (() => {
                 _fetchOrders();
             }
         });
+    }
+
+    // Bugfix 2026-08-25: lekki tick countdownów — odświeża teksty czasowe
+    // (.time-rel, .pulse-countdown, .pulse-time) + SLA class bez pełnego
+    // re-renderu Kanbanu/Pulse. Wywoływany co TICK_INTERVAL (30s).
+    function _startCountdownTick() {
+        if (_tickTimer) clearInterval(_tickTimer);
+        _tickTimer = setInterval(() => {
+            if (_orders.length === 0) return;
+            PosUI.tickCountdowns(_orders);
+        }, TICK_INTERVAL);
     }
 
     // =========================================================================

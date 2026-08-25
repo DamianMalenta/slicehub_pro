@@ -3,6 +3,18 @@
 declare(strict_types=1);
 
 // [PLIK: /db_config.php]
+// Bugfix 2026-08-25: Kanoniczna strefa czasowa dla całej aplikacji.
+// Wcześniej brak date_default_timezone_set → PHP używał ini date.timezone
+// (XAMPP: Europe/Berlin, Cloud Agent: często UTC). PromisedTimeEngine
+// hardcoduje Europe/Warsaw, ale fallbacki date('Y-m-d H:i:s') w POS/tables/
+// online używały PHP default tz → niespójność zapisanych promised_time
+// (np. 2h przesunięcia na serwerach UTC). Ustawiamy SSOT tutaj, bo ten
+// plik jest includowany przez 97 endpointów/skryptów.
+if (!defined('SLICEHUB_TZ_SET')) {
+    date_default_timezone_set('Europe/Warsaw');
+    define('SLICEHUB_TZ_SET', true);
+}
+
 // JWT: set environment variable JWT_SECRET to a long random string (no default / no fallback).
 if (!defined('JWT_SECRET')) {
     $jwtSecret = getenv('JWT_SECRET');

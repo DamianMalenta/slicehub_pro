@@ -757,7 +757,17 @@ seed('Orders (12 total)', function ($pdo, $T) use ($uuid4) {
         $oid = $uuid4();
         $seq = $bumpSeq();
         $sub = array_sum(array_map(fn($l) => $l[2] * $l[3], $lines));
-        $stmtO->execute([$oid, $T, 'S'.$seq, 'pos', 'dine_in', 'pos', $sub, 0, $sub, $status, $ps, $pm, null, null, null, null, null, null, $userId]);
+        // Bugfix 2026-08-25: ustaw promised_time zamiast NULL.
+        // Wcześniej NULL powodował fallback na created_at w fmtTime →
+        // ujemny diff od razu po seedzie (karta świeci na czerwono).
+        // Aktywne (preparing/ready) = w przyszłości; completed = przeszłość.
+        $promisedDineIn = match ($status) {
+            'preparing' => date('Y-m-d H:i:s', time() + 25 * 60),
+            'ready'     => date('Y-m-d H:i:s', time() + 5 * 60),
+            'completed' => date('Y-m-d H:i:s', time() - 3600),
+            default     => date('Y-m-d H:i:s', time() + 25 * 60),
+        };
+        $stmtO->execute([$oid, $T, 'S'.$seq, 'pos', 'dine_in', 'pos', $sub, 0, $sub, $status, $ps, $pm, null, null, null, null, null, $promisedDineIn, $userId]);
         foreach ($lines as $l) $stmtL->execute([$uuid4(), $oid, $l[0], $l[1], $l[2], $l[3], $l[2]*$l[3], null]);
         $stmtA->execute([$oid, $userId, 'new', $status]);
         $count++;

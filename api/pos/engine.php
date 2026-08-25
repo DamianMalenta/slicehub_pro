@@ -2042,9 +2042,14 @@ try {
         // Rozwiąż docelowy promised_time (gdy przesunięcie podane)
         $resolvedPromised = null;
         if ($delayMinutes !== null) {
-            $resolvedPromised = date('Y-m-d H:i:s', time() + $delayMinutes * 60);
-            // Przesunięcie względem obecnego promised_time, nie "teraz" — spójne z PanicEngine
-            // (finalny SQL używa DATE_ADD(COALESCE(promised_time, created_at), INTERVAL :delay)).
+            // Bugfix 2026-08-25: NIE licz od time() — finalny SQL używa
+            // DATE_ADD(COALESCE(promised_time, created_at), INTERVAL :delay),
+            // więc resolvedPromised w response musiałby być per-order.
+            // Wcześniej $resolvedPromised = now+delay, ale SQL zapisywał
+            // promised_time+delay → klient widział inny czas niż DB.
+            // Teraz zostawiam null dla delay_minutes (per-order, nie da się
+            // zagregować) i publikuję old_promised_time + delay_minutes w evencie.
+            $resolvedPromised = null;
         } elseif ($targetDatetime !== null) {
             $ts = strtotime($targetDatetime);
             if ($ts === false) {
@@ -2206,7 +2211,10 @@ try {
             'affected_ready'  => $readyAffected,
             'requested_count' => count($orderIds),
             'errors'           => $errors,
+            // Bugfix 2026-08-25: dla delay_minutes resolved_promised=null (per-order),
+            // zwracamy delay_minutes żeby klient wiedział o przesunięciu.
             'resolved_promised'=> $resolvedPromised,
+            'delay_minutes'    => $delayMinutes,
             'mark_ready'       => $markReady,
         ]);
     }

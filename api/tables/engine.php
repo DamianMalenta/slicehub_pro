@@ -774,19 +774,34 @@ try {
                 "INSERT INTO sh_orders
                     (id, tenant_id, order_number, channel, order_type, source,
                      table_id, waiter_id, guest_count,
-                     status, payment_status, created_at)
+                     status, payment_status, promised_time, created_at)
                  VALUES
                     (:id, :tid, :onum, 'dine_in', 'dine_in', 'pos',
                      :tbl, :uid, :gc,
-                     'pending', 'to_pay', NOW())"
+                     'pending', 'to_pay', :promised, NOW())"
             );
+            // Bugfix 2026-08-25: ustaw promised_time przez PromisedTimeEngine
+            // (dine_in: 0 min bufora, base prep × load). Wcześniej brak promised_time
+            // powodował fallback na created_at w POS fmtTime → ujemny diff od razu
+            // po otwarciu stolika (karta świeci na czerwono z -Xm).
+            require_once __DIR__ . '/../../core/PromisedTimeEngine.php';
+            $promisedTable = null;
+            try {
+                $ptCalc = \PromisedTimeEngine::calculate($pdo, (int)$tenant_id, 'asap', 'dine_in');
+                $promisedTable = (new \DateTime($ptCalc['promised_time'], new \DateTimeZone('Europe/Warsaw')))
+                    ->format('Y-m-d H:i:s');
+            } catch (\Throwable $e) {
+                error_log('[Tables.open_table.promised] ' . $e->getMessage());
+                $promisedTable = date('Y-m-d H:i:s', time() + 25 * 60); // fallback: base prep
+            }
             $stmtO->execute([
-                ':id'   => $orderId,
-                ':tid'  => $tenant_id,
-                ':onum' => $orderNumber,
-                ':tbl'  => $tableId,
-                ':uid'  => $user_id,
-                ':gc'   => $guestCount,
+                ':id'       => $orderId,
+                ':tid'      => $tenant_id,
+                ':onum'     => $orderNumber,
+                ':tbl'      => $tableId,
+                ':uid'      => $user_id,
+                ':gc'       => $guestCount,
+                ':promised' => $promisedTable,
             ]);
 
             $pdo->prepare(
