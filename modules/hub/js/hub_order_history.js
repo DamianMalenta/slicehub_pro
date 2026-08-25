@@ -316,7 +316,7 @@ const HubOrderHistory = (() => {
             </div>`;
 
         // Action buttons — Faza 2: metadata + payment_method aktywne.
-        // Faza 3: force_edit / revert / reopen — disabled placeholders.
+        // Faza 3: force_edit / revert / reopen aktywne dla owner/admin.
         const canEditMeta = data.can_edit_metadata === true;
         const canChangePay = data.can_change_payment === true;
         const canRevert = data.can_revert === true;
@@ -324,19 +324,19 @@ const HubOrderHistory = (() => {
         const canForce = data.can_force_edit === true;
         const actions = `
             <div class="hoh-actions">
-                <button type="button" class="hoh-action-btn" id="hoh-btn-edit-meta" ${canEditMeta ? '' : 'disabled'} title="${canEditMeta ? 'Edytuj dane klienta i notatki' : 'Edycja metadanych dozwolona tylko dla zamkniętych zamówień (owner/admin/manager)'}">
+                <button type="button" class="hoh-action-btn hoh-action-btn--active" id="hoh-btn-edit-meta" ${canEditMeta ? '' : 'disabled'} title="${canEditMeta ? 'Edytuj dane klienta i notatki' : 'Edycja metadanych dozwolona tylko dla zamkniętych zamówień (owner/admin/manager)'}">
                     <i class="fa-solid fa-user-pen"></i> Edytuj metadane
                 </button>
-                <button type="button" class="hoh-action-btn" id="hoh-btn-change-pay" ${canChangePay ? '' : 'disabled'} title="${canChangePay ? 'Zmień formę płatności cash ↔ card' : 'Zmiana płatności dozwolona dla zakończonych, nie-sfiskalizowanych zamówień (cash/card tylko)'}">
+                <button type="button" class="hoh-action-btn hoh-action-btn--active" id="hoh-btn-change-pay" ${canChangePay ? '' : 'disabled'} title="${canChangePay ? 'Zmień formę płatności cash ↔ card' : 'Zmiana płatności dozwolona dla zakończonych, nie-sfiskalizowanych zamówień (cash/card tylko)'}">
                     <i class="fa-solid fa-money-bill-transfer"></i> Zmień płatność
                 </button>
-                <button type="button" class="hoh-action-btn" disabled ${canForce ? '' : 'data-unavailable'} title="Dostępne w Fazie 3 — korekta pozycji zamkniętego zamówienia (KOR magazynowy)">
+                <button type="button" class="hoh-action-btn hoh-action-btn--active" id="hoh-btn-force-edit" ${canForce ? '' : 'disabled'} title="${canForce ? 'Korekta pozycji zamkniętego zamówienia (KOR magazynowy)' : 'Wymagana rola owner/admin oraz zamknięte zamówienie'}">
                     <i class="fa-solid fa-pen-to-square"></i> Edytuj pozycje (force)
                 </button>
-                <button type="button" class="hoh-action-btn" disabled ${canRevert ? '' : 'data-unavailable'} title="Dostępne w Fazie 3 — cofnięcie do stanu ze snapshotu">
+                <button type="button" class="hoh-action-btn hoh-action-btn--active" id="hoh-btn-revert" ${canRevert ? '' : 'disabled'} title="${canRevert ? 'Cofnij do stanu ze snapshotu' : 'Wymagana rola owner/admin oraz dostępny snapshot'}">
                     <i class="fa-solid fa-rotate-left"></i> Cofnij do snapshotu
                 </button>
-                <button type="button" class="hoh-action-btn" disabled ${canReopen ? '' : 'data-unavailable'} title="Dostępne w Fazie 3 — ponowne otwarcie zamówienia">
+                <button type="button" class="hoh-action-btn hoh-action-btn--active" id="hoh-btn-reopen" ${canReopen ? '' : 'disabled'} title="${canReopen ? 'Ponowne otwarcie zamówienia (completed → pending)' : 'Wymagana rola owner/admin oraz status completed'}">
                     <i class="fa-solid fa-lock-open"></i> Otwórz ponownie
                 </button>
             </div>`;
@@ -382,6 +382,20 @@ const HubOrderHistory = (() => {
         $('hoh-btn-change-pay')?.addEventListener('click', () => {
             if (!_detail) return;
             _openPaymentModal(_detail);
+        });
+
+        // Wire Faza 3 action buttons
+        $('hoh-btn-force-edit')?.addEventListener('click', () => {
+            if (!_detail) return;
+            _openForceEditModal(_detail);
+        });
+        $('hoh-btn-revert')?.addEventListener('click', () => {
+            if (!_detail) return;
+            _openRevertModal(_detail);
+        });
+        $('hoh-btn-reopen')?.addEventListener('click', () => {
+            if (!_detail) return;
+            _openReopenModal(_detail);
         });
     }
 
@@ -624,6 +638,273 @@ const HubOrderHistory = (() => {
         if (saveBtn) saveBtn.disabled = false;
         if (!r.success) {
             if (errEl) errEl.textContent = r.message || 'Nie udało się zmienić formy płatności.';
+            return;
+        }
+        closeFn();
+        await openDrawer(data.order_id);
+        await _loadList();
+    }
+
+    // =========================================================================
+    // FAZA 3 — Modal wymuszonej korekty pozycji (force edit)
+    // =========================================================================
+    function _openForceEditModal(data) {
+        _ensureModalHost();
+        const host = $('hoh-modal-host');
+        if (!host) return;
+
+        const stack = new OrderTimelineStack(data.timeline || []);
+        const current = stack.current() || {};
+        const lines = current.snapshot?.lines || [];
+
+        const rows = lines.map((l, idx) => `
+            <div class="hoh-force-line" data-idx="${idx}">
+                <input type="hidden" class="hoh-force-line-id" value="${_esc(l.id)}">
+                <input type="hidden" class="hoh-force-line-sku" value="${_esc(l.item_sku)}">
+                <span class="hoh-force-name">${_esc(l.snapshot_name || l.item_sku)}</span>
+                <input type="number" class="hoh-force-qty" min="0" value="${_esc(l.quantity)}" data-old="${_esc(l.quantity)}">
+                <span class="hoh-force-unit">${_esc(parseInt(l.unit_price, 10) / 100)} zł</span>
+            </div>
+        `).join('');
+
+        host.innerHTML = `
+            <div class="hoh-modal-backdrop" id="hoh-force-backdrop">
+                <div class="hoh-modal hoh-modal--wide" role="dialog" aria-modal="true" aria-labelledby="hoh-force-title">
+                    <div class="hoh-modal-header">
+                        <h3 id="hoh-force-title"><i class="fa-solid fa-pen-to-square"></i> Korekta pozycji #${_esc((data.order_number || '').split('/').pop() || data.order_number)}</h3>
+                        <button type="button" class="hoh-modal-close" id="hoh-force-close" aria-label="Zamknij">×</button>
+                    </div>
+                    <div class="hoh-modal-body">
+                        <p class="hoh-modal-warn"><i class="fa-solid fa-triangle-exclamation"></i> Korekta pozycji zamkniętego zamówienia tworzy dokument KOR magazynowy oraz może zmienić P&L dnia utworzenia.</p>
+                        <div class="hoh-force-lines">
+                            ${rows.length ? rows : '<p class="hoh-muted">Brak pozycji do edycji.</p>'}
+                        </div>
+                        <label class="hoh-field hoh-field--full" style="margin-top:14px;">
+                            <span>Powód korekty (wymagany, min. 10 znaków)</span>
+                            <textarea id="hoh-force-reason" rows="3" placeholder="Np. klient zwrócił pizzę — usunięcie pozycji + zwrot"></textarea>
+                        </label>
+                        <p class="hoh-modal-error" id="hoh-force-error"></p>
+                    </div>
+                    <div class="hoh-modal-footer">
+                        <button type="button" class="hoh-btn hoh-btn--ghost" id="hoh-force-cancel">Anuluj</button>
+                        <button type="button" class="hoh-btn hoh-btn--primary" id="hoh-force-save"><i class="fa-solid fa-floppy-disk"></i> Zapisz korektę</button>
+                    </div>
+                </div>
+            </div>`;
+        host.classList.remove('hub-hidden');
+
+        const close = () => { host.classList.add('hub-hidden'); host.innerHTML = ''; };
+        $('hoh-force-close')?.addEventListener('click', close);
+        $('hoh-force-cancel')?.addEventListener('click', close);
+        $('hoh-force-backdrop')?.addEventListener('click', (ev) => { if (ev.target === $('hoh-force-backdrop')) close(); });
+        $('hoh-force-save')?.addEventListener('click', () => void _submitForceEdit(data, lines, close));
+    }
+
+    async function _submitForceEdit(data, originalLines, closeFn) {
+        const errEl = $('hoh-force-error');
+        if (errEl) errEl.textContent = '';
+        const saveBtn = $('hoh-force-save');
+        if (saveBtn) saveBtn.disabled = true;
+
+        const reason = ($('hoh-force-reason')?.value || '').trim();
+        if (reason.length < 10) {
+            if (errEl) errEl.textContent = 'Powód jest wymagany (min. 10 znaków).';
+            if (saveBtn) saveBtn.disabled = false;
+            return;
+        }
+
+        const rows = document.querySelectorAll('.hoh-force-line');
+        const newLines = [];
+        rows.forEach((row, idx) => {
+            const qty = parseInt((row.querySelector('.hoh-force-qty')?.value || '0'), 10) || 0;
+            if (qty <= 0) return;
+            const l = originalLines[idx];
+            if (!l) return;
+            const added = (l.modifiers || []).map((m) => m.sku || m.ascii_key).filter(Boolean);
+            const removed = (l.removed_ingredients || []).map((r) => r.sku || r.ascii_key).filter(Boolean);
+            newLines.push({
+                line_id: l.id,
+                item_sku: l.item_sku,
+                quantity: qty,
+                comment: l.comment || '',
+                added_modifier_skus: added,
+                removed_ingredient_skus: removed,
+            });
+        });
+
+        if (newLines.length === 0) {
+            if (errEl) errEl.textContent = 'Nie można zostawić zamówienia bez pozycji. Ustaw qty > 0 lub użyj reopen/anulowania.';
+            if (saveBtn) saveBtn.disabled = false;
+            return;
+        }
+
+        const payload = {
+            order_id: data.order_id,
+            edit_scope: 'force',
+            reason,
+            lines: newLines,
+        };
+        const r = await _post('/orders/edit.php', payload);
+        if (saveBtn) saveBtn.disabled = false;
+        if (!r.success) {
+            if (errEl) errEl.textContent = r.message || 'Nie udało się wykonać korekty.';
+            return;
+        }
+        closeFn();
+        await openDrawer(data.order_id);
+        await _loadList();
+    }
+
+    // =========================================================================
+    // FAZA 3 — Modal cofnięcia do snapshotu (revert)
+    // =========================================================================
+    function _openRevertModal(data) {
+        _ensureModalHost();
+        const host = $('hoh-modal-host');
+        if (!host) return;
+
+        const stack = new OrderTimelineStack(data.timeline || []);
+        const options = [];
+        for (let i = 0; i < stack.size(); i++) {
+            const s = stack.at(i);
+            if (!s || !s.event_id) continue;
+            // Etykieta: numer + etykieta + czas
+            const label = `[${i + 1}/${stack.size()}] ${_esc(s.label || s.event_type || '')}`;
+            const ts = _esc(s.ts ? s.ts.slice(0, 16).replace('T', ' ') : '');
+            const value = String(s.event_id).replace(/^evt_/, '');
+            options.push(`<option value="${_esc(value)}">${_esc(label)} (${ts})</option>`);
+        }
+
+        host.innerHTML = `
+            <div class="hoh-modal-backdrop" id="hoh-revert-backdrop">
+                <div class="hoh-modal" role="dialog" aria-modal="true" aria-labelledby="hoh-revert-title">
+                    <div class="hoh-modal-header">
+                        <h3 id="hoh-revert-title"><i class="fa-solid fa-rotate-left"></i> Cofnij do snapshotu #${_esc((data.order_number || '').split('/').pop() || data.order_number)}</h3>
+                        <button type="button" class="hoh-modal-close" id="hoh-revert-close" aria-label="Zamknij">×</button>
+                    </div>
+                    <div class="hoh-modal-body">
+                        <p class="hoh-modal-warn"><i class="fa-solid fa-triangle-exclamation"></i> Cofnięcie przywróci linie oraz status zamówienia do stanu z wybranego snapshotu. Bieżący stan zostanie zachowany w logu.</p>
+                        <label class="hoh-field hoh-field--full">
+                            <span>Snapshot docelowy</span>
+                            <select id="hoh-revert-snapshot" class="hoh-field-select">${options.join('')}</select>
+                        </label>
+                        <label class="hoh-field hoh-field--full">
+                            <span>Powód cofnięcia (wymagany, min. 10 znaków)</span>
+                            <textarea id="hoh-revert-reason" rows="3" placeholder="Np. błędna korekta — przywracam stan po akceptacji"></textarea>
+                        </label>
+                        <p class="hoh-modal-error" id="hoh-revert-error"></p>
+                    </div>
+                    <div class="hoh-modal-footer">
+                        <button type="button" class="hoh-btn hoh-btn--ghost" id="hoh-revert-cancel">Anuluj</button>
+                        <button type="button" class="hoh-btn hoh-btn--primary" id="hoh-revert-save"><i class="fa-solid fa-rotate-left"></i> Cofnij</button>
+                    </div>
+                </div>
+            </div>`;
+        host.classList.remove('hub-hidden');
+
+        const close = () => { host.classList.add('hub-hidden'); host.innerHTML = ''; };
+        $('hoh-revert-close')?.addEventListener('click', close);
+        $('hoh-revert-cancel')?.addEventListener('click', close);
+        $('hoh-revert-backdrop')?.addEventListener('click', (ev) => { if (ev.target === $('hoh-revert-backdrop')) close(); });
+        $('hoh-revert-save')?.addEventListener('click', () => void _submitRevert(data, close));
+    }
+
+    async function _submitRevert(data, closeFn) {
+        const errEl = $('hoh-revert-error');
+        if (errEl) errEl.textContent = '';
+        const saveBtn = $('hoh-revert-save');
+        if (saveBtn) saveBtn.disabled = true;
+
+        const snapshotEventId = parseInt(($('hoh-revert-snapshot')?.value || ''), 10) || 0;
+        const reason = ($('hoh-revert-reason')?.value || '').trim();
+        if (snapshotEventId <= 0) {
+            if (errEl) errEl.textContent = 'Wybierz snapshot docelowy.';
+            if (saveBtn) saveBtn.disabled = false;
+            return;
+        }
+        if (reason.length < 10) {
+            if (errEl) errEl.textContent = 'Powód jest wymagany (min. 10 znaków).';
+            if (saveBtn) saveBtn.disabled = false;
+            return;
+        }
+
+        const payload = {
+            action: 'revert',
+            order_id: data.order_id,
+            snapshot_event_id: snapshotEventId,
+            reason,
+        };
+        const r = await _post('/orders/revert.php', payload);
+        if (saveBtn) saveBtn.disabled = false;
+        if (!r.success) {
+            if (errEl) errEl.textContent = r.message || 'Nie udało się cofnąć do snapshotu.';
+            return;
+        }
+        closeFn();
+        await openDrawer(data.order_id);
+        await _loadList();
+    }
+
+    // =========================================================================
+    // FAZA 3 — Modal ponownego otwarcia zamówienia (reopen)
+    // =========================================================================
+    function _openReopenModal(data) {
+        _ensureModalHost();
+        const host = $('hoh-modal-host');
+        if (!host) return;
+
+        host.innerHTML = `
+            <div class="hoh-modal-backdrop" id="hoh-reopen-backdrop">
+                <div class="hoh-modal" role="dialog" aria-modal="true" aria-labelledby="hoh-reopen-title">
+                    <div class="hoh-modal-header">
+                        <h3 id="hoh-reopen-title"><i class="fa-solid fa-lock-open"></i> Otwórz ponownie #${_esc((data.order_number || '').split('/').pop() || data.order_number)}</h3>
+                        <button type="button" class="hoh-modal-close" id="hoh-reopen-close" aria-label="Zamknij">×</button>
+                    </div>
+                    <div class="hoh-modal-body">
+                        <p class="hoh-modal-warn"><i class="fa-solid fa-triangle-exclamation"></i> Zamówienie wróci do statusu <strong>pending</strong> (w trakcie). Jeśli było skonsumowane magazynowo, zostanie utworzony KOR.</p>
+                        <label class="hoh-field hoh-field--full">
+                            <span>Powód reopen (wymagany, min. 10 znaków)</span>
+                            <textarea id="hoh-reopen-reason" rows="3" placeholder="Np. klient prosi o dodanie sosu — zamówienie wraca do kuchni"></textarea>
+                        </label>
+                        <p class="hoh-modal-error" id="hoh-reopen-error"></p>
+                    </div>
+                    <div class="hoh-modal-footer">
+                        <button type="button" class="hoh-btn hoh-btn--ghost" id="hoh-reopen-cancel">Anuluj</button>
+                        <button type="button" class="hoh-btn hoh-btn--primary" id="hoh-reopen-save"><i class="fa-solid fa-lock-open"></i> Otwórz ponownie</button>
+                    </div>
+                </div>
+            </div>`;
+        host.classList.remove('hub-hidden');
+
+        const close = () => { host.classList.add('hub-hidden'); host.innerHTML = ''; };
+        $('hoh-reopen-close')?.addEventListener('click', close);
+        $('hoh-reopen-cancel')?.addEventListener('click', close);
+        $('hoh-reopen-backdrop')?.addEventListener('click', (ev) => { if (ev.target === $('hoh-reopen-backdrop')) close(); });
+        $('hoh-reopen-save')?.addEventListener('click', () => void _submitReopen(data, close));
+    }
+
+    async function _submitReopen(data, closeFn) {
+        const errEl = $('hoh-reopen-error');
+        if (errEl) errEl.textContent = '';
+        const saveBtn = $('hoh-reopen-save');
+        if (saveBtn) saveBtn.disabled = true;
+
+        const reason = ($('hoh-reopen-reason')?.value || '').trim();
+        if (reason.length < 10) {
+            if (errEl) errEl.textContent = 'Powód jest wymagany (min. 10 znaków).';
+            if (saveBtn) saveBtn.disabled = false;
+            return;
+        }
+
+        const payload = {
+            action: 'reopen',
+            order_id: data.order_id,
+            reason,
+        };
+        const r = await _post('/orders/reopen.php', payload);
+        if (saveBtn) saveBtn.disabled = false;
+        if (!r.success) {
+            if (errEl) errEl.textContent = r.message || 'Nie udało się otworzyć ponownie.';
             return;
         }
         closeFn();

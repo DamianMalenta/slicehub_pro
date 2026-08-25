@@ -28,6 +28,7 @@ final class BiEngine
      *   labor_minor: int,
      *   opex_minor: int,
      *   gross_revenue_minor: int,
+     *   gross_revenue_corrected_minor: int,
      *   output_vat_minor: int,
      *   gross_profit_minor: int,
      *   operating_profit_minor: int,
@@ -60,7 +61,9 @@ final class BiEngine
         $startTs = $from . ' 00:00:00';
         $endTs = $to . ' 23:59:59';
 
-        $grossRevenue = self::aggregateGrossRevenueMinor($pdo, $tenantId, $startTs, $endTs);
+        $grossRevenueArr = self::aggregateGrossRevenueMinor($pdo, $tenantId, $startTs, $endTs);
+        $grossRevenue = $grossRevenueArr['gross_revenue_minor'];
+        $grossRevenueCorrected = $grossRevenueArr['corrected_minor'];
         $outputVat = self::aggregateOutputVatMinor($pdo, $tenantId, $startTs, $endTs);
         $netSales = $grossRevenue - $outputVat;
         $cogs = self::aggregateCogsMinor($pdo, $tenantId, $startTs, $endTs);
@@ -83,9 +86,10 @@ final class BiEngine
                 'start_ts'  => $startTs,
                 'end_ts'    => $endTs,
             ],
-            'gross_revenue_minor'    => $grossRevenue,
-            'output_vat_minor'       => $outputVat,
-            'net_sales_minor'        => $netSales,
+            'gross_revenue_minor'            => $grossRevenue,
+            'gross_revenue_corrected_minor'  => $grossRevenueCorrected,
+            'output_vat_minor'               => $outputVat,
+            'net_sales_minor'                => $netSales,
             'cogs_minor'             => $cogs,
             'labor_minor'            => $labor,
             'opex_minor'             => $opex,
@@ -119,10 +123,15 @@ SQL;
         return (int) $st->fetchColumn();
     }
 
-    private static function aggregateGrossRevenueMinor(PDO $pdo, int $tenantId, string $startTs, string $endTs): int
+    /**
+     * @return array{gross_revenue_minor: int, corrected_minor: int}
+     */
+    private static function aggregateGrossRevenueMinor(PDO $pdo, int $tenantId, string $startTs, string $endTs): array
     {
         $sqlGross = <<<'SQL'
-SELECT COALESCE(SUM(o.grand_total), 0) AS v
+SELECT
+  COALESCE(SUM(o.grand_total), 0) AS total,
+  COALESCE(SUM(CASE WHEN o.is_corrected = 1 THEN o.grand_total ELSE 0 END), 0) AS corrected
 FROM sh_orders o
 WHERE o.tenant_id = :tid
   AND o.status = 'completed'
@@ -136,7 +145,11 @@ SQL;
             ':end_ts'   => $endTs,
         ]);
 
-        return (int) $st->fetchColumn();
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+        return [
+            'gross_revenue_minor' => (int) ($row['total'] ?? 0),
+            'corrected_minor'     => (int) ($row['corrected'] ?? 0),
+        ];
     }
 
     private static function aggregateOutputVatMinor(PDO $pdo, int $tenantId, string $startTs, string $endTs): int
@@ -174,7 +187,7 @@ INNER JOIN wh_documents wd
 INNER JOIN sh_orders o
   ON o.id = wd.order_id AND o.tenant_id = :tid_ord
 WHERE wd.tenant_id = :tid_wd2
-  AND wd.type = 'WZ'
+  AND wd.type IN ('WZ', 'KOR')
   AND wd.order_id IS NOT NULL
   AND o.status = 'completed'
   AND o.created_at >= :start_ts

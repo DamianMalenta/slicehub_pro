@@ -48,6 +48,8 @@ try {
     require_once __DIR__ . '/../../core/Uuid.php';
     require_once __DIR__ . '/../../core/OrderEventPublisher.php';
     require_once __DIR__ . '/../../core/OrderStateMachine.php';
+    require_once __DIR__ . '/../../core/WzEngine.php';
+    require_once __DIR__ . '/../../core/WarehouseReverseHook.php';
     require_once __DIR__ . '/../cart/CartEngine.php';
     require_once __DIR__ . '/DeltaEngine.php';
 
@@ -74,11 +76,11 @@ try {
         exit;
     }
 
-    // edit_scope: 'lines' (default, Faza E) | 'metadata' (Faza 2) | 'payment_method' (Faza 2)
+    // edit_scope: 'lines' (default, Faza E) | 'metadata' (Faza 2) | 'payment_method' (Faza 2) | 'force' (Faza 3)
     $editScope = strtolower(trim((string)($input['edit_scope'] ?? 'lines')));
-    if (!in_array($editScope, ['lines', 'metadata', 'payment_method'], true)) {
+    if (!in_array($editScope, ['lines', 'metadata', 'payment_method', 'force'], true)) {
         http_response_code(400);
-        echo json_encode(['success' => false, 'message' => 'Invalid edit_scope. Use: lines | metadata | payment_method.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        echo json_encode(['success' => false, 'message' => 'Invalid edit_scope. Use: lines | metadata | payment_method | force.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
 
@@ -107,30 +109,34 @@ try {
     // 2b. PHASE 2 BRANCH — metadata / payment_method edit on closed orders
     //     (RFC-001 §4.3 Poziom 2). Lines edit (default) continues below.
     // =========================================================================
-    if ($editScope === 'metadata' || $editScope === 'payment_method') {
-        // ── RBAC: owner / admin / manager ────────────────────────────────
+    if ($editScope === 'metadata' || $editScope === 'payment_method' || $editScope === 'force') {
+        // ── RBAC: owner / admin / manager (metadata/payment) | owner/admin (force) ──
         $roleStmt = $pdo->prepare(
             'SELECT LOWER(role) FROM sh_users WHERE id = :uid AND tenant_id = :tid AND is_deleted = 0 LIMIT 1'
         );
         $roleStmt->execute([':uid' => $user_id, ':tid' => $tenant_id]);
         $role = strtolower((string)$roleStmt->fetchColumn());
-        if (!in_array($role, ['owner', 'admin', 'manager'], true)) {
+
+        $requiredRole = $editScope === 'force' ? ['owner', 'admin'] : ['owner', 'admin', 'manager'];
+        if (!in_array($role, $requiredRole, true)) {
             http_response_code(403);
-            echo json_encode(['success' => false, 'message' => 'Forbidden: wymagana rola owner/admin/manager.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            echo json_encode(['success' => false, 'message' => 'Forbidden: wymagana rola ' . implode('/', $requiredRole) . '.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             exit;
         }
 
-        // Status must be completed or cancelled for metadata/payment edit
+        // Status must be completed or cancelled for metadata/payment/force edit
         if (!in_array($order['status'], ['completed', 'cancelled'], true)) {
             http_response_code(409);
-            echo json_encode(['success' => false, 'message' => "Edycja metadanych dozwolona tylko dla zamówień zamkniętych (completed/cancelled). Aktualny status: '{$order['status']}'."], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            echo json_encode(['success' => false, 'message' => "Edycja dozwolona tylko dla zamówień zamkniętych (completed/cancelled). Aktualny status: '{$order['status']}'."], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             exit;
         }
 
         if ($editScope === 'metadata') {
             _handleMetadataEdit($pdo, $tenant_id, $user_id, $orderId, $order, $input);
-        } else {
+        } elseif ($editScope === 'payment_method') {
             _handlePaymentMethodChange($pdo, $tenant_id, $user_id, $orderId, $order, $input);
+        } else {
+            _handleForceEdit($pdo, $tenant_id, $user_id, $orderId, $order, $input);
         }
         // _handle* functions exit() — unreachable
     }
@@ -712,6 +718,390 @@ function _handlePaymentMethodChange(PDO $pdo, int $tenantId, int $userId, string
             'old_payment'    => $oldMethod,
             'new_payment'    => $newMethod,
             'audit_logged'   => true,
+        ],
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+/**
+ * Faza 3 — wymuszona korekta pozycji zamkniętego zamówienia (completed/cancelled).
+ *
+ * Działa analogicznie do standardowej edycji linii, ale:
+ *   - pozwala na orders w statusach terminalnych,
+ *   - wymaga powodu (min 10 znaków) i roli owner/admin,
+ *   - zapisuje snapshot przed zmianą w sh_order_logs,
+ *   - oznacza is_corrected=1,
+ *   - tworzy KOR dla usuniętych/zmienionych linii (WarehouseReverseHook),
+ *   - re-konsumuje dla dodanych linii (WzEngine),
+ *   - publikuje order.force_edited do outboxu.
+ *
+ * @param array $order Wiersz z sh_orders
+ */
+function _handleForceEdit(PDO $pdo, int $tenantId, int $userId, string $orderId, array $order, array $input): void
+{
+    $reason = trim((string)($input['reason'] ?? ''));
+    if (strlen($reason) < 10) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Powód jest wymagany (min. 10 znaków).'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    // ── Pre-force-edit snapshot (sh_order_logs) ─────────────────────────
+    $stmtSnap = $pdo->prepare(
+        "SELECT id, tenant_id, order_number, channel, order_type, source,
+                status, payment_status, payment_method,
+                subtotal, discount_amount, delivery_fee, grand_total,
+                customer_name, customer_phone, customer_email, delivery_address, notes,
+                fiscal_receipt_number, receipt_printed,
+                created_at, updated_at
+         FROM sh_orders
+         WHERE id = :id AND tenant_id = :tid
+         LIMIT 1"
+    );
+    $stmtSnap->execute([':id' => $orderId, ':tid' => $tenantId]);
+    $headerSnap = $stmtSnap->fetch(PDO::FETCH_ASSOC);
+
+    $stmtLinesSnap = $pdo->prepare(
+        "SELECT id, item_sku, snapshot_name, unit_price, quantity, line_total,
+                vat_rate, vat_amount, modifiers_json, removed_ingredients_json, comment
+         FROM sh_order_lines
+         WHERE order_id = :oid"
+    );
+    $stmtLinesSnap->execute([':oid' => $orderId]);
+    $linesSnap = $stmtLinesSnap->fetchAll(PDO::FETCH_ASSOC);
+
+    // ── Load existing DB lines for delta ────────────────────────────────
+    $stmtOldLines = $pdo->prepare(
+        "SELECT id, item_sku, snapshot_name, unit_price, quantity, line_total,
+                vat_rate, vat_amount, modifiers_json, removed_ingredients_json, comment
+         FROM sh_order_lines
+         WHERE order_id = :oid
+           AND order_id IN (SELECT id FROM sh_orders WHERE tenant_id = :tid)"
+    );
+    $stmtOldLines->execute([':oid' => $orderId, ':tid' => $tenantId]);
+    $oldLines = $stmtOldLines->fetchAll(PDO::FETCH_ASSOC);
+
+    // ── Recalculate new cart ────────────────────────────────────────────
+    $editInput = $input;
+    $editInput['channel']     = $editInput['channel']     ?? $order['channel']     ?? 'POS';
+    $editInput['order_type']  = $editInput['order_type']  ?? $order['order_type']  ?? 'dine_in';
+    $editInput['is_internal'] = true; // Backoffice / owner correction
+
+    $newOrderType     = (string)$editInput['order_type'];
+    $orderTypeChanged = $newOrderType !== $order['order_type'];
+
+    $deliveryAddress = array_key_exists('delivery_address', $input)
+        ? trim((string)$input['delivery_address'])
+        : null;
+
+    if ($newOrderType === 'delivery') {
+        $effectiveAddress = $deliveryAddress !== null
+            ? $deliveryAddress
+            : trim((string)($order['delivery_address'] ?? ''));
+        if ($effectiveAddress === '') {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Zamówienie z dostawą wymaga adresu (delivery_address).'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+    }
+
+    // Walidacja linii — force wymaga tablicy lines
+    if (empty($editInput['lines']) || !is_array($editInput['lines'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'lines array is required for force edit.'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    try {
+        $calc = CartEngine::calculate($pdo, $tenantId, $editInput);
+    } catch (CartEngineException $e) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => $e->getMessage()], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    // ── Compute delta ───────────────────────────────────────────────────
+    $delta = DeltaEngine::computeDelta($oldLines, $calc['lines_raw']);
+
+    if ($orderTypeChanged) {
+        $delta['order_type'] = ['old' => $order['order_type'], 'new' => $newOrderType];
+    }
+
+    if (empty($delta)) {
+        echo json_encode([
+            'success' => true,
+            'message' => 'No changes detected.',
+            'data'    => ['order_id' => $orderId, 'edit_scope' => 'force', 'delta' => null],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    $deltaJson = json_encode($delta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $now       = date('Y-m-d H:i:s');
+
+    $newLinesById = [];
+    foreach ($calc['lines_raw'] as $nl) {
+        $lid = $nl['line_id'] ?? null;
+        if ($lid !== null) {
+            $newLinesById[$lid] = $nl;
+        }
+    }
+
+    // ── Transaction ─────────────────────────────────────────────────────
+    $pdo->beginTransaction();
+    try {
+        // 1. Pre-force-edit snapshot w sh_order_logs
+        OrderStateMachine::writeLog($pdo, $orderId, $tenantId, $userId, 'pre_force_edit_snapshot', [
+            'reason' => $reason,
+            'header' => $headerSnap,
+            'lines'  => $linesSnap,
+        ]);
+
+        // 2. Update order header
+        $isCorrected = 1; // korekta pozycji zamkniętego zamówienia
+        $setCorrected = $isCorrected ? 'is_corrected = 1,' : '';
+
+        $stmtUpdateOrder = $pdo->prepare(
+            "UPDATE sh_orders
+             SET {$setCorrected}
+                 subtotal          = :subtotal,
+                 discount_amount   = :discount,
+                 delivery_fee      = :delivery,
+                 grand_total       = :grand,
+                 loyalty_points_earned = :points,
+                 order_type        = :otype,
+                 delivery_address  = COALESCE(:addr, delivery_address),
+                 edited_since_print = 1,
+                 kitchen_delta     = :delta,
+                 updated_at        = :now
+             WHERE id = :id AND tenant_id = :tid"
+        );
+        $stmtUpdateOrder->execute([
+            ':otype'    => $newOrderType,
+            ':addr'     => $deliveryAddress,
+            ':subtotal' => $calc['subtotal_grosze'],
+            ':discount' => $calc['discount_grosze'],
+            ':delivery' => $calc['delivery_fee_grosze'],
+            ':grand'    => $calc['grand_total_grosze'],
+            ':points'   => $calc['loyalty_points'],
+            ':delta'    => $deltaJson,
+            ':now'      => $now,
+            ':id'       => $orderId,
+            ':tid'      => $tenantId,
+        ]);
+
+        // 3. DELETE removed lines
+        if (!empty($delta['removed'])) {
+            $stmtDel = $pdo->prepare(
+                "DELETE FROM sh_order_lines
+                 WHERE id = :id AND order_id = :oid
+                   AND order_id IN (SELECT id FROM sh_orders WHERE tenant_id = :tid)"
+            );
+            foreach ($delta['removed'] as $rem) {
+                $stmtDel->execute([':id' => $rem['line_id'], ':oid' => $orderId]);
+            }
+
+            $stmtOrphan = $pdo->prepare(
+                "DELETE FROM sh_kds_tickets
+                 WHERE order_id = :oid AND tenant_id = :tid
+                   AND id NOT IN (
+                       SELECT DISTINCT kds_ticket_id FROM sh_order_lines
+                       WHERE order_id = :oid2 AND kds_ticket_id IS NOT NULL
+                   )"
+            );
+            $stmtOrphan->execute([':oid' => $orderId, ':tid' => $tenantId, ':oid2' => $orderId]);
+        }
+
+        // 4. UPDATE modified lines
+        if (!empty($delta['modified'])) {
+            $stmtUpd = $pdo->prepare(
+                "UPDATE sh_order_lines
+                 SET unit_price              = :unit,
+                     quantity                = :qty,
+                     line_total              = :total,
+                     vat_rate                = :vat_rate,
+                     vat_amount              = :vat_amt,
+                     modifiers_json          = :mods,
+                     removed_ingredients_json = :removed,
+                     comment                 = :comment
+                 WHERE id = :id AND order_id = :oid
+                   AND order_id IN (SELECT id FROM sh_orders WHERE tenant_id = :tid)"
+            );
+
+            foreach ($delta['modified'] as $mod) {
+                $lid = $mod['line_id'];
+                $nl  = $newLinesById[$lid];
+
+                $stmtUpd->execute([
+                    ':unit'     => $nl['unit_price_grosze'],
+                    ':qty'      => $nl['quantity'],
+                    ':total'    => $nl['line_total_grosze'],
+                    ':vat_rate' => $nl['vat_rate'],
+                    ':vat_amt'  => $nl['vat_amount_grosze'],
+                    ':mods'     => $nl['modifiers_json'],
+                    ':removed'  => $nl['removed_ingredients_json'],
+                    ':comment'  => $nl['comment'],
+                    ':id'       => $lid,
+                    ':oid'      => $orderId,
+                ]);
+            }
+        }
+
+        // 5. INSERT added lines
+        if (!empty($delta['added'])) {
+            $stmtStation = $pdo->prepare(
+                "SELECT COALESCE(NULLIF(kds_station_id, ''), 'KITCHEN_MAIN')
+                 FROM sh_menu_items WHERE ascii_key = :sku AND tenant_id = :tid"
+            );
+            $stmtFindTicket = $pdo->prepare(
+                "SELECT id FROM sh_kds_tickets
+                 WHERE order_id = :oid AND tenant_id = :tid AND station_id = :station AND status != 'done' LIMIT 1"
+            );
+            $stmtNewTicket = $pdo->prepare(
+                "INSERT INTO sh_kds_tickets (id, tenant_id, order_id, station_id, status)
+                 VALUES (:id, :tid, :oid, :station, 'pending')"
+            );
+
+            $stmtIns = $pdo->prepare(
+                "INSERT INTO sh_order_lines
+                    (id, order_id, item_sku, snapshot_name, unit_price,
+                     quantity, line_total, vat_rate, vat_amount,
+                     modifiers_json, removed_ingredients_json, comment, kds_ticket_id)
+                 VALUES
+                    (:id, :oid, :sku, :name, :unit, :qty, :total, :vat_rate, :vat_amt,
+                     :mods, :removed, :comment, :ticket_id)"
+            );
+
+            foreach ($calc['lines_raw'] as $nl) {
+                $lid = $nl['line_id'] ?? null;
+                if ($lid !== null && isset($newLinesById[$lid])) {
+                    continue;
+                }
+
+                $assignedTicketId = null;
+                $stmtStation->execute([':sku' => $nl['item_sku'], ':tid' => $tenantId]);
+                $stationId = $stmtStation->fetchColumn() ?: 'KITCHEN_MAIN';
+
+                $stmtFindTicket->execute([':oid' => $orderId, ':tid' => $tenantId, ':station' => $stationId]);
+                $activeTicketId = $stmtFindTicket->fetchColumn();
+
+                if ($activeTicketId) {
+                    $assignedTicketId = $activeTicketId;
+                } else {
+                    $assignedTicketId = Uuid::v4();
+                    $stmtNewTicket->execute([
+                        ':id'      => $assignedTicketId,
+                        ':tid'     => $tenantId,
+                        ':oid'     => $orderId,
+                        ':station' => $stationId,
+                    ]);
+                }
+
+                $stmtIns->execute([
+                    ':id'        => Uuid::v4(),
+                    ':oid'       => $orderId,
+                    ':sku'       => $nl['item_sku'],
+                    ':name'      => $nl['snapshot_name'],
+                    ':unit'      => $nl['unit_price_grosze'],
+                    ':qty'       => $nl['quantity'],
+                    ':total'     => $nl['line_total_grosze'],
+                    ':vat_rate'  => $nl['vat_rate'],
+                    ':vat_amt'   => $nl['vat_amount_grosze'],
+                    ':mods'      => $nl['modifiers_json'],
+                    ':removed'   => $nl['removed_ingredients_json'],
+                    ':comment'   => $nl['comment'],
+                    ':ticket_id' => $assignedTicketId,
+                ]);
+            }
+        }
+
+        // 6. Audit marker
+        $stmtAudit = $pdo->prepare(
+            "INSERT INTO sh_order_audit (order_id, user_id, old_status, new_status, timestamp)
+             VALUES (:oid, :uid, :old, :new, :now)"
+        );
+        $stmtAudit->execute([
+            ':oid' => $orderId,
+            ':uid' => $userId,
+            ':old' => $order['status'],
+            ':new' => $order['status'],
+            ':now' => $now,
+        ]);
+
+        // 7. Warehouse reverse (KOR) for removed/modified
+        $korDoc = null;
+        $korResult = WarehouseReverseHook::onOrderCorrected($pdo, $tenantId, $orderId, $userId, $delta);
+        if ($korResult['success'] && !empty($korResult['doc_number'])) {
+            $korDoc = $korResult['doc_number'];
+        } elseif (empty($korResult['skipped'])) {
+            error_log('[edit.php force] WarehouseReverseHook::onOrderCorrected failed: ' . ($korResult['error'] ?? 'unknown'));
+            // Wahadło: nie blokujemy edycji zamówienia, ale logujemy.
+        }
+
+        // 8. Re-consume warehouse for the (now) current lines if any WZ exists
+        $wzResult = [];
+        $stmtWz = $pdo->prepare(
+            "SELECT id, warehouse_id FROM wh_documents
+             WHERE tenant_id = :tid AND order_id = :oid AND type = 'WZ' AND status = 'approved'
+             LIMIT 1"
+        );
+        $stmtWz->execute([':tid' => $tenantId, ':oid' => $orderId]);
+        $wzRow = $stmtWz->fetch(PDO::FETCH_ASSOC);
+        if ($wzRow) {
+            $warehouseId = (string)$wzRow['warehouse_id'];
+            $wzResult = WzEngine::consumeForOrder($pdo, $tenantId, $warehouseId, $orderId, $userId);
+            if (!($wzResult['success'] ?? false)) {
+                error_log('[edit.php force] WzEngine::consumeForOrder failed: ' . ($wzResult['error'] ?? 'unknown'));
+            }
+        }
+
+        // 9. Log force_edit
+        OrderStateMachine::writeLog($pdo, $orderId, $tenantId, $userId, 'force_edit', [
+            'reason'          => $reason,
+            'is_fiscalized'   => !empty($order['fiscal_receipt_number']) || ((int)$order['receipt_printed'] === 1),
+            'fiscal_receipt_number' => $order['fiscal_receipt_number'],
+            'delta'           => $delta,
+            'wh_kor_document' => $korDoc,
+        ]);
+
+        // 10. Publish order.force_edited
+        OrderEventPublisher::publishOrderLifecycle(
+            $pdo,
+            $tenantId,
+            'order.force_edited',
+            $orderId,
+            [
+                'source'          => 'order_edit',
+                'user_id'         => $userId,
+                'reason'          => $reason,
+                'kitchen_delta'   => $delta,
+                'is_fiscalized'   => !empty($order['fiscal_receipt_number']) || ((int)$order['receipt_printed'] === 1),
+                'wh_kor_document' => $korDoc,
+            ],
+            ['source' => 'edit', 'actorType' => 'staff', 'actorId' => (string)$userId]
+        );
+
+        // 11. COMMIT
+        $pdo->commit();
+
+    } catch (Throwable $txErr) {
+        $pdo->rollBack();
+        throw $txErr;
+    }
+
+    $fmtMoney = fn(int $g): string => number_format($g / 100, 2, '.', '');
+
+    echo json_encode([
+        'success' => true,
+        'data'    => [
+            'order_id'        => $orderId,
+            'edit_scope'      => 'force',
+            'grand_total'     => $fmtMoney($calc['grand_total_grosze']),
+            'delta'           => $delta,
+            'is_corrected'    => true,
+            'wh_kor_document' => $korDoc,
+            'wh_wz_document'  => $wzResult['doc_number'] ?? null,
+            'audit_logged'    => true,
         ],
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;

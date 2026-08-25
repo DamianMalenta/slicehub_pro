@@ -58,12 +58,17 @@ const AUDIT_LABELS = [
     // RFC-001 Faza 2 — edycja metadanych zamkniętych zamówień
     'order.metadata_edited' => 'Edycja metadanych (klient/telefon/adres)',
     'order.payment_changed' => 'Zmiana formy płatności (cash ↔ card)',
+    // RFC-001 Faza 3 — korekta pozycji, revert, reopen
+    'order.force_edited'  => 'Wymuszona korekta pozycji (zamknięte)',
+    'order.reverted'      => 'Cofnięcie do stanu ze snapshotu',
+    'order.reopened'      => 'Ponowne otwarcie zamówienia',
     // Logs actions
     'state_change'        => 'Zmiana statusu',
     'payment'             => 'Operacja płatności',
     'payment.change'      => 'Zmiana formy płatności',
     'metadata.edit'       => 'Edycja metadanych (klient/telefon/adres)',
     'force_edit'          => 'Wymuszona korekta pozycji (zamknięte)',
+    'pre_force_edit_snapshot' => 'Snapshot przed korektą pozycji',
     'reopen'              => 'Ponowne otwarcie zamówienia',
     'revert'              => 'Cofnięcie do stanu ze snapshotu',
     'fiscal.print'        => 'Wydruk paragonu fiskalnego',
@@ -458,7 +463,7 @@ try {
         && in_array($payStatus, ['cash', 'card'], true)
         && !$isFiscalized;
 
-    // Faza 3 (placeholder — endpointy jeszcze nie istnieją)
+    // Faza 3 — endpointy force_edit/revert/reopen wdrożone
     $canRevert     = $isAdminRole && $hasSnapshots;
     $canReopen     = $isAdminRole && $orderStatus === 'completed';
     $canForceEdit  = $isAdminRole && $isTerminal;

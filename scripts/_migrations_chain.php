@@ -80,4 +80,5 @@ return [
     '066_driver_shifts_work_session_uuid.sql',
     '067_normalize_payment_status_defaults.sql',
     '068_order_metadata_notes.sql',
+    '069_order_is_corrected.sql',
 ];

@@ -681,6 +681,109 @@ class OrderStateMachine
     }
 
     /**
+     * Reopen a completed order back to pending.
+     * RFC-001 Faza 3: owner/admin może cofnąć completed → pending (tylko z force=true).
+     *
+     * The caller MUST have already called $pdo->beginTransaction().
+     *
+     * @param \PDO   $pdo
+     * @param string $orderId
+     * @param int    $tenantId
+     * @param int    $userId
+     * @param array  $extraCols Optional extra columns to SET (col => value)
+     *
+     * @return array ['success' => bool, 'old_status' => string, 'new_status' => string, 'message' => ?string]
+     */
+    public static function reopenOrder(
+        \PDO $pdo,
+        string $orderId,
+        int $tenantId,
+        int $userId,
+        array $extraCols = []
+    ): array {
+        $stmt = $pdo->prepare(
+            "SELECT status, order_type FROM sh_orders WHERE id = :oid AND tenant_id = :tid FOR UPDATE"
+        );
+        $stmt->execute([':oid' => $orderId, ':tid' => $tenantId]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $stmt->closeCursor();
+
+        if (!$row) {
+            return [
+                'success'    => false,
+                'old_status' => '',
+                'new_status' => 'pending',
+                'message'    => 'Order not found.',
+            ];
+        }
+
+        $oldStatus = (string)$row['status'];
+        $orderType = (string)($row['order_type'] ?? '');
+
+        if ($oldStatus !== 'completed') {
+            return [
+                'success'    => false,
+                'old_status' => $oldStatus,
+                'new_status' => 'pending',
+                'message'    => "Cannot reopen from '{$oldStatus}'. Only 'completed' may be reopened.",
+            ];
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $setClauses = ['status = :ns', 'updated_at = :now'];
+        $params = [
+            ':ns'  => 'pending',
+            ':now' => $now,
+            ':oid' => $orderId,
+            ':tid' => $tenantId,
+        ];
+
+        $i = 0;
+        foreach ($extraCols as $col => $val) {
+            $safeCol = preg_replace('/[^a-zA-Z0-9_]/', '', $col);
+            $paramKey = ":xc{$i}";
+            $setClauses[] = "`{$safeCol}` = {$paramKey}";
+            $params[$paramKey] = $val;
+            $i++;
+        }
+
+        $sql = "UPDATE sh_orders SET " . implode(', ', $setClauses)
+             . " WHERE id = :oid AND tenant_id = :tid";
+        $upd = $pdo->prepare($sql);
+        $upd->execute($params);
+
+        if ($upd->rowCount() === 0) {
+            throw new \RuntimeException("Concurrent modification on order {$orderId}.");
+        }
+
+        $pdo->prepare(
+            "INSERT INTO sh_order_audit (order_id, user_id, old_status, new_status, timestamp)
+             VALUES (:oid, :uid, :os, :ns, :now)"
+        )->execute([
+            ':oid' => $orderId,
+            ':uid' => $userId,
+            ':os'  => $oldStatus,
+            ':ns'  => 'pending',
+            ':now' => $now,
+        ]);
+
+        self::writeLog($pdo, $orderId, $tenantId, $userId, 'reopen', [
+            'old_status'  => $oldStatus,
+            'new_status'  => 'pending',
+            'order_type'  => $orderType,
+            'is_rollback' => true,
+            'extra_cols'  => array_keys($extraCols),
+        ]);
+
+        return [
+            'success'    => true,
+            'old_status' => $oldStatus,
+            'new_status' => 'pending',
+            'message'    => null,
+        ];
+    }
+
+    /**
      * Return the list of valid order statuses.
      */
     public static function validStatuses(): array

@@ -61,6 +61,10 @@ final class OrderEventPublisher
         // RFC-001 Faza 2 — edycja metadanych zamkniętych zamówień
         'order.metadata_edited',
         'order.payment_changed',
+        // RFC-001 Faza 3 — korekta pozycji zamkniętych, revert, reopen
+        'order.force_edited',
+        'order.reverted',
+        'order.reopened',
     ];
 
     /** Flaga per-request — true gdy wiemy że tabela outbox istnieje. */
