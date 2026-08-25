@@ -1,7 +1,7 @@
 # RFC-001: Ujednolicony moduł Historii, Osi Czasu (Audit Timeline) i Bezpiecznej Edycji Zamówień
 
 **Data:** 2026-08-25
-**Status:** DRAFT — oczekuje akceptacji przed wdrożeniem Fazy 1
+**Status:** WDROŻONE — Faza 1, 2 i 3 wdrożone i zweryfikowane (62/62 PASS, commit `9fd5ad4`)
 **Tryb:** Architectural Design & Documentation Audit (read-only)
 **Autor:** Devin (na zlecenie Ownera)
 **Powiązane:** `_docs/sessions/2026-07-30_phase_e_order_edit_kds_delta.md` (Faza E — edycja aktywnych), `_docs/audits/fiscalization_status.md` (fiskalizacja Elzab), `_docs/00_PAMIEC_SYSTEMU.md` §459 (WzEngine), `AGENTS.md` §14 (architektura)
@@ -806,12 +806,16 @@ FROM sh_event_outbox WHERE aggregate_id = :oid AND tenant_id = :tid ORDER BY cre
 
 ---
 
-## 8. AKCEPTACJA
+## 8. AKCEPTACJA I LOG WDRAŻANIA
 
-Po akceptacji tego RFC przystępujemy do wdrożenia **Fazy 1** (read-only, 0% ryzyka regresji):
-1. `api/orders/history.php`
-2. `api/orders/audit.php`
-3. `modules/hub/js/hub_order_history.js` + CSS
-4. Kafel w `modules/hub/index.html`
+RFC zaakceptowano i wdrożono we wszystkich trzech fazach:
 
-Fazy 2 i 3 po weryfikacji Fazy 1.
+| Faza | Commit | Status | Weryfikacja |
+|------|--------|--------|-------------|
+| Faza 1 | `9c3822e` | Wdrożona | Headless 62/62 PASS |
+| Faza 2 | `3b13c0b` | Wdrożona | Headless 62/62 PASS |
+| Faza 3 | `9fd5ad4` | Wdrożona | Headless 62/62 PASS, `deno lint` OK, `php -l` OK |
+
+Faza 3 wprowadziła m.in. migrację **069** (`is_corrected`), `edit_scope='force'`,
+`api/orders/revert.php`, `api/orders/reopen.php`, `core/OrderReopenEngine.php`,
+`WarehouseReverseHook::onOrderCorrected()` oraz aktualizację `BiEngine` o KOR w COGS.
