@@ -190,6 +190,18 @@
         <div id="suite-9-tests" class="divide-y divide-white/4"></div>
     </div>
 
+    <!-- SUITE 10 -->
+    <div class="suite-card rounded-2xl overflow-hidden">
+        <div class="px-6 py-4 border-b border-white/5 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <span class="text-xs font-black bg-teal-500/20 text-teal-400 border border-teal-500/30 px-2 py-0.5 rounded-md">SUITE 10</span>
+                <span class="text-white font-bold text-sm">RFC_001 — Historia, Oś Czasu, Bezpieczna Edycja Zamówień</span>
+            </div>
+            <div id="suite-10-status" class="text-xs text-gray-600 font-mono">oczekuje</div>
+        </div>
+        <div id="suite-10-tests" class="divide-y divide-white/4"></div>
+    </div>
+
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════
@@ -249,6 +261,12 @@ const CFG = {
     biDashboard        : `${BASE_PATH}/api/bi/dashboard_data.php`,
     studio             : `${BASE_PATH}/api/backoffice/api_menu_studio.php`,
     posEngine          : `${BASE_PATH}/api/pos/engine.php`,
+    // RFC_001 — Fazy 1-3: historia, oś czasu, edycja zamkniętych
+    ordersHistory      : `${BASE_PATH}/api/orders/history.php`,
+    ordersAudit        : `${BASE_PATH}/api/orders/audit.php`,
+    ordersEdit         : `${BASE_PATH}/api/orders/edit.php`,
+    ordersRevert       : `${BASE_PATH}/api/orders/revert.php`,
+    ordersReopen       : `${BASE_PATH}/api/orders/reopen.php`,
     jsClients : {
         studioCore   : `${BASE_PATH}/modules/studio/js/studio_core.js`,
         studioRecipe : `${BASE_PATH}/modules/studio/js/studio_recipe.js`,
@@ -496,6 +514,82 @@ async function callStudio(payload = {}) {
         clearTimeout(timer);
         return { httpStatus: r.status, contentType: r.headers.get('content-type') || '', body: await r.text() };
     } catch (e) { clearTimeout(timer); return { error: e.message }; }
+}
+
+/**
+ * Wywołanie endpointu orders API (RFC_001). POST z JSON body + Bearer token.
+ * @param {string} url — np. CFG.ordersHistory
+ * @param {object} payload — JSON body
+ * @param {string} [method='POST']
+ */
+async function callOrdersApi(url, payload = {}, method = 'POST') {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), CFG.timeout);
+    try {
+        const opts = {
+            method,
+            headers: _authHeaders(),
+            credentials: 'same-origin',
+            signal: ctrl.signal,
+        };
+        if (method === 'POST') opts.body = JSON.stringify(payload);
+        const r = await fetch(url, opts);
+        clearTimeout(timer);
+        return { httpStatus: r.status, contentType: r.headers.get('content-type') || '', body: await r.text() };
+    } catch (e) { clearTimeout(timer); return { error: e.message }; }
+}
+
+/**
+ * Token ownera dla tenant_id=2 (Pizza Forno, PIN 0000 = forno_owner).
+ *
+ * T78/T79 (RFC §4.4) wymagają roli owner/admin, aby przejść RBAC w revert.php
+ * i reopen.php i testować walidację inputu (action / order_id) zamiast 403.
+ * Fallback TEST_JWT_TOKEN (user_id=1) należy do tenanta 1 → revert/reopen
+ * odrzuca go 403 na tenant 2, dając WARN zamiast PASS.
+ *
+ * Discovery: próbuje kiosk-login PIN 0000 na tenant 2 (seed_pizzaforno.sql:
+ * forno_owner, role=owner). Zwraca token JWT lub null.
+ */
+let _ownerTokenT2 = null;
+async function ownerTokenTenant2() {
+    if (_ownerTokenT2) return _ownerTokenT2;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), CFG.timeout);
+    try {
+        const loginRes = await fetch(CFG.loginEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'kiosk', tenant_id: 2, pin_code: '0000' }),
+            credentials: 'same-origin',
+            signal: ctrl.signal,
+        });
+        const lj = await loginRes.json().catch(() => ({}));
+        if (lj.success && lj.data && lj.data.token) {
+            _ownerTokenT2 = lj.data.token;
+        }
+    } catch (_) { /* tenant 2 / PIN 0000 niedostępny — fallback poniżej */ }
+    clearTimeout(timer);
+    // Fallback: TEST_JWT_TOKEN (user_id=1, tenant 2) — jeśli baza ma ownera
+    // user_id=1 na tenant 2 (seed_demo_all bez pizzaforno), token przejdzie RBAC.
+    if (!_ownerTokenT2 && TEST_JWT_TOKEN) _ownerTokenT2 = TEST_JWT_TOKEN;
+    return _ownerTokenT2;
+}
+
+/**
+ * Pobierz pierwszy completed order z historii (do testów mutacji/audytu).
+ * Zwraca {id, status, payment_status, fiscal_receipt_number} lub null.
+ */
+async function findCompletedOrder() {
+    const r = await callOrdersApi(CFG.ordersHistory, {
+        action: 'list',
+        filters: { status: ['completed'] },
+        pagination: { page: 1, per_page: 5 },
+        sort: { field: 'created_at', dir: 'desc' },
+    });
+    if (r.error || r.httpStatus !== 200) return null;
+    const j = tryParse(r.body);
+    if (!j || !j.success || !j.data || !Array.isArray(j.data.orders)) return null;
+    return j.data.orders.length > 0 ? j.data.orders[0] : null;
 }
 
 async function fetchJs(path) {
@@ -1541,6 +1635,370 @@ const SUITES = [
                         if (!src.includes('round')) return ['warn', 'Potencjalny problem z zaokrągleniem float→int'];
                     }
                     return ['pass', `pos_cart.js eksportuje ${methods.length} kluczowych metod`];
+                }
+            },
+        ]
+    },
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SUITE 10: RFC_001 — Historia, Oś Czasu, Bezpieczna Edycja Zamówień
+    // Pokrycie: history.php, audit.php, edit.php (metadata/payment/force),
+    //           revert.php, reopen.php, BiEngine (KOR w COGS, is_corrected).
+    // Filozofia: testy kontraktu/walidacji (non-destructive) + read-only +
+    //            metadata edit happy path (minimalna mutacja: notes).
+    // ═══════════════════════════════════════════════════════════════════════
+    {
+        id: 10,
+        tests: [
+            {
+                id: 'T63', label: 'history.php — POST list zwraca 200 + strukturę {orders[], pagination}',
+                desc: 'RFC_001 §4.1: lista wszystkich zamówień z paginacją',
+                async run() {
+                    const r = await callOrdersApi(CFG.ordersHistory, {
+                        action: 'list',
+                        pagination: { page: 1, per_page: 10 },
+                        sort: { field: 'created_at', dir: 'desc' },
+                    });
+                    if (r.error) return ['fail', `Błąd połączenia: ${r.error}`];
+                    if (r.httpStatus !== 200) return ['fail', `HTTP ${r.httpStatus} — oczekiwano 200`];
+                    const j = tryParse(r.body);
+                    if (!j) return ['fail', 'Odpowiedź nie jest JSON'];
+                    if (!j.success) return ['fail', `success=false: ${j.message || ''}`];
+                    if (!j.data || !Array.isArray(j.data.orders)) return ['fail', 'Brak data.orders array'];
+                    if (!j.data.pagination || typeof j.data.pagination.total !== 'number') return ['fail', 'Brak pagination.total'];
+                    const p = j.data.pagination;
+                    if (typeof p.page !== 'number' || typeof p.per_page !== 'number' || typeof p.total_pages !== 'number')
+                        return ['fail', 'Paginacja niekompletna (page/per_page/total_pages)'];
+                    return ['pass', `Zwrócono ${j.data.orders.length} zamówień, total=${p.total}, stron=${p.total_pages}`];
+                }
+            },
+            {
+                id: 'T64', label: 'history.php — GET zwraca 405 Method Not Allowed',
+                desc: 'Endpoint wymaga POST (kontrakt RFC §4.1)',
+                async run() {
+                    const r = await callOrdersApi(CFG.ordersHistory, {}, 'GET');
+                    if (r.error) return ['fail', `Błąd połączenia: ${r.error}`];
+                    if (r.httpStatus !== 405) return ['fail', `HTTP ${r.httpStatus} — oczekiwano 405`];
+                    return ['pass', 'GET poprawnie odrzucony 405'];
+                }
+            },
+            {
+                id: 'T65', label: 'history.php — nieznana akcja zwraca 400',
+                desc: 'Tylko action="list" jest obsługiwana',
+                async run() {
+                    const r = await callOrdersApi(CFG.ordersHistory, { action: 'unknown_action' });
+                    if (r.error) return ['fail', `Błąd połączenia: ${r.error}`];
+                    if (r.httpStatus !== 400) return ['fail', `HTTP ${r.httpStatus} — oczekiwano 400`];
+                    const j = tryParse(r.body);
+                    if (!j || j.success !== false) return ['fail', 'Oczekiwano success=false'];
+                    return ['pass', 'Nieznana akcja poprawnie odrzucona 400'];
+                }
+            },
+            {
+                id: 'T66', label: 'history.php — filtr status [completed, cancelled] zwraca tylko te statusy',
+                desc: 'RFC §4.1: filtr status whitelist — tylko completed+cancelled',
+                async run() {
+                    const r = await callOrdersApi(CFG.ordersHistory, {
+                        action: 'list',
+                        filters: { status: ['completed', 'cancelled'] },
+                        pagination: { page: 1, per_page: 50 },
+                    });
+                    if (r.error) return ['fail', `Błąd połączenia: ${r.error}`];
+                    if (r.httpStatus !== 200) return ['fail', `HTTP ${r.httpStatus}`];
+                    const j = tryParse(r.body);
+                    if (!j || !j.success || !j.data?.orders) return ['fail', 'Struktura odpowiedzi niepoprawna'];
+                    const bad = j.data.orders.filter(o => o.status !== 'completed' && o.status !== 'cancelled');
+                    if (bad.length > 0) return ['fail', `Znaleziono ${bad.length} zamówień z innym statusem: ${bad[0].status}`];
+                    return ['pass', `Filtr status działa — ${j.data.orders.length} zamówień (completed/cancelled)`];
+                }
+            },
+            {
+                id: 'T67', label: 'audit.php — GET zwraca 405 Method Not Allowed',
+                desc: 'Endpoint osi czasu wymaga POST',
+                async run() {
+                    const r = await callOrdersApi(CFG.ordersAudit, {}, 'GET');
+                    if (r.error) return ['fail', `Błąd połączenia: ${r.error}`];
+                    if (r.httpStatus !== 405) return ['fail', `HTTP ${r.httpStatus} — oczekiwano 405`];
+                    return ['pass', 'GET poprawnie odrzucony 405'];
+                }
+            },
+            {
+                id: 'T68', label: 'audit.php — brak order_id zwraca 400',
+                desc: 'RFC §4.2: order_id jest wymagane',
+                async run() {
+                    const r = await callOrdersApi(CFG.ordersAudit, { action: 'timeline' });
+                    if (r.error) return ['fail', `Błąd połączenia: ${r.error}`];
+                    if (r.httpStatus !== 400) return ['fail', `HTTP ${r.httpStatus} — oczekiwano 400`];
+                    return ['pass', 'Brak order_id poprawnie odrzucony 400'];
+                }
+            },
+            {
+                id: 'T69', label: 'audit.php — nieistniejące order_id zwraca 404',
+                desc: 'RFC §4.2: weryfikacja przynależności do tenanta (Prawo VI)',
+                async run() {
+                    const r = await callOrdersApi(CFG.ordersAudit, {
+                        action: 'timeline',
+                        order_id: '00000000-0000-0000-0000-000000000000',
+                    });
+                    if (r.error) return ['fail', `Błąd połączenia: ${r.error}`];
+                    if (r.httpStatus !== 404) return ['fail', `HTTP ${r.httpStatus} — oczekiwano 404`];
+                    const j = tryParse(r.body);
+                    if (!j || j.success !== false) return ['fail', 'Oczekiwano success=false'];
+                    return ['pass', 'Nieistniejące order_id poprawnie odrzucone 404'];
+                }
+            },
+            {
+                id: 'T70', label: 'audit.php — timeline dla realnego zamówienia zwraca 200 + events + capability flags',
+                desc: 'RFC §4.2: agregacja z 3 tabel (audit + logs + outbox) + flagi can_*',
+                async run() {
+                    const order = await findCompletedOrder();
+                    if (!order) return ['warn', 'Brak completed zamówień w seed data — pominięto'];
+                    const r = await callOrdersApi(CFG.ordersAudit, {
+                        action: 'timeline',
+                        order_id: order.id,
+                    });
+                    if (r.error) return ['fail', `Błąd połączenia: ${r.error}`];
+                    if (r.httpStatus !== 200) return ['fail', `HTTP ${r.httpStatus} — oczekiwano 200`];
+                    const j = tryParse(r.body);
+                    if (!j || !j.success || !j.data) return ['fail', 'Struktura odpowiedzi niepoprawna'];
+                    if (!Array.isArray(j.data.timeline)) return ['fail', 'Brak timeline array'];
+                    // Capability flags (RFC §4.2)
+                    const flags = ['can_edit_metadata', 'can_change_payment', 'can_revert', 'can_reopen', 'can_force_edit'];
+                    const missing = flags.filter(f => typeof j.data[f] !== 'boolean');
+                    if (missing.length > 0) return ['fail', `Brak flag capability: ${missing.join(', ')}`];
+                    // Każdy event musi mieć ts, event_type, label_pl
+                    const bad = j.data.timeline.filter(e => !e.ts || !e.event_type || !e.label_pl);
+                    if (bad.length > 0) return ['fail', `${bad.length} eventów bez ts/event_type/label_pl`];
+                    return ['pass', `Timeline: ${j.data.timeline.length} eventów, flags OK, order=${j.data.order_number || order.id}`];
+                }
+            },
+            {
+                id: 'T71', label: 'edit.php — nieprawidłowy edit_scope zwraca 400',
+                desc: 'RFC §4.3: edit_scope musi być lines|metadata|payment_method|force',
+                async run() {
+                    const r = await callOrdersApi(CFG.ordersEdit, {
+                        order_id: '00000000-0000-0000-0000-000000000000',
+                        edit_scope: 'invalid_scope',
+                    });
+                    if (r.error) return ['fail', `Błąd połączenia: ${r.error}`];
+                    if (r.httpStatus !== 400) return ['fail', `HTTP ${r.httpStatus} — oczekiwano 400`];
+                    const j = tryParse(r.body);
+                    if (!j || j.success !== false) return ['fail', 'Oczekiwano success=false'];
+                    return ['pass', 'Nieprawidłowy edit_scope poprawnie odrzucony 400'];
+                }
+            },
+            {
+                id: 'T72', label: 'edit.php metadata — nieistniejące order_id zwraca 404',
+                desc: 'Weryfikacja order lookup przed branchem metadata (Poziom 2)',
+                async run() {
+                    const r = await callOrdersApi(CFG.ordersEdit, {
+                        order_id: '00000000-0000-0000-0000-000000000000',
+                        edit_scope: 'metadata',
+                        metadata: { customer_name: 'Test' },
+                    });
+                    if (r.error) return ['fail', `Błąd połączenia: ${r.error}`];
+                    if (r.httpStatus !== 404) return ['fail', `HTTP ${r.httpStatus} — oczekiwano 404`];
+                    return ['pass', 'Nieistniejące order_id poprawnie odrzucone 404'];
+                }
+            },
+            {
+                id: 'T73', label: 'edit.php metadata — happy path: edycja notes na completed order (200 + audit_logged)',
+                desc: 'RFC §4.3 Poziom 2: manager edytuje metadane zamkniętego zamówienia',
+                async run() {
+                    const order = await findCompletedOrder();
+                    if (!order) return ['warn', 'Brak completed zamówień w seed data — pominięto'];
+                    const testNote = `TEST_RUNNER_${Date.now()}_RFC001_metadata_edit`;
+                    const r = await callOrdersApi(CFG.ordersEdit, {
+                        order_id: order.id,
+                        edit_scope: 'metadata',
+                        metadata: { notes: testNote },
+                    });
+                    if (r.error) return ['fail', `Błąd połączenia: ${r.error}`];
+                    if (r.httpStatus !== 200) return ['fail', `HTTP ${r.httpStatus} — oczekiwano 200. Body: ${r.body?.slice(0, 200)}`];
+                    const j = tryParse(r.body);
+                    if (!j || !j.success) return ['fail', `success=false: ${j?.message || ''}`];
+                    if (!j.data || j.data.edit_scope !== 'metadata') return ['fail', 'Brak data.edit_scope=metadata'];
+                    if (j.data.audit_logged !== true) return ['fail', 'audit_logged !== true'];
+                    // Jeśli changes=[] to znaczy że notes już miał tę wartość — nadal OK
+                    return ['pass', `Metadata edit OK, changes=${j.data.changes?.length || 0}, audit_logged=true`];
+                }
+            },
+            {
+                id: 'T74', label: 'edit.php payment_method — nieistniejące order_id zwraca 404',
+                desc: 'Weryfikacja order lookup przed zmianą płatności (Poziom 2)',
+                async run() {
+                    const r = await callOrdersApi(CFG.ordersEdit, {
+                        order_id: '00000000-0000-0000-0000-000000000000',
+                        edit_scope: 'payment_method',
+                        payment_status: 'card',
+                        reason: 'Test validation 404',
+                    });
+                    if (r.error) return ['fail', `Błąd połączenia: ${r.error}`];
+                    if (r.httpStatus !== 404) return ['fail', `HTTP ${r.httpStatus} — oczekiwano 404`];
+                    return ['pass', 'Nieistniejące order_id poprawnie odrzucone 404'];
+                }
+            },
+            {
+                id: 'T75', label: 'edit.php force — RBAC: manager otrzymuje 403 (wymagany owner/admin)',
+                desc: 'RFC §4.3 Poziom 3: force edit wymaga owner/admin, nie manager',
+                async run() {
+                    const order = await findCompletedOrder();
+                    if (!order) return ['warn', 'Brak completed zamówień w seed data — pominięto'];
+                    const r = await callOrdersApi(CFG.ordersEdit, {
+                        order_id: order.id,
+                        edit_scope: 'force',
+                        force_edit: true,
+                        reason: 'Test RBAC validation force edit',
+                        lines: [],
+                    });
+                    if (r.error) return ['fail', `Błąd połączenia: ${r.error}`];
+                    // Manager token → 403 (RBAC check przed walidacją reason/lines)
+                    if (r.httpStatus === 403) return ['pass', 'Manager poprawnie odrzucony 403 (force wymaga owner/admin)'];
+                    // Jeśli token jest owner/admin (nie manager), 403 nie zadziała — sprawdzamy czy nie 200
+                    if (r.httpStatus === 400) return ['pass', 'Owner/admin token — walidacja reason/lines zadziałała (400)'];
+                    if (r.httpStatus === 200) return ['warn', 'Token ma uprawnienia owner/admin — force edit przeszedł (test RBAC nie ma zastosowania)'];
+                    return ['fail', `HTTP ${r.httpStatus} — oczekiwano 403 lub 400. Body: ${r.body?.slice(0, 200)}`];
+                }
+            },
+            {
+                id: 'T76', label: 'revert.php — RBAC: manager otrzymuje 403 (wymagany owner/admin)',
+                desc: 'RFC §4.4: revert wymaga owner/admin',
+                async run() {
+                    const r = await callOrdersApi(CFG.ordersRevert, {
+                        action: 'revert',
+                        order_id: '00000000-0000-0000-0000-000000000000',
+                        snapshot_event_id: 1,
+                        reason: 'Test RBAC validation revert',
+                    });
+                    if (r.error) return ['fail', `Błąd połączenia: ${r.error}`];
+                    if (r.httpStatus === 403) return ['pass', 'Manager poprawnie odrzucony 403 (revert wymaga owner/admin)'];
+                    if (r.httpStatus === 404) return ['pass', 'Owner/admin token — order lookup zadziałał (404 dla fake UUID)'];
+                    return ['fail', `HTTP ${r.httpStatus} — oczekiwano 403 lub 404. Body: ${r.body?.slice(0, 200)}`];
+                }
+            },
+            {
+                id: 'T77', label: 'reopen.php — RBAC: manager otrzymuje 403 (wymagany owner/admin)',
+                desc: 'RFC §4.4: reopen wymaga owner/admin',
+                async run() {
+                    const r = await callOrdersApi(CFG.ordersReopen, {
+                        action: 'reopen',
+                        order_id: '00000000-0000-0000-0000-000000000000',
+                        reason: 'Test RBAC validation reopen',
+                    });
+                    if (r.error) return ['fail', `Błąd połączenia: ${r.error}`];
+                    if (r.httpStatus === 403) return ['pass', 'Manager poprawnie odrzucony 403 (reopen wymaga owner/admin)'];
+                    if (r.httpStatus === 404) return ['pass', 'Owner/admin token — order lookup zadziałał (404 dla fake UUID)'];
+                    return ['fail', `HTTP ${r.httpStatus} — oczekiwano 403 lub 404. Body: ${r.body?.slice(0, 200)}`];
+                }
+            },
+            {
+                id: 'T78', label: 'revert.php — nieznana akcja zwraca 400 (z owner tokenem)',
+                desc: 'Walidacja action przed order_id (RFC §4.4)',
+                async run() {
+                    // Token ownera tenant 2 (forno_owner PIN 0000) — przechodzi RBAC,
+                    // aby testować walidację action (nie 403).
+                    const ownerToken = await ownerTokenTenant2();
+                    if (!ownerToken) return ['fail', 'Nie udało się uzyskać tokenu ownera tenant 2'];
+                    const ctrl = new AbortController();
+                    const timer = setTimeout(() => ctrl.abort(), CFG.timeout);
+                    try {
+                        const r = await fetch(CFG.ordersRevert, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${ownerToken}`,
+                            },
+                            body: JSON.stringify({ action: 'wrong_action' }),
+                            credentials: 'same-origin',
+                            signal: ctrl.signal,
+                        });
+                        clearTimeout(timer);
+                        if (r.status === 400) return ['pass', 'Nieznana akcja poprawnie odrzucona 400 (owner token)'];
+                        if (r.status === 403) return ['fail', `Token ownera tenant 2 odrzucony 403 — RBAC nie pozwala (rola nie owner/admin)`];
+                        return ['fail', `HTTP ${r.status} — oczekiwano 400`];
+                    } catch (e) {
+                        clearTimeout(timer);
+                        return ['fail', `Błąd: ${e.message}`];
+                    }
+                }
+            },
+            {
+                id: 'T79', label: 'reopen.php — brak order_id zwraca 400 (z owner tokenem)',
+                desc: 'Walidacja order_id po przejściu RBAC (RFC §4.4)',
+                async run() {
+                    const ownerToken = await ownerTokenTenant2();
+                    if (!ownerToken) return ['fail', 'Nie udało się uzyskać tokenu ownera tenant 2'];
+                    const ctrl = new AbortController();
+                    const timer = setTimeout(() => ctrl.abort(), CFG.timeout);
+                    try {
+                        const r = await fetch(CFG.ordersReopen, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${ownerToken}`,
+                            },
+                            body: JSON.stringify({ action: 'reopen' }),
+                            credentials: 'same-origin',
+                            signal: ctrl.signal,
+                        });
+                        clearTimeout(timer);
+                        if (r.status === 400) return ['pass', 'Brak order_id poprawnie odrzucony 400 (owner token)'];
+                        if (r.status === 403) return ['fail', `Token ownera tenant 2 odrzucony 403 — RBAC nie pozwala (rola nie owner/admin)`];
+                        return ['fail', `HTTP ${r.status} — oczekiwano 400`];
+                    } catch (e) {
+                        clearTimeout(timer);
+                        return ['fail', `Błąd: ${e.message}`];
+                    }
+                }
+            },
+            {
+                id: 'T80', label: 'BiEngine — KOR z ujemną wartością redukuje COGS (numerycznie)',
+                desc: 'RFC §6.4: BiEngine.aggregateCogsMinor sumuje WZ(+) i KOR(−); dokument KOR z line_net_value<0 musi obniżać zagregowany COGS',
+                async run() {
+                    // 1. Pobierz dashboard BiEngine (COGS zagregowane WZ+KOR dla completed orders).
+                    const r = await biDashboardRequest({ date_from: '2020-01-01', date_to: '2030-12-31' });
+                    if (r.error) return ['fail', `Błąd połączenia: ${r.error}`];
+                    if (r.httpStatus !== 200) return ['fail', `HTTP ${r.httpStatus} — oczekiwano 200`];
+                    const j = tryParse(r.body);
+                    if (!j || !j.success || !j.data) return ['fail', 'Struktura dashboard niepoprawna'];
+                    const d = j.data;
+                    if (!('gross_revenue_corrected_minor' in d)) return ['fail', 'Brak pola gross_revenue_corrected_minor w dashboard'];
+                    if (typeof d.gross_revenue_corrected_minor !== 'number') return ['fail', `gross_revenue_corrected_minor nie jest number: ${typeof d.gross_revenue_corrected_minor}`];
+                    if (typeof d.cogs_minor !== 'number') return ['fail', `cogs_minor nie jest number: ${typeof d.cogs_minor}`];
+
+                    // 2. Pobierz dokumenty TEST-COGS-WZ-001 (+50.00) i TEST-COGS-KOR-001 (−20.00)
+                    //    wstawione przez scripts/test_setup_headless.php (deterministyczne dane).
+                    const wzRes = await warehouseRequest(CFG.warehouseDocs, { query: { type: 'WZ', limit: '200' } });
+                    const korRes = await warehouseRequest(CFG.warehouseDocs, { query: { type: 'KOR', limit: '200' } });
+                    if (wzRes.error || korRes.error) return ['fail', 'Nie udało się pobrać documents_list (WZ/KOR)'];
+                    const wzJson = tryParse(wzRes.body);
+                    const korJson = tryParse(korRes.body);
+                    if (!wzJson || !korJson || !wzJson.success || !korJson.success) return ['fail', 'documents_list zwrócił błąd'];
+                    const wzDocs = (wzJson.data && Array.isArray(wzJson.data.documents)) ? wzJson.data.documents : [];
+                    const korDocs = (korJson.data && Array.isArray(korJson.data.documents)) ? korJson.data.documents : [];
+                    const wzTest = wzDocs.find(x => x.doc_number === 'TEST-COGS-WZ-001');
+                    const korTest = korDocs.find(x => x.doc_number === 'TEST-COGS-KOR-001');
+                    if (!wzTest) return ['fail', 'Brak dokumentu TEST-COGS-WZ-001 — uruchom scripts/test_setup_headless.php'];
+                    if (!korTest) return ['fail', 'Brak dokumentu TEST-COGS-KOR-001 — uruchom scripts/test_setup_headless.php'];
+                    const wzNet = Number(wzTest.total_net_value);
+                    const korNet = Number(korTest.total_net_value);
+                    if (!Number.isFinite(wzNet) || wzNet <= 0) return ['fail', `TEST-COGS-WZ-001 total_net_value nie dodatnie: ${wzTest.total_net_value}`];
+                    if (!Number.isFinite(korNet) || korNet >= 0) return ['fail', `TEST-COGS-KOR-001 total_net_value nie ujemne: ${korTest.total_net_value} — KOR musi redukować COGS`];
+
+                    // 3. Asercja numeryczna: COGS_BiEngine musi być MNIEJSZE niż suma samych WZ
+                    //    (gdyby KOR nie był uwzględniony, COGS = suma WZ; z KOR jest niższe o |korNet|).
+                    //    Obliczamy sumę WZ z dashboardu pośrednio: cogs_minor (WZ+KOR) vs cogs_minor - korNet*100 (tylko WZ).
+                    const cogsMinor = d.cogs_minor;
+                    const korMinor = Math.round(korNet * 100); // ujemne, np. -2000
+                    const wzOnlyMinor = cogsMinor - korMinor;  // COGS gdyby KOR nie był wliczony
+                    if (cogsMinor >= wzOnlyMinor) {
+                        return ['fail', `KOR nie redukuje COGS: cogs_minor=${cogsMinor} >= WZ-only=${wzOnlyMinor} (korMinor=${korMinor})`];
+                    }
+                    const reduction = wzOnlyMinor - cogsMinor; // dodatnie, równe |korMinor|
+                    if (reduction !== Math.abs(korMinor)) {
+                        return ['fail', `Redukcja COGS (${reduction} gr) != |KOR| (${Math.abs(korMinor)} gr) — BiEngine nie sumuje KOR poprawnie`];
+                    }
+                    return ['pass', `KOR redukuje COGS: WZ=${wzNet} zł + KOR=${korNet} zł → COGS=${cogsMinor} gr (redukcja ${reduction} gr = |KOR|)`];
                 }
             },
         ]

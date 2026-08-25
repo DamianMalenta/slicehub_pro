@@ -75,6 +75,10 @@ Spine czytania: [`2026-05-11_STUDIO_RELEASE_INDEX.md`](2026-05-11_STUDIO_RELEASE
 - [`2026-08-24_online_promised_time_scheduled_wiring.md`](2026-08-24_online_promised_time_scheduled_wiring.md) — **Domknięcie L2+L3**: publiczny wrapper `estimate_time` w `api/online/engine.php` (slots filtrowane po opening hours); walidacja scheduled w `guest_checkout` przez silnik; przebudowa UI checkoutu (toggle ASAP/scheduled + selector slotów, delivery + takeaway). 62/62 PASS, deno lint 0.
 - [`2026-08-24_bugfixes_menu_visibility_settle_print.md`](2026-08-24_bugfixes_menu_visibility_settle_print.md) — **Bugfixy**: Studio drzewo Draft→Live (`get_menu_tree` brak `publication_status`); settle auto-transition chain (`fastComplete` new→...→completed); `contentglobalThis`→`contentWindow` (drukuj paragon); tenant discovery sort po menu items; `mealsWhere` is_active; FAB reactivity. + Odzyskanie Faz 1-5 (online checkout UX + POS Pulse countdown + Centrum Kontroli Czasu preview).
 
+### RFC_001 — Historia, Oś Czasu, Bezpieczna Edycja Zamówień
+
+- [`2026-08-25_rfc_001_phases_1_3.md`](2026-08-25_rfc_001_phases_1_3.md) — **Domknięcie luk wdrożeniowych**: testy T63-T80 (18 testów pokrywających history/audit/edit_scope/revert/reopen + BiEngine), weryfikacja migracji 068/069, sesja audytowa (Prawo X). Fazy 1-3 wdrożone w commitach 9c3822e/3b13c0b/9fd5ad4. 78 pass / 0 fail / 2 warn (T78/T79 — brak owner token na tenant 2).
+
 ### SPARK (materiały wniosku — bez zmian runtime)
 
 - [`2026-05-20_spark_prezentacja_ludzka.md`](2026-05-20_spark_prezentacja_ludzka.md) — Prezentacja SPARK: screeny, HTML/PDF, teksty F6S.
