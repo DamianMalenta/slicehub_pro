@@ -11,6 +11,9 @@ Góra: lokal, zalogowany pracownik, połączenie, słuchawka/mikrofon. Centrum: 
 ## A-001-B/A-002-B
 Ekran Wszczepu jasno pokazuje „diagnostyka read-only”. Wymaga uprawnienia administratora integracji, nie ujawnia sekretów. Brak konfiguracji powoduje instrukcję, nie uruchomienie trybu demo. Wyłączenie nie wpływa na POS. Wejście z Huba jest nawigacją administratora, nie automatycznym uwierzytelnieniem ani panelem pracownika. Audio i kompetencje biznesowe są oznaczone jako niewdrożone, bez działających atrap przycisków.
 
+## B-001 — administrator pakietu źródeł (zatwierdzony 2026-09-13)
+Link z panelu diagnostycznego prowadzi do osobnego ekranu metadanych B-001. Nowy klucz administratora pakietu nie jest kluczem diagnostycznym ani sesją pracownika. „Sprawdź udostępnienie” pokazuje rzeczywisty manifest i czas obserwacji z PHP; „Wyczyść i zablokuj” usuwa wynik i unieważnia spóźnione odpowiedzi w UI. Ekran nie zmienia konfiguracji serwera i nie udostępnia kodu administratorowi metadanych. Kod, zgoda i historia są w panelu Inżyniera A. Błędy wyłączenia, auth i integralności nie uruchamiają demo. Przepływ i odbiór: [B-001](slices/B-001.md).
+
 ## Docelowy dialog
 „Dodaj sos czosnkowy do piątki” -> ustalenie jednoznacznego zamówienia i właściwego SKU -> ewentualne pytanie pozycja/modyfikator -> preview skutku -> zgoda wg polityki -> wykonanie -> krótka odpowiedź oparta o wynik. Brak SKU lub niejednoznaczność to pytanie/odmowa, nie fikcyjna zmiana.
 

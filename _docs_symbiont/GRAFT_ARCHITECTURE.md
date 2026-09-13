@@ -9,6 +9,9 @@ POST JSON: protocol, version, request_id, operation. Nieznane pola są odrzucane
 
 Describe: host_id/display_name/environment/adapter_version/capabilities. Diagnose: identity, observed_at i checks bridge=ok, business_access=not_requested. Diagnoza nie oznacza prawidłowej bazy, AST, ERP lub sprzętu.
 
+## B-001 — osobny engineering-read (zatwierdzony 2026-09-13)
+[Kontrakt engineering-read](../core/Symbiont/contracts/engineering-read-v1.json) nie zmienia protocol-v1.json. `EngineeringRead.php` obsługuje odrębne endpointy service i metadata-admin; diagnostyczne credentiale są odrzucane. Zakres to [trzy przypięte źródła](../core/Symbiont/contracts/b001-package.json), nie runtime dostęp do repo. PHP czyta wyłącznie przygotowany pakiet, ponownie weryfikuje bloby i nie wykonuje ich treści. Pakiet poza docrootem, runtime adaptera na jawnej liście stagingu, brak importów A i zmian DB. Trwałość runów, zgody i inspekcja należą do A. Szczegółowy kontrakt, stany i granice izolacji: [B-001](slices/B-001.md).
+
 ## Docelowe moduły
 Host Context dostarcza zminimalizowany słownik i fakty. Capability Registry publikuje tylko zatwierdzone kontrakty. Authorization sprawdza aktora/delegację/tenant/risk. Command Gateway wykonuje usługi domenowe. Inbox/Outbox przechowują skutki, wyniki i zdarzenia. Operator UI oraz Device Client obsługują człowieka.
 

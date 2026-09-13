@@ -1,0 +1,7 @@
+{
+  "package_id": "slicehub-graft-a-baseline",
+  "repo_id": "slicehub",
+  "commit": "42ea1a8783cd0d5717de204bb8b2012773ae2b74",
+  "paths": ["api/symbiont/bridge.php", "core/Symbiont/Bridge.php", "modules/symbiont/index.html"],
+  "git_blobs": ["03e1831e4361badfc3809d65729b7a445ed336a0", "b9cea84b4ccb3b2a16a463ad3a3940e1d3bfda15", "275d3f1254ab2cd73ba584bbe9032564842f7734"]
+}

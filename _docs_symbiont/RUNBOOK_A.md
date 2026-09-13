@@ -33,3 +33,23 @@ Ustaw SYMBIONT_BRIDGE_ENABLED=0 i przeładuj środowisko PHP. Odpowiedź mostu t
 `php tests/symbiont_bridge_test.php` używa wyłącznie własnych wartości testowych i klasy Bridge, bez DB. Lint: php -l na core/Symbiont/Bridge.php, core/Symbiont/http.php, api/symbiont/bridge.php i api/symbiont/admin.php. Kontrolowany test HTTP uruchamia proces PHP z routerem dopuszczającym wyłącznie pliki tego modułu; nigdy całe nieograniczone drzewo hosta. Nawigacja Huba jest testowana przez fixture producenta na rzeczywistych plikach HTML/JS, bez loginu i bazy.
 
 Nie uruchamiaj istniejącego headless runnera wyszukującego tenanty/PIN-y na prawdziwej bazie. Testy mostu nie są testem reguł ERP. Wake word, telefonia i rozliczenia nie są wdrożone.
+
+## B-001 — izolowane udostępnianie pakietu źródeł
+
+Osobny scenariusz [B-001](slices/B-001.md), bez rozszerzenia Bridge v1. Uruchom z własnego interaktywnego terminala launcher w odrębnym repo A:
+
+```powershell
+node "C:\xampp\htdocs\programdocursora\_RPA_AUTOMATION\symbiont-core\scripts\b001-pilot.mjs" --host-root "C:\xampp\htdocs\slicehub"
+```
+
+Opcja --check wykonuje tylko kontrolę kontraktu i zatwierdzonych blobów, bez usług i SQLite. Launcher wymaga trzech NOWYCH, różnych credentiali: panel A, diagnostyka B, metadane B-001 w B. Generuje osobno dwa losowe tokeny usługowe. Nie wpisuj starych sekretów, nie zmieniaj .env, php.ini ani konfiguracji Apache.
+
+Nowe zmienne są ustawiane WYŁĄCZNIE w izolowanym procesie PHP przez launcher: SYMBIONT_ENGINEERING_ENABLED, SYMBIONT_ENGINEERING_SERVICE_TOKEN, SYMBIONT_ENGINEERING_ADMIN_TOKEN, SYMBIONT_ENGINEERING_PACKAGE_FILE. Nie konfiguruj ich w istniejącym Apache w ramach B-001. Bez nich nowe endpointy pozostają DISABLED. Service i metadata-admin są odrębne od starych bridge credentials; metadata-admin nie może pobierać treści kodu.
+
+PHP -n uruchamia skopiowany jawny runtime adaptera, nie żywy checkout. Pakiet JSON z trzech zatwierdzonych blobów jest poza docrootem. open_basedir ogranicza pliki do runtime i pakietu, blokady PHP wyłączają URL fopen, procesy i funkcje sieciowe, sterowniki DB muszą być nieobecne. Kontrola readiness sprawdza także odmowę odczytu własnego znacznika pilota spoza zakresu. To ograniczenie znanego adaptera, nie pełny sandbox OS.
+
+Otwórz adres B/engineering.html wypisany przez launcher, nie adres Apache. Użyj trzeciego klucza. „Sprawdź udostępnienie” ma pokazać trzy zatwierdzone pliki i commit 42ea1a8783cd0d5717de204bb8b2012773ae2b74. Stary/diagnostyczny klucz powinien otrzymać odmowę. „Wyczyść i zablokuj” usuwa wynik; nie wyłącza PHP. Kod i osobna zgoda są w panelu A/inspection po rejestracji tożsamości hosta w A. Historia, linie, pokrycie i odbiór całego przepływu opisane są w runbooku A i specyfikacji B-001.
+
+Ctrl+C zatrzymuje procesy, NIE USUWA pakietu ani SQLite. Restart: to samo polecenie z --data-dir i dokładnym zachowanym katalogiem wypisanym przez launcher. Nowe credentiale/port wymagają ponownej rejestracji w A, historia pozostaje. Katalog jest pod TEMP użytkownika; nie czyść go przed odbiorem. Nie używaj starej procedury kasowania historii Etapu A. Usunięcie źródeł po odbiorze wymaga osobnej zgody.
+
+Weryfikacja: w A `node scripts/test-b001-http.mjs --host-root "C:/xampp/htdocs/slicehub"`, a w B `php tests/symbiont_engineering_test.php "<izolowany katalog>/package/snapshot.json"`. Bez parametru PHP uruchamia tylko testy odmów i jawnie oznacza brak testu rzeczywistych źródeł. Node jest tutaj narzędziem developerskim A, nie zależnością runtime SliceHuba. Nie uruchamiaj runnera ERP, seedów, baz, sprzętu ani kont/PIN-ów.

@@ -1,0 +1,18 @@
+{
+  "protocol": "symbiont.engineering-read",
+  "version": "1.0.0",
+  "stage": "B-001",
+  "operations": ["snapshot.describe", "snapshot.read"],
+  "authentication": "dedicated-bearer-package-read",
+  "compatibility": "exact-version",
+  "request_fields": ["protocol", "version", "request_id", "operation", "params"],
+  "manifest_fields": ["package_id", "repo_id", "commit", "files", "scope", "snapshot_id", "manifest_sha256"],
+  "file_fields": ["path", "bytes", "sha256"],
+  "scope": "approved-files-only; dependencies and semantics not analyzed",
+  "canonical_manifest": "UTF-8 JSON without whitespace: [package_id,repo_id,commit,[[path,bytes,sha256],...]]; files sorted by ASCII path; ASCII identifiers and paths only; SHA-256 lowercase hex; snapshot_id equals manifest_sha256",
+  "encoding": "canonical-base64-original-bytes",
+  "limits": { "request_bytes": 4096, "response_bytes": 262144, "file_bytes": 65536, "package_bytes": 131072, "files": 3, "timeout_ms": 5000, "preview_ttl_ms": 300000 },
+  "error_codes": ["UNAUTHORIZED", "DISABLED", "INVALID_REQUEST", "UNSUPPORTED_VERSION", "NOT_FOUND", "SNAPSHOT_CHANGED", "INTEGRITY_ERROR", "LIMIT_EXCEEDED", "PACKAGE_UNAVAILABLE", "INTERNAL_ERROR"],
+  "business_effects": "none",
+  "redirects": "reject"
+}
