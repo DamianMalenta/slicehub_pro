@@ -1,0 +1,30 @@
+{
+  "protocol": "symbiont.bridge",
+  "version": "1.0.0",
+  "stage": "A",
+  "transport": "http-json",
+  "authentication": "bearer-service-token",
+  "operations": ["describe", "diagnose"],
+  "request": {
+    "required": ["protocol", "version", "request_id", "operation"],
+    "additional_properties": false,
+    "request_id_max_length": 80
+  },
+  "response": {
+    "required": ["protocol", "version", "request_id", "ok"],
+    "success_required": ["data"],
+    "failure_required": ["error"],
+    "error_required": ["code", "message"],
+    "error_codes": ["UNAUTHORIZED", "DISABLED", "UNSUPPORTED_VERSION", "INVALID_REQUEST", "UNSUPPORTED_OPERATION", "INTERNAL_ERROR"]
+  },
+  "identity": {
+    "required": ["host_id", "display_name", "environment", "adapter_version", "capabilities"],
+    "environments": ["development", "test", "staging", "production"],
+    "capabilities": ["bridge.describe", "bridge.diagnose"],
+    "forbidden_fields": ["token", "secret", "password", "credentials"]
+  },
+  "limits": { "request_bytes": 4096, "response_bytes": 16384, "timeout_ms": 5000 },
+  "compatibility": "exact-version",
+  "redirects": "reject",
+  "business_effects": "none"
+}

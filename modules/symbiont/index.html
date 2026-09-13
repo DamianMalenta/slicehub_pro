@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <meta name="referrer" content="no-referrer">
+  <title>SliceHub — Wszczep Symbionta</title>
+  <link rel="stylesheet" href="bridge.css">
+  <script src="../../core/js/sh_api_base.js" defer></script>
+  <script src="bridge.js" defer></script>
+</head>
+<body>
+  <header><div><span class="eyebrow">SLICEHUB / PROJEKT B</span><h1>Wszczep Symbionta</h1></div><span class="badge">A-001-B · Diagnostyka</span></header>
+  <main>
+    <p><a id="hub-back" href="../hub/index.html" hidden>Wróć do Huba SliceHub</a></p>
+    <section class="intro"><h2>Połączenie, nie sterowanie restauracją</h2><p>Ten ekran jest dla administratora integracji. Sprawdza wyłącznie most read-only. Nie czyta bazy, nie zmienia zamówień i nie uruchamia urządzeń.</p></section>
+    <div class="layout">
+      <section class="card"><h2>Dostęp do diagnostyki</h2><form id="bridge-form"><label for="bridge-admin">Klucz administratora Wszczepu</label><input id="bridge-admin" type="password" autocomplete="off" required minlength="32"><button id="bridge-check" type="submit">Sprawdź Wszczep</button></form><p class="muted">To osobny credential od tokenu usługowego Mózgu. Nie jest kontem pracownika. Klucz nie jest zapisywany w przeglądarce.</p><button id="bridge-lock" class="secondary" type="button">Wyczyść wynik i zablokuj</button></section>
+      <section class="card"><span class="eyebrow">POTWIERDZONY STAN</span><h2 id="bridge-state">Nie sprawdzono</h2><p id="bridge-message" role="status" aria-live="polite">Brak obserwacji. Nie zakładamy, że połączenie działa.</p><dl id="bridge-details"></dl><p class="muted">Pozytywna diagnostyka nie potwierdza stanu Mózgu, bazy ERP, audytu AST ani urządzeń.</p></section>
+    </div>
+    <section class="card"><h2>Konfiguracja i wyłączenie</h2><p>Administrator ustawia zmienne środowiskowe opisane w instrukcji <code>_docs_symbiont/RUNBOOK_A.md</code>. Most domyślnie odmawia działania. Aby go wyłączyć, ustaw <code>SYMBIONT_BRIDGE_ENABLED=0</code> i przeładuj środowisko procesu PHP. Ten ekran nie zmienia konfiguracji serwera.</p><p>Przycisk „Odłącz w Mózgu” w panelu A blokuje nowe diagnostyki tego połączenia, ale nie wyłącza procesu PHP. Ręczny SliceHub i historia pozostają nietknięte. Zalogowanie do Huba nie przekazuje klucza ani uprawnień do tego panelu.</p></section>
+    <section class="card future"><h2>Operator głosowy — jeszcze niewdrożony</h2><p>Panel pracownika, push-to-talk, „Maciuś”, telefonia i komendy biznesowe powstają w kolejnych przyrostach. Nie ma tu atrap przycisków sugerujących ich działanie.</p></section>
+  </main>
+  <footer>Wszczep jest częścią SliceHuba. Mózg ma osobne repozytorium i uprawnienia.</footer>
+</body>
+</html>

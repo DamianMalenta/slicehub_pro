@@ -1,5 +1,11 @@
 # AGENTS.md
 
+## Symbiont — odrębny Projekt B (2026-09-11)
+
+Dla zmian Wszczepu zacznij od [_docs_symbiont/START_HERE.md](_docs_symbiont/START_HERE.md), Konstytucji hosta i aktywnego scenariusza. Mózg ma osobne repo `symbiont-core`; nie kopiuj go do SliceHuba. MASTER-PLAN dwóch produktów został zatwierdzony wraz z rozpoczęciem realizacji. Status w `_docs_symbiont/CURRENT_STATE.md` nie zastępuje stanu reszty ERP.
+
+Testy Wszczepu wykonuj w izolacji, bez rzeczywistej bazy, kont/PIN-ów, drukarek i telefonii. Poniższy historyczny runner ERP korzysta z API i auto-discovery — nie uruchamiaj go na żywej bazie w ramach diagnostyki Wszczepu. Lokalny PHP CLI zweryfikowany w tej sesji: 8.2.12; nie zakładaj wersji Cloud na podstawie poniższej sekcji.
+
 ## Cursor Cloud specific instructions
 
 ### Overview

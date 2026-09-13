@@ -1,5 +1,9 @@
 # START TUTAJ — SliceHub Enterprise OS
 
+## Wszczep Symbionta — osobny kanon integracji
+
+Dla pracy nad Wszczepem zacznij od [_docs_symbiont/START_HERE.md](../_docs_symbiont/START_HERE.md). Mózg ma własne repo symbiont-core. Integracja nie zastępuje poniższej Konstytucji i reguł domeny. Stan Wszczepu, instrukcje i testy są w jego kanonie; nie myl diagnostyki read-only z gotowością Operatora biznesowego.
+
 > **Punkt wejścia do dokumentacji.** Czytaj ten plik pierwszy, potem dokumenty wskazane dla Twojego zadania.
 > Ostatnia aktualizacja indeksu sesji: **2026-07-07** (`_docs/sessions/README.md`).
 

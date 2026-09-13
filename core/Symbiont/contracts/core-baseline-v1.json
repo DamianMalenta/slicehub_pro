@@ -1,0 +1,11 @@
+{
+  "producer": "symbiont-core",
+  "version": "1.0.0",
+  "integrity": "git-blob-sha1 (content check, not a signature)",
+  "artifacts": [
+    { "source": "_docs_symbiont/CORE_CONSTITUTION.md", "target": "_docs_symbiont/CORE_CONSTITUTION.md", "hash": "a82af964751bcb26990da2e1a79a8a38e156e494" },
+    { "source": "_docs_symbiont/WORK_PROTOCOL.md", "target": "_docs_symbiont/WORK_PROTOCOL.md", "hash": "bba5adcc36d2991a2fccde24d887d5b8c834c18a" },
+    { "source": "_docs_symbiont/BOOT_PROMPT.md", "target": "_docs_symbiont/BOOT_PROMPT.md", "hash": "96b9dde46893c42f0dc9e15ef5333199053b90a3" },
+    { "source": "contracts/protocol-v1.json", "target": "core/Symbiont/contracts/protocol-v1.json", "hash": "c1cc59d043095cc4390513be93acd666008ea8b0" }
+  ]
+}
