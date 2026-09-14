@@ -10,7 +10,8 @@ Kanon integracji Symbionta, zatwierdzony 2026-09-11. SliceHub pozostaje osobnym 
 5. [UX_OPERATOR.md](UX_OPERATOR.md); dla głosu/telefonii [VOICE_AND_TELEPHONY.md](VOICE_AND_TELEPHONY.md).
 6. [WORK_PROTOCOL.md](WORK_PROTOCOL.md) — przypięty wspólny protokół pracy v1.0.0.
 7. [CURRENT_STATE.md](CURRENT_STATE.md) i [HANDOFF.md](HANDOFF.md).
-8. [A-001-B](slices/A-001-B.md) i [A-002-B](slices/A-002-B.md) — zamknięte scenariusze Wszczepu; kolejny zakres wymaga nowego ID.
+8. [A-001-B](slices/A-001-B.md) i [A-002-B](slices/A-002-B.md) — zamknięte scenariusze Wszczepu.
+9. [B-002 — Capability Registry](slices/B-002.md) — zaimplementowany katalog discovery-only, oczekuje na ręczny odbiór właściciela.
 
 ## Odebrany przyrost Etapu B
 [B-001 — udostępnienie zatwierdzonych źródeł](slices/B-001.md): ACCEPTED_BY_USER, zapis odbioru 2026-09-14 +02:00. Brak aktywnego scenariusza; następny wymaga nowego ID, Definition of Ready i zgody właściciela. Osobny [engineering-read v1](../core/Symbiont/contracts/engineering-read-v1.json) i [polityka trzech plików](../core/Symbiont/contracts/b001-package.json). Bez rozszerzenia Bridge v1 ani praw pracownika. Odbiór odnotowuje CURRENT_STATE.

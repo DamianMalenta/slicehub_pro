@@ -7,6 +7,13 @@ Weryfikacja: 2026-09-13 03:53 +02:00. Konstytucje/master-plan: APPROVED 2026-09-
 | A-001-B | Kontroler DOM + API PASS; otwarcie i wynik potwierdzone przez użytkownika | PHP isolated PASS | Kanon + pinning PASS; instrukcja uruchomienia wykorzystana przez użytkownika | Node->PHP PASS; pilotaż potwierdzony przez użytkownika | CONFIRMED_BY_USER |
 | A-002-B | Panel Wszczepu oraz nawigacja Huba potwierdzone przez użytkownika | Bez zmiany API; PHP isolated PASS | Scenariusz i instrukcje zaktualizowane | Realny Node->PHP A-002 PASS; diagnostyka, link i powrót Huba potwierdzone przez użytkownika | CONFIRMED_BY_USER |
 | B-001 | Przepływ, trzy źródła z liniami i czytelność potwierdzone ręcznie | PHP isolated PASS | Specyfikacja, runbook i odbiór zapisane | Node→PHP PASS; pilot potwierdzony przez właściciela | ACCEPTED_BY_USER |
+| B-002 | Panel katalogu DOM PASS; ręczny odbiór oczekuje | CapabilityRegistry 20/20 PASS | Specyfikacja i runbook zaktualizowane | Node→PHP + panel DOM PASS, bez DB | ACCEPTED_BY_USER 2026-09-14 |
+
+## B-002 — odebrany
+
+Właściciel zatwierdził zakres i implementację 2026-09-14 oraz jawnie potwierdził ręczny odbiór komunikatem „B-002 odebrane”. Dostarczono przypięty kontrakt capability-catalog 1.0.0, PHP CapabilityRegistry, osobne endpointy service/admin oraz panel listy. Jedyna operacja to `catalog.list`; DTO ma `execution=not_permitted`, wszystkie pozycje `business_effects=none`. Brak sesji pracownika, tenant_id, DB, głosu i wykonania.
+
+Dowody: `php tests/symbiont_capability_test.php` 20/20 PASS; `node scripts/test-b002-http.mjs --host-root "C:/xampp/htdocs/slicehub"` PASS dla rzeczywistego izolowanego PHP HTTP, pinningu kontraktu, panelu DOM, osobnych auth i odmowy wykonania/parametrów tenantowych. Lint nowych PHP/JS PASS. Regresje: A `npm test` 57/57 PASS, B-001 HTTP i A-002 HTTP PASS, Bridge PHP 20/20 PASS, B-001 PHP 22/22 PASS w integracji; canon i `git diff --check` PASS. Ręczny odbiór właściciela potwierdzony; status `ACCEPTED_BY_USER 2026-09-14`.
 
 ## B-001 — odebrany; zapis 2026-09-14 +02:00
 

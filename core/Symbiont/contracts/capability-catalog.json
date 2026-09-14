@@ -1,0 +1,49 @@
+{
+  "catalog_id": "slicehub-symbiont-integration",
+  "capabilities": [
+    {
+      "id": "bridge.describe",
+      "version": "1.0.0",
+      "kind": "diagnostic",
+      "status": "available",
+      "summary": "Opisuje publiczną tożsamość i zakres diagnostycznego mostu.",
+      "required_actor_role": "integration-service",
+      "input_schema": "symbiont.bridge/describe@1.0.0",
+      "output_schema": "symbiont.bridge/identity@1.0.0",
+      "business_effects": "none"
+    },
+    {
+      "id": "bridge.diagnose",
+      "version": "1.0.0",
+      "kind": "diagnostic",
+      "status": "available",
+      "summary": "Sprawdza wyłącznie działanie mostu bez dostępu do danych biznesowych.",
+      "required_actor_role": "integration-service",
+      "input_schema": "symbiont.bridge/diagnose@1.0.0",
+      "output_schema": "symbiont.bridge/diagnosis@1.0.0",
+      "business_effects": "none"
+    },
+    {
+      "id": "snapshot.read",
+      "version": "1.0.0",
+      "kind": "engineering-read",
+      "status": "available",
+      "summary": "Odczytuje wyłącznie zatwierdzony, niezmienny pakiet źródeł B-001.",
+      "required_actor_role": "engineering-service",
+      "input_schema": "symbiont.engineering-read/snapshot.read@1.0.0",
+      "output_schema": "symbiont.engineering-read/snapshot@1.0.0",
+      "business_effects": "none"
+    },
+    {
+      "id": "catalog.list",
+      "version": "1.0.0",
+      "kind": "discovery",
+      "status": "available",
+      "summary": "Publikuje ten wersjonowany katalog bez wykonywania odkrytych kompetencji.",
+      "required_actor_role": "capability-reader",
+      "input_schema": "symbiont.capability-catalog/catalog.list@1.0.0",
+      "output_schema": "symbiont.capability-catalog/catalog@1.0.0",
+      "business_effects": "none"
+    }
+  ]
+}

@@ -53,3 +53,11 @@ Otwórz adres B/engineering.html wypisany przez launcher, nie adres Apache. Uży
 Ctrl+C zatrzymuje procesy, NIE USUWA pakietu ani SQLite. Restart: to samo polecenie z --data-dir i dokładnym zachowanym katalogiem wypisanym przez launcher. Nowe credentiale/port wymagają ponownej rejestracji w A, historia pozostaje. Katalog jest pod TEMP użytkownika; nie czyść go przed odbiorem. Nie używaj starej procedury kasowania historii Etapu A. Usunięcie źródeł po odbiorze wymaga osobnej zgody.
 
 Weryfikacja: w A `node scripts/test-b001-http.mjs --host-root "C:/xampp/htdocs/slicehub"`, a w B `php tests/symbiont_engineering_test.php "<izolowany katalog>/package/snapshot.json"`. Bez parametru PHP uruchamia tylko testy odmów i jawnie oznacza brak testu rzeczywistych źródeł. Node jest tutaj narzędziem developerskim A, nie zależnością runtime SliceHuba. Nie uruchamiaj runnera ERP, seedów, baz, sprzętu ani kont/PIN-ów.
+
+## B-002 — katalog kompetencji
+
+B-002 używa tego samego ograniczonego pilota, rozszerzonego wyłącznie o jawne pliki Capability Registry. Nowe, różne zmienne procesu to `SYMBIONT_CAPABILITY_CATALOG_ENABLED=1`, `SYMBIONT_CAPABILITY_CATALOG_SERVICE_TOKEN` i `SYMBIONT_CAPABILITY_CATALOG_ADMIN_TOKEN`. Nie ustawiaj ich w Apache do ręcznego odbioru lokalnego.
+
+Uruchom `node "C:\xampp\htdocs\programdocursora\_RPA_AUTOMATION\symbiont-core\scripts\b001-pilot.mjs" --host-root "C:\xampp\htdocs\slicehub"`. Launcher poprosi również o osobny klucz administratora katalogu B-002 i wypisze adres panelu `modules/symbiont/capabilities.html`. Użyj tego klucza do pobrania listy, następnie sprawdź odmowę kluczem diagnostycznym oraz „Wyczyść i zablokuj”. Żadna pozycja nie może zostać wykonana; panel ma pokazać „Wykonywanie: Niedozwolone”.
+
+Automatycznie: w A `node scripts/test-b002-http.mjs --host-root "C:/xampp/htdocs/slicehub"`; w B `php tests/symbiont_capability_test.php`. Pilot nie udostępnia DB, tenant_config ani tras ERP. Nie uruchamiaj runnera ERP, bazy, audio ani urządzeń.

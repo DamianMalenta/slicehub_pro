@@ -1,6 +1,10 @@
 # Handoff Wszczepu B
 
-Aktywny scenariusz: BRAK. [B-001](slices/B-001.md) zamknięty, ACCEPTED_BY_USER; zapis odbioru 2026-09-14 00:44 +02:00. Konstytucja A/B 1.0.0. Dowody: [CURRENT_STATE](CURRENT_STATE.md).
+Aktywny scenariusz: [B-002](slices/B-002.md), ACCEPTED_BY_USER 2026-09-14. [B-001](slices/B-001.md) pozostaje zamknięty i ACCEPTED_BY_USER. Konstytucja A/B 1.0.0. Dowody: [CURRENT_STATE](CURRENT_STATE.md).
+
+## B-002 — odebrany
+
+Właściciel jawnie potwierdził ręczny odbiór komunikatem „B-002 odebrane”. Panel katalogu B przeszedł test ręczny według runbooka hosta. Automatyczny dowód A→B obejmuje izolowany PHP, kontrakt i kontroler DOM. Nie wykonywano pozycji katalogu; nie dodawano domeny hosta do A.
 
 ## Odbiór i utrwalenie
 

@@ -1,0 +1,16 @@
+{
+  "protocol": "symbiont.capability-catalog",
+  "version": "1.0.0",
+  "stage": "B-002",
+  "operations": ["catalog.list"],
+  "authentication": "dedicated-bearer-capability-read",
+  "compatibility": "exact-version",
+  "request_fields": ["protocol", "version", "request_id", "operation"],
+  "capability_fields": ["id", "version", "kind", "status", "summary", "required_actor_role", "input_schema", "output_schema", "business_effects"],
+  "kinds": ["diagnostic", "engineering-read", "discovery"],
+  "statuses": ["available"],
+  "limits": { "request_bytes": 4096, "response_bytes": 32768, "capabilities": 20, "timeout_ms": 5000 },
+  "error_codes": ["UNAUTHORIZED", "DISABLED", "INVALID_REQUEST", "UNSUPPORTED_VERSION", "UNSUPPORTED_OPERATION", "EMPTY_CATALOG", "INTERNAL_ERROR"],
+  "business_effects": "none",
+  "redirects": "reject"
+}

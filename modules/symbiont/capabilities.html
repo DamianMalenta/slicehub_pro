@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <meta name="referrer" content="no-referrer">
+  <title>Wszczep — katalog kompetencji B-002</title>
+  <link rel="stylesheet" href="bridge.css">
+  <script src="../../core/js/sh_api_base.js" defer></script>
+  <script src="capabilities.js" defer></script>
+</head>
+<body>
+  <header><h1>Katalog kompetencji Wszczepu</h1><span class="badge">B-002 · tylko odkrywanie</span></header>
+  <main>
+    <p><a href="index.html">Wróć do diagnostyki Wszczepu</a></p>
+    <section class="card"><h2>Sprawdź zatwierdzony katalog</h2><p>Ten ekran wyłącznie listuje wersjonowane kompetencje integracyjne. Nie wykonuje ich, nie otwiera bazy i nie nadaje praw pracownika.</p>
+      <form id="capability-form"><label for="capability-key">Klucz administratora katalogu B-002 (hasło z pilota: „Nowy klucz katalogu B-002 w B”)</label><input id="capability-key" type="password" required minlength="32" maxlength="256" autocomplete="off"><button id="capability-check">Pobierz katalog</button></form>
+      <button id="capability-lock" class="secondary" type="button">Wyczyść i zablokuj</button>
+      <p id="capability-message" role="status" aria-live="polite">Nie sprawdzono. Brak trybu demo.</p>
+    </section>
+    <section class="card"><h2 id="capability-title">Brak potwierdzonej listy</h2><dl id="capability-meta"></dl><div id="capability-list"></div><p class="muted">Obecność na liście nie nadaje uprawnień i nie oznacza gotowości produkcyjnej. Każde wywołanie nadal wymaga własnego kontraktu i autoryzacji hosta.</p></section>
+  </main>
+</body>
+</html>
