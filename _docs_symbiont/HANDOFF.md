@@ -1,6 +1,6 @@
 # Handoff Wszczepu B
 
-Aktywny scenariusz: [B-002](slices/B-002.md), ACCEPTED_BY_USER 2026-09-14. [B-001](slices/B-001.md) pozostaje zamknięty i ACCEPTED_BY_USER. Konstytucja A/B 1.0.0. Dowody: [CURRENT_STATE](CURRENT_STATE.md).
+Aktywny scenariusz: [B-003](slices/B-003.md), IN_PROGRESS. [B-002](slices/B-002.md) oraz [B-001](slices/B-001.md) pozostają zamknięte i ACCEPTED_BY_USER. Konstytucja A/B 1.0.0. Dowody: [CURRENT_STATE](CURRENT_STATE.md).
 
 ## B-002 — odebrany
 

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Symbiont — sesja operatora</title>
+  <link rel="stylesheet" href="/modules/symbiont/bridge.css">
+  <script src="/core/js/sh_api_base.js" defer></script>
+  <script src="/modules/symbiont/session.js" defer></script>
+</head>
+<body>
+  <header><h1>Sesja operatora</h1><span class="badge">B-003 · tylko tożsamość</span></header>
+  <main>
+    <p><a href="/modules/symbiont/capabilities.html">B-002 · katalog kompetencji</a></p>
+    <section class="notice"><h2>Logowanie operatora, nie kompetencja</h2><p>Panel wydaje tylko token sesji. Nie wykonuje kompetencji, nie otwiera POS, nie drukuje. Sesja jest krótko ważna i jednorazowo unieważniana.</p></section>
+    <section id="session-login" class="card">
+      <h2>Logowanie</h2>
+      <form id="session-form">
+        <label for="tenant-id">Tenant</label>
+        <input id="tenant-id" type="number" min="1" max="9999" value="1" required>
+        <label for="actor-id">Identyfikator operatora</label>
+        <input id="actor-id" type="text" required minlength="1" maxlength="80" autocomplete="off">
+        <label for="pin-code">PIN</label>
+        <input id="pin-code" type="password" required minlength="4" maxlength="8" inputmode="numeric" pattern="[0-9]{4,8}" autocomplete="off">
+        <label for="role">Rola</label>
+        <select id="role" required>
+          <option value="operator">operator</option>
+          <option value="manager">manager</option>
+          <option value="cook">cook</option>
+          <option value="driver">driver</option>
+          <option value="admin">admin</option>
+        </select>
+        <button type="submit">Zaloguj</button>
+      </form>
+      <p id="session-message" role="status" aria-live="polite">Wprowadź dane operatora.</p>
+    </section>
+    <section id="session-view" class="card" hidden>
+      <h2>Aktywna sesja</h2>
+      <dl>
+        <dt>Tenant</dt><dd id="view-tenant"></dd>
+        <dt>Operator</dt><dd id="view-actor"></dd>
+        <dt>Rola</dt><dd id="view-role"></dd>
+        <dt>Ważna do</dt><dd id="view-expires"></dd>
+      </dl>
+      <div class="row">
+        <button id="session-refresh">Sprawdź stan</button>
+        <button id="session-logout" class="secondary">Wyloguj</button>
+      </div>
+      <p id="view-message" role="status" aria-live="polite">Sesja aktywna.</p>
+    </section>
+  </main>
+</body>
+</html>

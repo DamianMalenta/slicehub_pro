@@ -1,0 +1,17 @@
+{
+  "protocol": "symbiont.operator-session",
+  "version": "1.0.0",
+  "stage": "B-003",
+  "compatibility": "exact-version",
+  "authentication": "dedicated-bearer-session-service",
+  "operations": ["session.create", "session.verify", "session.end"],
+  "create_fields": ["protocol", "version", "request_id", "operation", "tenant_id", "actor_id", "pin_code", "role"],
+  "verify_fields": ["protocol", "version", "request_id", "operation", "session_token"],
+  "end_fields": ["protocol", "version", "request_id", "operation", "session_token"],
+  "session_fields": ["session_token", "tenant_id", "actor_id", "role", "expires_at"],
+  "roles": ["operator", "manager", "cook", "driver", "admin"],
+  "limits": { "request_bytes": 4096, "response_bytes": 4096, "session_ttl_seconds": 300, "pin_min_length": 4, "pin_max_length": 8, "timeout_ms": 5000 },
+  "error_codes": ["UNAUTHORIZED", "DISABLED", "INVALID_REQUEST", "UNSUPPORTED_VERSION", "UNSUPPORTED_OPERATION", "INVALID_CREDENTIALS", "INVALID_TENANT", "INVALID_ROLE", "SESSION_EXPIRED", "SESSION_REVOKED", "INTERNAL_ERROR"],
+  "business_effects": "none",
+  "redirects": "reject"
+}
