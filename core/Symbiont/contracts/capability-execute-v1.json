@@ -1,0 +1,30 @@
+{
+  "protocol": "symbiont.capability-execute",
+  "version": "1.0.0",
+  "business_effects": "none",
+  "operations": {
+    "capability.execute": {
+      "description": "Execute a permitted capability under an operator session.",
+      "input": {
+        "protocol": { "type": "string", "exact": "symbiont.capability-execute" },
+        "version": { "type": "string", "exact": "1.0.0" },
+        "request_id": { "type": "string", "format": "uuid" },
+        "operation": { "type": "string", "exact": "capability.execute" },
+        "capability_id": { "type": "string", "pattern": "^[a-z0-9.-]+$", "maxLength": 128 },
+        "session_token": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "tenant_id": { "type": "integer", "minimum": 1 },
+        "parameters": { "type": "object", "optional": true }
+      },
+      "output": {
+        "ok": { "type": "boolean" },
+        "request_id": { "type": "string" },
+        "data": {
+          "capability_id": { "type": "string" },
+          "business_effects": { "type": "string", "exact": "read" },
+          "result": { "type": "object" }
+        }
+      },
+      "business_effects": "none"
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "protocol": "symbiont.business-catalog",
+  "version": "1.0.0",
+  "business_effects": "none",
+  "operations": {
+    "catalog.list": {
+      "description": "Read-only list of permitted business capabilities.",
+      "input": {
+        "protocol": { "type": "string", "exact": "symbiont.business-catalog" },
+        "version": { "type": "string", "exact": "1.0.0" },
+        "request_id": { "type": "string", "format": "uuid" },
+        "operation": { "type": "string", "exact": "catalog.list" }
+      },
+      "output": {
+        "ok": { "type": "boolean" },
+        "request_id": { "type": "string" },
+        "data": {
+          "capabilities": { "type": "array" }
+        }
+      },
+      "business_effects": "none"
+    }
+  },
+  "capabilities": {
+    "orders.open.query": {
+      "capability_id": "orders.open.query",
+      "description": "List open orders for a tenant.",
+      "required_role": "operator",
+      "execution": "permitted",
+      "business_effects": "read"
+    }
+  }
+}
