@@ -9,7 +9,7 @@ Weryfikacja: 2026-09-13 03:53 +02:00. Konstytucje/master-plan: APPROVED 2026-09-
 | B-001 | Przepływ, trzy źródła z liniami i czytelność potwierdzone ręcznie | PHP isolated PASS | Specyfikacja, runbook i odbiór zapisane | Node→PHP PASS; pilot potwierdzony przez właściciela | ACCEPTED_BY_USER |
 | B-002 | Panel katalogu DOM PASS; ręczny odbiór oczekuje | CapabilityRegistry 20/20 PASS | Specyfikacja i runbook zaktualizowane | Node→PHP + panel DOM PASS, bez DB | ACCEPTED_BY_USER 2026-09-14 |
 || B-003 | Panel sesji operatora PASS; ręczny odbiór potwierdzony | SessionAuthority 15/15 PASS | Specyfikacja B-003 zapisana | Node→PHP + operator login/verify/end PASS, bez DB | ACCEPTED_BY_USER 2026-09-14 |
-|| B-004 | orders.open.query PASS; ręczny odbiór oczekuje | ExecutionGateway 10/10 PASS | Specyfikacja B-004 zapisana | Node→PHP + orders.open.query PASS, bez DB | READY_FOR_USER_TEST |
+|| B-004 | orders.open.query PASS; ręczny odbiór potwierdzony | ExecutionGateway 10/10 PASS | Specyfikacja B-004 zapisana | Node→PHP + orders.open.query PASS, bez DB | ACCEPTED_BY_USER 2026-09-15 |
 
 ## B-002 — odebrany
 
@@ -17,11 +17,11 @@ Właściciel zatwierdził zakres i implementację 2026-09-14 oraz jawnie potwier
 
 Dowody: `php tests/symbiont_capability_test.php` 20/20 PASS; `node scripts/test-b002-http.mjs --host-root "C:/xampp/htdocs/slicehub"` PASS dla rzeczywistego izolowanego PHP HTTP, pinningu kontraktu, panelu DOM, osobnych auth i odmowy wykonania/parametrów tenantowych. Lint nowych PHP/JS PASS. Regresje: A `npm test` 57/57 PASS, B-001 HTTP i A-002 HTTP PASS, Bridge PHP 20/20 PASS, B-001 PHP 22/22 PASS w integracji; canon i `git diff --check` PASS. Ręczny odbiór właściciela potwierdzony; status `ACCEPTED_BY_USER 2026-09-14`.
 
-## B-004 — gotowy do odbioru
+## B-004 — odebrany
 
-B wykonuje `capability.execute` dla `orders.open.query` z `business_effects=read`. Wymaga ważnej sesji operatora, roli `operator`, zgodności tenantów i obecności w katalogu biznesowym. Brak kompetencji modyfikujących, DB, głosu i telefonii.
+Właściciel zatwierdził scenariusz i implementację 2026-09-15 oraz jawnie potwierdził ręczny odbiór komunikatem „POTWIERDZAM ODBIÓR B-004". B wykonuje `capability.execute` dla `orders.open.query` z `business_effects=read`. Wymaga ważnej sesji operatora, roli `operator`, zgodności tenantów i obecności w katalogu biznesowym. Brak kompetencji modyfikujących, DB, głosu i telefonii.
 
-Dowody: `php tests/symbiont_execute_test.php` 10/10 PASS; `node scripts/test-b004-http.mjs --host-root "C:/xampp/htdocs/slicehub"` PASS dla rzeczywistego izolowanego PHP HTTP, pinningu kontraktów, sesji, wykonania i odmów. `npm test` 60/60 PASS; `npm run check:canon` PASS; lint nowych PHP/JS PASS. Ręczny odbiór właściciela oczekuje; status `READY_FOR_USER_TEST`.
+Dowody: `php tests/symbiont_execute_test.php` 10/10 PASS; `node scripts/test-b004-http.mjs --host-root "C:/xampp/htdocs/slicehub"` PASS dla rzeczywistego izolowanego PHP HTTP, pinningu kontraktów, sesji, wykonania i odmów. `npm test` 60/60 PASS; `npm run check:canon` PASS; lint nowych PHP/JS PASS. Ręczny odbiór właściciela potwierdzony; status `ACCEPTED_BY_USER 2026-09-15`.
 
 ## B-003 — odebrany
 
